@@ -112,6 +112,14 @@ try {
     Write-Host "Configuring the project and installing dependencies..."
     & cmake.exe --preset windows-vcpkg
     if ($LASTEXITCODE -ne 0) {
+        $manifestLog = Join-Path $repositoryRoot `
+            "build\vcpkg-windows\vcpkg-manifest-install.log"
+        if (Test-Path -LiteralPath $manifestLog) {
+            Write-Host ""
+            Write-Host "Last vcpkg messages:" -ForegroundColor Yellow
+            Get-Content -LiteralPath $manifestLog -Tail 50 |
+                ForEach-Object { Write-Host $_ }
+        }
         throw "CMake configuration failed with exit code $LASTEXITCODE."
     }
 

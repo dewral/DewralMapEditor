@@ -13,8 +13,7 @@
         "gui",
         "network",
         "opengl",
-        "png",
-        "windeployqt"
+        "png"
       ]
     },
     "qtdeclarative",

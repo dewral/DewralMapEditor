@@ -182,8 +182,8 @@ resolution and installs:
 - `qtdeclarative`
 - `qtsvg`
 
-The `qtbase` feature set is limited to the GUI, network, OpenGL, PNG and
-deployment components used by DME. The pinned port set provides Qt 6.10.2.
+The `qtbase` feature set is limited to the GUI, network, OpenGL, and PNG
+components used by DME. The pinned port set provides Qt 6.10.2.
 
 The official Windows preset uses the release-only `x64-windows-release`
 triplet to avoid compiling and storing an unused Debug copy of Qt. It targets

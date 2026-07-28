@@ -21,6 +21,12 @@ foreach(release_document IN ITEMS LICENSE NOTICE README.md)
     file(COPY "${release_document_path}" DESTINATION "${package_directory}")
 endforeach()
 
+set(screenshot_directory "${SOURCE_ROOT}/docs/screenshots")
+if(IS_DIRECTORY "${screenshot_directory}")
+    file(MAKE_DIRECTORY "${package_directory}/docs")
+    file(COPY "${screenshot_directory}" DESTINATION "${package_directory}/docs")
+endif()
+
 set(package_data_directory "${package_directory}/data")
 if(IS_DIRECTORY "${package_data_directory}")
     file(GLOB packaged_data_entries

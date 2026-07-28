@@ -48,7 +48,7 @@ Create and organize custom brushes directly in the editor.
 The interface can be changed at any time in the theme settings. Choose the
 modern GitHub-inspired layout or the textured, Tibia-inspired Classic UI.
 
-![Dewral Map Editor using the Tibia-inspired Classic UI](docs/screenshots/classic-ui.png)
+![Dewral Map Editor using the Tibia-inspired Classic UI](docs/screenshots/classic-interface.png)
 
 ## Download and run
 

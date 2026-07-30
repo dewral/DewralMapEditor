@@ -31,8 +31,7 @@ void MinimapView::setSource(MapView *s)
 void MinimapView::maybeRepaint()
 {
     if (!m_source) return;
-    // Bitmapa minimapy (wersja rosnie przy edycji kafla / rebuildzie) albo widok
-    // (pan/zoom/rozmiar -> ramka viewportu) - tylko te zmiany widac na minimapie.
+    // Track bitmap and viewport changes that are visible on the minimap.
     // Czysty hover myszy nie zmienia zadnej z tych wartosci -> zero repaintow.
     const quint32 ver = m_source->minimapVersion();
     const double ox = m_source->glOriginX(), oy = m_source->glOriginY();

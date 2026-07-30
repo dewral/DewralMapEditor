@@ -42,6 +42,8 @@ Item {
                 { label: "Items", symbol: "\u25a3", kind: "Item Palette" },
                 { label: "Terrain", symbol: "\u25b3", kind: "Terrain Palette" },
                 { label: "Doodads", symbol: "\u25a4", kind: "Doodad Palette" },
+                { label: "Collections", symbol: "\u25a6", kind: "Collection Palette" },
+                { label: "Doors", symbol: "\u25af", kind: "Door Palette" },
                 { label: "Creatures", symbol: "\u2663", kind: "Creature Palette" },
                 { label: "Houses", symbol: "\u2302", kind: "House Palette" }
             ]

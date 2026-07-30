@@ -121,7 +121,10 @@ public:
     Q_INVOKABLE QString groupNameForServerId(int serverId) const;
 
     Q_INVOKABLE bool isTeleportItem(int serverId) const;
+    bool blocksPathForServerId(int serverId) const;
+    Q_INVOKABLE int rotateToForServerId(int serverId) const;
     Q_INVOKABLE QVariantMap detailsAt(int row) const;
+    Q_INVOKABLE QVariantMap findItems(const QVariantMap &query) const;
 
 signals:
     void itemCountChanged();

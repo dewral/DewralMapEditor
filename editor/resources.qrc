@@ -18,8 +18,20 @@
         <file alias="qml/themes/github/GithubDocumentTabs.qml">qml/themes/github/GithubDocumentTabs.qml</file>
         <file alias="qml/themes/github/GithubActivityRail.qml">qml/themes/github/GithubActivityRail.qml</file>
         <file alias="qml/components/MapWorkspace.qml">qml/components/MapWorkspace.qml</file>
+        <file alias="qml/components/MapOverlay.qml">qml/components/MapOverlay.qml</file>
         <file alias="qml/components/MainMenuBar.qml">qml/components/MainMenuBar.qml</file>
+        <file alias="qml/components/WindowResizeHandles.qml">qml/components/WindowResizeHandles.qml</file>
         <file alias="qml/dialogs/TownsDialog.qml">qml/dialogs/TownsDialog.qml</file>
+        <file alias="qml/dialogs/BrowseFieldDialog.qml">qml/dialogs/BrowseFieldDialog.qml</file>
+        <file alias="qml/dialogs/SearchResultsDialog.qml">qml/dialogs/SearchResultsDialog.qml</file>
+        <file alias="qml/dialogs/FindItemDialog.qml">qml/dialogs/FindItemDialog.qml</file>
+        <file alias="qml/dialogs/ItemPickerDialog.qml">qml/dialogs/ItemPickerDialog.qml</file>
+        <file alias="qml/dialogs/ImportMapDialog.qml">qml/dialogs/ImportMapDialog.qml</file>
+        <file alias="qml/dialogs/ContainerDialog.qml">qml/dialogs/ContainerDialog.qml</file>
+        <file alias="qml/dialogs/CleanupDialog.qml">qml/dialogs/CleanupDialog.qml</file>
+        <file alias="qml/dialogs/WaypointsDialog.qml">qml/dialogs/WaypointsDialog.qml</file>
+        <file alias="qml/dialogs/CreatureManagerDialog.qml">qml/dialogs/CreatureManagerDialog.qml</file>
+        <file alias="qml/dialogs/ExportMinimapDialog.qml">qml/dialogs/ExportMinimapDialog.qml</file>
         <file alias="qml/dialogs/GoToPositionDialog.qml">qml/dialogs/GoToPositionDialog.qml</file>
         <file alias="qml/dialogs/MapStatsDialog.qml">qml/dialogs/MapStatsDialog.qml</file>
         <file alias="qml/dialogs/MapPropertiesDialog.qml">qml/dialogs/MapPropertiesDialog.qml</file>
@@ -181,6 +193,8 @@
         <file alias="ui/github/search.svg">ui/github/search.svg</file>
         <file alias="ui/github/layers.svg">ui/github/layers.svg</file>
         <file alias="ui/github/target.svg">ui/github/target.svg</file>
+        <file alias="ui/github/minimap.svg">ui/github/minimap.svg</file>
+        <file alias="ui/github/waypoints.svg">ui/github/waypoints.svg</file>
         <file alias="ui/github/app-icon.png">ui/github/app-icon.png</file>
     </qresource>
 </RCC>

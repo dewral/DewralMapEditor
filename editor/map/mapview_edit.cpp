@@ -12,11 +12,161 @@
 #include <QTimer>
 #include <QGuiApplication>
 #include <QDebug>
+#include <QDir>
+#include <QFileInfo>
 #include <QSet>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <functional>
+#include <limits>
 #include <vector>
+
+QVariantMap MapView::exportMinimap(const QString &path, const QString &mode,
+                                   int specificFloor)
+{
+    QVariantMap result;
+    result.insert(QStringLiteral("success"), false);
+    result.insert(QStringLiteral("files"), QStringList());
+
+    if (!m_otbm || !m_otb || !m_dat || !m_otbm->isLoaded()) {
+        result.insert(QStringLiteral("error"), QStringLiteral("No map or client data is loaded."));
+        return result;
+    }
+
+    const QFileInfo requested(path);
+    if (path.trimmed().isEmpty() || requested.fileName().isEmpty()) {
+        result.insert(QStringLiteral("error"), QStringLiteral("Choose an output file."));
+        return result;
+    }
+
+    const QString normalizedMode = mode.trimmed().toLower();
+    QSet<int> floors;
+    bool selectionOnly = false;
+    bool addFloorSuffix = false;
+
+    if (normalizedMode == QLatin1String("all")) {
+        for (int z = 0; z <= 15; ++z) floors.insert(z);
+        addFloorSuffix = true;
+    } else if (normalizedMode == QLatin1String("ground")) {
+        floors.insert(7);
+    } else if (normalizedMode == QLatin1String("current")) {
+        floors.insert(m_floor);
+    } else if (normalizedMode == QLatin1String("specific")) {
+        floors.insert(std::clamp(specificFloor, 0, 15));
+    } else if (normalizedMode == QLatin1String("selection")) {
+        if (m_selected.isEmpty()) {
+            result.insert(QStringLiteral("error"), QStringLiteral("The selection is empty."));
+            return result;
+        }
+        selectionOnly = true;
+        for (quint64 key : m_selected) floors.insert(selZ(key));
+        addFloorSuffix = floors.size() > 1;
+    } else {
+        result.insert(QStringLiteral("error"), QStringLiteral("Unknown export mode."));
+        return result;
+    }
+
+    struct ExportTile {
+        const OtbmTile *tile = nullptr;
+    };
+    QHash<int, QVector<ExportTile>> floorTiles;
+    int minX = std::numeric_limits<int>::max();
+    int minY = std::numeric_limits<int>::max();
+    int maxX = std::numeric_limits<int>::min();
+    int maxY = std::numeric_limits<int>::min();
+
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    for (const OtbmTile &tile : m_otbm->tiles()) {
+        if (!floors.contains(tile.z)) continue;
+        if (selectionOnly && !m_selected.contains(selKey(tile.x, tile.y, tile.z)))
+            continue;
+
+        floorTiles[tile.z].append({&tile});
+        minX = std::min<int>(minX, tile.x);
+        minY = std::min<int>(minY, tile.y);
+        maxX = std::max<int>(maxX, tile.x);
+        maxY = std::max<int>(maxY, tile.y);
+    }
+
+    if (minX > maxX || minY > maxY) {
+        result.insert(QStringLiteral("error"),
+                      selectionOnly
+                          ? QStringLiteral("The selected area contains no map tiles.")
+                          : QStringLiteral("The selected floor contains no map tiles."));
+        return result;
+    }
+
+    const qint64 width = static_cast<qint64>(maxX) - minX + 1;
+    const qint64 height = static_cast<qint64>(maxY) - minY + 1;
+    constexpr qint64 kMaxPixels = 64ll * 1024ll * 1024ll;
+    if (width > 32768 || height > 32768 || width * height > kMaxPixels) {
+        result.insert(
+            QStringLiteral("error"),
+            QStringLiteral("The minimap area is too large (%1 x %2 pixels). "
+                           "Select a smaller area before exporting.")
+                .arg(width)
+                .arg(height));
+        return result;
+    }
+
+    QString directory = requested.absolutePath();
+    QString baseName = requested.completeBaseName();
+    if (baseName.isEmpty()) baseName = QStringLiteral("minimap");
+    if (!QDir(directory).exists()) {
+        result.insert(QStringLiteral("error"),
+                      QStringLiteral("The output folder does not exist."));
+        return result;
+    }
+
+    QVector<QRgb> palette(256);
+    for (int i = 0; i < palette.size(); ++i)
+        palette[i] = MapMinimapService::paletteColor(i);
+
+    QList<int> orderedFloors = floorTiles.keys();
+    std::sort(orderedFloors.begin(), orderedFloors.end());
+    QStringList writtenFiles;
+    for (int z : orderedFloors) {
+        QImage image(static_cast<int>(width), static_cast<int>(height),
+                     QImage::Format_Indexed8);
+        if (image.isNull()) {
+            result.insert(QStringLiteral("error"),
+                          QStringLiteral("Not enough memory to create the minimap image."));
+            return result;
+        }
+        image.setColorTable(palette);
+        image.fill(0);
+
+        for (const ExportTile &entry : floorTiles.value(z)) {
+            const OtbmTile *tile = entry.tile;
+            const int color =
+                MapMinimapService::colorIndexForTile(tile, m_otb, m_dat);
+            if (color <= 0 || color >= 256) continue;
+            image.scanLine(tile->y - minY)[tile->x - minX] =
+                static_cast<uchar>(color);
+        }
+
+        const QString fileName =
+            addFloorSuffix
+                ? QStringLiteral("%1_%2.png").arg(baseName).arg(z)
+                : QStringLiteral("%1.png").arg(baseName);
+        const QString outputPath = QDir(directory).filePath(fileName);
+        if (!image.save(outputPath, "PNG")) {
+            result.insert(QStringLiteral("error"),
+                          QStringLiteral("Could not write %1.").arg(outputPath));
+            result.insert(QStringLiteral("files"), writtenFiles);
+            return result;
+        }
+        writtenFiles.append(QDir::toNativeSeparators(outputPath));
+    }
+
+    result.insert(QStringLiteral("success"), true);
+    result.insert(QStringLiteral("files"), writtenFiles);
+    result.insert(QStringLiteral("count"), writtenFiles.size());
+    result.insert(QStringLiteral("width"), width);
+    result.insert(QStringLiteral("height"), height);
+    return result;
+}
 
 void MapView::undo()
 {
@@ -48,6 +198,11 @@ void MapView::redo()
 
 void MapView::refreshUndoRedoTilesLocked()
 {
+    if (m_otbm->lastUndoChangedTileStructure()) {
+        m_pendingChunkRecompute.clear();
+        rebuildFloorIndex();
+        return;
+    }
 
     for (const OtbmReader::EditPos &p : m_otbm->lastAffected())
         onTileEdited(p.x, p.y, p.z);
@@ -227,6 +382,8 @@ void MapView::eraseAt(int cx, int cy)
     m_bulkEdit = true;
 
     QSet<QString> touchedWalls;
+    QSet<QString> touchedCarpets;
+    QSet<QString> touchedTables;
     bool touchedGround = false;
     for (const auto &p : footprint) {
 
@@ -244,6 +401,10 @@ void MapView::eraseAt(int cx, int cy)
         if (m_brushStore) {
             const QString wn = m_brushStore->wallBrushForServerId(top);
             if (!wn.isEmpty()) touchedWalls.insert(wn);
+            const QString cn = m_brushStore->carpetBrushForServerId(top);
+            if (!cn.isEmpty()) touchedCarpets.insert(cn);
+            const QString tn = m_brushStore->tableBrushForServerId(top);
+            if (!tn.isEmpty()) touchedTables.insert(tn);
         }
         if (itemCategory(top) == 0) touchedGround = true;
         if (m_otbm->removeTopItem(p.first, p.second, m_floor))
@@ -262,6 +423,14 @@ void MapView::eraseAt(int cx, int cy)
     for (const QString &wn : touchedWalls)
         for (quint64 a : around)
             recomputeWallAt(static_cast<int>(a >> 32), static_cast<int>(a & 0xffffffffu), wn);
+    for (const QString &cn : touchedCarpets)
+        for (quint64 a : around)
+            recomputeCarpetAt(static_cast<int>(a >> 32),
+                              static_cast<int>(a & 0xffffffffu), cn);
+    for (const QString &tn : touchedTables)
+        for (quint64 a : around)
+            recomputeTableAt(static_cast<int>(a >> 32),
+                             static_cast<int>(a & 0xffffffffu), tn);
 
     m_placeEffect = savedFx;
     m_bulkEdit = savedBulk;
@@ -307,6 +476,21 @@ void MapView::paintFootprint(int x, int y)
 
     if (!m_activeDoodadBrush.isEmpty() && m_brushStore && m_brushStore->hasDoodadData()) {
         paintDoodadBrushAt(x, y);
+        return;
+    }
+
+    if (!m_activeCarpetBrush.isEmpty() && m_brushStore) {
+        paintCarpetBrushAt(x, y);
+        return;
+    }
+
+    if (!m_activeTableBrush.isEmpty() && m_brushStore) {
+        paintTableBrushAt(x, y);
+        return;
+    }
+
+    if (m_activeDoorBrushId > 0 && m_brushStore) {
+        paintDoorBrushAt(x, y);
         return;
     }
 
@@ -497,7 +681,7 @@ bool MapView::brushCanDrag() const
     if (!m_creatureBrush.isEmpty() || m_spawnBrush) return false;
 
     if (m_houseBrush > 0) return !m_houseExitMode;
-    if (!m_activeDoodadBrush.isEmpty()) return false;
+    if (!m_activeDoodadBrush.isEmpty() || m_activeDoorBrushId > 0) return false;
     if (m_activeZone != 0 || m_eraseMode) return true;
     return m_brushServerId > 0 || !m_activeGroundBrush.isEmpty() || !m_activeWallBrush.isEmpty();
 }
@@ -777,6 +961,179 @@ void MapView::paintDoodadBrushAt(int cx, int cy)
     endEditBatch();
 }
 
+bool MapView::tileHasCarpetBrush(int x, int y, const QString &name) const
+{
+    const OtbmTile *tile = currentFloorTileAt(x, y);
+    if (!tile || !m_brushStore) return false;
+    for (const OtbmMapItem &item : tile->items)
+        if (m_brushStore->carpetBrushForServerId(item.server_id) == name)
+            return true;
+    return false;
+}
+
+bool MapView::tileHasTableBrush(int x, int y, const QString &name) const
+{
+    const OtbmTile *tile = currentFloorTileAt(x, y);
+    if (!tile || !m_brushStore) return false;
+    for (const OtbmMapItem &item : tile->items)
+        if (m_brushStore->tableBrushForServerId(item.server_id) == name)
+            return true;
+    return false;
+}
+
+void MapView::recomputeCarpetAt(int x, int y, const QString &name)
+{
+    const OtbmTile *tile = currentFloorTileAt(x, y);
+    if (!tile || !m_brushStore || !m_otbm) return;
+    int itemIndex = -1;
+    for (int i = 0; i < static_cast<int>(tile->items.size()); ++i) {
+        if (m_brushStore->carpetBrushForServerId(
+                tile->items[static_cast<size_t>(i)].server_id) == name) {
+            itemIndex = i;
+            break;
+        }
+    }
+    if (itemIndex < 0) return;
+
+    const int id = m_brushStore->computeCarpetItem(
+        name,
+        tileHasCarpetBrush(x - 1, y - 1, name),
+        tileHasCarpetBrush(x, y - 1, name),
+        tileHasCarpetBrush(x + 1, y - 1, name),
+        tileHasCarpetBrush(x - 1, y, name),
+        tileHasCarpetBrush(x + 1, y, name),
+        tileHasCarpetBrush(x - 1, y + 1, name),
+        tileHasCarpetBrush(x, y + 1, name),
+        tileHasCarpetBrush(x + 1, y + 1, name));
+    if (id <= 0
+        || tile->items[static_cast<size_t>(itemIndex)].server_id == id) return;
+    ensureItemSprites(id);
+    if (m_otbm->setItemServerIdAt(x, y, m_floor, itemIndex,
+                                  static_cast<uint16_t>(id))) {
+        onTileEdited(x, y, m_floor);
+    }
+}
+
+void MapView::recomputeTableAt(int x, int y, const QString &name)
+{
+    const OtbmTile *tile = currentFloorTileAt(x, y);
+    if (!tile || !m_brushStore || !m_otbm) return;
+    int itemIndex = -1;
+    for (int i = 0; i < static_cast<int>(tile->items.size()); ++i) {
+        if (m_brushStore->tableBrushForServerId(
+                tile->items[static_cast<size_t>(i)].server_id) == name) {
+            itemIndex = i;
+            break;
+        }
+    }
+    if (itemIndex < 0) return;
+
+    const int id = m_brushStore->computeTableItem(
+        name,
+        tileHasTableBrush(x, y - 1, name),
+        tileHasTableBrush(x - 1, y, name),
+        tileHasTableBrush(x + 1, y, name),
+        tileHasTableBrush(x, y + 1, name));
+    if (id <= 0
+        || tile->items[static_cast<size_t>(itemIndex)].server_id == id) return;
+    ensureItemSprites(id);
+    if (m_otbm->setItemServerIdAt(x, y, m_floor, itemIndex,
+                                  static_cast<uint16_t>(id))) {
+        onTileEdited(x, y, m_floor);
+    }
+}
+
+void MapView::paintCarpetBrushAt(int cx, int cy)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    const QString name = m_activeCarpetBrush;
+    std::set<std::pair<int, int>> affected;
+
+    for (int dy = -m_brushSize; dy <= m_brushSize; ++dy) {
+        for (int dx = -m_brushSize; dx <= m_brushSize; ++dx) {
+            if (!brushCovers(dx, dy)) continue;
+            const int x = cx + dx;
+            const int y = cy + dy;
+            const quint64 key = posKey(x, y);
+            if (m_strokePlaced.contains(key)) continue;
+            m_strokePlaced.insert(key);
+            if (!tileHasCarpetBrush(x, y, name)) {
+                const int id = m_brushStore->computeCarpetItem(
+                    name, false, false, false, false,
+                    false, false, false, false);
+                if (id > 0) placeItemAt(x, y, id);
+            }
+            for (int ay = -1; ay <= 1; ++ay)
+                for (int ax = -1; ax <= 1; ++ax)
+                    affected.insert({x + ax, y + ay});
+        }
+    }
+    for (const auto &position : affected)
+        recomputeCarpetAt(position.first, position.second, name);
+}
+
+void MapView::paintTableBrushAt(int cx, int cy)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    const QString name = m_activeTableBrush;
+    std::set<std::pair<int, int>> affected;
+
+    for (int dy = -m_brushSize; dy <= m_brushSize; ++dy) {
+        for (int dx = -m_brushSize; dx <= m_brushSize; ++dx) {
+            if (!brushCovers(dx, dy)) continue;
+            const int x = cx + dx;
+            const int y = cy + dy;
+            const quint64 key = posKey(x, y);
+            if (m_strokePlaced.contains(key)) continue;
+            m_strokePlaced.insert(key);
+            if (!tileHasTableBrush(x, y, name)) {
+                const int id = m_brushStore->computeTableItem(
+                    name, false, false, false, false);
+                if (id > 0) placeItemAt(x, y, id);
+            }
+            affected.insert({x, y});
+            affected.insert({x, y - 1});
+            affected.insert({x - 1, y});
+            affected.insert({x + 1, y});
+            affected.insert({x, y + 1});
+        }
+    }
+    for (const auto &position : affected)
+        recomputeTableAt(position.first, position.second, name);
+}
+
+void MapView::paintDoorBrushAt(int cx, int cy)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    for (int dy = -m_brushSize; dy <= m_brushSize; ++dy) {
+        for (int dx = -m_brushSize; dx <= m_brushSize; ++dx) {
+            if (!brushCovers(dx, dy)) continue;
+            const int x = cx + dx;
+            const int y = cy + dy;
+            const quint64 key = posKey(x, y);
+            if (m_strokePlaced.contains(key)) continue;
+            m_strokePlaced.insert(key);
+            const OtbmTile *tile = currentFloorTileAt(x, y);
+            if (!tile) continue;
+            for (int index = static_cast<int>(tile->items.size()) - 1;
+                 index >= 0; --index) {
+                const int source =
+                    tile->items[static_cast<size_t>(index)].server_id;
+                if (m_brushStore->wallBrushForServerId(source).isEmpty()) continue;
+                const int target =
+                    m_brushStore->doorBrushItem(source, m_activeDoorBrushId);
+                if (target <= 0 || target == source) break;
+                ensureItemSprites(target);
+                if (m_otbm->setItemServerIdAt(
+                        x, y, m_floor, index, static_cast<uint16_t>(target))) {
+                    onTileEdited(x, y, m_floor);
+                }
+                break;
+            }
+        }
+    }
+}
+
 bool MapView::tileHasWallBrush(int x, int y, const QString &name) const
 {
     if (!m_brushStore || name.isEmpty()) return false;
@@ -798,15 +1155,25 @@ void MapView::recomputeWallAt(int x, int y, const QString &name)
     const bool w = tileHasWallBrush(x - 1, y, name);
     const bool e = tileHasWallBrush(x + 1, y, name);
     const bool s = tileHasWallBrush(x, y + 1, name);
-    const int newId = m_brushStore->computeWallItem(name, n, w, e, s);
+    int newId = m_brushStore->computeWallItem(name, n, w, e, s);
     if (newId <= 0) return;
 
     const OtbmTile *tile = currentFloorTileAt(x, y);
     std::vector<uint16_t> oldWalls;
+    int existingDoor = 0;
     if (tile)
         for (const OtbmMapItem &it : tile->items)
-            if (m_brushStore->wallBrushForServerId(it.server_id) == name)
+            if (m_brushStore->wallBrushForServerId(it.server_id) == name) {
                 oldWalls.push_back(it.server_id);
+                if (m_brushStore->isDoorItem(it.server_id))
+                    existingDoor = it.server_id;
+            }
+
+    if (existingDoor > 0) {
+        const int matchingDoor =
+            m_brushStore->doorBrushItem(newId, existingDoor);
+        if (matchingDoor > 0) newId = matchingDoor;
+    }
 
     if (oldWalls.size() == 1 && oldWalls[0] == static_cast<uint16_t>(newId)) return;
 
@@ -895,21 +1262,36 @@ bool MapView::setContextItemCount(int count)
 {
     if (!m_otbm) return false;
 
-    count = std::clamp(count, 1, 100);
-
     bool changed = false;
     {
         std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
         const OtbmTile *t = currentFloorTileAt(m_contextX, m_contextY);
-        if (!t || t->items.empty()) return false;
+        if (!t || m_contextItemIndex < 0
+            || m_contextItemIndex >= static_cast<int>(t->items.size())) return false;
 
-        const int cid = m_otb ? m_otb->clientIdForServerId(t->items.back().server_id) : 0;
+        const int cid = m_otb
+                            ? m_otb->clientIdForServerId(
+                                  t->items[static_cast<size_t>(m_contextItemIndex)].server_id)
+                            : 0;
         const ClientItem *ci = (m_dat && cid > 0)
                                    ? m_dat->itemByClientId(static_cast<uint16_t>(cid)) : nullptr;
-        if (!ci || !ci->is_stackable) return false;
+        const OtbmMapItem &item =
+            t->items[static_cast<size_t>(m_contextItemIndex)];
+        const int group = m_otb ? m_otb->groupForServerId(item.server_id) : 0;
+        const bool editable = (ci && ci->is_stackable)
+                              || group == static_cast<int>(OtbItemGroup::Splash)
+                              || group == static_cast<int>(OtbItemGroup::Fluid)
+                              || item.has_subtype_attribute;
+        if (!editable) return false;
+        const bool charges =
+            item.subtype_attribute == static_cast<uint8_t>(OtbmAttribute::Charges);
+        const int minimum = ci && ci->is_stackable ? 1 : 0;
+        const int maximum = charges ? 65535 : (ci && ci->is_stackable ? 100 : 255);
+        count = std::clamp(count, minimum, maximum);
 
-        changed = m_otbm->setTopItemCount(m_contextX, m_contextY, m_floor,
-                                          static_cast<uint16_t>(count));
+        changed = m_otbm->setItemCountAt(m_contextX, m_contextY, m_floor,
+                                         m_contextItemIndex,
+                                         static_cast<uint16_t>(count));
         if (changed) {
 
             onTileEdited(m_contextX, m_contextY, m_floor);
@@ -930,26 +1312,62 @@ bool MapView::applyContextItemProperties(const QVariantMap &props)
         std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
 
         m_otbm->beginUndoGroup();
+        const OtbmTile *selectedTile = currentFloorTileAt(m_contextX, m_contextY);
+        const int selectedIndex = selectedTile && m_contextItemIndex >= 0
+                                      && m_contextItemIndex
+                                             < static_cast<int>(selectedTile->items.size())
+                                      ? m_contextItemIndex
+                                      : (selectedTile && !selectedTile->items.empty()
+                                             ? static_cast<int>(selectedTile->items.size()) - 1
+                                             : -1);
 
         if (props.contains(QStringLiteral("actionId"))) {
             const int v = std::clamp(props.value(QStringLiteral("actionId")).toInt(), 0, 65535);
-            changed |= m_otbm->setTopItemActionId(m_contextX, m_contextY, m_floor,
-                                                  static_cast<uint16_t>(v));
+            changed |= m_otbm->setItemActionIdAt(m_contextX, m_contextY, m_floor,
+                                                 selectedIndex, static_cast<uint16_t>(v));
         }
         if (props.contains(QStringLiteral("uniqueId"))) {
             const int v = std::clamp(props.value(QStringLiteral("uniqueId")).toInt(), 0, 65535);
-            changed |= m_otbm->setTopItemUniqueId(m_contextX, m_contextY, m_floor,
-                                                  static_cast<uint16_t>(v));
+            changed |= m_otbm->setItemUniqueIdAt(m_contextX, m_contextY, m_floor,
+                                                 selectedIndex, static_cast<uint16_t>(v));
         }
         if (props.contains(QStringLiteral("text"))) {
-            changed |= m_otbm->setTopItemText(m_contextX, m_contextY, m_floor,
-                                              props.value(QStringLiteral("text")).toString());
+            changed |= m_otbm->setItemTextAt(m_contextX, m_contextY, m_floor,
+                                             selectedIndex,
+                                             props.value(QStringLiteral("text")).toString());
+        }
+        if (props.contains(QStringLiteral("description"))) {
+            changed |= m_otbm->setItemDescriptionAt(
+                m_contextX, m_contextY, m_floor, selectedIndex,
+                props.value(QStringLiteral("description")).toString());
+        }
+        if (props.contains(QStringLiteral("depotId"))) {
+            const int value = std::clamp(props.value(QStringLiteral("depotId")).toInt(),
+                                         0, 65535);
+            changed |= m_otbm->setItemDepotIdAt(m_contextX, m_contextY, m_floor,
+                                                selectedIndex,
+                                                static_cast<uint16_t>(value));
+        }
+        if (props.contains(QStringLiteral("doorId"))) {
+            const int value = std::clamp(props.value(QStringLiteral("doorId")).toInt(),
+                                         0, 255);
+            changed |= m_otbm->setItemDoorIdAt(m_contextX, m_contextY, m_floor,
+                                               selectedIndex,
+                                               static_cast<uint8_t>(value));
+        }
+        if (props.contains(QStringLiteral("tier"))) {
+            const int value = std::clamp(props.value(QStringLiteral("tier")).toInt(),
+                                         0, 255);
+            changed |= m_otbm->setItemTierAt(m_contextX, m_contextY, m_floor,
+                                             selectedIndex,
+                                             static_cast<uint8_t>(value));
         }
         if (props.value(QStringLiteral("teleportClear")).toBool()) {
-            changed |= m_otbm->setTopItemTeleport(m_contextX, m_contextY, m_floor, -1, -1, -1);
+            changed |= m_otbm->setItemTeleportAt(m_contextX, m_contextY, m_floor,
+                                                 selectedIndex, -1, -1, -1);
         } else if (props.contains(QStringLiteral("teleportX"))) {
-            changed |= m_otbm->setTopItemTeleport(
-                m_contextX, m_contextY, m_floor,
+            changed |= m_otbm->setItemTeleportAt(
+                m_contextX, m_contextY, m_floor, selectedIndex,
                 props.value(QStringLiteral("teleportX")).toInt(),
                 props.value(QStringLiteral("teleportY")).toInt(),
                 props.value(QStringLiteral("teleportZ")).toInt());
@@ -957,18 +1375,43 @@ bool MapView::applyContextItemProperties(const QVariantMap &props)
         if (props.contains(QStringLiteral("count"))) {
 
             const OtbmTile *t = currentFloorTileAt(m_contextX, m_contextY);
-            const int cid = (t && !t->items.empty() && m_otb)
-                                ? m_otb->clientIdForServerId(t->items.back().server_id) : 0;
+            const int cid = (t && selectedIndex >= 0
+                             && selectedIndex < static_cast<int>(t->items.size()) && m_otb)
+                                ? m_otb->clientIdForServerId(
+                                      t->items[static_cast<size_t>(selectedIndex)].server_id)
+                                : 0;
             const ClientItem *ci = (m_dat && cid > 0)
                                        ? m_dat->itemByClientId(static_cast<uint16_t>(cid)) : nullptr;
-            if (ci && ci->is_stackable) {
-                const int v = std::clamp(props.value(QStringLiteral("count")).toInt(), 1, 100);
-                if (m_otbm->setTopItemCount(m_contextX, m_contextY, m_floor,
-                                            static_cast<uint16_t>(v))) {
+            const OtbmMapItem *item =
+                t && selectedIndex >= 0
+                    && selectedIndex < static_cast<int>(t->items.size())
+                    ? &t->items[static_cast<size_t>(selectedIndex)] : nullptr;
+            const int group = item && m_otb
+                                  ? m_otb->groupForServerId(item->server_id) : 0;
+            const bool editable = item && ((ci && ci->is_stackable)
+                || group == static_cast<int>(OtbItemGroup::Splash)
+                || group == static_cast<int>(OtbItemGroup::Fluid)
+                || item->has_subtype_attribute);
+            if (editable) {
+                const bool charges = item->subtype_attribute
+                                     == static_cast<uint8_t>(OtbmAttribute::Charges);
+                const int minimum = ci && ci->is_stackable ? 1 : 0;
+                const int maximum =
+                    charges ? 65535 : (ci && ci->is_stackable ? 100 : 255);
+                const int v = std::clamp(
+                    props.value(QStringLiteral("count")).toInt(),
+                    minimum, maximum);
+                if (m_otbm->setItemCountAt(m_contextX, m_contextY, m_floor,
+                                           selectedIndex, static_cast<uint16_t>(v))) {
                     changed = true;
                     spriteDirty = true;
                 }
             }
+        }
+        if (props.contains(QStringLiteral("customAttributes"))) {
+            changed |= m_otbm->setItemAttributeMapAt(
+                m_contextX, m_contextY, m_floor, selectedIndex,
+                props.value(QStringLiteral("customAttributes")).toList());
         }
 
         m_otbm->endUndoGroup();
@@ -987,8 +1430,8 @@ bool MapView::setContextItemActionId(int actionId)
     if (!m_otbm) return false;
     const int v = std::clamp(actionId, 0, 65535);
     std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
-    return m_otbm->setTopItemActionId(m_contextX, m_contextY, m_floor,
-                                      static_cast<uint16_t>(v));
+    return m_otbm->setItemActionIdAt(m_contextX, m_contextY, m_floor,
+                                     m_contextItemIndex, static_cast<uint16_t>(v));
 }
 
 bool MapView::setContextItemUniqueId(int uniqueId)
@@ -996,75 +1439,201 @@ bool MapView::setContextItemUniqueId(int uniqueId)
     if (!m_otbm) return false;
     const int v = std::clamp(uniqueId, 0, 65535);
     std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
-    return m_otbm->setTopItemUniqueId(m_contextX, m_contextY, m_floor,
-                                      static_cast<uint16_t>(v));
+    return m_otbm->setItemUniqueIdAt(m_contextX, m_contextY, m_floor,
+                                     m_contextItemIndex, static_cast<uint16_t>(v));
 }
 
 bool MapView::setContextItemText(const QString &text)
 {
     if (!m_otbm) return false;
     std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
-    return m_otbm->setTopItemText(m_contextX, m_contextY, m_floor, text);
+    return m_otbm->setItemTextAt(m_contextX, m_contextY, m_floor,
+                                 m_contextItemIndex, text);
 }
 
 bool MapView::setContextItemTeleport(int destX, int destY, int destZ)
 {
     if (!m_otbm) return false;
     std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
-    return m_otbm->setTopItemTeleport(m_contextX, m_contextY, m_floor,
-                                      destX, destY, destZ);
+    return m_otbm->setItemTeleportAt(m_contextX, m_contextY, m_floor,
+                                     m_contextItemIndex, destX, destY, destZ);
 }
 
-QVariantMap MapView::contextInfo() const
+QVariantMap MapView::itemContextInfo(const OtbmMapItem &item, int index) const
 {
     QVariantMap m;
     m.insert(QStringLiteral("x"), m_contextX);
     m.insert(QStringLiteral("y"), m_contextY);
     m.insert(QStringLiteral("z"), m_floor);
-    m.insert(QStringLiteral("selectionCount"), m_selected.size());
+    m.insert(QStringLiteral("index"), index);
+    m.insert(QStringLiteral("hasItem"), true);
+    m.insert(QStringLiteral("serverId"), item.server_id);
 
+    const int cid = m_otb ? m_otb->clientIdForServerId(item.server_id) : 0;
+    const ClientItem *ci = (m_dat && cid > 0)
+                               ? m_dat->itemByClientId(static_cast<uint16_t>(cid)) : nullptr;
+    m.insert(QStringLiteral("clientId"), cid);
+    m.insert(QStringLiteral("name"),
+             m_otb ? m_otb->nameForServerId(item.server_id) : QString());
+    m.insert(QStringLiteral("groupName"),
+             m_otb ? m_otb->groupNameForServerId(item.server_id) : QString());
+    m.insert(QStringLiteral("ground"), item.is_ground);
+    m.insert(QStringLiteral("stackable"), ci && ci->is_stackable);
+    m.insert(QStringLiteral("count"), item.count);
+    const int group = m_otb ? m_otb->groupForServerId(item.server_id) : 0;
+    const bool charges =
+        item.subtype_attribute == static_cast<uint8_t>(OtbmAttribute::Charges);
+    const bool subtypeEditable = (ci && ci->is_stackable)
+        || group == static_cast<int>(OtbItemGroup::Splash)
+        || group == static_cast<int>(OtbItemGroup::Fluid)
+        || item.has_subtype_attribute;
+    m.insert(QStringLiteral("subtypeEditable"), subtypeEditable);
+    m.insert(QStringLiteral("subtypeMinimum"), ci && ci->is_stackable ? 1 : 0);
+    m.insert(QStringLiteral("subtypeMaximum"),
+             charges ? 65535 : (ci && ci->is_stackable ? 100 : 255));
+    m.insert(QStringLiteral("subtypeLabel"),
+             charges ? QStringLiteral("Charges")
+                     : (group == static_cast<int>(OtbItemGroup::Fluid)
+                            || group == static_cast<int>(OtbItemGroup::Splash)
+                            ? QStringLiteral("Fluid subtype")
+                            : QStringLiteral("Count")));
+    m.insert(QStringLiteral("actionId"), item.action_id);
+    m.insert(QStringLiteral("uniqueId"), item.unique_id);
+    m.insert(QStringLiteral("depotId"), item.depot_id);
+    m.insert(QStringLiteral("childCount"),
+             item.children ? static_cast<int>(item.children->size()) : 0);
+
+    const QString text = item.extra ? item.extra->text : QString();
+    m.insert(QStringLiteral("text"), text);
+    m.insert(QStringLiteral("description"),
+             item.extra ? item.extra->description : QString());
+    m.insert(QStringLiteral("doorId"), item.extra ? item.extra->door_id : 0);
+    m.insert(QStringLiteral("tier"), item.extra ? item.extra->tier : 0);
+    m.insert(QStringLiteral("writable"), (ci && ci->is_writable) || !text.isEmpty());
+
+    const bool isTele = m_otb && m_otb->isTeleportItem(item.server_id);
+    const bool hasTele = item.extra && item.extra->has_teleport;
+    m.insert(QStringLiteral("teleport"), isTele || hasTele);
+    m.insert(QStringLiteral("hasTeleportDest"), hasTele);
+    m.insert(QStringLiteral("teleportX"), hasTele ? item.extra->tele_x : 0);
+    m.insert(QStringLiteral("teleportY"), hasTele ? item.extra->tele_y : 0);
+    m.insert(QStringLiteral("teleportZ"), hasTele ? item.extra->tele_z : 0);
+    QVariantList customAttributes;
+    if (item.extra && item.extra->has_attribute_map) {
+        for (const auto &attribute : item.extra->attribute_map) {
+            const bool managedInteger =
+                attribute.type == 2
+                && (attribute.key == QByteArrayLiteral("aid")
+                    || attribute.key == QByteArrayLiteral("uid")
+                    || attribute.key == QByteArrayLiteral("tier"));
+            const bool managedString =
+                attribute.type == 1
+                && (attribute.key == QByteArrayLiteral("text")
+                    || attribute.key == QByteArrayLiteral("desc"));
+            if (managedInteger || managedString) continue;
+
+            QVariantMap value;
+            value.insert(QStringLiteral("key"),
+                         QString::fromLatin1(attribute.key));
+            value.insert(QStringLiteral("typeId"), attribute.type);
+            value.insert(QStringLiteral("rawBase64"),
+                         QString::fromLatin1(attribute.value_raw.toBase64()));
+            QString type = QStringLiteral("Unknown");
+            QString text;
+            if (attribute.type == 1 && attribute.value_raw.size() >= 4) {
+                const auto *bytes = reinterpret_cast<const uchar *>(
+                    attribute.value_raw.constData());
+                const quint32 length = static_cast<quint32>(bytes[0])
+                    | (static_cast<quint32>(bytes[1]) << 8)
+                    | (static_cast<quint32>(bytes[2]) << 16)
+                    | (static_cast<quint32>(bytes[3]) << 24);
+                if (length == static_cast<quint32>(
+                                  attribute.value_raw.size() - 4)) {
+                    type = QStringLiteral("String");
+                    text = QString::fromLatin1(attribute.value_raw.constData() + 4,
+                                               static_cast<qsizetype>(length));
+                }
+            } else if ((attribute.type == 2 || attribute.type == 3)
+                       && attribute.value_raw.size() == 4) {
+                if (attribute.type == 2) {
+                    qint32 number = 0;
+                    std::memcpy(&number, attribute.value_raw.constData(), 4);
+                    type = QStringLiteral("Number");
+                    text = QString::number(number);
+                } else {
+                    float number = 0;
+                    std::memcpy(&number, attribute.value_raw.constData(), 4);
+                    type = QStringLiteral("Float");
+                    text = QString::number(number, 'g', 9);
+                }
+            } else if (attribute.type == 4
+                       && attribute.value_raw.size() == 1) {
+                type = QStringLiteral("Boolean");
+                text = attribute.value_raw[0] != 0
+                           ? QStringLiteral("true") : QStringLiteral("false");
+            } else if (attribute.type == 5
+                       && attribute.value_raw.size() == 8) {
+                double number = 0;
+                std::memcpy(&number, attribute.value_raw.constData(), 8);
+                type = QStringLiteral("Double");
+                text = QString::number(number, 'g', 17);
+            }
+            value.insert(QStringLiteral("type"), type);
+            value.insert(QStringLiteral("value"), text);
+            customAttributes.append(value);
+        }
+    }
+    m.insert(QStringLiteral("customAttributes"), customAttributes);
+    m.insert(QStringLiteral("customAttributesSupported"),
+             (item.extra && item.extra->has_attribute_map)
+             || (m_otbm
+                 && m_otbm->header().value(QStringLiteral("otbmVersion")).toInt()
+                        >= static_cast<int>(OtbmVersion::V4)));
+    const int rotateTo = m_otb ? m_otb->rotateToForServerId(item.server_id) : 0;
+    m.insert(QStringLiteral("canRotate"),
+             rotateTo > 0 && m_otb && m_otb->rowForServerId(rotateTo) >= 0);
+    const bool door =
+        m_brushStore && m_brushStore->canSwitchDoor(item.server_id);
+    m.insert(QStringLiteral("door"), door);
+    m.insert(QStringLiteral("doorOpen"),
+             door && m_brushStore->isDoorOpen(item.server_id));
+
+    if (m_otb) {
+        const QVariantMap details = m_otb->detailsAt(m_otb->rowForServerId(item.server_id));
+        m.insert(QStringLiteral("spriteIds"), details.value(QStringLiteral("spriteIds")));
+        m.insert(QStringLiteral("itemWidth"), details.value(QStringLiteral("itemWidth"), 1));
+        m.insert(QStringLiteral("itemHeight"), details.value(QStringLiteral("itemHeight"), 1));
+        m.insert(QStringLiteral("layers"), details.value(QStringLiteral("layers"), 1));
+    }
+    return m;
+}
+
+QVariantMap MapView::contextInfo() const
+{
     const OtbmTile *tile = currentFloorTileAt(m_contextX, m_contextY);
+    QVariantMap m;
     const bool has = tile && !tile->items.empty();
-    m.insert(QStringLiteral("hasItem"), has);
-
-    m.insert(QStringLiteral("creatureName"), tile ? tile->creature_name : QString());
-    m.insert(QStringLiteral("creatureSpawntime"), tile ? tile->creature_spawntime : 0);
-    m.insert(QStringLiteral("spawnRadius"), tile ? tile->spawn_radius : 0);
     if (has) {
-        const OtbmMapItem &top = tile->items.back();
-        const int cid = m_otb ? m_otb->clientIdForServerId(top.server_id) : 0;
-        const ClientItem *ci = (m_dat && cid > 0)
-                                   ? m_dat->itemByClientId(static_cast<uint16_t>(cid)) : nullptr;
-        m.insert(QStringLiteral("serverId"), top.server_id);
-        m.insert(QStringLiteral("clientId"), cid);
-        m.insert(QStringLiteral("name"), m_otb ? m_otb->nameForServerId(top.server_id) : QString());
-
-        m.insert(QStringLiteral("groupName"),
-                 m_otb ? m_otb->groupNameForServerId(top.server_id) : QString());
-
-        m.insert(QStringLiteral("stackable"), ci && ci->is_stackable);
-        m.insert(QStringLiteral("count"), top.count);
-        m.insert(QStringLiteral("actionId"), top.action_id);
-        m.insert(QStringLiteral("uniqueId"), top.unique_id);
-
-        const QString text = top.extra ? top.extra->text : QString();
-        m.insert(QStringLiteral("text"), text);
-        m.insert(QStringLiteral("writable"), (ci && ci->is_writable) || !text.isEmpty());
-
-        const bool isTele = m_otb && m_otb->isTeleportItem(top.server_id);
-        const bool hasTele = top.extra && top.extra->has_teleport;
-        m.insert(QStringLiteral("teleport"), isTele || hasTele);
-        m.insert(QStringLiteral("hasTeleportDest"), hasTele);
-        m.insert(QStringLiteral("teleportX"), hasTele ? top.extra->tele_x : 0);
-        m.insert(QStringLiteral("teleportY"), hasTele ? top.extra->tele_y : 0);
-        m.insert(QStringLiteral("teleportZ"), hasTele ? top.extra->tele_z : 0);
+        const int index = (m_contextItemIndex >= 0
+                           && m_contextItemIndex < static_cast<int>(tile->items.size()))
+                              ? m_contextItemIndex
+                              : static_cast<int>(tile->items.size()) - 1;
+        m = itemContextInfo(tile->items[static_cast<size_t>(index)], index);
     } else {
+        m.insert(QStringLiteral("x"), m_contextX);
+        m.insert(QStringLiteral("y"), m_contextY);
+        m.insert(QStringLiteral("z"), m_floor);
+        m.insert(QStringLiteral("hasItem"), false);
         m.insert(QStringLiteral("serverId"), 0);
         m.insert(QStringLiteral("clientId"), 0);
         m.insert(QStringLiteral("name"), QString());
         m.insert(QStringLiteral("groupName"), QString());
         m.insert(QStringLiteral("stackable"), false);
         m.insert(QStringLiteral("count"), 0);
+        m.insert(QStringLiteral("subtypeEditable"), false);
+        m.insert(QStringLiteral("subtypeMinimum"), 0);
+        m.insert(QStringLiteral("subtypeMaximum"), 100);
+        m.insert(QStringLiteral("subtypeLabel"), QStringLiteral("Count"));
         m.insert(QStringLiteral("actionId"), 0);
         m.insert(QStringLiteral("uniqueId"), 0);
         m.insert(QStringLiteral("text"), QString());
@@ -1074,8 +1643,422 @@ QVariantMap MapView::contextInfo() const
         m.insert(QStringLiteral("teleportX"), 0);
         m.insert(QStringLiteral("teleportY"), 0);
         m.insert(QStringLiteral("teleportZ"), 0);
+        m.insert(QStringLiteral("customAttributes"), QVariantList());
+        m.insert(QStringLiteral("customAttributesSupported"), false);
+        m.insert(QStringLiteral("canRotate"), false);
+        m.insert(QStringLiteral("door"), false);
+        m.insert(QStringLiteral("doorOpen"), false);
     }
+
+    m.insert(QStringLiteral("selectionCount"), m_selected.size());
+    m.insert(QStringLiteral("creatureName"), tile ? tile->creature_name : QString());
+    m.insert(QStringLiteral("creatureSpawntime"), tile ? tile->creature_spawntime : 0);
+    m.insert(QStringLiteral("spawnRadius"), tile ? tile->spawn_radius : 0);
     return m;
+}
+
+QVariantList MapView::contextStack() const
+{
+    QVariantList result;
+    const OtbmTile *tile = currentFloorTileAt(m_contextX, m_contextY);
+    if (!tile) return result;
+
+    result.reserve(static_cast<qsizetype>(tile->items.size()));
+    for (int index = static_cast<int>(tile->items.size()) - 1; index >= 0; --index) {
+        QVariantMap item = itemContextInfo(tile->items[static_cast<size_t>(index)], index);
+        item.insert(QStringLiteral("top"), index == static_cast<int>(tile->items.size()) - 1);
+        result.append(item);
+    }
+    return result;
+}
+
+bool MapView::setContextStackIndex(int index)
+{
+    const OtbmTile *tile = currentFloorTileAt(m_contextX, m_contextY);
+    if (!tile || index < 0 || index >= static_cast<int>(tile->items.size())) return false;
+    m_contextItemIndex = index;
+    return true;
+}
+
+bool MapView::removeContextStackItem(int index)
+{
+    if (!m_otbm) return false;
+    bool removed = false;
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+        removed = m_otbm->removeItemAt(m_contextX, m_contextY, m_floor, index);
+        if (removed) {
+            onTileEdited(m_contextX, m_contextY, m_floor);
+            flushEditedChunksLocked();
+            const OtbmTile *tile = currentFloorTileAt(m_contextX, m_contextY);
+            m_contextItemIndex = tile && !tile->items.empty()
+                                     ? std::min(index, static_cast<int>(tile->items.size()) - 1)
+                                     : -1;
+        }
+    }
+    if (removed) refreshAfterEdit(0);
+    return removed;
+}
+
+bool MapView::rotateContextItem()
+{
+    if (!m_otbm || !m_otb) return false;
+
+    bool changed = false;
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+        const OtbmTile *tile = currentFloorTileAt(m_contextX, m_contextY);
+        if (!tile || m_contextItemIndex < 0
+            || m_contextItemIndex >= static_cast<int>(tile->items.size())) {
+            return false;
+        }
+        const int target = m_otb->rotateToForServerId(
+            tile->items[static_cast<size_t>(m_contextItemIndex)].server_id);
+        if (target <= 0 || target > 65535 || m_otb->rowForServerId(target) < 0) {
+            return false;
+        }
+        ensureItemSprites(target);
+        changed = m_otbm->setItemServerIdAt(
+            m_contextX, m_contextY, m_floor, m_contextItemIndex,
+            static_cast<uint16_t>(target));
+        if (changed) {
+            onTileEdited(m_contextX, m_contextY, m_floor);
+            flushEditedChunksLocked();
+        }
+    }
+    if (changed) refreshAfterEdit(0);
+    return changed;
+}
+
+bool MapView::switchContextDoor()
+{
+    if (!m_otbm || !m_otb || !m_brushStore) return false;
+
+    bool changed = false;
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+        const OtbmTile *tile = currentFloorTileAt(m_contextX, m_contextY);
+        if (!tile || m_contextItemIndex < 0
+            || m_contextItemIndex >= static_cast<int>(tile->items.size())) {
+            return false;
+        }
+        const int source =
+            tile->items[static_cast<size_t>(m_contextItemIndex)].server_id;
+        const int target = m_brushStore->switchedDoorItem(source);
+        if (target <= 0 || target > 65535 || m_otb->rowForServerId(target) < 0) {
+            return false;
+        }
+        ensureItemSprites(target);
+        changed = m_otbm->setItemServerIdAt(
+            m_contextX, m_contextY, m_floor, m_contextItemIndex,
+            static_cast<uint16_t>(target));
+        if (changed) {
+            onTileEdited(m_contextX, m_contextY, m_floor);
+            flushEditedChunksLocked();
+        }
+    }
+    if (changed) refreshAfterEdit(0);
+    return changed;
+}
+
+QVariantList MapView::contextItemPath() const
+{
+    QVariantList path;
+    if (m_contextItemIndex >= 0) path.append(m_contextItemIndex);
+    return path;
+}
+
+QVariantList MapView::contextContainerItems(const QVariantList &pathValues) const
+{
+    QVariantList result;
+    if (!m_otbm) return result;
+
+    std::vector<int> path;
+    path.reserve(static_cast<size_t>(pathValues.size()));
+    for (const QVariant &value : pathValues) path.push_back(value.toInt());
+
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    const OtbmMapItem *container =
+        m_otbm->itemAtPath(m_contextX, m_contextY, m_floor, path);
+    if (!container || !container->children) return result;
+
+    for (int index = static_cast<int>(container->children->size()) - 1;
+         index >= 0; --index) {
+        QVariantMap child =
+            itemContextInfo((*container->children)[static_cast<size_t>(index)], index);
+        child.insert(QStringLiteral("childIndex"), index);
+        QVariantList childPath = pathValues;
+        childPath.append(index);
+        child.insert(QStringLiteral("path"), childPath);
+        result.append(child);
+    }
+    return result;
+}
+
+bool MapView::addContextContainerItem(const QVariantList &pathValues, int serverId)
+{
+    if (!m_otbm || serverId <= 0 || serverId > 65535) return false;
+    std::vector<int> path;
+    for (const QVariant &value : pathValues) path.push_back(value.toInt());
+
+    bool changed = false;
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+        ensureItemSprites(serverId);
+        changed = m_otbm->addContainerChild(m_contextX, m_contextY, m_floor,
+                                            path, static_cast<uint16_t>(serverId));
+        if (changed) {
+            onTileEdited(m_contextX, m_contextY, m_floor);
+            flushEditedChunksLocked();
+        }
+    }
+    if (changed) refreshAfterEdit(0);
+    return changed;
+}
+
+bool MapView::removeContextContainerItem(const QVariantList &pathValues, int childIndex)
+{
+    if (!m_otbm) return false;
+    std::vector<int> path;
+    for (const QVariant &value : pathValues) path.push_back(value.toInt());
+
+    bool changed = false;
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+        changed = m_otbm->removeContainerChild(m_contextX, m_contextY, m_floor,
+                                               path, childIndex);
+        if (changed) {
+            onTileEdited(m_contextX, m_contextY, m_floor);
+            flushEditedChunksLocked();
+        }
+    }
+    if (changed) refreshAfterEdit(0);
+    return changed;
+}
+
+bool MapView::moveContextContainerItem(const QVariantList &pathValues,
+                                       int childIndex, int delta)
+{
+    if (!m_otbm) return false;
+    std::vector<int> path;
+    for (const QVariant &value : pathValues) path.push_back(value.toInt());
+
+    bool changed = false;
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+        changed = m_otbm->moveContainerChild(m_contextX, m_contextY, m_floor,
+                                             path, childIndex, delta);
+        if (changed) {
+            onTileEdited(m_contextX, m_contextY, m_floor);
+            flushEditedChunksLocked();
+        }
+    }
+    if (changed) refreshAfterEdit(0);
+    return changed;
+}
+
+QVariantMap MapView::searchItems(const QString &type, bool selectionOnly) const
+{
+    QVariantMap output;
+    QVariantList results;
+    if (!m_otbm || !m_otb) {
+        output.insert(QStringLiteral("results"), results);
+        output.insert(QStringLiteral("total"), 0);
+        output.insert(QStringLiteral("truncated"), false);
+        return output;
+    }
+
+    const QString normalized = type.trimmed().toLower();
+    constexpr int kResultLimit = 10000;
+    int total = 0;
+
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    std::function<void(const OtbmMapItem &, const OtbmTile &, int, const QString &)> visit;
+    visit = [&](const OtbmMapItem &item, const OtbmTile &tile, int depth,
+                const QString &containerPath) {
+        QStringList matches;
+        const int group = m_otb->groupForServerId(item.server_id);
+        const bool hasUnique = item.unique_id != 0;
+        const bool hasAction = item.action_id != 0;
+        const bool isContainer =
+            group == static_cast<int>(OtbItemGroup::Container) || item.children != nullptr;
+        const bool hasText = item.extra
+                             && (!item.extra->text.isEmpty()
+                                 || !item.extra->description.isEmpty());
+        const bool isWritable =
+            group == static_cast<int>(OtbItemGroup::Writeable) || hasText;
+
+        if (hasUnique) matches.append(QStringLiteral("Unique ID"));
+        if (hasAction) matches.append(QStringLiteral("Action ID"));
+        if (isContainer) matches.append(QStringLiteral("Container"));
+        if (isWritable) matches.append(QStringLiteral("Writable"));
+
+        const bool match =
+            (normalized == QLatin1String("unique") && hasUnique)
+            || (normalized == QLatin1String("action") && hasAction)
+            || (normalized == QLatin1String("container") && isContainer)
+            || (normalized == QLatin1String("writable") && isWritable)
+            || (normalized == QLatin1String("everything") && !matches.isEmpty());
+
+        if (match) {
+            ++total;
+            if (results.size() < kResultLimit) {
+                QVariantMap result;
+                result.insert(QStringLiteral("x"), tile.x);
+                result.insert(QStringLiteral("y"), tile.y);
+                result.insert(QStringLiteral("z"), tile.z);
+                result.insert(QStringLiteral("serverId"), item.server_id);
+                result.insert(QStringLiteral("clientId"),
+                              m_otb->clientIdForServerId(item.server_id));
+                result.insert(QStringLiteral("name"),
+                              m_otb->nameForServerId(item.server_id));
+                result.insert(QStringLiteral("kind"), matches.join(QStringLiteral(", ")));
+                result.insert(QStringLiteral("actionId"), item.action_id);
+                result.insert(QStringLiteral("uniqueId"), item.unique_id);
+                result.insert(QStringLiteral("text"),
+                              item.extra ? item.extra->text : QString());
+                result.insert(QStringLiteral("depth"), depth);
+                result.insert(QStringLiteral("containerPath"), containerPath);
+                result.insert(QStringLiteral("childCount"),
+                              item.children ? static_cast<int>(item.children->size()) : 0);
+                results.append(result);
+            }
+        }
+
+        if (!item.children) return;
+        const QString name = m_otb->nameForServerId(item.server_id);
+        const QString nextPath = containerPath.isEmpty()
+                                     ? (name.isEmpty()
+                                            ? QStringLiteral("Container %1").arg(item.server_id)
+                                            : name)
+                                     : containerPath + QStringLiteral(" > ")
+                                           + (name.isEmpty()
+                                                  ? QStringLiteral("Container %1").arg(item.server_id)
+                                                  : name);
+        for (const OtbmMapItem &child : *item.children)
+            visit(child, tile, depth + 1, nextPath);
+    };
+
+    for (const OtbmTile &tile : m_otbm->tiles()) {
+        if (selectionOnly && !m_selected.contains(selKey(tile.x, tile.y, tile.z)))
+            continue;
+        for (const OtbmMapItem &item : tile.items)
+            visit(item, tile, 0, QString());
+    }
+
+    output.insert(QStringLiteral("results"), results);
+    output.insert(QStringLiteral("total"), total);
+    output.insert(QStringLiteral("truncated"), total > results.size());
+    return output;
+}
+
+QVariantList MapView::mapOverlayData(bool includeTooltips,
+                                     bool includeWaypoints) const
+{
+    QVariantList output;
+    if (!m_otbm || (!includeTooltips && !includeWaypoints)) return output;
+
+    const int tileSize = std::max(1, m_tileSize);
+    const int minX = static_cast<int>(std::floor(m_originX)) - 1;
+    const int minY = static_cast<int>(std::floor(m_originY)) - 1;
+    const int maxX = static_cast<int>(std::ceil(m_originX + width() / tileSize)) + 1;
+    const int maxY = static_cast<int>(std::ceil(m_originY + height() / tileSize)) + 1;
+    constexpr int kOverlayLimit = 512;
+
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+
+    for (const OtbmWaypoint &waypoint : m_otbm->waypoints()) {
+        if (waypoint.z != m_floor || waypoint.x < minX || waypoint.x > maxX
+            || waypoint.y < minY || waypoint.y > maxY) {
+            continue;
+        }
+
+        QVariantMap entry;
+        entry.insert(QStringLiteral("kind"), QStringLiteral("waypoint"));
+        entry.insert(QStringLiteral("x"), waypoint.x);
+        entry.insert(QStringLiteral("y"), waypoint.y);
+        entry.insert(QStringLiteral("name"), waypoint.name);
+        entry.insert(QStringLiteral("text"),
+                     includeTooltips
+                         ? QStringLiteral("wp: %1").arg(waypoint.name)
+                         : QString());
+        output.append(entry);
+        if (output.size() >= kOverlayLimit) return output;
+    }
+
+    if (!includeTooltips || tileSize < 12) return output;
+
+    const int minChunkX = floorDiv(minX, kChunkTiles);
+    const int minChunkY = floorDiv(minY, kChunkTiles);
+    const int maxChunkX = floorDiv(maxX, kChunkTiles);
+    const int maxChunkY = floorDiv(maxY, kChunkTiles);
+    const auto floorIt = m_floorChunkTiles.constFind(m_floor);
+    if (floorIt == m_floorChunkTiles.cend()) return output;
+
+    for (int chunkY = minChunkY; chunkY <= maxChunkY; ++chunkY) {
+        for (int chunkX = minChunkX; chunkX <= maxChunkX; ++chunkX) {
+            const auto chunkIt = floorIt->constFind(chunkKey(chunkX, chunkY));
+            if (chunkIt == floorIt->cend()) continue;
+
+            for (const OtbmTile *tile : chunkIt.value()) {
+                if (!tile || tile->x < minX || tile->x > maxX
+                    || tile->y < minY || tile->y > maxY) {
+                    continue;
+                }
+
+                QStringList itemTooltips;
+                for (const OtbmMapItem &item : tile->items) {
+                    const OtbmItemExtra *extra = item.extra.get();
+                    const bool special =
+                        item.action_id > 0 || item.unique_id > 0 || item.depot_id > 0
+                        || (extra && (extra->door_id > 0 || extra->tier > 0
+                                      || extra->has_teleport || !extra->text.isEmpty()
+                                      || !extra->description.isEmpty()));
+                    if (!special) continue;
+
+                    QStringList lines;
+                    lines.append(QStringLiteral("id: %1").arg(item.server_id));
+                    if (item.action_id > 0)
+                        lines.append(QStringLiteral("aid: %1").arg(item.action_id));
+                    if (item.unique_id > 0)
+                        lines.append(QStringLiteral("uid: %1").arg(item.unique_id));
+                    if (item.depot_id > 0)
+                        lines.append(QStringLiteral("depot id: %1").arg(item.depot_id));
+                    if (extra) {
+                        if (extra->door_id > 0)
+                            lines.append(QStringLiteral("door id: %1").arg(extra->door_id));
+                        if (extra->tier > 0)
+                            lines.append(QStringLiteral("tier: %1").arg(extra->tier));
+                        if (!extra->text.isEmpty())
+                            lines.append(QStringLiteral("text: %1").arg(extra->text.left(160)));
+                        if (!extra->description.isEmpty())
+                            lines.append(QStringLiteral("description: %1")
+                                             .arg(extra->description.left(160)));
+                        if (extra->has_teleport) {
+                            lines.append(
+                                QStringLiteral("destination: %1, %2, %3")
+                                    .arg(extra->tele_x)
+                                    .arg(extra->tele_y)
+                                    .arg(extra->tele_z));
+                        }
+                    }
+                    itemTooltips.append(lines.join(QLatin1Char('\n')));
+                }
+
+                if (itemTooltips.isEmpty()) continue;
+                QVariantMap entry;
+                entry.insert(QStringLiteral("kind"), QStringLiteral("tooltip"));
+                entry.insert(QStringLiteral("x"), tile->x);
+                entry.insert(QStringLiteral("y"), tile->y);
+                entry.insert(QStringLiteral("name"), QString());
+                entry.insert(QStringLiteral("text"),
+                             itemTooltips.join(QStringLiteral("\n\n")));
+                output.append(entry);
+                if (output.size() >= kOverlayLimit) return output;
+            }
+        }
+    }
+    return output;
 }
 
 void MapView::deleteSelectedTop()

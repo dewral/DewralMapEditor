@@ -40,16 +40,16 @@ void MapView::addSpritesToAtlas(const QSet<uint32_t> &sids)
     if (toAdd.empty()) return;
     std::sort(toAdd.begin(), toAdd.end());
 
-    constexpr int cols = 64;
     constexpr int headroom = 1024;
     const int oldCount = static_cast<int>(m_atlasSlots.size());
     const int newCount = oldCount + static_cast<int>(toAdd.size());
-    const int capacity = m_atlasRows * cols;
+    const int capacity = m_atlasRows * kAtlasColumns;
 
     bool grew = false;
     if (oldCount == 0 || newCount > capacity) {
-        const int rows = (newCount + headroom + cols - 1) / cols;
-        QImage img(cols * kSprite, std::max(1, rows) * kSprite, QImage::Format_RGBA8888);
+        const int rows = (newCount + headroom + kAtlasColumns - 1) / kAtlasColumns;
+        QImage img(kAtlasColumns * kSprite, std::max(1, rows) * kSprite,
+                   QImage::Format_RGBA8888);
         img.fill(Qt::transparent);
 
         if (!m_atlasImage.isNull()) {
@@ -62,8 +62,8 @@ void MapView::addSpritesToAtlas(const QSet<uint32_t> &sids)
                 const int oldSlot = it.value();
                 auto sprite = m_spr->loadSpriteUncached(it.key());
                 if (!sprite || sprite->image.isNull()) continue;
-                cp.drawImage((oldSlot % cols) * kSprite,
-                             (oldSlot / cols) * kSprite,
+                cp.drawImage((oldSlot % kAtlasColumns) * kSprite,
+                             (oldSlot / kAtlasColumns) * kSprite,
                              sprite->image);
             }
             m_spr->endBulkAccess();
@@ -81,8 +81,8 @@ void MapView::addSpritesToAtlas(const QSet<uint32_t> &sids)
     m_spr->beginBulkAccess();
     int slot = oldCount;
     for (uint32_t sid : toAdd) {
-        const int sx = (slot % cols) * kSprite;
-        const int sy = (slot / cols) * kSprite;
+        const int sx = (slot % kAtlasColumns) * kSprite;
+        const int sy = (slot / kAtlasColumns) * kSprite;
         auto sprite = m_spr->loadSpriteUncached(sid);
         if (sprite && !sprite->image.isNull()) {
             if (painter) painter->drawImage(sx, sy, sprite->image);

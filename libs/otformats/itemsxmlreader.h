@@ -28,6 +28,7 @@ public:
     QString nameForServerId(int serverId) const;
 
     QString typeForServerId(int serverId) const;
+    int rotateToForServerId(int serverId) const;
     bool isTeleport(int serverId) const;
 
 signals:
@@ -37,6 +38,7 @@ private:
     struct Entry {
         QString name;
         QString type;
+        int rotateTo = 0;
     };
 
     QHash<int, Entry> m_items;

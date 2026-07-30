@@ -23,7 +23,7 @@ uint32_t minimapPalette(int index)
 
 }
 
-uint32_t MapMinimapService::colorForTile(const OtbmTile *tile, const OtbReader *otb,
+int MapMinimapService::colorIndexForTile(const OtbmTile *tile, const OtbReader *otb,
                                          const DatReader *dat)
 {
     if (!tile || !otb || !dat) return 0;
@@ -33,9 +33,21 @@ uint32_t MapMinimapService::colorForTile(const OtbmTile *tile, const OtbReader *
         if (clientId <= 0) continue;
         const ClientItem *item = dat->itemByClientId(static_cast<uint16_t>(clientId));
         if (item && item->has_minimap_color)
-            return minimapPalette(static_cast<int>(item->minimap_color));
+            return static_cast<int>(item->minimap_color);
     }
     return 0;
+}
+
+QRgb MapMinimapService::paletteColor(int index)
+{
+    return static_cast<QRgb>(minimapPalette(index));
+}
+
+uint32_t MapMinimapService::colorForTile(const OtbmTile *tile, const OtbReader *otb,
+                                         const DatReader *dat)
+{
+    const int index = colorIndexForTile(tile, otb, dat);
+    return index > 0 ? minimapPalette(index) : 0;
 }
 
 void MapMinimapService::invalidate()

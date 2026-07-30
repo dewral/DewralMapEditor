@@ -85,7 +85,9 @@ WALL_ALIGNMENT = {
 
 CATEGORY_TARGETS = {
     "terrain": ("terrain",),
-    "collections_and_terrain": ("terrain",),
+    "collections": ("collection",),
+    "collections_and_raw": ("collection", "raw"),
+    "collections_and_terrain": ("collection", "terrain"),
     "doodad": ("doodad",),
     "doodad_and_raw": ("doodad", "raw"),
     "item": ("item",),
@@ -258,33 +260,88 @@ def convert_grounds(
 
 def convert_walls(source_directory: Path) -> OrderedDict[str, dict]:
     result: OrderedDict[str, dict] = OrderedDict()
-    root = read_xml(source_directory / "walls.xml")
-    for node in root.findall("./brush"):
-        if node.get("type") != "wall" or not node.get("name"):
-            continue
-
-        wall_items: OrderedDict[str, list[list[int]]] = OrderedDict()
-        first_item_id = 0
-        for wall in node.findall("./wall"):
-            alignment = WALL_ALIGNMENT.get((wall.get("type") or "").lower())
-            if alignment is None:
+    for material_file in included_material_files(source_directory):
+        root = read_xml(material_file)
+        for node in root.findall("./brush"):
+            if node.get("type") != "wall" or not node.get("name"):
                 continue
-            values: list[list[int]] = []
-            for item in wall.findall("./item"):
-                chance = integer(item.get("chance"), 100)
-                for item_id in expanded_ids(item):
-                    values.append([item_id, chance])
-                    if first_item_id == 0:
-                        first_item_id = item_id
-            if values:
-                wall_items[str(alignment)] = values
 
-        if not wall_items:
-            continue
-        result[node.get("name") or ""] = {
-            "lookid": brush_look_id(node, first_item_id),
-            "items": wall_items,
-        }
+            wall_items: OrderedDict[str, list[list[int]]] = OrderedDict()
+            first_item_id = 0
+            for wall in node.findall("./wall"):
+                alignment = WALL_ALIGNMENT.get((wall.get("type") or "").lower())
+                if alignment is None:
+                    continue
+                values: list[list[int]] = []
+                for item in wall.findall("./item"):
+                    chance = integer(item.get("chance"), 100)
+                    for item_id in expanded_ids(item):
+                        values.append([item_id, chance])
+                        if first_item_id == 0:
+                            first_item_id = item_id
+                if values:
+                    wall_items[str(alignment)] = values
+
+            if not wall_items:
+                continue
+            result[node.get("name") or ""] = {
+                "lookid": brush_look_id(node, first_item_id),
+                "items": wall_items,
+            }
+    return result
+
+
+def convert_doors(source_directory: Path) -> OrderedDict[str, dict]:
+    result: OrderedDict[str, dict] = OrderedDict()
+    for material_file in included_material_files(source_directory):
+        root = read_xml(material_file)
+        for brush in root.findall("./brush"):
+            if brush.get("type") != "wall" or not brush.get("name"):
+                continue
+            brush_name = brush.get("name") or ""
+            for wall in brush.findall("./wall"):
+                alignment_name = (wall.get("type") or "").lower()
+                alignment = WALL_ALIGNMENT.get(alignment_name)
+                if alignment is None:
+                    continue
+
+                groups: OrderedDict[str, list[dict]] = OrderedDict()
+                for door in wall.findall("./door"):
+                    door_id = integer(door.get("id"))
+                    if door_id <= 0:
+                        continue
+                    door_type = (door.get("type") or "normal").strip().replace(" ", "_")
+                    groups.setdefault(door_type, []).append(
+                        {
+                            "id": door_id,
+                            "open": (door.get("open") or "true").lower() == "true",
+                            "locked": (door.get("locked") or "false").lower() == "true",
+                        }
+                    )
+
+                for door_type, variants in groups.items():
+                    opened = [entry for entry in variants if entry["open"]]
+                    closed = [entry for entry in variants if not entry["open"]]
+                    preferred_closed = (
+                        next(
+                            (entry for entry in closed if not entry["locked"]),
+                            closed[0],
+                        )
+                        if closed
+                        else None
+                    )
+                    for entry in variants:
+                        target = preferred_closed if entry["open"] else (
+                            opened[0] if opened else None
+                        )
+                        result[str(entry["id"])] = {
+                            "to": target["id"] if target else 0,
+                            "open": entry["open"],
+                            "brush": brush_name,
+                            "align": alignment,
+                            "type": door_type,
+                            "locked": entry["locked"],
+                        }
     return result
 
 
@@ -389,13 +446,51 @@ def included_material_files(source_directory: Path) -> list[Path]:
     return result
 
 
+def convert_connected_brushes(
+    source_directory: Path,
+    brush_type: str,
+    child_tag: str,
+) -> OrderedDict[str, dict]:
+    result: OrderedDict[str, dict] = OrderedDict()
+    for material_file in included_material_files(source_directory):
+        root = read_xml(material_file)
+        for node in root.findall("./brush"):
+            if node.get("type") != brush_type or not node.get("name"):
+                continue
+            alignments: OrderedDict[str, list[list[int]]] = OrderedDict()
+            first_item_id = 0
+            for part in node.findall(f"./{child_tag}"):
+                alignment = (part.get("align") or "").lower()
+                if not alignment:
+                    continue
+                values: list[list[int]] = []
+                direct_id = integer(part.get("id"))
+                if direct_id > 0:
+                    values.append([direct_id, 1])
+                for item in part.findall("./item"):
+                    chance = integer(item.get("chance"), 1)
+                    for item_id in expanded_ids(item):
+                        values.append([item_id, chance])
+                if not values:
+                    continue
+                alignments[alignment] = values
+                if first_item_id == 0:
+                    first_item_id = values[0][0]
+            if alignments:
+                result[node.get("name") or ""] = {
+                    "lookid": brush_look_id(node, first_item_id),
+                    "items": alignments,
+                }
+    return result
+
+
 def convert_tilesets(
     source_directory: Path,
     brushes: dict[str, OrderedDict[str, dict]],
 ) -> OrderedDict[str, OrderedDict[str, list[int]]]:
     result = OrderedDict(
         (category, OrderedDict())
-        for category in ("terrain", "doodad", "item", "raw")
+        for category in ("terrain", "doodad", "item", "raw", "collection", "door")
     )
     material_files = included_material_files(source_directory)
     look_ids: dict[str, int] = {}
@@ -418,7 +513,7 @@ def convert_tilesets(
             if look_id > 0:
                 look_ids[name] = look_id
 
-    for brush_type in ("grounds", "walls", "doodads"):
+    for brush_type in ("grounds", "walls", "doodads", "carpets", "tables"):
         for name, definition in brushes[brush_type].items():
             look_id = integer(str(definition.get("lookid", 0)))
             if look_id > 0:
@@ -464,6 +559,30 @@ def convert_tilesets(
         result["doodad"] = OrderedDict(
             [("All Doodads", all_doodads), *result["doodad"].items()]
         )
+
+    door_type_names = {
+        "normal": "Normal Doors",
+        "normal_alt": "Alternative Doors",
+        "locked": "Locked Doors",
+        "quest": "Quest Doors",
+        "magic": "Magic Doors",
+        "archway": "Archways",
+        "window": "Windows",
+        "hatch_window": "Hatch Windows",
+    }
+    door_examples: OrderedDict[str, list[int]] = OrderedDict()
+    for item_id, definition in brushes["doors"].items():
+        door_type = str(definition.get("type", "normal"))
+        if door_type == "any_window":
+            continue
+        label = door_type_names.get(
+            door_type,
+            door_type.replace("_", " ").title(),
+        )
+        values = door_examples.setdefault(label, [])
+        if not values:
+            values.append(integer(item_id))
+    result["door"] = door_examples
     return result
 
 
@@ -507,7 +626,16 @@ def convert_profile(
             ("borders", borders),
             ("grounds", convert_grounds(source_directory, borders)),
             ("walls", convert_walls(source_directory)),
+            ("doors", convert_doors(source_directory)),
             ("doodads", convert_doodads(source_directory)),
+            (
+                "carpets",
+                convert_connected_brushes(source_directory, "carpet", "carpet"),
+            ),
+            (
+                "tables",
+                convert_connected_brushes(source_directory, "table", "table"),
+            ),
         )
     )
     tilesets = convert_tilesets(source_directory, brushes)
@@ -528,7 +656,10 @@ def convert_profile(
         "borders": len(brushes["borders"]),
         "grounds": len(brushes["grounds"]),
         "walls": len(brushes["walls"]),
+        "doors": len(brushes["doors"]),
         "doodads": len(brushes["doodads"]),
+        "carpets": len(brushes["carpets"]),
+        "tables": len(brushes["tables"]),
         "tilesets": sum(len(groups) for groups in tilesets.values()),
     }
 

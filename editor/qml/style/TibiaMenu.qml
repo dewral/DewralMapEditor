@@ -34,12 +34,13 @@ Menu {
         spacing: 0
 
         contentItem: Item {
-            implicitWidth: itemText.implicitWidth + 10 + (menuItem.subMenu !== null ? 22 : 10)
+            implicitWidth: itemText.implicitWidth + (menuItem.checkable ? 30 : 10)
+                           + (menuItem.subMenu !== null ? 22 : 10)
             implicitHeight: 24
             Text {
                 id: itemText
                 anchors.left: parent.left
-                anchors.leftMargin: 10
+                anchors.leftMargin: menuItem.checkable ? 30 : 10
                 anchors.verticalCenter: parent.verticalCenter
                 text: menuItem.text
                 color: Backend.uiTheme.style === "github-dark"
@@ -49,7 +50,20 @@ Menu {
                 verticalAlignment: Text.AlignVCenter
             }
         }
-        indicator: Item {}
+        indicator: Text {
+            visible: menuItem.checkable
+            width: 22
+            anchors.left: parent.left
+            anchors.leftMargin: 6
+            anchors.verticalCenter: parent.verticalCenter
+            text: menuItem.checked ? "\u2713" : ""
+            horizontalAlignment: Text.AlignHCenter
+            color: Backend.uiTheme.style === "github-dark"
+                   ? (menuItem.highlighted ? "#FFFFFF" : "#3FB950")
+                   : (menuItem.highlighted ? "#eaffea" : "#80c080")
+            font.pixelSize: 13
+            font.bold: true
+        }
         arrow: Text {
             visible: menuItem.subMenu !== null
             text: ">"

@@ -149,7 +149,7 @@ TibiaDialog {
     contentItem: Item {
         id: body
         implicitWidth: 660
-        implicitHeight: 480
+        implicitHeight: Math.max(480, editorColumn.implicitHeight)
 
         Column {
             id: pickerCol
@@ -241,6 +241,7 @@ TibiaDialog {
         }
 
         Column {
+            id: editorColumn
             anchors {
                 left: pickerCol.right
                 right: parent.right

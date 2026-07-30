@@ -367,7 +367,6 @@ void MapView::clearChunkQuadCache()
         m_chunkVer.clear();
         m_animChunks.clear();
     }
-    // Jak przy kazdej inwalidacji: renderer pomija petle chunkow w sync, gdy
-    // wersja cache sie nie zmienila.
+    // Ensure synchronize() observes the invalidated chunk cache.
     m_quadCacheVer.fetch_add(1, std::memory_order_relaxed);
 }

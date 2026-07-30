@@ -23,6 +23,10 @@ public:
                     const OtbReader *otb, const DatReader *dat);
     void invalidate();
 
+    static int colorIndexForTile(const OtbmTile *tile, const OtbReader *otb,
+                                 const DatReader *dat);
+    static QRgb paletteColor(int index);
+
     int originX() const { return m_originX; }
     int originY() const { return m_originY; }
     quint32 version() const { return m_version; }

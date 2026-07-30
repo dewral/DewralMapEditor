@@ -68,8 +68,14 @@ void BrushStore::clear()
     m_borderItemIds.clear();
     m_walls.clear();
     m_wallByServerId.clear();
+    m_wallAlignByServerId.clear();
+    m_doors.clear();
     m_doodads.clear();
     m_doodadByServerId.clear();
+    m_carpets.clear();
+    m_carpetByServerId.clear();
+    m_tables.clear();
+    m_tableByServerId.clear();
 }
 
 const std::array<int, 13> *BrushStore::borderTiles(const QString &key) const
@@ -186,9 +192,28 @@ void BrushStore::parseRoot(const QJsonObject &root)
                 node.total += chance;
                 node.items.append({ id, node.total });
                 m_wallByServerId.insert(id, it.key());
+                m_wallAlignByServerId.insert(id, align);
             }
         }
         m_walls.insert(it.key(), def);
+    }
+
+    const QJsonObject doors = root.value(QStringLiteral("doors")).toObject();
+    for (auto it = doors.begin(); it != doors.end(); ++it) {
+        const int id = it.key().toInt();
+        const QJsonObject door = it.value().toObject();
+        const int switchTo = door.value(QStringLiteral("to")).toInt();
+        if (id <= 0) continue;
+        DoorDef def;
+        def.switchTo = switchTo;
+        def.open = door.value(QStringLiteral("open")).toBool();
+        def.locked = door.value(QStringLiteral("locked")).toBool();
+        def.brush = door.value(QStringLiteral("brush")).toString();
+        def.type = door.value(QStringLiteral("type")).toString();
+        def.align = door.value(QStringLiteral("align")).toInt();
+        m_doors.insert(id, def);
+        if (!def.brush.isEmpty()) m_wallByServerId.insert(id, def.brush);
+        m_wallAlignByServerId.insert(id, def.align);
     }
 
     const QJsonObject doodads = root.value(QStringLiteral("doodads")).toObject();
@@ -240,6 +265,132 @@ void BrushStore::parseRoot(const QJsonObject &root)
         }
         if (!def.alts.isEmpty()) m_doodads.insert(it.key(), def);
     }
+
+    auto parseConnected = [](const QJsonObject &source,
+                             QHash<QString, ConnectedDef> &definitions,
+                             QHash<int, QString> &byServerId) {
+        for (auto it = source.begin(); it != source.end(); ++it) {
+            ConnectedDef def;
+            const QJsonObject items =
+                it.value().toObject().value(QStringLiteral("items")).toObject();
+            for (auto ai = items.begin(); ai != items.end(); ++ai) {
+                ConnectedDef::Node node;
+                for (const QJsonValue &value : ai.value().toArray()) {
+                    const QJsonArray pair = value.toArray();
+                    if (pair.size() < 2) continue;
+                    const int id = pair.at(0).toInt();
+                    const int chance = pair.at(1).toInt();
+                    if (id <= 0 || chance <= 0) continue;
+                    node.total += chance;
+                    node.items.append({id, node.total});
+                    byServerId.insert(id, it.key());
+                }
+                if (!node.items.isEmpty()) def.align.insert(ai.key(), node);
+            }
+            if (!def.align.isEmpty()) definitions.insert(it.key(), def);
+        }
+    };
+    parseConnected(root.value(QStringLiteral("carpets")).toObject(),
+                   m_carpets, m_carpetByServerId);
+    parseConnected(root.value(QStringLiteral("tables")).toObject(),
+                   m_tables, m_tableByServerId);
+}
+
+bool BrushStore::isDoorOpen(int serverId) const
+{
+    auto it = m_doors.constFind(serverId);
+    return it != m_doors.cend() && it->open;
+}
+
+bool BrushStore::canSwitchDoor(int serverId) const
+{
+    auto it = m_doors.constFind(serverId);
+    return it != m_doors.cend() && it->switchTo > 0;
+}
+
+int BrushStore::switchedDoorItem(int serverId) const
+{
+    auto it = m_doors.constFind(serverId);
+    return it == m_doors.cend() ? 0 : it->switchTo;
+}
+
+int BrushStore::doorBrushItem(int wallServerId, int exampleDoorId) const
+{
+    auto example = m_doors.constFind(exampleDoorId);
+    if (example == m_doors.cend()) return 0;
+    const QString wallBrush = m_wallByServerId.value(wallServerId);
+    const int wallAlign = m_wallAlignByServerId.value(wallServerId, -1);
+    if (wallBrush.isEmpty() || wallAlign < 0) return 0;
+
+    bool wantOpen = example->open;
+    auto existing = m_doors.constFind(wallServerId);
+    if (existing != m_doors.cend()) wantOpen = existing->open;
+
+    int fallback = 0;
+    for (auto it = m_doors.cbegin(); it != m_doors.cend(); ++it) {
+        const DoorDef &candidate = it.value();
+        if (candidate.brush != wallBrush || candidate.align != wallAlign
+            || candidate.type != example->type || candidate.open != wantOpen) {
+            continue;
+        }
+        if (wantOpen || !candidate.locked) return it.key();
+        if (fallback == 0) fallback = it.key();
+    }
+    return fallback;
+}
+
+int BrushStore::pickConnectedItem(const ConnectedDef &def,
+                                  const QString &alignment,
+                                  const QString &fallback) const
+{
+    auto it = def.align.constFind(alignment);
+    if (it == def.align.cend() || it->items.isEmpty()) {
+        it = def.align.constFind(fallback);
+    }
+    if (it == def.align.cend() || it->items.isEmpty() || it->total <= 0) return 0;
+    static thread_local std::mt19937 rng{std::random_device{}()};
+    std::uniform_int_distribution<int> dist(1, it->total);
+    const int roll = dist(rng);
+    for (const auto &item : it->items)
+        if (roll <= item.second) return item.first;
+    return it->items.back().first;
+}
+
+int BrushStore::computeCarpetItem(const QString &name, bool nw, bool n, bool ne,
+                                  bool w, bool e, bool sw, bool s, bool se) const
+{
+    auto it = m_carpets.constFind(name);
+    if (it == m_carpets.cend()) return 0;
+
+    QString alignment = QStringLiteral("center");
+    if (!n && !w && (e || s)) alignment = QStringLiteral("cnw");
+    else if (!n && !e && (w || s)) alignment = QStringLiteral("cne");
+    else if (!s && !e && (w || n)) alignment = QStringLiteral("cse");
+    else if (!s && !w && (e || n)) alignment = QStringLiteral("csw");
+    else if (!n && (w || e)) alignment = QStringLiteral("n");
+    else if (!e && (n || s)) alignment = QStringLiteral("e");
+    else if (!s && (w || e)) alignment = QStringLiteral("s");
+    else if (!w && (n || s)) alignment = QStringLiteral("w");
+    else if (n && w && !nw) alignment = QStringLiteral("dnw");
+    else if (n && e && !ne) alignment = QStringLiteral("dne");
+    else if (s && e && !se) alignment = QStringLiteral("dse");
+    else if (s && w && !sw) alignment = QStringLiteral("dsw");
+    return pickConnectedItem(*it, alignment, QStringLiteral("center"));
+}
+
+int BrushStore::computeTableItem(const QString &name, bool n, bool w,
+                                 bool e, bool s) const
+{
+    auto it = m_tables.constFind(name);
+    if (it == m_tables.cend()) return 0;
+    QString alignment = QStringLiteral("alone");
+    if (w && e) alignment = QStringLiteral("horizontal");
+    else if (n && s) alignment = QStringLiteral("vertical");
+    else if (w) alignment = QStringLiteral("east");
+    else if (e) alignment = QStringLiteral("west");
+    else if (n) alignment = QStringLiteral("south");
+    else if (s) alignment = QStringLiteral("north");
+    return pickConnectedItem(*it, alignment, QStringLiteral("alone"));
 }
 
 bool BrushStore::saveJson() const

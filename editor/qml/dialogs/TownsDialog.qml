@@ -15,23 +15,50 @@ TibiaDialog {
 
     property var towns: []
     property int selectedId: -1
+    property var selectedTown: null
 
     function refresh(keepId) {
         towns = Backend.otbmReader.townsList();
         selectedId = keepId !== undefined ? keepId : -1;
         if (selectedId >= 0) {
-            for (var i = 0; i < towns.length; ++i)
+            for (var i = 0; i < towns.length; ++i) {
                 if (towns[i].id === selectedId) {
                     townsList.currentIndex = i;
+                    syncEditor();
                     return;
                 }
+            }
         }
+        selectedId = -1;
         townsList.currentIndex = -1;
+        syncEditor();
     }
+
     function selected() {
         return selectedId >= 0 ? towns.find(function (t) {
             return t.id === selectedId;
         }) : null;
+    }
+
+    function selectTown(id, index) {
+        selectedId = id;
+        townsList.currentIndex = index;
+        syncEditor();
+    }
+
+    function syncEditor() {
+        selectedTown = selected();
+        if (selectedTown) {
+            nameField.text = selectedTown.name;
+            xField.value = selectedTown.x;
+            yField.value = selectedTown.y;
+            zField.value = selectedTown.z;
+        } else {
+            nameField.text = "";
+            xField.value = 0;
+            yField.value = 0;
+            zField.value = 0;
+        }
     }
 
     function commitName() {
@@ -85,8 +112,7 @@ TibiaDialog {
                         anchors.fill: parent
                         hoverEnabled: true
                         onClicked: {
-                            townsList.currentIndex = index;
-                            townsDialog.selectedId = modelData.id;
+                            townsDialog.selectTown(modelData.id, index);
                         }
                     }
                 }
@@ -129,12 +155,10 @@ TibiaDialog {
         Row {
             id: nameRow
             spacing: 6
-            property var t: townsDialog.selected()
-            enabled: t !== null && t !== undefined
+            enabled: townsDialog.selectedTown !== null
             TibiaTextField {
                 id: nameField
                 width: 210
-                text: parent.t ? parent.t.name : ""
                 onEditingFinished: {
                     townsDialog.commitName();
                     townsDialog.refresh(townsDialog.selectedId);
@@ -142,7 +166,7 @@ TibiaDialog {
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: parent.t ? ("" + parent.t.id) : ""
+                text: townsDialog.selectedTown ? ("" + townsDialog.selectedTown.id) : ""
                 color: "#888"
                 font.pixelSize: 12
             }
@@ -155,8 +179,7 @@ TibiaDialog {
         }
         Row {
             spacing: 6
-            property var t: townsDialog.selected()
-            property bool hasSel: t !== null && t !== undefined
+            property bool hasSel: townsDialog.selectedTown !== null
 
             function applyTemple() {
                 if (townsDialog.selectedId < 0)
@@ -170,7 +193,6 @@ TibiaDialog {
                 width: 78
                 from: 0
                 to: 65535
-                value: parent.t ? parent.t.x : 0
                 enabled: parent.hasSel
                 onValueModified: parent.applyTemple()
             }
@@ -179,7 +201,6 @@ TibiaDialog {
                 width: 78
                 from: 0
                 to: 65535
-                value: parent.t ? parent.t.y : 0
                 enabled: parent.hasSel
                 onValueModified: parent.applyTemple()
             }
@@ -188,7 +209,6 @@ TibiaDialog {
                 width: 62
                 from: 0
                 to: 15
-                value: parent.t ? parent.t.z : 0
                 enabled: parent.hasSel
                 onValueModified: parent.applyTemple()
             }

@@ -25,7 +25,9 @@ void TilesetStore::clear()
 }
 
 namespace {
-constexpr const char *kCategories[] = { "terrain", "doodad", "item", "raw" };
+constexpr const char *kCategories[] = {
+    "terrain", "doodad", "item", "raw", "collection", "door"
+};
 }
 
 bool TilesetStore::loadJsonInto(const QString &path,
@@ -135,6 +137,20 @@ QStringList TilesetStore::namesFor(const QString &category) const
 QVariantList TilesetStore::itemsFor(const QString &category, const QString &name) const
 {
     return m_items.value(category).value(name);
+}
+
+QString TilesetStore::tilesetForItem(const QString &category, int serverId) const
+{
+    const QStringList names = m_names.value(category);
+    const auto categoryItems = m_items.constFind(category);
+    if (categoryItems == m_items.cend()) return {};
+
+    for (const QString &name : names) {
+        const QVariantList items = categoryItems->value(name);
+        for (const QVariant &item : items)
+            if (item.toInt() == serverId) return name;
+    }
+    return {};
 }
 
 bool TilesetStore::isCustomOnly(const QString &category, const QString &name) const

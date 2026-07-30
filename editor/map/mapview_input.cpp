@@ -295,11 +295,7 @@ void MapView::updateHoverText()
     }
     if (t != m_hoverText) {
         m_hoverText = t;
-        // Emisja zdlawiona do ~20 Hz: kazda zmiana tekstu to binding + relayout
-        // + PELNA klatka kompozycji okna QML (statusbar zyje w scenie okna).
-        // Przy szybkim ruchu myszy na zoom-out kafel zmienia sie kilkadziesiat
-        // razy na sekunde - okno komponowalo sie z ta czestotliwoscia tylko po
-        // to, by przepisac napis pozycji. Property i tak czyta swiezy m_hoverText.
+        // Throttle QML binding and layout work while keeping the property current.
         if (!m_hoverEmitTimer->isActive()) m_hoverEmitTimer->start();
     }
 }
@@ -454,8 +450,12 @@ void MapView::mousePressEvent(QMouseEvent *event)
         const QPoint t = tileAtScreen(event->position());
         m_contextX = t.x();
         m_contextY = t.y();
+        const OtbmTile *contextTile = currentFloorTileAt(t.x(), t.y());
+        m_contextItemIndex = contextTile && !contextTile->items.empty()
+                                 ? static_cast<int>(contextTile->items.size()) - 1
+                                 : -1;
         const quint64 k = selKey(t.x(), t.y(), m_floor);
-        if (currentFloorTileAt(t.x(), t.y())) {
+        if (contextTile) {
             if (!m_selected.contains(k)) {
                 m_selected.clear();
                 m_selected.insert(k);
@@ -626,10 +626,7 @@ void MapView::hoverMoveEvent(QHoverEvent *event)
         m_hoverX = h.x();
         m_hoverY = h.y();
         updateHoverText();
-        // Render mapy TYLKO gdy hover ma na niej wizualna reprezentacje (kursor
-        // pedzla / ghost / wklejanie). Goly ruch myszy zmienia jedynie statusbar
-        // (QML) - przerysowywanie FBO przy kazdym przekroczeniu kafla bylo
-        // glownym kosztem CPU podczas przesuwania kursora nad mapa.
+        // Redraw only when hover has a visual representation on the map.
         const bool cursorVisual = m_brushServerId > 0 || m_activeZone != 0
             || m_eraseMode || m_spawnBrush || !m_creatureBrush.isEmpty()
             || m_houseBrush > 0 || m_houseExitMode || !m_activeDoodadBrush.isEmpty();
@@ -752,6 +749,16 @@ void MapView::keyPressEvent(QKeyEvent *event)
         }
         if (event->key() == Qt::Key_E) {
             setShowZones(!m_showZones);
+            event->accept();
+            return;
+        }
+        if (event->key() == Qt::Key_O) {
+            setShowPathing(!m_showPathing);
+            event->accept();
+            return;
+        }
+        if (event->key() == Qt::Key_L) {
+            setShowAnimations(!m_showAnimations);
             event->accept();
             return;
         }

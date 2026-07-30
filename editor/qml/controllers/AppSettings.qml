@@ -11,6 +11,9 @@ Settings {
     property int glMaxFps: 60
     property bool glMaxFpsConfigured: false
     property bool vsyncEnabled: true
+    property bool showClientBox: false
+    property bool showTooltips: true
+    property bool showWaypoints: true
     property int paletteWidth: 390
     property bool paletteCollapsed: false
     property int iconSize: 66

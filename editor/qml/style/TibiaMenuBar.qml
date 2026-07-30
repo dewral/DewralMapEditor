@@ -18,6 +18,7 @@ MenuBar {
     }
     delegate: MenuBarItem {
         id: menuBarItem
+        focusPolicy: Qt.NoFocus
         width: Backend.uiTheme.style === "github-dark"
                ? Math.max(48, (root.width - root.leftPadding - root.rightPadding) / root.githubMenuCount)
                : implicitWidth

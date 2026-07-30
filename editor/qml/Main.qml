@@ -19,6 +19,8 @@ Window {
     visible: app.started
     width: 1000
     height: 680
+    minimumWidth: 720
+    minimumHeight: 480
     title: "Dewral Map Editor  -  " + (Backend.otbmReader.filePath !== "" ? Backend.fileTools.fileName(Backend.otbmReader.filePath) : "(no map)") + (Backend.otbmReader.dirty ? "  *" : "")
 
     flags: Qt.FramelessWindowHint | Qt.Window
@@ -223,9 +225,16 @@ Window {
         startupWindow: startupScreen
         saveDialog: saveDialog
         newMapDialog: newMapDialog
+        importMapDialog: importMapDialog
+        exportMinimapDialog: exportMinimapDialog
+        cleanupDialog: cleanupDialog
         selectionItemDialog: selItemDialog
+        findItemDialog: findItemDialog
+        searchResultsDialog: searchResultsDialog
         goToDialog: gotoPosDialog
         townsDialog: townsDialog
+        waypointsDialog: waypointsDialog
+        creatureManagerDialog: creatureManagerDialog
         mapPropertiesDialog: mapPropsDialog
         statsDialog: statsDialog
         brushEditorDialog: brushEditorDialog
@@ -290,6 +299,7 @@ Window {
         app: app
         mapCtrl: workspace.mapView
         onCollapseRequested: prefs.paletteCollapsed = true
+        onRevealRequested: prefs.paletteCollapsed = false
     }
 
     Item {
@@ -527,6 +537,8 @@ Window {
         app: app
         settings: prefs
         propertiesDialog: propsDialog
+        browseFieldDialog: browseFieldDialog
+        paletteNavigator: palette
     }
 
     FolderDialog {
@@ -547,7 +559,15 @@ Window {
 
     QtObject {
         id: propsDialog
+        property var contextOverride: null
+
         function open() {
+            contextOverride = null;
+            propsDialogLoader.active = true;
+            propsDialogLoader.item["open"]();
+        }
+        function openWithContext(itemContext) {
+            contextOverride = itemContext;
             propsDialogLoader.active = true;
             propsDialogLoader.item["open"]();
         }
@@ -556,9 +576,47 @@ Window {
         id: propsDialogLoader
         active: false
         sourceComponent: ItemPropertiesDialog {
-            ctx: workspace.context
+            ctx: propsDialog.contextOverride || workspace.context
             mapCtrl: workspace.mapView
-            onClosed: Qt.callLater(() => propsDialogLoader.active = false)
+            containerDialog: containerDialog
+            onClosed: Qt.callLater(() => {
+                propsDialogLoader.active = false;
+                propsDialog.contextOverride = null;
+            })
+        }
+    }
+
+    QtObject {
+        id: browseFieldDialog
+        function open() {
+            browseFieldLoader.active = true;
+            browseFieldLoader.item["open"]();
+        }
+    }
+    Loader {
+        id: browseFieldLoader
+        active: false
+        sourceComponent: BrowseFieldDialog {
+            mapCtrl: workspace.mapView
+            propertiesDialog: propsDialog
+            paletteNavigator: palette
+            onClosed: Qt.callLater(() => browseFieldLoader.active = false)
+        }
+    }
+
+    QtObject {
+        id: containerDialog
+        function open(path, title) {
+            containerLoader.active = true;
+            containerLoader.item["openContainer"](path, title);
+        }
+    }
+    Loader {
+        id: containerLoader
+        active: false
+        sourceComponent: ContainerDialog {
+            mapCtrl: workspace.mapView
+            onClosed: Qt.callLater(() => containerLoader.active = false)
         }
     }
 
@@ -646,6 +704,45 @@ Window {
     }
 
     QtObject {
+        id: findItemDialog
+        function open() {
+            findItemLoader.active = true;
+            findItemLoader.item["open"]();
+        }
+    }
+    Loader {
+        id: findItemLoader
+        active: false
+        sourceComponent: FindItemDialog {
+            paletteNavigator: palette
+            onClosed: Qt.callLater(() => findItemLoader.active = false)
+        }
+    }
+
+    QtObject {
+        id: searchResultsDialog
+        property string searchType: "everything"
+        property bool selectionOnly: false
+
+        function openSearch(type, selectedOnly) {
+            searchType = type;
+            selectionOnly = selectedOnly;
+            searchResultsLoader.active = true;
+            searchResultsLoader.item["searchType"] = type;
+            searchResultsLoader.item["selectionOnly"] = selectedOnly;
+            searchResultsLoader.item["open"]();
+        }
+    }
+    Loader {
+        id: searchResultsLoader
+        active: false
+        sourceComponent: SearchResultsDialog {
+            mapCtrl: workspace.mapView
+            onClosed: Qt.callLater(() => searchResultsLoader.active = false)
+        }
+    }
+
+    QtObject {
         id: themeDialog
         function open() {
             themeLoader.active = true;
@@ -677,6 +774,54 @@ Window {
     }
 
     QtObject {
+        id: importMapDialog
+        function open() {
+            importMapLoader.active = true;
+            importMapLoader.item["open"]();
+        }
+    }
+    Loader {
+        id: importMapLoader
+        active: false
+        sourceComponent: ImportMapDialog {
+            mapCtrl: workspace.mapView
+            onClosed: Qt.callLater(() => importMapLoader.active = false)
+        }
+    }
+
+    QtObject {
+        id: exportMinimapDialog
+        function open() {
+            exportMinimapLoader.active = true;
+            exportMinimapLoader.item["open"]();
+        }
+    }
+    Loader {
+        id: exportMinimapLoader
+        active: false
+        sourceComponent: ExportMinimapDialog {
+            mapCtrl: workspace.mapView
+            onClosed: Qt.callLater(() => exportMinimapLoader.active = false)
+        }
+    }
+
+    QtObject {
+        id: cleanupDialog
+        function open() {
+            cleanupLoader.active = true;
+            cleanupLoader.item["open"]();
+        }
+    }
+    Loader {
+        id: cleanupLoader
+        active: false
+        sourceComponent: CleanupDialog {
+            mapCtrl: workspace.mapView
+            onClosed: Qt.callLater(() => cleanupLoader.active = false)
+        }
+    }
+
+    QtObject {
         id: townsDialog
         function open() {
             townsLoader.active = true;
@@ -690,6 +835,37 @@ Window {
             app: app
             mapCtrl: workspace.mapView
             onClosed: Qt.callLater(() => townsLoader.active = false)
+        }
+    }
+
+    QtObject {
+        id: waypointsDialog
+        function open() {
+            waypointsLoader.active = true;
+            waypointsLoader.item["open"]();
+        }
+    }
+    Loader {
+        id: waypointsLoader
+        active: false
+        sourceComponent: WaypointsDialog {
+            mapCtrl: workspace.mapView
+            onClosed: Qt.callLater(() => waypointsLoader.active = false)
+        }
+    }
+
+    QtObject {
+        id: creatureManagerDialog
+        function open() {
+            creatureManagerLoader.active = true;
+            creatureManagerLoader.item["open"]();
+        }
+    }
+    Loader {
+        id: creatureManagerLoader
+        active: false
+        sourceComponent: CreatureManagerDialog {
+            onClosed: Qt.callLater(() => creatureManagerLoader.active = false)
         }
     }
 
@@ -713,5 +889,9 @@ Window {
             app: app
             settings: prefs
         }
+    }
+
+    WindowResizeHandles {
+        targetWindow: root
     }
 }

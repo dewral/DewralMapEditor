@@ -8,6 +8,8 @@ Item {
     required property var app
     required property var settings
     required property var propertiesDialog
+    required property var browseFieldDialog
+    required property var paletteNavigator
     readonly property bool githubUi: Backend.uiTheme.style === "github-dark"
 
     property alias mapView: mapView
@@ -107,7 +109,10 @@ Item {
                 hasTeleportDest: false,
                 teleportX: 0,
                 teleportY: 0,
-                teleportZ: 0
+                teleportZ: 0,
+                canRotate: false,
+                door: false,
+                doorOpen: false
             })
 
         MapView {
@@ -143,6 +148,13 @@ Item {
             }
         }
 
+        MapOverlay {
+            anchors.fill: parent
+            z: 5
+            mapCtrl: mapView
+            settings: workspace.settings
+        }
+
         TibiaMenu {
             id: contextMenu
             Action {
@@ -158,6 +170,11 @@ Item {
             Action {
                 text: "Copy Position"
                 onTriggered: Backend.fileTools.setClipboard(mapArea.ctx.x + ", " + mapArea.ctx.y + ", " + mapArea.ctx.z)
+            }
+            Action {
+                text: "Browse Field"
+                enabled: mapArea.ctx.hasItem
+                onTriggered: workspace.browseFieldDialog.open()
             }
             Action {
                 text: "Paste"
@@ -190,18 +207,36 @@ Item {
                 text: "Select Brush"
                 visible: mapArea.ctx.hasItem && mapView.brushForServerId(mapArea.ctx.serverId) !== ""
                 height: visible ? implicitHeight : 0
-                onTriggered: mapView.useGroundBrush(mapArea.ctx.serverId)
+                onTriggered: workspace.paletteNavigator.selectBrush(mapArea.ctx.serverId)
             }
             Action {
                 text: "Select RAW"
                 enabled: mapArea.ctx.hasItem
-                onTriggered: mapView.brushServerId = mapArea.ctx.serverId
+                onTriggered: workspace.paletteNavigator.selectRaw(mapArea.ctx.serverId)
+            }
+            TibiaMenuItem {
+                text: "Select Creature"
+                visible: mapArea.ctx.creatureName !== ""
+                height: visible ? implicitHeight : 0
+                onTriggered: workspace.paletteNavigator.selectCreature(mapArea.ctx.creatureName)
             }
             TibiaMenuItem {
                 text: "Go To Destination"
                 visible: mapArea.ctx.teleport === true && mapArea.ctx.hasTeleportDest === true
                 height: visible ? implicitHeight : 0
                 onTriggered: mapView.centerOnPosition(mapArea.ctx.teleportX, mapArea.ctx.teleportY, mapArea.ctx.teleportZ)
+            }
+            TibiaMenuItem {
+                text: "Rotate Item"
+                visible: mapArea.ctx.canRotate === true
+                height: visible ? implicitHeight : 0
+                onTriggered: mapView.rotateContextItem()
+            }
+            TibiaMenuItem {
+                text: mapArea.ctx.doorOpen === true ? "Close Door" : "Open Door"
+                visible: mapArea.ctx.door === true
+                height: visible ? implicitHeight : 0
+                onTriggered: mapView.switchContextDoor()
             }
             Action {
                 text: "Properties"
@@ -282,12 +317,8 @@ Item {
             Text {
                 id: fpsLabel
                 anchors.centerIn: parent
-                // mapGl.fps = realne klatki RENDERU MAPY (to ogranicza Limit FPS).
-                // workspace.fps (onFrameSwapped okna) liczyl kompozycje calego UI
-                // - hover na palecie, statusbar, minimapa - i "przekraczal limit",
-                // mimo ze ciezki render mapy trzymal sie ustawienia. Rendering
-                // jest na zadanie, wiec niski FPS w spoczynku to norma - kolor
-                // stale zielony (nie ostrzegaj przy idle).
+                // This counter measures map renders, not lightweight UI composition.
+                // Demand-driven rendering makes a low idle value expected.
                 text: mapGl.fps > 0 ? ("FPS: " + mapGl.fps + "   OpenGL")
                                     : "FPS: idle   OpenGL"
                 color: "#7fdc8f"

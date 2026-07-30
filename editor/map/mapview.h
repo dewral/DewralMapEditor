@@ -75,12 +75,14 @@ class MapView : public QQuickItem
     Q_PROPERTY(bool houseExitMode READ houseExitMode WRITE setHouseExitMode NOTIFY brushChanged)
 
     Q_PROPERTY(bool torchOn READ torchOn WRITE setTorchOn NOTIFY torchChanged)
+    Q_PROPERTY(int lightAmbient READ lightAmbient WRITE setLightAmbient NOTIFY torchChanged)
 
     Q_PROPERTY(bool showAnimations READ showAnimations WRITE setShowAnimations NOTIFY showAnimationsChanged)
     Q_PROPERTY(bool minimapOn READ minimapOn WRITE setMinimapOn NOTIFY minimapOnChanged)
 
     Q_PROPERTY(bool showGrid READ showGrid WRITE setShowGrid NOTIFY viewFlagsChanged)
     Q_PROPERTY(bool showWallOutlines READ showWallOutlines WRITE setShowWallOutlines NOTIFY viewFlagsChanged)
+    Q_PROPERTY(bool showPathing READ showPathing WRITE setShowPathing NOTIFY viewFlagsChanged)
     Q_PROPERTY(bool showCreatures READ showCreatures WRITE setShowCreatures NOTIFY viewFlagsChanged)
     Q_PROPERTY(bool showSpawns READ showSpawns WRITE setShowSpawns NOTIFY viewFlagsChanged)
     Q_PROPERTY(bool showHouses READ showHouses WRITE setShowHouses NOTIFY viewFlagsChanged)
@@ -142,6 +144,8 @@ public:
         QString n = m_brushStore->groundBrushForServerId(serverId);
         if (n.isEmpty()) n = m_brushStore->wallBrushForServerId(serverId);
         if (n.isEmpty()) n = m_brushStore->doodadBrushForServerId(serverId);
+        if (n.isEmpty()) n = m_brushStore->carpetBrushForServerId(serverId);
+        if (n.isEmpty()) n = m_brushStore->tableBrushForServerId(serverId);
         return n;
     }
 
@@ -184,6 +188,14 @@ public:
         emit viewFlagsChanged();
         emit contentUpdated(); update();
     }
+    bool showPathing() const { return m_showPathing; }
+    void setShowPathing(bool on) {
+        if (m_showPathing == on) return;
+        m_showPathing = on;
+        ++m_dataVersion;
+        emit viewFlagsChanged();
+        emit contentUpdated(); update();
+    }
     bool showSpawns() const { return m_showSpawns; }
     void setShowSpawns(bool on) {
         if (m_showSpawns == on) return;
@@ -210,6 +222,16 @@ public:
     void setTorchOn(bool on) {
         if (m_torchOn == on) return;
         m_torchOn = on;
+        m_lightChunks.clear();
+        m_lightDirty = true;
+        emit torchChanged();
+        emit contentUpdated(); update();
+    }
+    int lightAmbient() const { return m_lightAmbient; }
+    void setLightAmbient(int value) {
+        value = std::clamp(value, 0, 255);
+        if (m_lightAmbient == value) return;
+        m_lightAmbient = value;
         m_lightChunks.clear();
         m_lightDirty = true;
         emit torchChanged();
@@ -334,6 +356,7 @@ public:
     void glCollectGridInstances(std::vector<float> &out);
 
     void glCollectWallOutlineInstances(std::vector<float> &out);
+    void glCollectPathingInstances(std::vector<float> &out);
 
     void glCollectZoneMarkInstances(std::vector<float> &outHouse,
                                     std::vector<float> &outPz,
@@ -370,6 +393,16 @@ public:
     void setTileSize(int size);
 
     Q_INVOKABLE bool loadMap(const QString &path);
+    Q_INVOKABLE QVariantMap importMap(const QString &path, int offsetX, int offsetY,
+                                      int offsetZ,
+                                      bool importHouses, bool importSpawns,
+                                      int collisionMode);
+    Q_INVOKABLE QVariantMap cleanupMap(bool invalidItems, bool emptyTiles,
+                                       bool invalidHouses, bool duplicateUniqueIds,
+                                       bool unusedHouses);
+    Q_INVOKABLE QVariantMap exportMinimap(const QString &path,
+                                          const QString &mode,
+                                          int specificFloor);
 
     Q_INVOKABLE void rebuildAtlas();
     Q_INVOKABLE void centerOnContent();
@@ -384,6 +417,20 @@ public:
     Q_INVOKABLE QVariantList selectionDetails() const;
 
     Q_INVOKABLE QVariantMap contextInfo() const;
+    Q_INVOKABLE QVariantList contextStack() const;
+    Q_INVOKABLE bool setContextStackIndex(int index);
+    Q_INVOKABLE bool removeContextStackItem(int index);
+    Q_INVOKABLE bool rotateContextItem();
+    Q_INVOKABLE bool switchContextDoor();
+    Q_INVOKABLE QVariantMap searchItems(const QString &type, bool selectionOnly) const;
+    Q_INVOKABLE QVariantList mapOverlayData(bool includeTooltips,
+                                            bool includeWaypoints) const;
+    Q_INVOKABLE QVariantList contextItemPath() const;
+    Q_INVOKABLE QVariantList contextContainerItems(const QVariantList &path) const;
+    Q_INVOKABLE bool addContextContainerItem(const QVariantList &path, int serverId);
+    Q_INVOKABLE bool removeContextContainerItem(const QVariantList &path, int childIndex);
+    Q_INVOKABLE bool moveContextContainerItem(const QVariantList &path,
+                                              int childIndex, int delta);
 
     Q_INVOKABLE bool setContextItemCount(int count);
 
@@ -500,6 +547,9 @@ private slots:
 
 private:
     static constexpr int kSprite = 32;
+    // Keep a single atlas compatible with the 16K texture limit while allowing
+    // all sprites from post-10.98 clients to fit vertically.
+    static constexpr int kAtlasColumns = 128;
     static constexpr int kChunkTiles = 32;
 
     struct QuadRef {
@@ -522,9 +572,7 @@ private:
     void ensureItemSprites(int serverId);
     int  atlasSlotForSprite(uint32_t spriteId) const;
 
-    // "animated" (opcjonalny out-param): ustawiany na true, gdy ktorykolwiek item
-    // ma frames > 1 - animTick inwaliduje wtedy TYLKO takie chunki, zamiast
-    // czyscic cache calej mapy co tick animacji.
+    // The optional flag tracks chunks that require animation invalidation.
     void appendItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out,
                          bool *animated = nullptr) const;
 
@@ -576,6 +624,7 @@ private:
 
     QPoint tileAtScreen(const QPointF &p) const;
     const OtbmTile *currentFloorTileAt(int x, int y) const;
+    QVariantMap itemContextInfo(const OtbmMapItem &item, int index) const;
     void applyRubberBand();
     void updateHoverText();
     bool previewWalkable(int x, int y) const;
@@ -601,6 +650,13 @@ private:
     bool tileHasWallBrush(int x, int y, const QString &name) const;
 
     void paintDoodadBrushAt(int cx, int cy);
+    void paintCarpetBrushAt(int cx, int cy);
+    void paintTableBrushAt(int cx, int cy);
+    void paintDoorBrushAt(int cx, int cy);
+    bool tileHasCarpetBrush(int x, int y, const QString &name) const;
+    bool tileHasTableBrush(int x, int y, const QString &name) const;
+    void recomputeCarpetAt(int x, int y, const QString &name);
+    void recomputeTableAt(int x, int y, const QString &name);
 
     void paintZoneAt(int cx, int cy);
 
@@ -639,15 +695,14 @@ private:
     std::set<std::pair<int, quint64>> m_pendingChunkRecompute;
     int m_editBatchDepth = 0;
 
-    std::recursive_mutex m_dataMutex;
+    mutable std::recursive_mutex m_dataMutex;
     std::mutex m_quadMutex;
 
     QHash<int, QHash<quint64, std::shared_ptr<const std::vector<QuadRef>>>> m_quadCache;
 
     QHash<int, QHash<quint64, quint32>> m_chunkVer;
 
-    // Chunki zawierajace animowane itemy (frames > 1) - czlonkostwo aktualizowane
-    // przy kazdym storeChunkQuads. animTick inwaliduje tylko te chunki. Pod m_quadMutex.
+    // Animated chunk membership is protected by m_quadMutex.
     QHash<int, QSet<quint64>> m_animChunks;
 
     quint32 m_chunkVerCounter = 0;
@@ -742,6 +797,7 @@ private:
 
     bool m_showGrid = false;
     bool m_showWallOutlines = true;
+    bool m_showPathing = false;
     bool m_showCreatures = true;
     bool m_showSpawns = true;
     bool m_showHouses = true;
@@ -788,6 +844,9 @@ private:
     QString m_activeGroundBrush;
     QString m_activeWallBrush;
     QString m_activeDoodadBrush;
+    QString m_activeCarpetBrush;
+    QString m_activeTableBrush;
+    int m_activeDoorBrushId = 0;
     int m_doodadVariant = -1;
 
     QSet<quint64> m_strokePlaced;
@@ -807,6 +866,7 @@ private:
     int m_rubberX = 0, m_rubberY = 0;
     int m_hoverX = -1, m_hoverY = -1;
     int m_contextX = 0, m_contextY = 0;
+    int m_contextItemIndex = -1;
 
     bool m_movingSel = false;
     bool m_moveMoved = false;

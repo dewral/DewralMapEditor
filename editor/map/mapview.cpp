@@ -124,6 +124,55 @@ bool MapView::loadMap(const QString &path)
     return m_otbm->loadFile(path);
 }
 
+QVariantMap MapView::importMap(const QString &path, int offsetX, int offsetY,
+                               int offsetZ,
+                               bool importHouses, bool importSpawns,
+                               int collisionMode)
+{
+    QVariantMap result;
+    if (!m_otbm) {
+        result.insert(QStringLiteral("success"), false);
+        result.insert(QStringLiteral("error"), QStringLiteral("No destination map is loaded"));
+        return result;
+    }
+
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+        result = m_otbm->importFile(path, offsetX, offsetY, offsetZ,
+                                    importHouses, importSpawns, collisionMode);
+    }
+    if (result.value(QStringLiteral("success")).toBool()) onMapLoaded();
+    return result;
+}
+
+QVariantMap MapView::cleanupMap(bool invalidItems, bool emptyTiles,
+                                bool invalidHouses, bool duplicateUniqueIds,
+                                bool unusedHouses)
+{
+    QVariantMap result;
+    if (!m_otbm || !m_otb) {
+        result.insert(QStringLiteral("success"), false);
+        result.insert(QStringLiteral("error"), QStringLiteral("Map or OTB data is not loaded"));
+        return result;
+    }
+
+    QSet<uint16_t> validServerIds;
+    if (invalidItems) {
+        for (int id = 1; id <= 65535; ++id)
+            if (m_otb->rowForServerId(id) >= 0)
+                validServerIds.insert(static_cast<uint16_t>(id));
+    }
+
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+        result = m_otbm->cleanupMap(validServerIds, invalidItems,
+                                    emptyTiles, invalidHouses,
+                                    duplicateUniqueIds, unusedHouses);
+    }
+    if (result.value(QStringLiteral("success")).toBool()) onMapLoaded();
+    return result;
+}
+
 void MapView::rebuildAtlas()
 {
     {
@@ -298,6 +347,9 @@ void MapView::setActiveZone(int zone)
             m_activeGroundBrush.clear();
             m_activeWallBrush.clear();
             m_activeDoodadBrush.clear();
+            m_activeCarpetBrush.clear();
+            m_activeTableBrush.clear();
+            m_activeDoorBrushId = 0;
             emit brushChanged();
         }
         if (m_selectionMode) { m_selectionMode = false; emit selectionModeChanged(); }
@@ -327,7 +379,6 @@ void MapView::applyBrushServerId(int serverId, bool asBrush)
         m_creatureBrush.clear();
         m_spawnBrush = false;
     }
-    if (m_brushServerId == serverId) return;
     m_brushServerId = serverId;
 
     m_activeGroundBrush = (asBrush && m_brushStore && serverId > 0)
@@ -342,6 +393,16 @@ void MapView::applyBrushServerId(int serverId, bool asBrush)
     m_activeDoodadBrush = (asBrush && m_brushStore && serverId > 0)
                               ? m_brushStore->doodadBrushForServerId(serverId)
                               : QString();
+    m_activeCarpetBrush = (asBrush && m_brushStore && serverId > 0)
+                              ? m_brushStore->carpetBrushForServerId(serverId)
+                              : QString();
+    m_activeTableBrush = (asBrush && m_brushStore && serverId > 0)
+                             ? m_brushStore->tableBrushForServerId(serverId)
+                             : QString();
+    m_activeDoorBrushId = (asBrush && m_brushStore
+                           && m_brushStore->isDoorItem(serverId))
+                              ? serverId : 0;
+    if (m_activeDoorBrushId > 0) m_activeWallBrush.clear();
 
     if (m_activeDoodadBrush != prevDoodad) m_doodadVariant = -1;
     setCursor(serverId > 0 ? Qt::CrossCursor : Qt::ArrowCursor);

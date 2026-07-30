@@ -84,6 +84,10 @@ struct OtbmItemExtra {
         QByteArray key;
         uint8_t type = 0;
         QByteArray value_raw;
+        bool operator==(const NamedAttribute &other) const {
+            return key == other.key && type == other.type
+                   && value_raw == other.value_raw;
+        }
     };
 
     QString text;
@@ -103,6 +107,8 @@ struct OtbmItemExtra {
 struct OtbmMapItem {
     uint16_t server_id = 0;
     uint16_t count = 1;
+    uint8_t subtype_attribute = static_cast<uint8_t>(OtbmAttribute::Count);
+    bool has_subtype_attribute = false;
     uint16_t depot_id = 0;
     uint32_t action_id = 0;
     uint32_t unique_id = 0;
@@ -117,7 +123,9 @@ struct OtbmMapItem {
     OtbmMapItem &operator=(OtbmMapItem &&) = default;
 
     OtbmMapItem(const OtbmMapItem &o)
-        : server_id(o.server_id), count(o.count), depot_id(o.depot_id),
+        : server_id(o.server_id), count(o.count),
+          subtype_attribute(o.subtype_attribute),
+          has_subtype_attribute(o.has_subtype_attribute), depot_id(o.depot_id),
           action_id(o.action_id), unique_id(o.unique_id), is_ground(o.is_ground),
           extra(o.extra ? std::make_unique<OtbmItemExtra>(*o.extra) : nullptr),
           children(o.children
@@ -125,7 +133,10 @@ struct OtbmMapItem {
                        : nullptr) {}
     OtbmMapItem &operator=(const OtbmMapItem &o) {
         if (this != &o) {
-            server_id = o.server_id; count = o.count; depot_id = o.depot_id;
+            server_id = o.server_id; count = o.count;
+            subtype_attribute = o.subtype_attribute;
+            has_subtype_attribute = o.has_subtype_attribute;
+            depot_id = o.depot_id;
             action_id = o.action_id; unique_id = o.unique_id; is_ground = o.is_ground;
             extra = o.extra ? std::make_unique<OtbmItemExtra>(*o.extra) : nullptr;
             children = o.children
@@ -201,14 +212,14 @@ class OtbmReader : public QObject
 
     Q_PROPERTY(bool dirty READ isDirty NOTIFY dirtyChanged)
     Q_PROPERTY(QString filePath READ filePath NOTIFY filePathChanged)
-    Q_PROPERTY(int width READ width NOTIFY loadedChanged)
-    Q_PROPERTY(int height READ height NOTIFY loadedChanged)
+    Q_PROPERTY(int width READ width NOTIFY mapChanged)
+    Q_PROPERTY(int height READ height NOTIFY mapChanged)
     Q_PROPERTY(int otbmVersion READ otbmVersion NOTIFY loadedChanged)
     Q_PROPERTY(int otbItemsMajorVersion READ otbItemsMajorVersion NOTIFY loadedChanged)
     Q_PROPERTY(int otbItemsMinorVersion READ otbItemsMinorVersion NOTIFY loadedChanged)
-    Q_PROPERTY(QString description READ description NOTIFY loadedChanged)
-    Q_PROPERTY(QString spawnFile READ spawnFile NOTIFY loadedChanged)
-    Q_PROPERTY(QString houseFile READ houseFile NOTIFY loadedChanged)
+    Q_PROPERTY(QString description READ description NOTIFY mapChanged)
+    Q_PROPERTY(QString spawnFile READ spawnFile NOTIFY mapChanged)
+    Q_PROPERTY(QString houseFile READ houseFile NOTIFY mapChanged)
     Q_PROPERTY(int tileCount READ tileCount NOTIFY loadedChanged)
     Q_PROPERTY(int itemCount READ itemCount NOTIFY loadedChanged)
     Q_PROPERTY(int townCount READ townCount NOTIFY loadedChanged)
@@ -231,6 +242,10 @@ public:
                             int otbMajor, int otbMinor);
 
     Q_INVOKABLE void applyClientVersions(int clientVersion, int otbMajor, int otbMinor);
+    Q_INVOKABLE bool setMapProperties(const QString &description,
+                                      int width, int height,
+                                      const QString &spawnFile,
+                                      const QString &houseFile);
     QString errorString() const { return m_errorString; }
     int width() const { return m_width; }
     int height() const { return m_height; }
@@ -253,6 +268,10 @@ public:
 
     Q_INVOKABLE QVariantList townsList() const;
     Q_INVOKABLE QVariantList waypointsList() const;
+    Q_INVOKABLE int addWaypoint();
+    Q_INVOKABLE void removeWaypoint(int index);
+    Q_INVOKABLE void renameWaypoint(int index, const QString &name);
+    Q_INVOKABLE void setWaypointPosition(int index, int x, int y, int z);
 
     Q_INVOKABLE int addTown();
     Q_INVOKABLE void removeTown(int id);
@@ -264,6 +283,16 @@ public:
     Q_INVOKABLE void finishLoading(bool success);
 
     Q_INVOKABLE bool saveFile(const QString &path);
+    QVariantMap importFile(const QString &path, int offsetX, int offsetY,
+                           int offsetZ,
+                           bool importHouses, bool importSpawns,
+                           int collisionMode);
+    QVariantMap cleanupMap(const QSet<uint16_t> &validServerIds,
+                           bool removeInvalidItems,
+                           bool removeEmptyTiles,
+                           bool clearInvalidHouses,
+                           bool clearDuplicateUniqueIds,
+                           bool removeUnusedHouses);
     Q_INVOKABLE QVariantMap header() const;
 
     Q_INVOKABLE int suggestedClientVersion() const;
@@ -279,6 +308,7 @@ public:
                    int index, bool replace, bool isGround);
 
     bool removeTopItem(int x, int y, int z);
+    bool removeItemAt(int x, int y, int z, int index);
 
     bool setTileFlags(int x, int y, int z, uint32_t flags);
 
@@ -310,6 +340,28 @@ public:
     bool setTopItemText(int x, int y, int z, const QString &text);
 
     bool setTopItemTeleport(int x, int y, int z, int destX, int destY, int destZ);
+    bool setItemServerIdAt(int x, int y, int z, int index, uint16_t serverId);
+    bool setItemCountAt(int x, int y, int z, int index, uint16_t count);
+    bool setItemActionIdAt(int x, int y, int z, int index, uint16_t actionId);
+    bool setItemUniqueIdAt(int x, int y, int z, int index, uint16_t uniqueId);
+    bool setItemTextAt(int x, int y, int z, int index, const QString &text);
+    bool setItemDescriptionAt(int x, int y, int z, int index, const QString &description);
+    bool setItemDepotIdAt(int x, int y, int z, int index, uint16_t depotId);
+    bool setItemDoorIdAt(int x, int y, int z, int index, uint8_t doorId);
+    bool setItemTierAt(int x, int y, int z, int index, uint8_t tier);
+    bool setItemAttributeMapAt(int x, int y, int z, int index,
+                               const QVariantList &attributes);
+    bool setItemTeleportAt(int x, int y, int z, int index,
+                           int destX, int destY, int destZ);
+
+    const OtbmMapItem *itemAtPath(int x, int y, int z,
+                                  const std::vector<int> &path) const;
+    bool addContainerChild(int x, int y, int z, const std::vector<int> &path,
+                           uint16_t serverId);
+    bool removeContainerChild(int x, int y, int z, const std::vector<int> &path,
+                              int childIndex);
+    bool moveContainerChild(int x, int y, int z, const std::vector<int> &path,
+                            int childIndex, int delta);
 
     int countItemsOnTile(int x, int y, int z, int serverId) const;
 
@@ -328,6 +380,7 @@ public:
 
     struct EditPos { int x, y, z; };
     const std::vector<EditPos> &lastAffected() const { return m_lastAffected; }
+    bool lastUndoChangedTileStructure() const { return m_lastUndoStructural; }
     int undoCount() const { return static_cast<int>(m_undoStack.size()); }
     int redoCount() const { return static_cast<int>(m_redoStack.size()); }
     Q_INVOKABLE int undoLimit() const { return m_undoLimit; }
@@ -363,6 +416,9 @@ private:
 
     template <typename Mut>
     bool mutateTopItem(int x, int y, int z, Mut mut);
+    template <typename Mut>
+    bool mutateItemAt(int x, int y, int z, int index, Mut mut);
+    static OtbmMapItem *itemAtPath(OtbmTile &tile, const std::vector<int> &path);
     OtbmTile *getOrCreateTileRaw(int x, int y, int z);
     OtbmTile *tileForSpawnEdit(int x, int y, int z);
 
@@ -375,6 +431,7 @@ private:
 
     struct TileSnapshot {
         int x, y, z;
+        bool existed = false;
         uint32_t flags = 0;
         int spawn_radius = 0;
         QString creature_name;
@@ -387,7 +444,7 @@ private:
     struct UndoAction { std::vector<TileSnapshot> tiles; };
     void recordTile(int x, int y, int z);
     void pushUndo(UndoAction &&action);
-    void restoreSnapshot(const TileSnapshot &snap);
+    void restoreSnapshots(const std::vector<TileSnapshot> &snapshots);
 
     TileSnapshot currentSnapshot(int x, int y, int z) const;
 
@@ -403,6 +460,7 @@ private:
     std::deque<UndoAction> m_undoStack;
     std::deque<UndoAction> m_redoStack;
     std::vector<EditPos> m_lastAffected;
+    bool m_lastUndoStructural = false;
     int m_undoLimit = 500;
     bool m_undoGrouping = false;
     UndoAction m_currentGroup;

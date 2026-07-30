@@ -61,6 +61,11 @@ public:
     QString wallBrushForServerId(int serverId) const { return m_wallByServerId.value(serverId); }
     Q_INVOKABLE bool isWallBrushItem(int serverId) const { return m_wallByServerId.contains(serverId); }
     Q_INVOKABLE bool isWallBrush(const QString &name) const { return m_walls.contains(name); }
+    Q_INVOKABLE bool isDoorItem(int serverId) const { return m_doors.contains(serverId); }
+    Q_INVOKABLE bool canSwitchDoor(int serverId) const;
+    Q_INVOKABLE bool isDoorOpen(int serverId) const;
+    Q_INVOKABLE int switchedDoorItem(int serverId) const;
+    int doorBrushItem(int wallServerId, int exampleDoorId) const;
 
     int wallPoleItem(const QString &name) const;
 
@@ -82,6 +87,15 @@ public:
     QVector<DoodadTile> doodadPreviewTiles(const QString &name) const;
 
     QVector<int> doodadItemIds(const QString &name) const;
+
+    QString carpetBrushForServerId(int serverId) const { return m_carpetByServerId.value(serverId); }
+    Q_INVOKABLE bool isCarpetBrushItem(int serverId) const { return m_carpetByServerId.contains(serverId); }
+    int computeCarpetItem(const QString &name, bool nw, bool n, bool ne,
+                          bool w, bool e, bool sw, bool s, bool se) const;
+
+    QString tableBrushForServerId(int serverId) const { return m_tableByServerId.value(serverId); }
+    Q_INVOKABLE bool isTableBrushItem(int serverId) const { return m_tableByServerId.contains(serverId); }
+    int computeTableItem(const QString &name, bool n, bool w, bool e, bool s) const;
 
 private:
     struct BorderBlock {
@@ -148,9 +162,33 @@ private:
 
     QHash<QString, WallDef> m_walls;
     QHash<int, QString> m_wallByServerId;
+    QHash<int, int> m_wallAlignByServerId;
+    struct DoorDef {
+        int switchTo = 0;
+        bool open = false;
+        bool locked = false;
+        QString brush;
+        QString type;
+        int align = 0;
+    };
+    QHash<int, DoorDef> m_doors;
 
     QHash<QString, DoodadDef> m_doodads;
     QHash<int, QString> m_doodadByServerId;
+
+    struct ConnectedDef {
+        struct Node {
+            QVector<QPair<int, int>> items;
+            int total = 0;
+        };
+        QHash<QString, Node> align;
+    };
+    QHash<QString, ConnectedDef> m_carpets;
+    QHash<int, QString> m_carpetByServerId;
+    QHash<QString, ConnectedDef> m_tables;
+    QHash<int, QString> m_tableByServerId;
+    int pickConnectedItem(const ConnectedDef &def, const QString &alignment,
+                          const QString &fallback) const;
 
     void parseRoot(const QJsonObject &root);
     bool saveJson() const;

@@ -66,10 +66,8 @@ private:
     void driverTick();
     QTimer m_fpsTimer;
     QTimer m_renderTimer;
-    // Zegar animacji itemow (frames > 1): tyka co 500 ms NIEZALEZNIE od petli
-    // renderowania. Wczesniej animacje byly krokowane w driverTick, ktory przez
-    // to wymuszal update() co tick (60/s) mimo ze klatka animacji zmienia sie
-    // 2x/s - pelny rendering sceny w kolko, glowne zrodlo zuzycia CPU.
+    // Item animation runs independently from the render driver. This avoids
+    // redrawing a static scene at the FPS limit for two frames per second.
     QTimer m_animTimer;
 };
 

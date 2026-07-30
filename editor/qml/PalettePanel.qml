@@ -13,9 +13,110 @@ Rectangle {
     readonly property string currentKind: paletteCol.currentKind
 
     signal collapseRequested
+    signal revealRequested
 
     function selectKind(kind) {
         paletteCol.selectKind(kind);
+    }
+
+    function clearPaletteSearch() {
+        palSearch.text = "";
+        paletteCol.pendingSearchText = "";
+        searchDebounce.stop();
+        paletteFilter.searchText = "";
+    }
+
+    function positionItem(serverId) {
+        Qt.callLater(function () {
+            Qt.callLater(function () {
+                const row = grid.directAllItems
+                        ? Backend.otbReader.rowForServerId(serverId)
+                        : paletteFilter.rowForServerId(serverId);
+                if (row >= 0) {
+                    grid.currentIndex = row;
+                    grid.positionViewAtIndex(row, GridView.Center);
+                }
+            });
+        });
+    }
+
+    function showItemLocation(category, tileset, serverId) {
+        revealRequested();
+        clearPaletteSearch();
+        if (tileset && tileset.length > 0) {
+            paletteCol.selectCategoryTileset(category, tileset);
+        } else {
+            paletteCol.selectKind("All Items");
+            paletteFilter.mode = "all";
+        }
+        positionItem(serverId);
+    }
+
+    function selectRaw(serverId) {
+        const tileset = Backend.tilesetStore.tilesetForItem("raw", serverId);
+        showItemLocation("raw", tileset, serverId);
+        mapCtrl.brushServerId = serverId;
+    }
+
+    function selectBrush(serverId) {
+        const brushName = mapCtrl.brushForServerId(serverId);
+        if (brushName.length === 0) {
+            selectRaw(serverId);
+            return;
+        }
+
+        let category = Backend.brushStore.isDoodadBrushItem(serverId)
+                ? "doodad" : "terrain";
+        if (Backend.brushStore.isDoorItem(serverId)) {
+            category = "door";
+        } else if (Backend.brushStore.isCarpetBrushItem(serverId)
+                   || Backend.brushStore.isTableBrushItem(serverId)) {
+            category = Backend.tilesetStore.tilesetForItem("collection", serverId) !== ""
+                    ? "collection" : "doodad";
+        }
+        let tileset = Backend.tilesetStore.tilesetForItem(category, serverId);
+        let displayedServerId = serverId;
+
+        if (tileset.length === 0) {
+            const names = Backend.tilesetStore.namesFor(category);
+            for (let i = 0; i < names.length && tileset.length === 0; ++i) {
+                const ids = Backend.tilesetStore.itemsFor(category, names[i]);
+                for (let j = 0; j < ids.length; ++j) {
+                    if (mapCtrl.brushForServerId(ids[j]) === brushName) {
+                        tileset = names[i];
+                        displayedServerId = ids[j];
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (tileset.length === 0) {
+            showItemLocation("raw",
+                             Backend.tilesetStore.tilesetForItem("raw", serverId),
+                             serverId);
+            mapCtrl.useGroundBrush(serverId);
+            return;
+        }
+
+        showItemLocation(category, tileset, displayedServerId);
+        mapCtrl.useGroundBrush(displayedServerId);
+    }
+
+    function selectCreature(name) {
+        if (!name || name.length === 0)
+            return;
+        revealRequested();
+        clearPaletteSearch();
+        paletteCol.selectKind("Creature Palette");
+        mapCtrl.creatureBrush = name;
+        Qt.callLater(function () {
+            const row = Backend.creatureStore.rowForName(name);
+            if (row >= 0) {
+                creatureList.currentIndex = row;
+                creatureList.positionViewAtIndex(row, GridView.Center);
+            }
+        });
     }
 
     width: 210
@@ -61,7 +162,7 @@ Rectangle {
         anchors.bottomMargin: paletteRoot.githubUi ? 16 : 6
         spacing: paletteRoot.githubUi ? 10 : 4
 
-        property var kinds: ["All Items", "Terrain Palette", "Doodad Palette", "Item Palette", "RAW Palette", "Creature Palette", "House Palette", "My Palettes"]
+        property var kinds: ["All Items", "Terrain Palette", "Doodad Palette", "Collection Palette", "Door Palette", "Item Palette", "RAW Palette", "Creature Palette", "House Palette", "My Palettes"]
         property bool creatureMode: currentKind === "Creature Palette"
         property bool houseMode: currentKind === "House Palette"
         property string currentKind: kindCombo.currentText
@@ -72,6 +173,10 @@ Rectangle {
                 return "terrain";
             case "Doodad Palette":
                 return "doodad";
+            case "Collection Palette":
+                return "collection";
+            case "Door Palette":
+                return "door";
             case "Item Palette":
                 return "item";
             case "RAW Palette":
@@ -156,6 +261,8 @@ Rectangle {
             const kindName = {
                 terrain: "Terrain Palette",
                 doodad: "Doodad Palette",
+                collection: "Collection Palette",
+                door: "Door Palette",
                 item: "Item Palette",
                 raw: "RAW Palette"
             }[category];
@@ -1238,6 +1345,14 @@ Rectangle {
         CategoryAddMenu {
             category: "item"
             label: "Item Palette"
+        }
+        CategoryAddMenu {
+            category: "collection"
+            label: "Collection Palette"
+        }
+        CategoryAddMenu {
+            category: "door"
+            label: "Door Palette"
         }
         CategoryAddMenu {
             category: "raw"

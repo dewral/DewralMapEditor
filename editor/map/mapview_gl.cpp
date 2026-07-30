@@ -455,6 +455,47 @@ void MapView::glCollectWallOutlineInstances(std::vector<float> &out)
     }
 }
 
+void MapView::glCollectPathingInstances(std::vector<float> &out)
+{
+    out.clear();
+    if (m_ingamePreview || !m_showPathing || !m_otbm || !m_otb) return;
+
+    const double ts = std::max(1, m_tileSize);
+    const int tx0 = static_cast<int>(std::floor(m_originX)) - 1;
+    const int ty0 = static_cast<int>(std::floor(m_originY)) - 1;
+    const int tx1 = tx0 + static_cast<int>(std::ceil(width() / ts)) + 3;
+    const int ty1 = ty0 + static_cast<int>(std::ceil(height() / ts)) + 3;
+
+    auto floorIt = m_floorChunkTiles.constFind(m_floor);
+    if (floorIt == m_floorChunkTiles.cend()) return;
+    const int cx0 = floorDiv(tx0, kChunkTiles);
+    const int cy0 = floorDiv(ty0, kChunkTiles);
+    const int cx1 = floorDiv(tx1, kChunkTiles);
+    const int cy1 = floorDiv(ty1, kChunkTiles);
+
+    for (int cy = cy0; cy <= cy1; ++cy) {
+        for (int cx = cx0; cx <= cx1; ++cx) {
+            auto chunkIt = floorIt->constFind(chunkKey(cx, cy));
+            if (chunkIt == floorIt->cend()) continue;
+            for (const OtbmTile *tile : chunkIt.value()) {
+                if (!tile || tile->x < tx0 || tile->x > tx1
+                    || tile->y < ty0 || tile->y > ty1) {
+                    continue;
+                }
+                const bool blocked = std::any_of(
+                    tile->items.cbegin(), tile->items.cend(),
+                    [this](const OtbmMapItem &item) {
+                        return m_otb->blocksPathForServerId(item.server_id);
+                    });
+                if (blocked) {
+                    out.insert(out.end(),
+                               {tile->x * 32.0f, tile->y * 32.0f, 32.0f, 32.0f});
+                }
+            }
+        }
+    }
+}
+
 void MapView::glCollectZoneMarkInstances(std::vector<float> &outHouse,
                                          std::vector<float> &outPz,
                                          std::vector<float> &outNoPvp,

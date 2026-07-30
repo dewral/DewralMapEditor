@@ -10,13 +10,14 @@ MenuItem {
 
     contentItem: Item {
 
-        implicitWidth: itemText.implicitWidth + 10 + (control.subMenu !== null ? 22 : 10)
+        implicitWidth: itemText.implicitWidth + (control.checkable ? 30 : 10)
+                       + (control.subMenu !== null ? 22 : 10)
         implicitHeight: 24
         Text {
             id: itemText
 
             anchors.left: parent.left
-            anchors.leftMargin: 10
+            anchors.leftMargin: control.checkable ? 30 : 10
             anchors.verticalCenter: parent.verticalCenter
             text: control.text
             color: Backend.uiTheme.style === "github-dark"
@@ -26,7 +27,20 @@ MenuItem {
             verticalAlignment: Text.AlignVCenter
         }
     }
-    indicator: Item {}
+    indicator: Text {
+        visible: control.checkable
+        width: 22
+        anchors.left: parent.left
+        anchors.leftMargin: 6
+        anchors.verticalCenter: parent.verticalCenter
+        text: control.checked ? "\u2713" : ""
+        horizontalAlignment: Text.AlignHCenter
+        color: Backend.uiTheme.style === "github-dark"
+               ? (control.highlighted ? "#FFFFFF" : "#3FB950")
+               : (control.highlighted ? "#eaffea" : "#80c080")
+        font.pixelSize: 13
+        font.bold: true
+    }
     arrow: Text {
         visible: control.subMenu !== null
         text: ">"

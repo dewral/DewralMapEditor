@@ -9,6 +9,7 @@ Item {
     id: toolBar
 
     required property var mapView
+    property var waypointEntries: []
     readonly property int leftButtonWidth: 72
     readonly property int leftButtonHeight: 62
     readonly property int rightButtonHeight: 54
@@ -265,6 +266,34 @@ Item {
         }
 
         ToolbarButton {
+            visible: toolBar.width >= 900
+            buttonWidth: 50
+            buttonHeight: toolBar.rightButtonHeight
+            anchors.verticalCenter: parent.verticalCenter
+            iconName: "minimap"
+            active: toolBar.mapView.minimapOn
+            tip: toolBar.mapView.minimapOn ? "Hide minimap" : "Show minimap"
+            onClicked: toolBar.mapView.minimapOn = !toolBar.mapView.minimapOn
+        }
+
+        ToolbarButton {
+            id: waypointButton
+            visible: toolBar.width >= 960
+            buttonWidth: 50
+            buttonHeight: toolBar.rightButtonHeight
+            anchors.verticalCenter: parent.verticalCenter
+            iconName: "waypoints"
+            tip: "Go to waypoint"
+            onClicked: {
+                toolBar.waypointEntries = Backend.otbmReader.waypointsList();
+                var position = waypointButton.mapToItem(toolBar, 0, waypointButton.height);
+                waypointMenu.x = Math.max(4, position.x - waypointMenu.width + waypointButton.width);
+                waypointMenu.y = position.y + 4;
+                waypointMenu.open();
+            }
+        }
+
+        ToolbarButton {
             visible: toolBar.width >= 720
             buttonWidth: 50
             buttonHeight: toolBar.rightButtonHeight
@@ -277,5 +306,31 @@ Item {
             onClicked: toolBar.mapView.ingamePreview = !toolBar.mapView.ingamePreview
         }
 
+    }
+
+    TibiaMenu {
+        id: waypointMenu
+        width: 260
+
+        TibiaMenuItem {
+            visible: toolBar.waypointEntries.length === 0
+            enabled: false
+            text: "No waypoints on this map"
+        }
+
+        Instantiator {
+            model: toolBar.waypointEntries
+
+            delegate: TibiaMenuItem {
+                required property var modelData
+                text: modelData.name + "   (" + modelData.x + ", "
+                      + modelData.y + ", " + modelData.z + ")"
+                onTriggered: toolBar.mapView.centerOnPosition(
+                                 modelData.x, modelData.y, modelData.z)
+            }
+
+            onObjectAdded: (index, object) => waypointMenu.insertItem(index, object)
+            onObjectRemoved: (index, object) => waypointMenu.removeItem(object)
+        }
     }
 }

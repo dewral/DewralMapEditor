@@ -1,94 +1,174 @@
-import Tibia 1.0
 import QtQuick
-import QtQuick.Controls
+import Tibia 1.0
 import "../style"
 
 TibiaDialog {
-    id: mapPropsDialog
+    id: dialog
 
     required property var app
+    property var h: ({})
+    property string errorText: ""
 
     title: "Map Properties"
+    width: 520
 
-    property var h: Backend.otbmReader.header()
-    onAboutToShow: h = Backend.otbmReader.header()
+    onAboutToShow: {
+        h = Backend.otbmReader.header();
+        descriptionEdit.text = h.description || "";
+        widthField.value = h.width || 256;
+        heightField.value = h.height || 256;
+        spawnField.text = h.spawnFile || "";
+        houseField.text = h.houseFile || "";
+        errorText = "";
+    }
+
+    function applyProperties() {
+        const ok = Backend.otbmReader.setMapProperties(
+            descriptionEdit.text,
+            widthField.value,
+            heightField.value,
+            spawnField.text,
+            houseField.text);
+        if (!ok) {
+            errorText = Backend.otbmReader.errorString;
+            return;
+        }
+        dialog.close();
+    }
 
     contentItem: Column {
-        spacing: 10
+        spacing: 8
+
+        Text {
+            text: "Description"
+            color: "#999"
+            font.pixelSize: 11
+        }
+        Rectangle {
+            width: 480
+            height: 68
+            color: Backend.uiTheme.style === "github-dark" ? "#0D1117" : "#2b2b2b"
+            border.width: 1
+            border.color: descriptionEdit.activeFocus ? "#2EA043" : "#555"
+
+            TextEdit {
+                id: descriptionEdit
+                anchors.fill: parent
+                anchors.margins: 6
+                color: Backend.uiTheme.style === "github-dark" ? "#C9D1D9" : "#c0c0c0"
+                font.pixelSize: 12
+                selectByMouse: true
+                wrapMode: TextEdit.Wrap
+                clip: true
+            }
+        }
+
+        Text {
+            text: "Map dimensions"
+            color: "#999"
+            font.pixelSize: 11
+        }
+        Row {
+            spacing: 8
+            Text {
+                text: "Width"
+                color: "#c0c0c0"
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            TibiaSpinBox {
+                id: widthField
+                width: 120
+                from: 256
+                to: 65535
+            }
+            Text {
+                text: "Height"
+                color: "#c0c0c0"
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            TibiaSpinBox {
+                id: heightField
+                width: 120
+                from: 256
+                to: 65535
+            }
+        }
+
+        Text {
+            text: "External files (relative to the map)"
+            color: "#999"
+            font.pixelSize: 11
+        }
+        Grid {
+            columns: 2
+            rowSpacing: 6
+            columnSpacing: 8
+
+            Text {
+                text: "Spawns"
+                color: "#c0c0c0"
+            }
+            TibiaTextField {
+                id: spawnField
+                width: 400
+                placeholderText: "Optional, e.g. map-spawn.xml"
+            }
+            Text {
+                text: "Houses"
+                color: "#c0c0c0"
+            }
+            TibiaTextField {
+                id: houseField
+                width: 400
+                placeholderText: "Optional, e.g. map-house.xml"
+            }
+        }
 
         Grid {
             columns: 2
             rowSpacing: 4
-            columnSpacing: 18
+            columnSpacing: 16
+            Text { text: "OTBM version"; color: "#777"; font.pixelSize: 11 }
+            Text { text: "" + dialog.h.otbmVersion; color: "#aaa"; font.pixelSize: 11 }
+            Text { text: "Client profile"; color: "#777"; font.pixelSize: 11 }
             Text {
-                text: "Description:"
-                color: "#999"
-                font.pixelSize: 12
+                text: dialog.app.loadedClientKey !== ""
+                      ? dialog.app.profileLabel(dialog.app.loadedClientKey) : "?"
+                color: "#aaa"
+                font.pixelSize: 11
             }
+            Text { text: "Items (OTB)"; color: "#777"; font.pixelSize: 11 }
             Text {
-                text: mapPropsDialog.h.description && mapPropsDialog.h.description.length ? mapPropsDialog.h.description : "(none)"
-                color: "#c0c0c0"
-                font.pixelSize: 12
-                width: 320
-                wrapMode: Text.WordWrap
-            }
-            Text {
-                text: "OTBM version:"
-                color: "#999"
-                font.pixelSize: 12
-            }
-            Text {
-                text: "" + mapPropsDialog.h.otbmVersion
-                color: "#c0c0c0"
-                font.pixelSize: 12
-            }
-            Text {
-                text: "Client version:"
-                color: "#999"
-                font.pixelSize: 12
-            }
-            Text {
-                text: mapPropsDialog.app.loadedClientKey !== "" ? mapPropsDialog.app.profileLabel(mapPropsDialog.app.loadedClientKey) : "?"
-                color: "#c0c0c0"
-                font.pixelSize: 12
-            }
-            Text {
-                text: "Items (OTB):"
-                color: "#999"
-                font.pixelSize: 12
-            }
-            Text {
-                text: mapPropsDialog.h.otbItemsMajorVersion + "." + mapPropsDialog.h.otbItemsMinorVersion
-                color: "#c0c0c0"
-                font.pixelSize: 12
-            }
-            Text {
-                text: "Spawn file:"
-                color: "#999"
-                font.pixelSize: 12
-            }
-            Text {
-                text: mapPropsDialog.h.spawnFile && mapPropsDialog.h.spawnFile.length ? mapPropsDialog.h.spawnFile : "(none)"
-                color: "#c0c0c0"
-                font.pixelSize: 12
-            }
-            Text {
-                text: "House file:"
-                color: "#999"
-                font.pixelSize: 12
-            }
-            Text {
-                text: mapPropsDialog.h.houseFile && mapPropsDialog.h.houseFile.length ? mapPropsDialog.h.houseFile : "(none)"
-                color: "#c0c0c0"
-                font.pixelSize: 12
+                text: dialog.h.otbItemsMajorVersion + "."
+                      + dialog.h.otbItemsMinorVersion
+                color: "#aaa"
+                font.pixelSize: 11
             }
         }
 
-        TibiaButton {
-            text: "Close"
-            width: 90
+        Text {
+            visible: dialog.errorText.length > 0
+            width: 480
+            text: dialog.errorText
+            color: "#f85149"
+            font.pixelSize: 11
+            wrapMode: Text.WordWrap
+        }
+
+        Row {
+            spacing: 6
             anchors.horizontalCenter: parent.horizontalCenter
-            onClicked: mapPropsDialog.close()
+            TibiaButton {
+                text: "OK"
+                width: 90
+                variant: "primary"
+                onClicked: dialog.applyProperties()
+            }
+            TibiaButton {
+                text: "Cancel"
+                width: 90
+                onClicked: dialog.close()
+            }
         }
     }
 }

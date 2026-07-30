@@ -4,6 +4,8 @@
 #include "itemsxmlreader.h"
 #include "nodefilereader.h"
 
+#include <QSet>
+
 namespace {
 
 enum class OtbAttribute : uint8_t {
@@ -399,6 +401,14 @@ QString OtbReader::groupNameForServerId(int serverId) const
     return groupName(m_items[static_cast<size_t>(it.value())].group);
 }
 
+bool OtbReader::blocksPathForServerId(int serverId) const
+{
+    const auto it = m_serverIdToRow.constFind(static_cast<uint16_t>(serverId));
+    if (it == m_serverIdToRow.cend()) return false;
+    const OtbItem &item = m_items[static_cast<size_t>(it.value())];
+    return item.is_unpassable || item.blocks_pathfinder;
+}
+
 bool OtbReader::isTeleportItem(int serverId) const
 {
 
@@ -415,6 +425,11 @@ bool OtbReader::isTeleportItem(int serverId) const
         if (serverId == id) return true;
     }
     return false;
+}
+
+int OtbReader::rotateToForServerId(int serverId) const
+{
+    return m_itemsXml ? m_itemsXml->rotateToForServerId(serverId) : 0;
 }
 
 QString OtbReader::nameForServerId(int serverId) const
@@ -503,6 +518,158 @@ QVariantMap OtbReader::detailsAt(int row) const
 
     details.insert(QStringLiteral("rows"), rows);
     return details;
+}
+
+QVariantMap OtbReader::findItems(const QVariantMap &query) const
+{
+    QVariantMap response;
+    QVariantList results;
+    const QString mode = query.value(QStringLiteral("mode")).toString().toLower();
+    const int serverId = query.value(QStringLiteral("serverId")).toInt();
+    const int clientId = query.value(QStringLiteral("clientId")).toInt();
+    const QString name = query.value(QStringLiteral("name")).toString().trimmed();
+    QString type = query.value(QStringLiteral("type")).toString().toLower();
+    type.remove(QLatin1Char(' '));
+    type.remove(QLatin1Char('_'));
+
+    QSet<QString> properties;
+    for (const QVariant &value : query.value(QStringLiteral("properties")).toList())
+        properties.insert(value.toString().toLower());
+
+    auto matchesType = [this, &type](const OtbItem &item) {
+        QString xmlType =
+            m_itemsXml ? m_itemsXml->typeForServerId(item.server_id).toLower()
+                       : QString();
+        xmlType.remove(QLatin1Char(' '));
+        xmlType.remove(QLatin1Char('_'));
+        if (type == QLatin1String("depot")
+            || type == QLatin1String("mailbox")
+            || type == QLatin1String("trashholder")
+            || type == QLatin1String("bed")) {
+            return xmlType == type;
+        }
+        if (type == QLatin1String("container"))
+            return item.group == static_cast<uint8_t>(OtbItemGroup::Container);
+        if (type == QLatin1String("door"))
+            return item.group == static_cast<uint8_t>(OtbItemGroup::Door)
+                   || xmlType == QLatin1String("door");
+        if (type == QLatin1String("magicfield"))
+            return item.group == static_cast<uint8_t>(OtbItemGroup::MagicField);
+        if (type == QLatin1String("teleport"))
+            return item.group == static_cast<uint8_t>(OtbItemGroup::Teleport)
+                   || xmlType == QLatin1String("teleport");
+        if (type == QLatin1String("key"))
+            return item.group == static_cast<uint8_t>(OtbItemGroup::Key);
+        if (type == QLatin1String("podium"))
+            return item.group == static_cast<uint8_t>(OtbItemGroup::Podium);
+        return false;
+    };
+
+    auto matchesProperties = [&properties](const OtbItem &item) {
+        if (properties.isEmpty()) return false;
+        const auto hasRawFlag = [&item](uint32_t flag) {
+            return (item.flags & flag) != 0;
+        };
+        for (const QString &property : properties) {
+            bool matches = false;
+            if (property == QLatin1String("unpassable")) matches = item.is_unpassable;
+            else if (property == QLatin1String("unmovable")) matches = !item.is_moveable;
+            else if (property == QLatin1String("blockmissiles")) matches = item.blocks_missiles;
+            else if (property == QLatin1String("blockpathfinder")) matches = item.blocks_pathfinder;
+            else if (property == QLatin1String("readable")) matches = item.is_readable;
+            else if (property == QLatin1String("writeable"))
+                matches = item.group == static_cast<uint8_t>(OtbItemGroup::Writeable)
+                          || item.max_text_length > 0;
+            else if (property == QLatin1String("pickupable")) matches = item.is_pickupable;
+            else if (property == QLatin1String("stackable")) matches = item.is_stackable;
+            else if (property == QLatin1String("rotatable")) matches = item.is_rotatable;
+            else if (property == QLatin1String("hangable")) matches = item.is_hangable;
+            else if (property == QLatin1String("hookeast")) matches = item.hook_east;
+            else if (property == QLatin1String("hooksouth")) matches = item.hook_south;
+            else if (property == QLatin1String("haselevation")) matches = item.has_elevation;
+            else if (property == QLatin1String("ignorelook"))
+                matches = hasRawFlag(1u << 23);
+            else if (property == QLatin1String("floorchange"))
+                matches = hasRawFlag((1u << 8) | (1u << 9) | (1u << 10)
+                                     | (1u << 11) | (1u << 12));
+            if (!matches) return false;
+        }
+        return true;
+    };
+
+    constexpr int kResultLimit = 2000;
+    int total = 0;
+    for (const OtbItem &item : m_items) {
+        bool matches = false;
+        if (mode == QLatin1String("server"))
+            matches = item.server_id == serverId;
+        else if (mode == QLatin1String("client"))
+            matches = item.client_id == clientId;
+        else if (mode == QLatin1String("name"))
+            matches = name.size() >= 2
+                      && nameForServerId(item.server_id)
+                             .contains(name, Qt::CaseInsensitive);
+        else if (mode == QLatin1String("type"))
+            matches = matchesType(item);
+        else if (mode == QLatin1String("properties"))
+            matches = matchesProperties(item);
+
+        if (!matches) continue;
+        ++total;
+        if (results.size() >= kResultLimit) continue;
+
+        const ClientItem *clientItem =
+            m_datReader ? m_datReader->itemByClientId(item.client_id) : nullptr;
+        QVariantMap result;
+        result.insert(QStringLiteral("serverId"), item.server_id);
+        result.insert(QStringLiteral("clientId"), item.client_id);
+        result.insert(QStringLiteral("name"), nameForServerId(item.server_id));
+        result.insert(QStringLiteral("group"), groupName(item.group));
+        result.insert(QStringLiteral("flagsText"), collectOtbFlags(item).join(QStringLiteral(", ")));
+        QVariantList previewSprites;
+        if (clientItem) {
+            const int previewCount =
+                std::min<int>(static_cast<int>(clientItem->sprite_ids.size()),
+                              std::max<int>(1, clientItem->width)
+                                  * std::max<int>(1, clientItem->height)
+                                  * std::max<int>(1, clientItem->layers));
+            previewSprites.reserve(previewCount);
+            for (int index = 0; index < previewCount; ++index)
+                previewSprites.append(
+                    QVariant::fromValue(
+                        static_cast<quint32>(
+                            clientItem->sprite_ids[static_cast<size_t>(index)])));
+        }
+        result.insert(QStringLiteral("spriteIds"), previewSprites);
+        result.insert(QStringLiteral("itemWidth"), clientItem ? clientItem->width : 1);
+        result.insert(QStringLiteral("itemHeight"), clientItem ? clientItem->height : 1);
+        result.insert(QStringLiteral("layers"), clientItem ? clientItem->layers : 1);
+        result.insert(QStringLiteral("valid"), true);
+        results.append(result);
+    }
+
+    if (mode == QLatin1String("server") && total == 0
+        && query.value(QStringLiteral("force")).toBool() && serverId > 0
+        && serverId <= 65535) {
+        QVariantMap forced;
+        forced.insert(QStringLiteral("serverId"), serverId);
+        forced.insert(QStringLiteral("clientId"), 0);
+        forced.insert(QStringLiteral("name"), QStringLiteral("Unknown item"));
+        forced.insert(QStringLiteral("group"), QStringLiteral("Unknown"));
+        forced.insert(QStringLiteral("flagsText"), QString());
+        forced.insert(QStringLiteral("spriteIds"), QVariantList());
+        forced.insert(QStringLiteral("itemWidth"), 1);
+        forced.insert(QStringLiteral("itemHeight"), 1);
+        forced.insert(QStringLiteral("layers"), 1);
+        forced.insert(QStringLiteral("valid"), false);
+        results.append(forced);
+        total = 1;
+    }
+
+    response.insert(QStringLiteral("results"), results);
+    response.insert(QStringLiteral("total"), total);
+    response.insert(QStringLiteral("truncated"), total > results.size());
+    return response;
 }
 
 int OtbReader::rowCount(const QModelIndex &parent) const

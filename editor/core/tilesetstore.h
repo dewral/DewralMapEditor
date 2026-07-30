@@ -28,6 +28,7 @@ public:
     Q_INVOKABLE QStringList namesFor(const QString &category) const;
 
     Q_INVOKABLE QVariantList itemsFor(const QString &category, const QString &name) const;
+    Q_INVOKABLE QString tilesetForItem(const QString &category, int serverId) const;
 
     Q_INVOKABLE bool isCustomOnly(const QString &category, const QString &name) const;
 

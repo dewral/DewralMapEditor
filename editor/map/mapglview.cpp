@@ -38,6 +38,7 @@ public:
         m_spawnVbo.destroy();
         m_spawnSelVbo.destroy();
         m_wallOutlineVbo.destroy();
+        m_pathingVbo.destroy();
         if (m_tex) glDeleteTextures(1, &m_tex);
         if (m_lightTexId) glDeleteTextures(1, &m_lightTexId);
         m_quadVbo.destroy();
@@ -115,13 +116,8 @@ public:
         const int wMin = m_curFloor;
         const int wMax = m_botFloor;
 
-        // Petle chunkow POMIJAMY, gdy nic sie nie zmienilo od poprzedniej klatki:
-        // przy duzym zoom-out to setki chunkow x pietra (kazdy = lock mutexa +
-        // hash-lookupy) per klatka, a hover/kursor pedzla generuje klatki bez
-        // zadnej zmiany mapy. Kazda inwalidacja cache quadow bumpuje
-        // glQuadCacheVersion (store/animTick/clear), wiec wersja + zakres +
-        // pietra + LOD w pelni opisuja wejscie petli. m_lastAnyPending wymusza
-        // przebieg, dopoki worker nie dostarczy wszystkich zaleglych chunkow.
+        // Skip chunk traversal while its complete input state is unchanged.
+        // Pending work keeps traversal active until the worker supplies all chunks.
         const bool viewMoved = minCX != m_lastMinCX || minCY != m_lastMinCY
                             || maxCX != m_lastMaxCX || maxCY != m_lastMaxCY;
         const int quadVer = src->glQuadCacheVersion();
@@ -252,6 +248,9 @@ public:
 
             src->glCollectWallOutlineInstances(m_wallOutlineInst);
             uploadDyn(m_wallOutlineVbo, m_wallOutlineInst, m_wallOutlineCount);
+
+            src->glCollectPathingInstances(m_pathingInst);
+            uploadDyn(m_pathingVbo, m_pathingInst, m_pathingCount);
 
             src->glCollectZoneMarkInstances(m_zoneHouseInst, m_zonePzInst,
                                             m_zoneNoPvpInst, m_zoneNoLogoutInst,
@@ -491,6 +490,8 @@ public:
                        QVector4D(0.95f, 0.43f, 0.25f, 0.24f));
 
         drawSpawnMarks(m_gridVbo, m_gridCount, QVector4D(0.0f, 0.0f, 0.0f, 0.35f));
+        drawSpawnMarks(m_pathingVbo, m_pathingCount,
+                       QVector4D(0.95f, 0.18f, 0.16f, 0.24f));
         drawSpawnMarks(m_wallOutlineVbo, m_wallOutlineCount,
                        QVector4D(1.0f, 0.92f, 0.0f, 1.0f));
         drawSpawnMarks(m_spawnVbo, m_spawnCount, QVector4D(0.72f, 0.35f, 0.86f, 0.45f));
@@ -721,6 +722,12 @@ private:
         } else {
             rgba = img.convertToFormat(QImage::Format_RGBA8888);
         }
+        GLint maxTextureSize = 0;
+        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
+        if (rgba.width() > maxTextureSize || rgba.height() > maxTextureSize) {
+            qWarning("Sprite atlas %dx%d exceeds the OpenGL texture limit of %d",
+                     rgba.width(), rgba.height(), maxTextureSize);
+        }
         m_atlasW = rgba.width();
         m_atlasH = rgba.height();
         if (!m_tex) glGenTextures(1, &m_tex);
@@ -766,12 +773,11 @@ private:
     std::unordered_map<quint64, std::unique_ptr<ChunkBuf>> m_chunkBufs[16];
     std::vector<quint64> m_drawList[16];
     int m_lastMinCX = 1, m_lastMinCY = 1, m_lastMaxCX = 0, m_lastMaxCY = 0;
-    // Stan wejscia petli chunkow z poprzedniego sync - gdy identyczny, petla
-    // jest pomijana (patrz chunksDirty w synchronize()).
+    // Previous chunk traversal state used to skip unchanged work.
     int m_lastQuadVer = -1;
     int m_lastWMin = -1, m_lastWMax = -1;
     bool m_lastGroundOnly = false;
-    bool m_lastAnyPending = true;   // pierwszy sync zawsze buduje
+    bool m_lastAnyPending = true;
     quint64 m_overlayContentVersion = std::numeric_limits<quint64>::max();
     int m_overlayX = 0, m_overlayY = 0, m_overlayFloor = -1;
     int m_overlayTileSize = -1, m_overlayWidth = -1, m_overlayHeight = -1;
@@ -808,6 +814,9 @@ private:
     QOpenGLBuffer m_wallOutlineVbo;
     std::vector<float> m_wallOutlineInst;
     int m_wallOutlineCount = 0;
+    QOpenGLBuffer m_pathingVbo;
+    std::vector<float> m_pathingInst;
+    int m_pathingCount = 0;
 
     QOpenGLBuffer m_zoneHouseVbo;
     std::vector<float> m_zoneHouseInst;
@@ -878,10 +887,7 @@ MapGLView::MapGLView(QQuickItem *parent)
     m_renderTimer.setTimerType(Qt::PreciseTimer);
     connect(&m_renderTimer, &QTimer::timeout, this, [this] { driverTick(); });
 
-    // Krok animacji itemow co 500 ms, poza petla renderowania. animTick emituje
-    // contentUpdated tylko gdy faktycznie zinwalidowal jakies chunki - wtedy
-    // pending/update() zamawia klatke. Statyczna scena z wlaczonymi animacjami
-    // renderuje sie wiec ~2x/s, a nie w kolko co tick drivera.
+    // Animation invalidates only chunks that contain animated items.
     m_animTimer.setInterval(500);
     connect(&m_animTimer, &QTimer::timeout, this, [this] {
         if (m_source && m_source->showAnimations() && isVisible())

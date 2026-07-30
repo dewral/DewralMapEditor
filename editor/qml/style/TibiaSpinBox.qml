@@ -70,7 +70,6 @@ Item {
         onEditingFinished: root.setValue(parseInt(text || "0", 10))
     }
 
-    Component.onCompleted: root.value = clamp(root.value)
     Binding {
         target: input
         property: "text"

@@ -35,7 +35,7 @@ protected:
 
 private:
     void centerMapAt(const QPointF &pos);
-    // Repaint tylko gdy zmienilo sie cos widocznego na minimapie (bitmapa/viewport)
+    // Repaint only when the minimap bitmap or viewport changes.
     // - contentUpdated leci tez przy kazdym ruchu myszy nad mapa (hover, kursor
     // pedzla), a repaint QQuickPaintedItem to rasteryzacja CPU + upload tekstury.
     void maybeRepaint();

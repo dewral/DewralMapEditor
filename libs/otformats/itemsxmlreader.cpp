@@ -77,11 +77,19 @@ bool ItemsXmlReader::loadFile(const QString &path)
                 }
             } else if (tag == QLatin1String("attribute") && !currentIds.isEmpty()) {
                 const auto a = xml.attributes();
-
-                if (a.value(QLatin1String("key")).toString().compare(
-                        QLatin1String("type"), Qt::CaseInsensitive) == 0) {
+                const QString key =
+                    a.value(QLatin1String("key")).toString().toLower();
+                if (key == QLatin1String("type")) {
                     const QString type = a.value(QLatin1String("value")).toString().toLower();
                     for (int id : currentIds) m_items[id].type = type;
+                } else if (key == QLatin1String("rotateto")) {
+                    const int rotateTo =
+                        a.value(QLatin1String("value")).toInt();
+                    if (rotateTo > 0 && rotateTo <= 65535) {
+                        for (int id : currentIds) {
+                            m_items[id].rotateTo = rotateTo;
+                        }
+                    }
                 }
             }
         } else if (token == QXmlStreamReader::EndElement) {
@@ -103,6 +111,12 @@ QString ItemsXmlReader::typeForServerId(int serverId) const
 {
     auto it = m_items.constFind(serverId);
     return it == m_items.cend() ? QString() : it->type;
+}
+
+int ItemsXmlReader::rotateToForServerId(int serverId) const
+{
+    auto it = m_items.constFind(serverId);
+    return it == m_items.cend() ? 0 : it->rotateTo;
 }
 
 bool ItemsXmlReader::isTeleport(int serverId) const

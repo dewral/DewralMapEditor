@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import Tibia 1.0
@@ -13,9 +15,16 @@ TibiaMenuBar {
     required property var startupWindow
     required property var saveDialog
     required property var newMapDialog
+    required property var importMapDialog
+    required property var exportMinimapDialog
+    required property var cleanupDialog
     required property var selectionItemDialog
+    required property var findItemDialog
+    required property var searchResultsDialog
     required property var goToDialog
     required property var townsDialog
+    required property var waypointsDialog
+    required property var creatureManagerDialog
     required property var mapPropertiesDialog
     required property var statsDialog
     required property var brushEditorDialog
@@ -32,6 +41,7 @@ TibiaMenuBar {
 
     TibiaMenu {
         title: "File"
+        focus: false
         Action {
             text: "New..."
             shortcut: "Ctrl+N"
@@ -42,6 +52,17 @@ TibiaMenuBar {
             shortcut: "Ctrl+O"
             onTriggered: menuBar.startupWindow.openMapDialog()
         }
+        Action {
+            text: "Import Map..."
+            enabled: Backend.otbmReader.loaded
+            onTriggered: menuBar.importMapDialog.open()
+        }
+        Action {
+            text: "Export Minimap..."
+            enabled: Backend.otbmReader.loaded
+            onTriggered: menuBar.exportMinimapDialog.open()
+        }
+        MenuSeparator {}
         Action {
             text: "Save"
             shortcut: "Ctrl+S"
@@ -70,6 +91,7 @@ TibiaMenuBar {
 
     TibiaMenu {
         title: "Edit"
+        focus: false
         Action {
             text: "Undo"
             shortcut: "Ctrl+Z"
@@ -87,13 +109,8 @@ TibiaMenuBar {
 
         Action {
             text: "Find Item..."
-            shortcut: "Ctrl+F"
             enabled: Backend.otbmReader.loaded
-            onTriggered: {
-                menuBar.selectionItemDialog.mode = "find";
-                menuBar.selectionItemDialog.scope = "map";
-                menuBar.selectionItemDialog.open();
-            }
+            onTriggered: menuBar.findItemDialog.open()
         }
         Action {
             text: "Replace Items..."
@@ -189,12 +206,57 @@ TibiaMenuBar {
     }
 
     TibiaMenu {
+        title: "Search"
+        focus: false
+
+        Action {
+            text: "Find Item..."
+            shortcut: "Ctrl+F"
+            enabled: Backend.otbmReader.loaded
+            onTriggered: menuBar.findItemDialog.open()
+        }
+        MenuSeparator {}
+        Action {
+            text: "Find Unique IDs"
+            enabled: Backend.otbmReader.loaded
+            onTriggered: menuBar.searchResultsDialog.openSearch("unique", false)
+        }
+        Action {
+            text: "Find Action IDs"
+            enabled: Backend.otbmReader.loaded
+            onTriggered: menuBar.searchResultsDialog.openSearch("action", false)
+        }
+        Action {
+            text: "Find Containers"
+            enabled: Backend.otbmReader.loaded
+            onTriggered: menuBar.searchResultsDialog.openSearch("container", false)
+        }
+        Action {
+            text: "Find Writable Items"
+            enabled: Backend.otbmReader.loaded
+            onTriggered: menuBar.searchResultsDialog.openSearch("writable", false)
+        }
+        MenuSeparator {}
+        Action {
+            text: "Find Everything"
+            enabled: Backend.otbmReader.loaded
+            onTriggered: menuBar.searchResultsDialog.openSearch("everything", false)
+        }
+    }
+
+    TibiaMenu {
         title: "Map"
+        focus: false
         Action {
             text: "Edit Towns"
             shortcut: "Ctrl+T"
             enabled: Backend.otbmReader.loaded
             onTriggered: menuBar.townsDialog.open()
+        }
+        Action {
+            text: "Edit Waypoints"
+            enabled: Backend.otbmReader.loaded
+            onTriggered: menuBar.waypointsDialog.open()
         }
 
         TibiaMenu {
@@ -219,7 +281,8 @@ TibiaMenuBar {
         }
         Action {
             text: "Edit Monsters"
-            enabled: false
+            enabled: Backend.otbReader.loaded
+            onTriggered: menuBar.creatureManagerDialog.open()
         }
         MenuSeparator {}
         Action {
@@ -231,7 +294,8 @@ TibiaMenuBar {
         MenuSeparator {}
         Action {
             text: "Cleanup..."
-            enabled: false
+            enabled: Backend.otbmReader.loaded
+            onTriggered: menuBar.cleanupDialog.open()
         }
         Action {
             text: "Properties..."
@@ -249,6 +313,7 @@ TibiaMenuBar {
 
     TibiaMenu {
         title: "Select"
+        focus: false
         Action {
             text: "Replace Items on Selection..."
             enabled: menuBar.mapView.selectionCount > 0
@@ -275,6 +340,11 @@ TibiaMenuBar {
                 menuBar.selectionItemDialog.scope = "selection";
                 menuBar.selectionItemDialog.open();
             }
+        }
+        Action {
+            text: "Find Everything on Selection"
+            enabled: menuBar.mapView.selectionCount > 0
+            onTriggered: menuBar.searchResultsDialog.openSearch("everything", true)
         }
         MenuSeparator {}
 
@@ -327,6 +397,7 @@ TibiaMenuBar {
 
     TibiaMenu {
         title: "Tools"
+        focus: false
 
         Action {
             text: "Brush Editor..."
@@ -337,6 +408,7 @@ TibiaMenuBar {
 
     TibiaMenu {
         title: "View"
+        focus: false
         Action {
             text: "Zoom In"
             shortcut: "Ctrl++"
@@ -354,6 +426,54 @@ TibiaMenuBar {
             shortcut: "Ctrl+0"
             enabled: Backend.otbmReader.loaded
             onTriggered: menuBar.mapView.tileSize = 32
+        }
+        MenuSeparator {}
+        Action {
+            text: "Show animation"
+            shortcut: "L"
+            checkable: true
+            checked: menuBar.mapView.showAnimations
+            onTriggered: menuBar.mapView.showAnimations =
+                         !menuBar.mapView.showAnimations
+        }
+        Action {
+            text: "Show light"
+            shortcut: "Shift+L"
+            checkable: true
+            checked: menuBar.mapView.torchOn
+            onTriggered: menuBar.mapView.torchOn = !menuBar.mapView.torchOn
+        }
+        TibiaMenu {
+            id: lightStrengthMenu
+            title: "Light ambient"
+            Instantiator {
+                model: [
+                    { label: "Dark", value: 0 },
+                    { label: "Night", value: 20 },
+                    { label: "Default", value: 40 },
+                    { label: "Dusk", value: 80 },
+                    { label: "Bright", value: 128 },
+                    { label: "Full light", value: 255 }
+                ]
+                delegate: TibiaMenuItem {
+                    required property var modelData
+                    text: modelData.label
+                    checkable: true
+                    checked: menuBar.mapView.lightAmbient === modelData.value
+                    onTriggered: menuBar.mapView.lightAmbient = modelData.value
+                }
+                onObjectAdded: (index, object) =>
+                    lightStrengthMenu.insertItem(index, object)
+                onObjectRemoved: (index, object) =>
+                    lightStrengthMenu.removeItem(object)
+            }
+        }
+        Action {
+            text: "Show minimap"
+            shortcut: "M"
+            checkable: true
+            checked: menuBar.mapView.minimapOn
+            onTriggered: menuBar.mapView.minimapOn = !menuBar.mapView.minimapOn
         }
         MenuSeparator {}
         Action {
@@ -386,10 +506,41 @@ TibiaMenuBar {
             onTriggered: menuBar.mapView.showGrid = !menuBar.mapView.showGrid
         }
         Action {
+            text: "Show client box"
+            shortcut: "Shift+I"
+            checkable: true
+            checked: menuBar.settings.showClientBox
+            onTriggered: menuBar.settings.showClientBox =
+                         !menuBar.settings.showClientBox
+        }
+        Action {
+            text: "Show tooltips"
+            shortcut: "Y"
+            checkable: true
+            checked: menuBar.settings.showTooltips
+            onTriggered: menuBar.settings.showTooltips =
+                         !menuBar.settings.showTooltips
+        }
+        Action {
+            text: "Show waypoints"
+            shortcut: "Shift+W"
+            checkable: true
+            checked: menuBar.settings.showWaypoints
+            onTriggered: menuBar.settings.showWaypoints =
+                         !menuBar.settings.showWaypoints
+        }
+        Action {
             text: "Show wall outlines"
             checkable: true
             checked: menuBar.mapView.showWallOutlines
             onTriggered: menuBar.mapView.showWallOutlines = !menuBar.mapView.showWallOutlines
+        }
+        Action {
+            text: "Show pathing"
+            shortcut: "O"
+            checkable: true
+            checked: menuBar.mapView.showPathing
+            onTriggered: menuBar.mapView.showPathing = !menuBar.mapView.showPathing
         }
 
         Action {
@@ -472,7 +623,7 @@ TibiaMenuBar {
                 onObjectRemoved: (index, object) => fpsMenu.removeItem(object)
             }
         }
-        Action {
+        TibiaMenuItem {
             text: "V-Sync"
             checkable: true
             checked: menuBar.settings.vsyncEnabled

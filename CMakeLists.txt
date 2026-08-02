@@ -13,7 +13,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 COMPONENTS Core Gui Qml Quick OpenGL REQUIRED)
+find_package(Qt6 COMPONENTS Core Gui Qml Quick OpenGL Network REQUIRED)
 qt_policy(SET QTP0001 NEW)
 
 add_library(OTFormats STATIC
@@ -36,6 +36,9 @@ add_library(OTFormats STATIC
     libs/otformats/itemsxmlreader.cpp
     libs/otformats/itemsxmlreader.h
     libs/otformats/dmedatadir.h
+    libs/otformats/compactvector.h
+    libs/otformats/compactqstring.h
+    libs/otformats/tilepositionindex.h
 )
 
 target_compile_definitions(OTFormats PUBLIC
@@ -54,6 +57,8 @@ add_executable(DewralMapEditor
     editor/main.cpp
     editor/core/backend.cpp
     editor/core/backend.h
+    editor/core/aimapassistant.cpp
+    editor/core/aimapassistant.h
     editor/core/brushstore.cpp
     editor/core/brushstore.h
     editor/core/tilesetstore.cpp
@@ -70,6 +75,13 @@ add_executable(DewralMapEditor
     editor/core/creaturestore.h
     editor/map/mapview.cpp
     editor/map/mapview_edit.cpp
+    editor/map/mapview_brush_core.cpp
+    editor/map/mapview_brush_ground.cpp
+    editor/map/mapview_brush_types.cpp
+    editor/map/mapview_item_properties.cpp
+    editor/map/mapview_item_context.cpp
+    editor/map/mapview_query.cpp
+    editor/map/mapview_selection.cpp
     editor/map/mapview_chunks.cpp
     editor/map/mapview_atlas.cpp
     editor/map/mapview_gl.cpp
@@ -78,6 +90,16 @@ add_executable(DewralMapEditor
     editor/map/mapview_p.h
     editor/map/mapservices.cpp
     editor/map/mapservices.h
+    editor/map/maptypes.h
+    editor/map/mapchunkstore.h
+    editor/map/mapatlasservice.h
+    editor/map/mapeditcontroller.h
+    editor/map/mapbrushcontroller.h
+    editor/map/mapselectioncontroller.h
+    editor/map/mapnavigationcontroller.h
+    editor/map/mapitemcontroller.h
+    editor/map/mapminimapservice.h
+    editor/map/mapspawnindexservice.h
     editor/map/mapglview.cpp
     editor/map/mapglview.h
     editor/map/minimapview.cpp
@@ -95,6 +117,7 @@ qt_add_qml_module(DewralMapEditor
     VERSION 1.0
     SOURCES
         editor/core/backend.h
+        editor/core/aimapassistant.h
         editor/map/mapview.h
         editor/map/mapglview.h
         editor/map/minimapview.h
@@ -120,7 +143,54 @@ target_link_libraries(DewralMapEditor
         OTFormats
         Qt6::Quick
         Qt6::OpenGL
+        Qt6::Network
 )
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(otbm_compact_storage_test EXCLUDE_FROM_ALL
+        tests/otbm_compact_storage_test.cpp)
+    target_include_directories(otbm_compact_storage_test PRIVATE libs/otformats)
+    target_link_libraries(otbm_compact_storage_test PRIVATE OTFormats Qt6::Core)
+    add_test(NAME otbm_compact_storage COMMAND otbm_compact_storage_test)
+    add_executable(otbm_editing_storage_test EXCLUDE_FROM_ALL
+        tests/otbm_editing_storage_test.cpp)
+    target_include_directories(otbm_editing_storage_test PRIVATE libs/otformats)
+    target_link_libraries(otbm_editing_storage_test PRIVATE OTFormats Qt6::Core)
+    add_test(NAME otbm_editing_storage COMMAND otbm_editing_storage_test)
+    add_executable(tile_position_index_test EXCLUDE_FROM_ALL
+        tests/tile_position_index_test.cpp)
+    target_include_directories(tile_position_index_test PRIVATE libs/otformats)
+    add_test(NAME tile_position_index COMMAND tile_position_index_test)
+    add_executable(otbm_background_load_test EXCLUDE_FROM_ALL
+        tests/otbm_background_load_test.cpp)
+    target_include_directories(otbm_background_load_test PRIVATE libs/otformats)
+    target_link_libraries(otbm_background_load_test PRIVATE OTFormats Qt6::Core)
+    add_test(NAME otbm_background_load COMMAND otbm_background_load_test)
+    add_executable(atlas_background_build_test EXCLUDE_FROM_ALL
+        tests/atlas_background_build_test.cpp
+        editor/map/mapservices.cpp
+        editor/core/creaturestore.cpp)
+    target_include_directories(atlas_background_build_test PRIVATE
+        libs/otformats editor/map editor/core)
+    target_link_libraries(atlas_background_build_test PRIVATE
+        OTFormats Qt6::Core Qt6::Gui)
+    add_test(NAME atlas_background_build COMMAND atlas_background_build_test)
+    add_executable(document_recovery_test EXCLUDE_FROM_ALL
+        tests/document_recovery_test.cpp
+        editor/core/documentmanager.cpp)
+    target_include_directories(document_recovery_test PRIVATE
+        libs/otformats editor/core)
+    target_link_libraries(document_recovery_test PRIVATE OTFormats Qt6::Core)
+    add_test(NAME document_recovery COMMAND document_recovery_test)
+    if(WIN32)
+        set_tests_properties(otbm_compact_storage otbm_editing_storage
+                             otbm_background_load atlas_background_build
+                             document_recovery PROPERTIES
+            ENVIRONMENT_MODIFICATION
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+    endif()
+endif()
 
 set(DME_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/dist" CACHE PATH
     "Directory used for the built application and deployed Qt runtime")

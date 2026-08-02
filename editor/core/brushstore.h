@@ -17,11 +17,21 @@ class BrushStore : public QObject
 {
     Q_OBJECT
     QML_ANONYMOUS
+    Q_PROPERTY(int revision READ revision NOTIFY brushesChanged)
 public:
     explicit BrushStore(QObject *parent = nullptr);
 
     Q_INVOKABLE QStringList groundBrushNames() const;
     Q_INVOKABLE QStringList wallBrushNames() const;
+    int revision() const { return m_revision; }
+
+    Q_INVOKABLE QStringList prefabPaletteNames() const;
+    Q_INVOKABLE QVariantList prefabsForPalette(const QString &palette) const;
+    Q_INVOKABLE bool savePrefab(const QString &name, const QString &palette,
+                                const QVariantList &tiles);
+    Q_INVOKABLE void deletePrefab(const QString &name);
+    Q_INVOKABLE bool isPrefab(const QString &name) const { return m_prefabs.contains(name); }
+    Q_INVOKABLE int prefabLookId(const QString &name) const;
 
     Q_INVOKABLE QVariantMap groundBrushEdit(const QString &name) const;
 
@@ -175,6 +185,8 @@ private:
 
     QHash<QString, DoodadDef> m_doodads;
     QHash<int, QString> m_doodadByServerId;
+    QSet<QString> m_prefabs;
+    QHash<QString, QString> m_prefabPalettes;
 
     struct ConnectedDef {
         struct Node {
@@ -192,9 +204,10 @@ private:
 
     void parseRoot(const QJsonObject &root);
     bool saveJson() const;
-    void applyRawAndSave();
+    bool applyRawAndSave();
     QJsonObject m_rawRoot;
     QString m_path;
+    int m_revision = 0;
 };
 
 #endif

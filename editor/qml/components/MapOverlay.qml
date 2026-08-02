@@ -1,8 +1,9 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Tibia 1.0
 
-Canvas {
+Item {
     id: overlay
 
     required property var mapCtrl
@@ -10,66 +11,44 @@ Canvas {
 
     property var entries: []
     property string dataKey: ""
+    property real currentOriginX: 0
+    property real currentOriginY: 0
+    property real paintedOriginX: 0
+    property real paintedOriginY: 0
+    readonly property real currentTileSize: mapCtrl ? Math.max(1, mapCtrl.tileSize) : 1
+    readonly property real canvasMargin: 64
+
+    clip: true
+    visible: settings.showClientBox || settings.showTooltips || settings.showWaypoints
 
     function refreshData(force) {
         if (!mapCtrl)
             return;
-        const tileSize = Math.max(1, mapCtrl.tileSize);
-        const key = mapCtrl.floor + ":"
-                + Math.floor(mapCtrl.glOriginX()) + ":"
-                + Math.floor(mapCtrl.glOriginY()) + ":"
-                + Math.ceil(width / tileSize) + ":"
-                + Math.ceil(height / tileSize) + ":"
-                + tileSize + ":"
-                + settings.showTooltips + ":"
-                + settings.showWaypoints;
-        if (force || key !== dataKey) {
-            dataKey = key;
-            entries = mapCtrl.mapOverlayData(settings.showTooltips,
-                                             settings.showWaypoints);
-        }
-        requestPaint();
-    }
 
-    function drawClientBox(ctx) {
-        const tileSize = Math.max(1, mapCtrl.tileSize);
         const originX = mapCtrl.glOriginX();
         const originY = mapCtrl.glOriginY();
-        const playerX = Math.floor(originX + width / tileSize / 2);
-        const playerY = Math.floor(originY + height / tileSize / 2);
-        const startX = (playerX - 8 - originX) * tileSize;
-        const startY = (playerY - 6 - originY) * tileSize;
-        const boxWidth = 17 * tileSize;
-        const boxHeight = 13 * tileSize;
-        const endX = startX + boxWidth;
-        const endY = startY + boxHeight;
+        currentOriginX = originX;
+        currentOriginY = originY;
 
-        ctx.fillStyle = "rgba(0, 0, 0, 0.66)";
-        ctx.fillRect(0, 0, width, Math.max(0, startY));
-        ctx.fillRect(0, Math.min(height, endY), width,
-                     Math.max(0, height - endY));
-        ctx.fillRect(0, Math.max(0, startY), Math.max(0, startX),
-                     Math.min(height, endY) - Math.max(0, startY));
-        ctx.fillRect(Math.min(width, endX), Math.max(0, startY),
-                     Math.max(0, width - endX),
-                     Math.min(height, endY) - Math.max(0, startY));
+        const key = mapCtrl.floor + ":"
+                + Math.floor(originX) + ":" + Math.floor(originY) + ":"
+                + Math.ceil(width / currentTileSize) + ":"
+                + Math.ceil(height / currentTileSize) + ":"
+                + currentTileSize + ":" + settings.showTooltips + ":"
+                + settings.showWaypoints;
+        if (!force && key === dataKey)
+            return;
 
-        ctx.lineWidth = 1.5;
-        ctx.strokeStyle = "#f85149";
-        ctx.strokeRect(startX + 0.5, startY + 0.5,
-                       boxWidth - 1, boxHeight - 1);
-        ctx.strokeStyle = "#3fb950";
-        ctx.strokeRect(startX + tileSize + 0.5,
-                       startY + tileSize + 0.5,
-                       boxWidth - tileSize * 2 - 1,
-                       boxHeight - tileSize * 2 - 1);
-        ctx.strokeRect((playerX - originX) * tileSize + 0.5,
-                       (playerY - originY) * tileSize + 0.5,
-                       tileSize - 1, tileSize - 1);
+        dataKey = key;
+        entries = mapCtrl.mapOverlayData(settings.showTooltips,
+                                         settings.showWaypoints);
+        paintedOriginX = originX;
+        paintedOriginY = originY;
+        worldCanvas.requestPaint();
     }
 
     function drawWaypoint(ctx, centerX, centerY) {
-        const radius = Math.max(5, Math.min(11, mapCtrl.tileSize * 0.32));
+        const radius = Math.max(5, Math.min(11, currentTileSize * 0.32));
         ctx.beginPath();
         ctx.moveTo(centerX, centerY + radius * 1.35);
         ctx.lineTo(centerX - radius * 0.55, centerY + radius * 0.35);
@@ -107,11 +86,11 @@ Canvas {
         for (let i = 0; i < lines.length; ++i)
             textWidth = Math.max(textWidth, ctx.measureText(lines[i]).width);
 
-        const boxWidth = Math.min(width - 4, textWidth + 10);
+        const boxWidth = Math.min(worldCanvas.width - 4, textWidth + 10);
         const boxHeight = lines.length * lineHeight + 7;
         let x = anchorX - boxWidth / 2;
         let y = anchorY - boxHeight - 6;
-        x = Math.max(2, Math.min(width - boxWidth - 2, x));
+        x = Math.max(2, Math.min(worldCanvas.width - boxWidth - 2, x));
         if (y < 2)
             y = anchorY + 8;
 
@@ -125,29 +104,109 @@ Canvas {
             ctx.fillText(lines[line], x + 5, y + 4 + line * lineHeight);
     }
 
-    onPaint: {
-        const ctx = getContext("2d");
-        ctx.reset();
-        ctx.clearRect(0, 0, width, height);
-        if (!mapCtrl)
-            return;
+    Canvas {
+        id: worldCanvas
 
-        if (settings.showClientBox)
-            drawClientBox(ctx);
+        width: overlay.width + overlay.canvasMargin * 2
+        height: overlay.height + overlay.canvasMargin * 2
+        x: -overlay.canvasMargin
+           + (overlay.paintedOriginX - overlay.currentOriginX) * overlay.currentTileSize
+        y: -overlay.canvasMargin
+           + (overlay.paintedOriginY - overlay.currentOriginY) * overlay.currentTileSize
+        visible: overlay.settings.showTooltips || overlay.settings.showWaypoints
 
-        const tileSize = Math.max(1, mapCtrl.tileSize);
-        const originX = mapCtrl.glOriginX();
-        const originY = mapCtrl.glOriginY();
-        for (let i = 0; i < entries.length; ++i) {
-            const entry = entries[i];
-            const centerX = (entry.x + 0.5 - originX) * tileSize;
-            const centerY = (entry.y + 0.5 - originY) * tileSize;
-            if (entry.kind === "waypoint" && settings.showWaypoints)
-                drawWaypoint(ctx, centerX, centerY);
-            if (settings.showTooltips && entry.text.length > 0)
-                drawTooltip(ctx, entry.text, centerX,
-                            (entry.y - originY) * tileSize,
-                            entry.kind === "waypoint");
+        onPaint: {
+            const ctx = getContext("2d");
+            ctx.reset();
+            ctx.clearRect(0, 0, width, height);
+
+            const tileSize = overlay.currentTileSize;
+            const margin = overlay.canvasMargin;
+            for (let i = 0; i < overlay.entries.length; ++i) {
+                const entry = overlay.entries[i];
+                const centerX = (entry.x + 0.5 - overlay.paintedOriginX) * tileSize + margin;
+                const centerY = (entry.y + 0.5 - overlay.paintedOriginY) * tileSize + margin;
+                if (entry.kind === "waypoint" && overlay.settings.showWaypoints)
+                    overlay.drawWaypoint(ctx, centerX, centerY);
+                if (overlay.settings.showTooltips && entry.text.length > 0)
+                    overlay.drawTooltip(ctx, entry.text, centerX,
+                                        (entry.y - overlay.paintedOriginY) * tileSize + margin,
+                                        entry.kind === "waypoint");
+            }
+        }
+    }
+
+    Item {
+        id: clientBox
+
+        readonly property int playerX: Math.floor(overlay.currentOriginX
+                                                  + overlay.width / overlay.currentTileSize / 2)
+        readonly property int playerY: Math.floor(overlay.currentOriginY
+                                                  + overlay.height / overlay.currentTileSize / 2)
+        readonly property real boxX: (playerX - 8 - overlay.currentOriginX)
+                                             * overlay.currentTileSize
+        readonly property real boxY: (playerY - 6 - overlay.currentOriginY)
+                                             * overlay.currentTileSize
+        readonly property real boxWidth: 17 * overlay.currentTileSize
+        readonly property real boxHeight: 13 * overlay.currentTileSize
+
+        anchors.fill: parent
+        visible: overlay.settings.showClientBox
+
+        Rectangle {
+            x: 0
+            y: 0
+            width: parent.width
+            height: Math.max(0, clientBox.boxY)
+            color: "#a8000000"
+        }
+        Rectangle {
+            x: 0
+            y: Math.min(parent.height, clientBox.boxY + clientBox.boxHeight)
+            width: parent.width
+            height: Math.max(0, parent.height - y)
+            color: "#a8000000"
+        }
+        Rectangle {
+            x: 0
+            y: Math.max(0, clientBox.boxY)
+            width: Math.max(0, clientBox.boxX)
+            height: Math.max(0, Math.min(parent.height, clientBox.boxY + clientBox.boxHeight) - y)
+            color: "#a8000000"
+        }
+        Rectangle {
+            x: Math.min(parent.width, clientBox.boxX + clientBox.boxWidth)
+            y: Math.max(0, clientBox.boxY)
+            width: Math.max(0, parent.width - x)
+            height: Math.max(0, Math.min(parent.height, clientBox.boxY + clientBox.boxHeight) - y)
+            color: "#a8000000"
+        }
+        Rectangle {
+            x: clientBox.boxX + 0.5
+            y: clientBox.boxY + 0.5
+            width: clientBox.boxWidth - 1
+            height: clientBox.boxHeight - 1
+            color: "transparent"
+            border.width: 1
+            border.color: "#f85149"
+        }
+        Rectangle {
+            x: clientBox.boxX + overlay.currentTileSize + 0.5
+            y: clientBox.boxY + overlay.currentTileSize + 0.5
+            width: clientBox.boxWidth - overlay.currentTileSize * 2 - 1
+            height: clientBox.boxHeight - overlay.currentTileSize * 2 - 1
+            color: "transparent"
+            border.width: 1
+            border.color: "#3fb950"
+        }
+        Rectangle {
+            x: (clientBox.playerX - overlay.currentOriginX) * overlay.currentTileSize + 0.5
+            y: (clientBox.playerY - overlay.currentOriginY) * overlay.currentTileSize + 0.5
+            width: overlay.currentTileSize - 1
+            height: overlay.currentTileSize - 1
+            color: "transparent"
+            border.width: 1
+            border.color: "#3fb950"
         }
     }
 
@@ -169,7 +228,6 @@ Canvas {
 
     Connections {
         target: overlay.settings
-        function onShowClientBoxChanged() { overlay.refreshData(false); }
         function onShowTooltipsChanged() { overlay.refreshData(true); }
         function onShowWaypointsChanged() { overlay.refreshData(true); }
     }

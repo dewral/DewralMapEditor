@@ -9,6 +9,7 @@ Item {
     id: toolBar
 
     required property var mapView
+    required property var settings
     property var waypointEntries: []
     readonly property int leftButtonWidth: 72
     readonly property int leftButtonHeight: 62
@@ -137,7 +138,6 @@ Item {
             buttonHeight: toolBar.leftButtonHeight
             iconName: "draw"
             label: "Draw"
-            enabled: !toolBar.mapView.ingamePreview
             active: !toolBar.mapView.selectionMode && !toolBar.mapView.eraseMode
             tip: "Draw mode (Space)"
             onClicked: {
@@ -151,7 +151,6 @@ Item {
             buttonHeight: toolBar.leftButtonHeight
             iconName: "select"
             label: "Select"
-            enabled: !toolBar.mapView.ingamePreview
             active: toolBar.mapView.selectionMode
             tip: "Selection mode (Space)"
             onClicked: {
@@ -165,7 +164,6 @@ Item {
             buttonHeight: toolBar.leftButtonHeight
             iconName: "erase"
             label: "Erase"
-            enabled: !toolBar.mapView.ingamePreview
             danger: true
             active: toolBar.mapView.eraseMode
             tip: "Erase items"
@@ -193,7 +191,6 @@ Item {
                 buttonHeight: toolBar.leftButtonHeight
                 anchors.verticalCenter: parent ? parent.verticalCenter : undefined
                 label: modelData.label
-                enabled: !toolBar.mapView.ingamePreview
                 active: toolBar.mapView.activeZone === modelData.flag
                 tip: modelData.tip
                 onClicked: toolBar.mapView.activeZone = active ? 0 : modelData.flag
@@ -202,7 +199,6 @@ Item {
 
         ToolbarButton {
             visible: toolBar.mapView.selectionCount > 0 && toolBar.width > 920
-            enabled: !toolBar.mapView.ingamePreview
             buttonWidth: toolBar.leftButtonWidth
             buttonHeight: toolBar.leftButtonHeight
             anchors.verticalCenter: parent.verticalCenter
@@ -299,20 +295,21 @@ Item {
             buttonHeight: toolBar.rightButtonHeight
             anchors.verticalCenter: parent.verticalCenter
             iconName: "target"
-            active: toolBar.mapView.ingamePreview
-            tip: toolBar.mapView.ingamePreview
-                 ? "Exit in-game preview (Esc)"
-                 : "Walk around the map (WASD / arrows)"
-            onClicked: toolBar.mapView.ingamePreview = !toolBar.mapView.ingamePreview
+            active: toolBar.settings.showIngamePreviewWindow
+            tip: toolBar.settings.showIngamePreviewWindow
+                 ? "Close In-game Preview"
+                 : "Open In-game Preview"
+            onClicked: toolBar.settings.showIngamePreviewWindow =
+                       !toolBar.settings.showIngamePreviewWindow
         }
 
     }
 
-    TibiaMenu {
+    DmeMenu {
         id: waypointMenu
         width: 260
 
-        TibiaMenuItem {
+        DmeMenuItem {
             visible: toolBar.waypointEntries.length === 0
             enabled: false
             text: "No waypoints on this map"
@@ -321,7 +318,7 @@ Item {
         Instantiator {
             model: toolBar.waypointEntries
 
-            delegate: TibiaMenuItem {
+            delegate: DmeMenuItem {
                 required property var modelData
                 text: modelData.name + "   (" + modelData.x + ", "
                       + modelData.y + ", " + modelData.z + ")"

@@ -3,7 +3,7 @@ import QtQuick
 import QtQuick.Controls
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: statsDialog
     title: "Map Statistics"
 
@@ -69,7 +69,7 @@ TibiaDialog {
             }
         }
 
-        TibiaButton {
+        DmeButton {
             text: "Close"
             width: 90
             anchors.horizontalCenter: parent.horizontalCenter

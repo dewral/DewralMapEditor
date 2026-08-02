@@ -3,7 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: propsDialog
     required property var ctx
     property var mapCtrl: null
@@ -146,7 +146,7 @@ TibiaDialog {
             }
             Row {
                 visible: propsDialog.ctx.hasItem === true
-                TibiaSpinBox {
+                DmeSpinBox {
                     id: countField
                     width: 100
                     from: 1
@@ -166,13 +166,13 @@ TibiaDialog {
             Row {
                 spacing: 6
                 visible: propsDialog.ctx.hasItem === true
-                TibiaSpinBox {
+                DmeSpinBox {
                     id: aidField
                     width: 145
                     from: 0
                     to: 65535
                 }
-                TibiaSpinBox {
+                DmeSpinBox {
                     id: uidField
                     width: 145
                     from: 0
@@ -189,19 +189,19 @@ TibiaDialog {
             Row {
                 spacing: 6
                 visible: propsDialog.isTeleport
-                TibiaSpinBox {
+                DmeSpinBox {
                     id: teleX
                     width: 100
                     from: 0
                     to: 65535
                 }
-                TibiaSpinBox {
+                DmeSpinBox {
                     id: teleY
                     width: 100
                     from: 0
                     to: 65535
                 }
-                TibiaSpinBox {
+                DmeSpinBox {
                     id: teleZ
                     width: 84
                     from: 0
@@ -217,7 +217,7 @@ TibiaDialog {
             }
             Row {
                 visible: propsDialog.isWritable
-                TibiaTextField {
+                DmeTextField {
                     id: textField
                     width: 456
                 }
@@ -229,7 +229,7 @@ TibiaDialog {
                 color: "#999"
                 font.pixelSize: 11
             }
-            TibiaTextField {
+            DmeTextField {
                 id: descriptionField
                 visible: propsDialog.ctx.hasItem === true
                 width: 456
@@ -245,19 +245,19 @@ TibiaDialog {
             Row {
                 visible: propsDialog.ctx.hasItem === true
                 spacing: 6
-                TibiaSpinBox {
+                DmeSpinBox {
                     id: depotField
                     width: 100
                     from: 0
                     to: 65535
                 }
-                TibiaSpinBox {
+                DmeSpinBox {
                     id: doorField
                     width: 90
                     from: 0
                     to: 255
                 }
-                TibiaSpinBox {
+                DmeSpinBox {
                     id: tierField
                     width: 90
                     from: 0
@@ -273,7 +273,7 @@ TibiaDialog {
             }
             Row {
                 visible: propsDialog.hasCreature
-                TibiaSpinBox {
+                DmeSpinBox {
                     id: spawntimeField
                     width: 100
                     from: 1
@@ -288,7 +288,7 @@ TibiaDialog {
             }
             Row {
                 visible: propsDialog.hasSpawn
-                TibiaSpinBox {
+                DmeSpinBox {
                     id: radiusField
                     width: 100
                     from: 1
@@ -344,14 +344,14 @@ TibiaDialog {
                             anchors.fill: parent
                             spacing: 4
 
-                            TibiaTextField {
+                            DmeTextField {
                                 width: 125
                                 text: attributeRow.key
                                 placeholderText: "Key"
                                 onEditingFinished: attributeModel.setProperty(
                                     attributeRow.index, "key", text)
                             }
-                            TibiaComboBox {
+                            DmeComboBox {
                                 width: 92
                                 model: attributeRow.editable
                                        ? ["Number", "Float", "Boolean", "String", "Double"]
@@ -372,7 +372,7 @@ TibiaDialog {
                                     }
                                 }
                             }
-                            TibiaTextField {
+                            DmeTextField {
                                 width: 174
                                 text: attributeRow.value
                                 placeholderText: attributeRow.editable ? "Value" : "Preserved binary value"
@@ -380,7 +380,7 @@ TibiaDialog {
                                 onEditingFinished: attributeModel.setProperty(
                                     attributeRow.index, "value", text)
                             }
-                            TibiaButton {
+                            DmeButton {
                                 width: 43
                                 text: "X"
                                 variant: "danger"
@@ -390,7 +390,7 @@ TibiaDialog {
                     }
                 }
             }
-            TibiaButton {
+            DmeButton {
                 visible: propsDialog.ctx.customAttributesSupported === true
                 text: "Add Attribute"
                 width: 110
@@ -411,7 +411,7 @@ TibiaDialog {
             Row {
                 spacing: 6
                 anchors.horizontalCenter: parent.horizontalCenter
-                TibiaButton {
+                DmeButton {
                     text: "Open Container"
                     width: 120
                     visible: propsDialog.isContainer
@@ -423,12 +423,12 @@ TibiaDialog {
                                 propsDialog.ctx.name || "Container");
                     }
                 }
-                TibiaButton {
+                DmeButton {
                     text: "OK"
                     width: 90
                     onClicked: propsDialog.applyAndClose()
                 }
-                TibiaButton {
+                DmeButton {
                     text: "Cancel"
                     width: 90
                     onClicked: propsDialog.close()

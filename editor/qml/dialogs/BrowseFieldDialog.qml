@@ -5,7 +5,7 @@ import QtQuick.Controls
 import Tibia 1.0
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: dialog
 
     required property var mapCtrl
@@ -71,7 +71,7 @@ TibiaDialog {
             font.pixelSize: 11
         }
 
-        TibiaPanel {
+        DmePanel {
             width: parent.width
             height: 240
 
@@ -156,7 +156,7 @@ TibiaDialog {
                 }
             }
 
-            TibiaScrollBar {
+            DmeScrollBar {
                 anchors {
                     right: parent.right
                     top: parent.top
@@ -171,7 +171,7 @@ TibiaDialog {
             spacing: 6
             anchors.horizontalCenter: parent.horizontalCenter
 
-            TibiaButton {
+            DmeButton {
                 text: "Select RAW"
                 width: 96
                 enabled: dialog.selectedItem !== null
@@ -181,14 +181,14 @@ TibiaDialog {
                 }
             }
 
-            TibiaButton {
+            DmeButton {
                 text: "Properties"
                 width: 88
                 enabled: dialog.selectedItem !== null
                 onClicked: dialog.propertiesDialog.openWithContext(dialog.selectedItem)
             }
 
-            TibiaButton {
+            DmeButton {
                 text: "Delete"
                 width: 76
                 variant: "danger"
@@ -200,7 +200,7 @@ TibiaDialog {
                 }
             }
 
-            TibiaButton {
+            DmeButton {
                 text: "Close"
                 width: 76
                 onClicked: dialog.close()

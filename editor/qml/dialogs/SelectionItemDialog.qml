@@ -3,7 +3,7 @@ import QtQuick
 import QtQuick.Controls
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: root
 
     property string mode: "find"
@@ -148,7 +148,7 @@ TibiaDialog {
                     font.pixelSize: 11
                 }
 
-                TibiaSpinBox {
+                DmeSpinBox {
                     id: simpleFromField
                     width: 110
                     from: 100
@@ -177,7 +177,7 @@ TibiaDialog {
             Row {
                 spacing: 6
 
-                TibiaButton {
+                DmeButton {
                     width: 100
                     text: root.mode === "find" ? "Count" : "Remove"
                     variant: root.mode === "remove" ? "danger" : "primary"
@@ -203,7 +203,7 @@ TibiaDialog {
                     }
                 }
 
-                TibiaButton {
+                DmeButton {
                     width: 100
                     text: "Close"
                     onClicked: root.close()
@@ -321,7 +321,7 @@ TibiaDialog {
                     onClicked: root.openItemPicker("from")
                 }
 
-                TibiaSpinBox {
+                DmeSpinBox {
                     id: fromField
                     anchors.verticalCenter: parent.verticalCenter
                     width: 96
@@ -346,7 +346,7 @@ TibiaDialog {
                     onClicked: root.openItemPicker("to")
                 }
 
-                TibiaSpinBox {
+                DmeSpinBox {
                     id: toField
                     anchors.verticalCenter: parent.verticalCenter
                     width: 96
@@ -364,7 +364,7 @@ TibiaDialog {
                     anchors.left: parent.left
                     spacing: 8
 
-                    TibiaButton {
+                    DmeButton {
                         width: 88
                         height: 32
                         text: "Add"
@@ -373,7 +373,7 @@ TibiaDialog {
                         onClicked: root.addRule()
                     }
 
-                    TibiaButton {
+                    DmeButton {
                         width: 88
                         height: 32
                         text: "Remove"
@@ -386,7 +386,7 @@ TibiaDialog {
                     anchors.right: parent.right
                     spacing: 8
 
-                    TibiaButton {
+                    DmeButton {
                         width: 88
                         height: 32
                         text: "Execute"
@@ -395,7 +395,7 @@ TibiaDialog {
                         onClicked: root.executeRules()
                     }
 
-                    TibiaButton {
+                    DmeButton {
                         width: 88
                         height: 32
                         text: "Close"

@@ -32,6 +32,11 @@ Window {
     function openVersionFolderDialog() {
         versionFolderDialogStartup.open();
     }
+    function beginRecoveryLoad(path) {
+        loadingMapPath = path;
+        loadingProfileKey = "";
+        loadingMap = true;
+    }
 
     transientParent: null
     visible: !app.started
@@ -53,15 +58,23 @@ Window {
         interval: 80
         repeat: false
         onTriggered: {
-            startupScreen.app.loadEverything(startupScreen.loadingMapPath,
-                                             startupScreen.loadingProfileKey);
-            startupScreen.loadingMap = false;
+            if (!startupScreen.app.loadEverything(startupScreen.loadingMapPath,
+                                                  startupScreen.loadingProfileKey))
+                startupScreen.loadingMap = false;
         }
     }
 
-    TibiaDialogBackground {
+    Connections {
+        target: Backend.otbmReader
+        function onLoadingChanged() {
+            if (!Backend.otbmReader.loading)
+                startupScreen.loadingMap = false;
+        }
+    }
+
+    DmeDialogBackground {
         id: card
-        visible: !startupScreen.loadingMap
+        visible: !startupScreen.loadingMap && Backend.docMgr.recoveryCount === 0
         anchors.centerIn: parent
         width: Math.min(parent.width - 40, 760)
         height: Math.min(parent.height - 80, 440)
@@ -118,7 +131,7 @@ Window {
             anchors.margins: 8
             spacing: 8
 
-            TibiaPanel {
+            DmePanel {
                 width: 280
                 height: parent.height
                 Column {
@@ -154,7 +167,7 @@ Window {
                     Row {
                         spacing: 6
 
-                        TibiaButton {
+                        DmeButton {
                             width: 113
                             height: 40
                             text: "Open map..."
@@ -162,7 +175,7 @@ Window {
                             onClicked: startMapDialog.open()
                         }
 
-                        TibiaButton {
+                        DmeButton {
                             width: 113
                             height: 40
                             text: "New map..."
@@ -179,7 +192,7 @@ Window {
 
                     Row {
                         spacing: 6
-                        TibiaComboBox {
+                        DmeComboBox {
                             id: verCombo
                             width: 150
                             height: 23
@@ -193,7 +206,7 @@ Window {
                                 return currentIndex >= 0 && currentIndex < keys.length ? keys[currentIndex] : "772";
                             }
                         }
-                        TibiaButton {
+                        DmeButton {
                             width: 76
                             height: 23
                             text: "Folder..."
@@ -207,13 +220,13 @@ Window {
 
                     Row {
                         spacing: 6
-                        TibiaTextField {
+                        DmeTextField {
                             id: newProfileField
                             width: 150
                             height: 23
                             placeholderText: "e.g. Midhem"
                         }
-                        TibiaButton {
+                        DmeButton {
                             width: 76
                             height: 23
                             text: "+ Custom"
@@ -229,7 +242,7 @@ Window {
                         }
                     }
 
-                    TibiaButton {
+                    DmeButton {
                         visible: app.isCustomKey(verCombo.selKey)
                         width: 232
                         height: 21
@@ -283,7 +296,7 @@ Window {
                 }
             }
 
-            TibiaPanel {
+            DmePanel {
                 width: parent.width - 288
                 height: parent.height
 
@@ -370,7 +383,75 @@ Window {
         }
     }
 
-    TibiaDialogBackground {
+    DmeDialogBackground {
+        visible: !startupScreen.loadingMap && Backend.docMgr.recoveryCount > 0
+        anchors.centerIn: parent
+        width: Math.min(parent.width - 40, 620)
+        height: Math.min(parent.height - 80, 330)
+        frameSource: (Backend.uiTheme.tex + "popupwindow_tall.png")
+        topBorder: 45
+
+        Column {
+            anchors {
+                fill: parent
+                margins: 28
+                topMargin: 52
+            }
+            spacing: 14
+
+            Text {
+                width: parent.width
+                text: "Recover unsaved maps"
+                color: Backend.uiTheme.style === "github-dark" ? "#F0F6FC" : "#d6d6d6"
+                font.pixelSize: 18
+                font.bold: true
+            }
+            Text {
+                width: parent.width
+                text: "DME found " + Backend.docMgr.recoveryCount
+                      + (Backend.docMgr.recoveryCount === 1
+                         ? " map from an interrupted session."
+                         : " maps from an interrupted session.")
+                color: Backend.uiTheme.style === "github-dark" ? "#9DA7B3" : "#b8b8b8"
+                font.pixelSize: 12
+                wrapMode: Text.WordWrap
+            }
+            Column {
+                width: parent.width
+                spacing: 5
+                Repeater {
+                    model: Backend.docMgr.recoveries.slice(0, 5)
+                    Text {
+                        required property var modelData
+                        width: parent.width
+                        text: "• " + modelData.title + "  —  " + modelData.savedAt
+                        color: Backend.uiTheme.style === "github-dark" ? "#C9D1D9" : "#c0c0c0"
+                        font.pixelSize: 11
+                        elide: Text.ElideMiddle
+                    }
+                }
+            }
+            Item { width: 1; height: 8 }
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 10
+                DmeButton {
+                    text: "Recover all"
+                    width: 150
+                    variant: "primary"
+                    onClicked: startupScreen.app.recoverPreviousSession()
+                }
+                DmeButton {
+                    text: "Discard recovery"
+                    width: 150
+                    variant: "danger"
+                    onClicked: startupScreen.app.discardPreviousSession()
+                }
+            }
+        }
+    }
+
+    DmeDialogBackground {
         id: loadingCard
         visible: startupScreen.loadingMap
         anchors.centerIn: parent
@@ -435,6 +516,10 @@ Window {
                     height: parent.height
                     radius: 4
                     color: "#2EA043"
+
+                    Behavior on width {
+                        NumberAnimation { duration: 100; easing.type: Easing.OutCubic }
+                    }
                 }
             }
 

@@ -22,6 +22,7 @@ Item {
     property alias savedToast: documents.savedToast
     property alias appCloseAllowed: documents.appCloseAllowed
     property alias appCloseSaveAsPending: documents.appCloseSaveAsPending
+    property alias recoveringSession: documents.recoveringSession
 
     property alias clientPaths: profiles.clientPaths
     property alias customProfiles: profiles.customProfiles
@@ -157,5 +158,11 @@ Item {
     }
     function saveNextAndClose() {
         documents.saveNextAndClose();
+    }
+    function recoverPreviousSession() {
+        documents.recoverPreviousSession();
+    }
+    function discardPreviousSession() {
+        documents.discardPreviousSession();
     }
 }

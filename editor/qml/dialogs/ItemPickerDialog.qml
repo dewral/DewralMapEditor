@@ -4,7 +4,7 @@ import QtQuick
 import Tibia 1.0
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: dialog
 
     property int initialServerId: 0
@@ -63,7 +63,7 @@ TibiaDialog {
             font.pixelSize: 11
         }
 
-        TibiaTextField {
+        DmeTextField {
             id: searchField
             width: parent.width
             height: 30
@@ -77,7 +77,7 @@ TibiaDialog {
             onAccepted: dialog.selectCurrentItem()
         }
 
-        TibiaPanel {
+        DmePanel {
             width: parent.width
             height: 390
 
@@ -186,7 +186,7 @@ TibiaDialog {
                 }
             }
 
-            TibiaScrollBar {
+            DmeScrollBar {
                 anchors {
                     right: parent.right
                     top: parent.top
@@ -201,7 +201,7 @@ TibiaDialog {
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: 8
 
-            TibiaButton {
+            DmeButton {
                 width: 90
                 text: "Select"
                 variant: "primary"
@@ -209,7 +209,7 @@ TibiaDialog {
                 onClicked: dialog.selectCurrentItem()
             }
 
-            TibiaButton {
+            DmeButton {
                 width: 90
                 text: "Cancel"
                 onClicked: dialog.close()

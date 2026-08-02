@@ -4,7 +4,7 @@ import QtQuick
 import Tibia 1.0
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: dialog
 
     required property var paletteNavigator
@@ -98,7 +98,7 @@ TibiaDialog {
         Row {
             spacing: 8
 
-            TibiaPanel {
+            DmePanel {
                 width: 178
                 height: 500
 
@@ -149,7 +149,7 @@ TibiaDialog {
                     }
 
                     SectionLabel { text: "Server ID" }
-                    TibiaSpinBox {
+                    DmeSpinBox {
                         id: serverIdField
                         width: parent.width
                         from: 1
@@ -157,7 +157,7 @@ TibiaDialog {
                         enabled: dialog.searchMode === "server"
                         onValueChanged: dialog.scheduleSearch()
                     }
-                    TibiaCheckBox {
+                    DmeCheckBox {
                         id: forceSelect
                         text: "Force select"
                         enabled: dialog.searchMode === "server"
@@ -168,7 +168,7 @@ TibiaDialog {
                     }
 
                     SectionLabel { text: "Client ID" }
-                    TibiaSpinBox {
+                    DmeSpinBox {
                         id: clientIdField
                         width: parent.width
                         from: 1
@@ -178,7 +178,7 @@ TibiaDialog {
                     }
 
                     SectionLabel { text: "Name" }
-                    TibiaTextField {
+                    DmeTextField {
                         id: nameField
                         width: parent.width
                         enabled: dialog.searchMode === "name"
@@ -188,7 +188,7 @@ TibiaDialog {
                 }
             }
 
-            TibiaPanel {
+            DmePanel {
                 width: 150
                 height: 500
 
@@ -211,7 +211,7 @@ TibiaDialog {
                 }
             }
 
-            TibiaPanel {
+            DmePanel {
                 width: 175
                 height: 500
 
@@ -239,7 +239,7 @@ TibiaDialog {
                 }
             }
 
-            TibiaPanel {
+            DmePanel {
                 width: 300
                 height: 500
 
@@ -354,7 +354,7 @@ TibiaDialog {
                         }
                     }
 
-                    TibiaScrollBar {
+                    DmeScrollBar {
                         anchors {
                             right: parent.right
                             top: parent.top
@@ -371,14 +371,14 @@ TibiaDialog {
             spacing: 6
             anchors.horizontalCenter: parent.horizontalCenter
 
-            TibiaButton {
+            DmeButton {
                 text: "OK"
                 width: 90
                 enabled: resultList.currentIndex >= 0
                 variant: "primary"
                 onClicked: dialog.acceptSelection()
             }
-            TibiaButton {
+            DmeButton {
                 text: "Cancel"
                 width: 90
                 onClicked: dialog.close()
@@ -444,7 +444,7 @@ TibiaDialog {
         }
     }
 
-    component PropertyCheck: TibiaCheckBox {
+    component PropertyCheck: DmeCheckBox {
         enabled: dialog.propertyMode
         opacity: enabled ? 1 : 0.42
         onClicked: {

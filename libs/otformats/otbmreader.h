@@ -11,8 +11,13 @@
 #include <QtQml/qqmlregistration.h>
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <memory>
 #include <vector>
+
+#include "compactvector.h"
+#include "compactqstring.h"
+#include "tilepositionindex.h"
 
 class BinaryNode;
 
@@ -78,6 +83,8 @@ enum OtbmTileFlag : uint32_t {
     TileRefresh = 1u << 5
 };
 
+struct OtbmMapItem;
+
 struct OtbmItemExtra {
 
     struct NamedAttribute {
@@ -102,6 +109,18 @@ struct OtbmItemExtra {
     QByteArray podium_raw;
     bool has_attribute_map = false;
     std::vector<NamedAttribute> attribute_map;
+
+    uint16_t depot_id = 0;
+    uint32_t action_id = 0;
+    uint32_t unique_id = 0;
+    std::unique_ptr<std::vector<OtbmMapItem>> children;
+
+    OtbmItemExtra();
+    ~OtbmItemExtra();
+    OtbmItemExtra(const OtbmItemExtra &other);
+    OtbmItemExtra &operator=(const OtbmItemExtra &other);
+    OtbmItemExtra(OtbmItemExtra &&other) noexcept;
+    OtbmItemExtra &operator=(OtbmItemExtra &&other) noexcept;
 };
 
 struct OtbmMapItem {
@@ -109,14 +128,9 @@ struct OtbmMapItem {
     uint16_t count = 1;
     uint8_t subtype_attribute = static_cast<uint8_t>(OtbmAttribute::Count);
     bool has_subtype_attribute = false;
-    uint16_t depot_id = 0;
-    uint32_t action_id = 0;
-    uint32_t unique_id = 0;
     bool is_ground = false;
 
     std::unique_ptr<OtbmItemExtra> extra;
-
-    std::unique_ptr<std::vector<OtbmMapItem>> children;
 
     OtbmMapItem() = default;
     OtbmMapItem(OtbmMapItem &&) = default;
@@ -125,23 +139,15 @@ struct OtbmMapItem {
     OtbmMapItem(const OtbmMapItem &o)
         : server_id(o.server_id), count(o.count),
           subtype_attribute(o.subtype_attribute),
-          has_subtype_attribute(o.has_subtype_attribute), depot_id(o.depot_id),
-          action_id(o.action_id), unique_id(o.unique_id), is_ground(o.is_ground),
-          extra(o.extra ? std::make_unique<OtbmItemExtra>(*o.extra) : nullptr),
-          children(o.children
-                       ? std::make_unique<std::vector<OtbmMapItem>>(*o.children)
-                       : nullptr) {}
+          has_subtype_attribute(o.has_subtype_attribute), is_ground(o.is_ground),
+          extra(o.extra ? std::make_unique<OtbmItemExtra>(*o.extra) : nullptr) {}
     OtbmMapItem &operator=(const OtbmMapItem &o) {
         if (this != &o) {
             server_id = o.server_id; count = o.count;
             subtype_attribute = o.subtype_attribute;
             has_subtype_attribute = o.has_subtype_attribute;
-            depot_id = o.depot_id;
-            action_id = o.action_id; unique_id = o.unique_id; is_ground = o.is_ground;
+            is_ground = o.is_ground;
             extra = o.extra ? std::make_unique<OtbmItemExtra>(*o.extra) : nullptr;
-            children = o.children
-                           ? std::make_unique<std::vector<OtbmMapItem>>(*o.children)
-                           : nullptr;
         }
         return *this;
     }
@@ -151,20 +157,46 @@ struct OtbmMapItem {
         return *extra;
     }
 
+    uint32_t actionId() const { return extra ? extra->action_id : 0; }
+    uint32_t uniqueId() const { return extra ? extra->unique_id : 0; }
+    uint16_t depotId() const { return extra ? extra->depot_id : 0; }
+    void setActionId(uint32_t value) {
+        if (value != 0 || extra) ensureExtra().action_id = value;
+    }
+    void setUniqueId(uint32_t value) {
+        if (value != 0 || extra) ensureExtra().unique_id = value;
+    }
+    void setDepotId(uint16_t value) {
+        if (value != 0 || extra) ensureExtra().depot_id = value;
+    }
+
+    const std::vector<OtbmMapItem> *children() const {
+        return extra ? extra->children.get() : nullptr;
+    }
+    std::vector<OtbmMapItem> *children() {
+        return extra ? extra->children.get() : nullptr;
+    }
+
     const std::vector<OtbmMapItem> &childItems() const {
         static const std::vector<OtbmMapItem> empty;
-        return children ? *children : empty;
+        const auto *items = children();
+        return items ? *items : empty;
     }
 
     std::vector<OtbmMapItem> &ensureChildren() {
-        if (!children) children = std::make_unique<std::vector<OtbmMapItem>>();
-        return *children;
+        OtbmItemExtra &data = ensureExtra();
+        if (!data.children)
+            data.children = std::make_unique<std::vector<OtbmMapItem>>();
+        return *data.children;
     }
 };
 
+static_assert(sizeof(OtbmMapItem) <= 16,
+              "OtbmMapItem must remain compact; common map items must not carry rare data inline");
+
 struct OtbmTile {
-    std::vector<OtbmMapItem> items;
-    QString creature_name;
+    CompactVector<OtbmMapItem> items;
+    CompactQString creature_name;
     uint32_t flags = 0;
     uint32_t house_id = 0;
     int spawn_radius = 0;
@@ -175,6 +207,11 @@ struct OtbmTile {
     bool is_house = false;
     bool creature_is_npc = false;
 };
+
+static_assert(sizeof(CompactVector<OtbmMapItem>) <= sizeof(std::vector<OtbmMapItem>),
+              "Compact tile item storage must not increase the tile footprint");
+static_assert(sizeof(OtbmTile) <= 56,
+              "OtbmTile must remain compact for large maps");
 
 struct OtbmTown {
     uint32_t id = 0;
@@ -279,10 +316,20 @@ public:
     Q_INVOKABLE void setTownTemple(int id, int x, int y, int z);
 
     Q_INVOKABLE bool loadFile(const QString &path);
+    bool loadFileDetached(const QString &path,
+                          std::function<void(int, const QString &)> progress,
+                          std::function<bool()> cancelled = {});
+    void beginBackgroundLoad();
+    void failBackgroundLoad(const QString &error);
+    bool adoptLoadedState(OtbmReader &source);
     Q_INVOKABLE void reportLoadingProgress(int progress, const QString &stage);
     Q_INVOKABLE void finishLoading(bool success);
 
     Q_INVOKABLE bool saveFile(const QString &path);
+    bool saveRecoveryFile(const QString &path);
+    void adoptRecoveryIdentity(const QString &originalPath,
+                               const QString &spawnFile,
+                               const QString &houseFile);
     QVariantMap importFile(const QString &path, int offsetX, int offsetY,
                            int offsetZ,
                            bool importHouses, bool importSpawns,
@@ -397,9 +444,11 @@ signals:
     void loadingStageChanged();
 
 private:
+    bool saveFileInternal(const QString &path, bool recoveryMode);
     void reset();
     void setError(const QString &message);
     bool abortLoad(QString message);
+    bool loadCancelled() const;
     void setDirty(bool d);
 
     bool parseRootHeader(BinaryNode &root);
@@ -441,10 +490,18 @@ private:
         uint32_t house_id = 0;
         std::vector<OtbmMapItem> items;
     };
-    struct UndoAction { std::vector<TileSnapshot> tiles; };
+    struct UndoAction {
+        std::vector<TileSnapshot> tiles;
+        qsizetype bytes = 0;
+    };
     void recordTile(int x, int y, int z);
     void pushUndo(UndoAction &&action);
     void restoreSnapshots(const std::vector<TileSnapshot> &snapshots);
+    static qsizetype estimateItemDynamicBytes(const OtbmMapItem &item);
+    static qsizetype estimateActionBytes(const UndoAction &action);
+    void trimUndoHistory();
+    void trimRedoHistory();
+    void trimHistoryMemory();
 
     TileSnapshot currentSnapshot(int x, int y, int z) const;
 
@@ -455,13 +512,16 @@ private:
     }
 
     std::deque<OtbmTile> m_tiles;
-    QHash<quint64, int> m_posIndex;
+    TilePositionIndex m_posIndex;
 
     std::deque<UndoAction> m_undoStack;
     std::deque<UndoAction> m_redoStack;
     std::vector<EditPos> m_lastAffected;
     bool m_lastUndoStructural = false;
     int m_undoLimit = 500;
+    static constexpr qsizetype kHistoryByteLimit = 256 * 1024 * 1024;
+    qsizetype m_undoBytes = 0;
+    qsizetype m_redoBytes = 0;
     bool m_undoGrouping = false;
     UndoAction m_currentGroup;
     QSet<quint64> m_groupRecorded;
@@ -491,6 +551,9 @@ private:
     QString m_errorString;
     bool m_dirty = false;
     QString m_filePath;
+    bool m_detachedLoading = false;
+    std::function<void(int, const QString &)> m_detachedProgress;
+    std::function<bool()> m_detachedCancelled;
 };
 
 #endif

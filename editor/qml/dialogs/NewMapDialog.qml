@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: root
 
     required property var app
@@ -47,7 +47,7 @@ TibiaDialog {
                 width: 90
                 anchors.verticalCenter: parent.verticalCenter
             }
-            TibiaComboBox {
+            DmeComboBox {
                 id: verCombo
                 width: 160
                 model: root.profileKeys.map(function (k) {
@@ -65,7 +65,7 @@ TibiaDialog {
                 width: 90
                 anchors.verticalCenter: parent.verticalCenter
             }
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: wField
                 width: 80
                 from: 256
@@ -78,7 +78,7 @@ TibiaDialog {
                 font.pixelSize: 11
                 anchors.verticalCenter: parent.verticalCenter
             }
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: hField
                 width: 80
                 from: 256
@@ -90,7 +90,7 @@ TibiaDialog {
         Row {
             spacing: 6
             anchors.horizontalCenter: parent.horizontalCenter
-            TibiaButton {
+            DmeButton {
                 text: "Create"
                 width: 90
                 enabled: verCombo.currentIndex >= 0
@@ -99,7 +99,7 @@ TibiaDialog {
                     root.app.createNewMap(root.profileKeys[verCombo.currentIndex], wField.value, hField.value);
                 }
             }
-            TibiaButton {
+            DmeButton {
                 text: "Cancel"
                 width: 90
                 onClicked: root.close()

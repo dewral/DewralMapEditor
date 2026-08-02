@@ -19,28 +19,44 @@
 
 void MapView::buildStaticIndex()
 {
-    m_floorChunkTiles.clear();
-    m_indexedTileCount = 0;
+    auto &tileIndex = m_chunkStore.tiles();
+    tileIndex.clear();
+    MapSpawnIndexService::FloorCenters spawnCenters;
+    m_chunkStore.indexedTileCount() = 0;
     if (!m_otbm || !m_otbm->isLoaded()) return;
 
     for (const OtbmTile &tile : m_otbm->tiles()) {
         const int cx = floorDiv(tile.x, kChunkTiles);
         const int cy = floorDiv(tile.y, kChunkTiles);
-        m_floorChunkTiles[tile.z][chunkKey(cx, cy)].push_back(&tile);
+        tileIndex[tile.z][chunkKey(cx, cy)].push_back(&tile);
+        auto &floorSpawns = spawnCenters[tile.z];
+        if (tile.spawn_radius > 0)
+            floorSpawns.push_back({tile.x, tile.y, tile.spawn_radius});
     }
-    m_indexedTileCount = static_cast<qsizetype>(m_otbm->tiles().size());
+    for (auto floorIt = tileIndex.begin(); floorIt != tileIndex.end();
+         ++floorIt) {
+        for (auto chunkIt = floorIt->begin(); chunkIt != floorIt->end(); ++chunkIt) {
+            auto &tiles = chunkIt.value();
+            std::sort(tiles.begin(), tiles.end(),
+                      [](const OtbmTile *a, const OtbmTile *b) {
+                          return a->y != b->y ? a->y < b->y : a->x < b->x;
+                      });
+        }
+    }
+    m_spawnIndex.setPrebuilt(std::move(spawnCenters));
+    m_chunkStore.indexedTileCount() = static_cast<qsizetype>(m_otbm->tiles().size());
 }
 
 void MapView::updateCurrentFloor()
 {
 
-    m_spawnIndex.invalidate();
     m_minTileX = m_minTileY = m_maxTileX = m_maxTileY = 0;
     if (!m_otbm || !m_otbm->isLoaded()) return;
 
     bool first = true;
-    auto zit = m_floorChunkTiles.find(m_floor);
-    if (zit != m_floorChunkTiles.end()) {
+    auto &tileIndex = m_chunkStore.tiles();
+    auto zit = tileIndex.find(m_navigationController.floor());
+    if (zit != tileIndex.end()) {
         for (auto cit = zit->begin(); cit != zit->end(); ++cit) {
             for (const OtbmTile *tile : cit.value()) {
                 if (first) { m_minTileX = m_maxTileX = tile->x; m_minTileY = m_maxTileY = tile->y; first = false; }
@@ -66,9 +82,10 @@ void MapView::rebuildFloorIndex()
 bool MapView::chunkHasContent(quint64 key) const
 {
     const int bottomZ = renderBottomFloor();
-    for (int z = m_floor; z <= bottomZ; ++z) {
-        auto zit = m_floorChunkTiles.find(z);
-        if (zit != m_floorChunkTiles.end() && zit->contains(key)) return true;
+    for (int z = m_navigationController.floor(); z <= bottomZ; ++z) {
+        const auto &tileIndex = m_chunkStore.tiles();
+        auto zit = tileIndex.find(z);
+        if (zit != tileIndex.end() && zit->contains(key)) return true;
     }
     return false;
 }
@@ -131,28 +148,32 @@ void MapView::appendItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out,
 
     if (m_showCreatures && !tile->creature_name.isEmpty() && m_creatureStore && m_dat) {
         const CreatureStore::CreatureType *ct = m_creatureStore->byName(tile->creature_name);
-        const ClientItem *of = (ct && ct->lookType > 0)
-                                   ? m_dat->outfitByLookType(static_cast<uint16_t>(ct->lookType))
-                                   : nullptr;
+        const bool isOutfit = ct && ct->lookType > 0;
+        const ClientItem *of = isOutfit
+            ? m_dat->outfitByLookType(static_cast<uint16_t>(ct->lookType))
+            : (ct && ct->lookItem > 0
+                ? m_dat->itemByClientId(static_cast<uint16_t>(ct->lookItem)) : nullptr);
         if (of && !of->sprite_ids.empty()) {
             const int w = std::max<int>(1, of->width);
             const int h = std::max<int>(1, of->height);
             const int patX = std::max<int>(1, of->pattern_x);
             const int layers = std::max<int>(1, of->layers);
-            const int dir = std::min(2, patX - 1);
-            for (int hh = 0; hh < h; ++hh)
-                for (int ww = 0; ww < w; ++ww) {
-                    const int idx = ((dir * layers + 0) * h + hh) * w + ww;
-                    if (idx < 0 || idx >= static_cast<int>(of->sprite_ids.size())) continue;
-                    const uint32_t sid = of->sprite_ids[static_cast<size_t>(idx)];
-                    if (sid == 0) continue;
-                    const int as = atlasSlotForSprite(sid);
-                    if (as < 0) continue;
-                    out.push_back(QuadRef{
-                        (tile->x - ww) * kSprite - elevation,
-                        (tile->y - hh) * kSprite - elevation,
-                        as, false, tile->x, tile->y, /*topItem=*/true, 0 });
-                }
+            const int direction = isOutfit ? std::min(2, patX - 1) : 0;
+            const int renderedLayers = isOutfit ? 1 : layers;
+            for (int layer = 0; layer < renderedLayers; ++layer)
+                for (int hh = 0; hh < h; ++hh)
+                    for (int ww = 0; ww < w; ++ww) {
+                        const int idx = ((direction * layers + layer) * h + hh) * w + ww;
+                        if (idx < 0 || idx >= static_cast<int>(of->sprite_ids.size())) continue;
+                        const uint32_t sid = of->sprite_ids[static_cast<size_t>(idx)];
+                        if (sid == 0) continue;
+                        const int as = atlasSlotForSprite(sid);
+                        if (as < 0) continue;
+                        out.push_back(QuadRef{
+                            (tile->x - ww) * kSprite - elevation,
+                            (tile->y - hh) * kSprite - elevation,
+                            as, false, tile->x, tile->y, /*topItem=*/true, 0 });
+                    }
         }
     }
 }
@@ -201,172 +222,146 @@ void MapView::appendTopItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out
 void MapView::collectFloorChunkQuads(int z, quint64 key, std::vector<QuadRef> &out,
                                      bool *animated)
 {
-    auto zit = m_floorChunkTiles.find(z);
-    if (zit == m_floorChunkTiles.end()) return;
+    auto &tileIndex = m_chunkStore.tiles();
+    auto zit = tileIndex.find(z);
+    if (zit == tileIndex.end()) return;
     auto cit = zit->find(key);
     if (cit == zit->end()) return;
 
-    std::vector<const OtbmTile *> tiles(cit.value().begin(), cit.value().end());
-    std::sort(tiles.begin(), tiles.end(),
-              [](const OtbmTile *a, const OtbmTile *b) {
-                  return a->y != b->y ? a->y < b->y : a->x < b->x;
-              });
-    for (const OtbmTile *tile : tiles)
+    for (const OtbmTile *tile : cit.value())
         appendItemQuads(tile, out, animated);
 }
 
 void MapView::startWorker()
 {
-    m_workerStop = false;
-    m_worker = std::thread([this] { workerLoop(); });
+    m_chunkStore.startWorker(
+        [this](int floor, quint64 key, quint64 generation) {
+            std::vector<QuadRef> quads;
+            bool animated = false;
+            std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+            if (!m_chunkStore.isCurrentRequest(generation)) return false;
+            collectFloorChunkQuads(floor, key, quads, &animated);
+            if (!m_chunkStore.isCurrentRequest(generation)) return false;
+            storeChunkQuads(floor, key, std::move(quads), animated);
+            return true;
+        },
+        [this] {
+            QMetaObject::invokeMethod(this, [this] {
+                emit contentUpdated();
+                update();
+            }, Qt::QueuedConnection);
+        });
 }
 
 void MapView::stopWorker()
 {
-    {
-        std::lock_guard<std::mutex> lk(m_reqMutex);
-        m_workerStop = true;
-    }
-    m_reqCv.notify_all();
-    if (m_worker.joinable()) m_worker.join();
-}
-
-void MapView::workerLoop()
-{
-    for (;;) {
-        ChunkRequest req;
-        {
-            std::unique_lock<std::mutex> lk(m_reqMutex);
-            m_reqCv.wait(lk, [this] { return m_workerStop || !m_reqQueue.empty(); });
-            if (m_workerStop) return;
-            req = m_reqQueue.front();
-            m_reqQueue.pop_front();
-        }
-
-        std::vector<QuadRef> quads;
-        bool animated = false;
-        bool stored = false;
-        {
-            std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
-            if (m_workerStop) return;
-            if (req.generation == m_chunkTaskGeneration.load(std::memory_order_acquire)) {
-                collectFloorChunkQuads(req.z, req.key, quads, &animated);
-
-                if (req.generation == m_chunkTaskGeneration.load(std::memory_order_acquire)) {
-                    storeChunkQuads(req.z, req.key, std::move(quads), animated);
-                    stored = true;
-                }
-            }
-        }
-        {
-            std::lock_guard<std::mutex> lk(m_reqMutex);
-            m_reqPending.erase({req.z, req.key, req.generation});
-        }
-
-        if (!stored) continue;
-
-        QMetaObject::invokeMethod(this, [this] { emit contentUpdated(); update(); }, Qt::QueuedConnection);
-    }
+    m_chunkStore.stopWorker();
 }
 
 void MapView::requestChunkQuads(int z, quint64 key)
 {
-    std::lock_guard<std::mutex> lk(m_reqMutex);
-    const quint64 generation = m_chunkTaskGeneration.load(std::memory_order_acquire);
-    const auto rk = std::make_tuple(z, key, generation);
-    if (m_reqPending.count(rk)) return;
-    m_reqPending.insert(rk);
-    m_reqQueue.push_back({z, key, generation});
-    m_reqCv.notify_one();
+    m_chunkStore.requestChunk(z, key);
 }
 
 std::shared_ptr<const std::vector<MapView::QuadRef>> MapView::takeChunkQuads(int z, quint64 key)
 {
-    std::lock_guard<std::mutex> lk(m_quadMutex);
-    auto zit = m_quadCache.find(z);
-    if (zit == m_quadCache.end()) return nullptr;
-    auto it = zit->find(key);
-    if (it == zit->end()) return nullptr;
-    return it.value();
+    std::lock_guard<std::mutex> lk(m_chunkStore.cacheMutex());
+    return m_chunkStore.cachedChunkLocked(z, key);
 }
 
 void MapView::storeChunkQuads(int z, quint64 key, std::vector<QuadRef> &&q, bool animated)
 {
     {
-        std::lock_guard<std::mutex> lk(m_quadMutex);
+        std::lock_guard<std::mutex> lk(m_chunkStore.cacheMutex());
 
-        m_quadCache[z][key] = std::make_shared<const std::vector<QuadRef>>(std::move(q));
+        m_chunkStore.storeChunkLocked(
+            z, key, std::make_shared<const std::vector<QuadRef>>(std::move(q)));
 
-        if (++m_chunkVerCounter == 0 || m_chunkVerCounter == kChunkPending)
-            m_chunkVerCounter = 1;
-        m_chunkVer[z][key] = m_chunkVerCounter;
+        quint32 &versionCounter = m_chunkStore.versionCounter();
+        if (++versionCounter == 0 || versionCounter == kChunkPending)
+            versionCounter = 1;
+        m_chunkStore.versions()[z][key] = versionCounter;
 
-        // Czlonkostwo w zbiorze animowanych chunkow odswiezane przy KAZDYM
-        // przeliczeniu - edycja mogla dodac/usunac ostatni animowany item.
-        if (animated) m_animChunks[z].insert(key);
-        else if (auto ait = m_animChunks.find(z); ait != m_animChunks.end())
+        // Refresh animated-chunk membership after every recomputation because
+        // an edit may add or remove the last animated item in the chunk.
+        auto &animatedChunks = m_chunkStore.animatedChunks();
+        if (animated) animatedChunks[z].insert(key);
+        else if (auto ait = animatedChunks.find(z); ait != animatedChunks.end())
             ait->remove(key);
+        m_chunkStore.dirtyChunks().insert({z, key});
     }
-    m_quadCacheVer.fetch_add(1, std::memory_order_relaxed);
+    m_chunkStore.cacheVersion().fetch_add(1, std::memory_order_relaxed);
+}
+
+void MapView::glTakeDirtyChunks(QVector<QPair<int, quint64>> &out)
+{
+    std::lock_guard<std::mutex> lk(m_chunkStore.cacheMutex());
+    out.clear();
+    auto &dirtyChunks = m_chunkStore.dirtyChunks();
+    out.reserve(static_cast<qsizetype>(dirtyChunks.size()));
+    for (const auto &[z, key] : dirtyChunks)
+        out.append(qMakePair(z, key));
+    dirtyChunks.clear();
 }
 
 void MapView::refreshSelectionTint()
 {
 
     QSet<quint64> nowSet;
-    for (quint64 pk : m_selected) {
+    for (quint64 pk : m_selectionController.selected()) {
         const int x = selX(pk);
         const int y = selY(pk);
         nowSet.insert(chunkKey(floorDiv(x, kChunkTiles), floorDiv(y, kChunkTiles)));
     }
 
     QSet<quint64> dirty = nowSet;
-    dirty.unite(m_selChunks);
+    dirty.unite(m_selectionController.selectedChunks());
     if (dirty.isEmpty()) return;
 
     {
-        std::lock_guard<std::mutex> lk(m_quadMutex);
+        std::lock_guard<std::mutex> lk(m_chunkStore.cacheMutex());
 
-        for (auto vit = m_chunkVer.begin(); vit != m_chunkVer.end(); ++vit) {
+        auto &versions = m_chunkStore.versions();
+        quint32 &versionCounter = m_chunkStore.versionCounter();
+        for (auto vit = versions.begin(); vit != versions.end(); ++vit) {
             for (quint64 ck : dirty) {
                 auto it = vit->find(ck);
                 if (it == vit->end()) continue;
 
-                if (++m_chunkVerCounter == 0 || m_chunkVerCounter == kChunkPending)
-                    m_chunkVerCounter = 1;
-                it.value() = m_chunkVerCounter;
+                if (++versionCounter == 0 || versionCounter == kChunkPending)
+                    versionCounter = 1;
+                it.value() = versionCounter;
+                m_chunkStore.dirtyChunks().insert({vit.key(), ck});
             }
         }
     }
-    m_selChunks = nowSet;
-    m_quadCacheVer.fetch_add(1, std::memory_order_relaxed);
+    m_selectionController.selectedChunks() = nowSet;
+    m_chunkStore.cacheVersion().fetch_add(1, std::memory_order_relaxed);
 }
 
 void MapView::invalidateChunkQuads(int z, quint64 key)
 {
-    std::lock_guard<std::mutex> lk(m_quadMutex);
-    auto zit = m_quadCache.find(z);
-    if (zit != m_quadCache.end()) zit->remove(key);
-    auto vit = m_chunkVer.find(z);
-    if (vit != m_chunkVer.end()) vit->remove(key);
+    std::lock_guard<std::mutex> lk(m_chunkStore.cacheMutex());
+    auto &versions = m_chunkStore.versions();
+    m_chunkStore.removeChunkLocked(z, key);
+    auto vit = versions.find(z);
+    if (vit != versions.end()) vit->remove(key);
+    m_chunkStore.dirtyChunks().insert({z, key});
 }
 
 void MapView::clearChunkQuadCache()
 {
 
     std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
-    m_chunkTaskGeneration.fetch_add(1, std::memory_order_acq_rel);
+    m_chunkStore.invalidateRequests();
     {
-        std::lock_guard<std::mutex> lk(m_reqMutex);
-        m_reqQueue.clear();
-        m_reqPending.clear();
-    }
-    {
-        std::lock_guard<std::mutex> lk(m_quadMutex);
-        m_quadCache.clear();
-        m_chunkVer.clear();
-        m_animChunks.clear();
+        std::lock_guard<std::mutex> lk(m_chunkStore.cacheMutex());
+        m_chunkStore.clearChunksLocked();
+        m_chunkStore.versions().clear();
+        m_chunkStore.animatedChunks().clear();
+        m_chunkStore.dirtyChunks().clear();
     }
     // Ensure synchronize() observes the invalidated chunk cache.
-    m_quadCacheVer.fetch_add(1, std::memory_order_relaxed);
+    m_chunkStore.resetVersion().fetch_add(1, std::memory_order_relaxed);
+    m_chunkStore.cacheVersion().fetch_add(1, std::memory_order_relaxed);
 }

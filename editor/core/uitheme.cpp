@@ -48,6 +48,9 @@ UiTheme::UiTheme(QObject *parent)
     }
     m_style = QSettings().value(QLatin1String(kStyleKey),
                                 QStringLiteral("classic")).toString();
+    const QString styleOverride = qEnvironmentVariable("DME_UI_STYLE_OVERRIDE");
+    if (!styleOverride.isEmpty())
+        m_style = styleOverride;
     if (m_style == QLatin1String("flat"))
         m_style = QStringLiteral("github-dark");
     if (m_style != QLatin1String("github-dark"))

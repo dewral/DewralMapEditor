@@ -5,7 +5,7 @@ import QtQuick.Dialogs
 import Tibia 1.0
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: dialog
 
     required property var mapCtrl
@@ -50,14 +50,14 @@ TibiaDialog {
         Row {
             spacing: 6
 
-            TibiaTextField {
+            DmeTextField {
                 width: 360
                 text: dialog.outputPath
                 placeholderText: "Choose the destination .png file"
                 onEditingFinished: dialog.outputPath = text
             }
 
-            TibiaButton {
+            DmeButton {
                 text: "Browse..."
                 width: 90
                 onClicked: outputDialog.open()
@@ -73,7 +73,7 @@ TibiaDialog {
         Row {
             spacing: 8
 
-            TibiaComboBox {
+            DmeComboBox {
                 id: areaMode
                 width: 260
                 model: [
@@ -86,7 +86,7 @@ TibiaDialog {
                 currentIndex: 2
             }
 
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: floorNumber
                 width: 90
                 from: 0
@@ -121,7 +121,7 @@ TibiaDialog {
             spacing: 6
             anchors.horizontalCenter: parent.horizontalCenter
 
-            TibiaButton {
+            DmeButton {
                 text: "Export"
                 width: 100
                 enabled: dialog.outputPath.length > 0
@@ -144,7 +144,7 @@ TibiaDialog {
                 }
             }
 
-            TibiaButton {
+            DmeButton {
                 text: "Close"
                 width: 90
                 onClicked: dialog.close()

@@ -48,6 +48,9 @@ public:
     int spriteCount() const { return static_cast<int>(m_spriteCount); }
     bool isLoaded() const { return m_loaded; }
     QString errorString() const { return m_errorString; }
+    QString sourcePath() const { return m_file.fileName(); }
+    bool extendedFormat() const { return m_extended; }
+    bool usesAlpha() const { return m_useAlpha; }
 
     Q_INVOKABLE bool loadFile(const QString &path,
                                quint32 expectedSignature = 0,
@@ -79,13 +82,15 @@ private:
     static constexpr int kDefaultSpriteSize = 32;
 
     static constexpr qsizetype kMaxSpriteCacheBytes = 8 * 1024 * 1024;
-    static constexpr int kMaxDataUrlCache = 8192;
+    static constexpr qsizetype kMaxDataUrlCacheBytes = 16 * 1024 * 1024;
 
     void setError(const QString &message);
     void reset();
     std::shared_ptr<SpriteData> loadSpriteImpl(uint32_t spriteId, bool cacheResult);
     std::shared_ptr<SpriteData> decodeSprite(uint32_t spriteId);
     void cacheSprite(uint32_t spriteId, const std::shared_ptr<SpriteData> &sprite);
+    QString cachedDataUrl(const QString &key);
+    void cacheDataUrl(QString key, QString value);
 
     QFile m_file;
     uchar *m_mappedData = nullptr;
@@ -108,8 +113,15 @@ private:
     QHash<uint32_t, SpriteCacheEntry> m_cache;
     std::list<uint32_t> m_cacheLru;
     qsizetype m_cacheBytes = 0;
-    QHash<int, QString> m_dataUrlCache;
-    QHash<QString, QString> m_itemDataUrlCache;
+    struct DataUrlCacheEntry {
+        QString value;
+        std::list<QString>::iterator lru;
+        qsizetype bytes = 0;
+    };
+
+    QHash<QString, DataUrlCacheEntry> m_dataUrlCache;
+    std::list<QString> m_dataUrlCacheLru;
+    qsizetype m_dataUrlCacheBytes = 0;
 };
 
 #endif

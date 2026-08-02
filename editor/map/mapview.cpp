@@ -11,6 +11,8 @@
 #include <QKeyEvent>
 #include <QElapsedTimer>
 #include <QTimer>
+#include <QPointer>
+#include <QThread>
 #include <QGuiApplication>
 #include <QSet>
 #include <algorithm>
@@ -18,6 +20,7 @@
 #include <cmath>
 #include <cstring>
 #include <vector>
+#include <thread>
 
 MapView::MapView(QQuickItem *parent)
     : QQuickItem(parent)
@@ -28,7 +31,7 @@ MapView::MapView(QQuickItem *parent)
     setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton | Qt::MiddleButton);
     setAcceptHoverEvents(true);
     m_effectClock.start();
-    // Dlawik emisji hoverChanged (statusbar) - patrz updateHoverText().
+    // Throttle status-bar hover updates to avoid flooding QML bindings.
     m_hoverEmitTimer = new QTimer(this);
     m_hoverEmitTimer->setSingleShot(true);
     m_hoverEmitTimer->setInterval(50);
@@ -38,7 +41,7 @@ MapView::MapView(QQuickItem *parent)
 
 const QImage &MapView::minimapImage()
 {
-    return m_minimapService.image(m_floor, m_floorChunkTiles, m_otb, m_dat);
+    return m_minimapService.image(m_navigationController.floor(), m_chunkStore.tiles(), m_otb, m_dat);
 }
 
 void MapView::minimapUpdateTile(int x, int y, int z)
@@ -62,16 +65,16 @@ void MapView::animTick()
 {
     ++m_animFrame;
 
-    const int tileSize = std::max(1, m_tileSize);
+    const int tileSize = std::max(1, m_navigationController.tileSize());
     constexpr int spillTiles = 4;
     const int minChunkX = floorDiv(
-        static_cast<int>(std::floor(m_originX)) - spillTiles, kChunkTiles);
+        static_cast<int>(std::floor(m_navigationController.originX())) - spillTiles, kChunkTiles);
     const int minChunkY = floorDiv(
-        static_cast<int>(std::floor(m_originY)) - spillTiles, kChunkTiles);
+        static_cast<int>(std::floor(m_navigationController.originY())) - spillTiles, kChunkTiles);
     const int maxChunkX = floorDiv(
-        static_cast<int>(std::ceil(m_originX + width() / tileSize)) + 1, kChunkTiles);
+        static_cast<int>(std::ceil(m_navigationController.originX() + width() / tileSize)) + 1, kChunkTiles);
     const int maxChunkY = floorDiv(
-        static_cast<int>(std::ceil(m_originY + height() / tileSize)) + 1, kChunkTiles);
+        static_cast<int>(std::ceil(m_navigationController.originY() + height() / tileSize)) + 1, kChunkTiles);
     const int bottomFloor = renderBottomFloor();
 
     // Only invalidate animated chunks that can contribute to the current view.
@@ -79,19 +82,21 @@ void MapView::animTick()
     // returning from underground to the surface.
     bool any = false;
     {
-        std::lock_guard<std::mutex> lk(m_quadMutex);
-        for (int z = m_floor; z <= bottomFloor; ++z) {
-            auto animatedIt = m_animChunks.constFind(z);
-            if (animatedIt == m_animChunks.cend()) continue;
+        std::lock_guard<std::mutex> lk(m_chunkStore.cacheMutex());
+        for (int z = m_navigationController.floor(); z <= bottomFloor; ++z) {
+            auto &animatedChunks = m_chunkStore.animatedChunks();
+            auto animatedIt = animatedChunks.constFind(z);
+            if (animatedIt == animatedChunks.cend()) continue;
 
-            auto cacheIt = m_quadCache.find(z);
-            auto versionIt = m_chunkVer.find(z);
+            auto &versions = m_chunkStore.versions();
+            auto versionIt = versions.find(z);
             for (int cy = minChunkY; cy <= maxChunkY; ++cy) {
                 for (int cx = minChunkX; cx <= maxChunkX; ++cx) {
                     const quint64 key = chunkKey(cx, cy);
                     if (!animatedIt->contains(key)) continue;
-                    if (cacheIt != m_quadCache.end() && cacheIt->remove(key)) {
-                        if (versionIt != m_chunkVer.end()) versionIt->remove(key);
+                    if (m_chunkStore.removeChunkLocked(z, key)) {
+                        if (versionIt != versions.end()) versionIt->remove(key);
+                        m_chunkStore.dirtyChunks().insert({z, key});
                         any = true;
                     }
                 }
@@ -100,16 +105,15 @@ void MapView::animTick()
     }
     if (!any) return;
 
-    m_quadCacheVer.fetch_add(1, std::memory_order_relaxed);
+    m_chunkStore.cacheVersion().fetch_add(1, std::memory_order_relaxed);
     emit contentUpdated(); update();
 }
 
 void MapView::setShowLowerFloors(bool on)
 {
-    if (m_ingamePreview) return;
     if (m_showLowerFloors == on) return;
     m_showLowerFloors = on;
-    m_lightChunks.clear();
+    clearLightChunks();
     m_lightDirty = true;
 
     emit showLowerFloorsChanged();
@@ -118,10 +122,142 @@ void MapView::setShowLowerFloors(bool on)
 
 bool MapView::loadMap(const QString &path)
 {
-    if (!m_otbm) return false;
+    if (!m_otbm || path.trimmed().isEmpty() || m_otbm->isLoading()) return false;
 
-    std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
-    return m_otbm->loadFile(path);
+    OtbmReader *target = m_otbm;
+    if (m_mapLoadCancel) m_mapLoadCancel->store(true, std::memory_order_release);
+    const auto cancel = std::make_shared<std::atomic_bool>(false);
+    m_mapLoadCancel = cancel;
+    target->beginBackgroundLoad();
+    const quint64 generation = m_mapLoadGeneration.fetch_add(1, std::memory_order_acq_rel) + 1;
+    QPointer<MapView> guard(this);
+    QPointer<OtbmReader> targetGuard(target);
+    QThread *guiThread = thread();
+
+    struct LoadResult {
+        std::unique_ptr<OtbmReader> reader;
+        MapFloorTileIndex floorIndex;
+        MapSpawnIndexService::FloorCenters spawnCenters;
+        QString error;
+    };
+    auto result = std::make_shared<LoadResult>();
+
+    std::thread([guard, targetGuard, guiThread, generation, path, result, cancel] {
+        result->reader = std::make_unique<OtbmReader>();
+        const auto publishProgress = [guard, targetGuard, generation](int value, const QString &stage) {
+            if (!guard || !targetGuard) return;
+            QMetaObject::invokeMethod(guard, [guard, targetGuard, generation, value, stage] {
+                if (!guard || !targetGuard
+                    || guard->m_mapLoadGeneration.load(std::memory_order_acquire) != generation)
+                    return;
+                targetGuard->reportLoadingProgress(value, stage);
+            }, Qt::QueuedConnection);
+        };
+        const auto parserProgress = [publishProgress, lastValue = -1,
+                                     lastStage = QString()]
+                                    (int value, const QString &stage) mutable {
+            const int cappedValue = std::min(value, 70);
+            if (cappedValue == lastValue && stage == lastStage) return;
+            lastValue = cappedValue;
+            lastStage = stage;
+            publishProgress(cappedValue, stage);
+        };
+
+        if (!result->reader->loadFileDetached(
+                path, parserProgress,
+                [cancel] { return cancel->load(std::memory_order_acquire); })) {
+            result->error = result->reader->errorString();
+        } else {
+            publishProgress(71, QStringLiteral("Building renderer tile index..."));
+            const qsizetype totalTiles = static_cast<qsizetype>(result->reader->tiles().size());
+            qsizetype indexedTiles = 0;
+            int lastIndexProgress = -1;
+            for (const OtbmTile &tile : result->reader->tiles()) {
+                if ((indexedTiles++ & 0xFFF) == 0
+                    && cancel->load(std::memory_order_acquire)) {
+                    result->error = QStringLiteral("Loading cancelled");
+                    result->floorIndex.clear();
+                    break;
+                }
+                const int cx = static_cast<int>(tile.x) / 32;
+                const int cy = static_cast<int>(tile.y) / 32;
+                const quint64 key = (static_cast<quint64>(static_cast<quint32>(cx)) << 32)
+                                  | static_cast<quint64>(static_cast<quint32>(cy));
+                result->floorIndex[tile.z][key].push_back(&tile);
+                auto &floorSpawns = result->spawnCenters[tile.z];
+                if (tile.spawn_radius > 0)
+                    floorSpawns.push_back({tile.x, tile.y, tile.spawn_radius});
+                if ((indexedTiles & 0x3FFF) == 0 && totalTiles > 0) {
+                    const int progress = 71 + static_cast<int>(4 * indexedTiles / totalTiles);
+                    if (progress != lastIndexProgress) {
+                        lastIndexProgress = progress;
+                        publishProgress(progress,
+                            QStringLiteral("Building renderer tile index..."));
+                    }
+                }
+            }
+            qsizetype totalChunks = 0;
+            for (auto floorIt = result->floorIndex.cbegin();
+                 floorIt != result->floorIndex.cend(); ++floorIt)
+                totalChunks += floorIt->size();
+            qsizetype sortedChunks = 0;
+            int lastSortProgress = -1;
+            publishProgress(75, QStringLiteral("Sorting renderer chunks..."));
+            for (auto floorIt = result->floorIndex.begin(); result->error.isEmpty()
+                 && floorIt != result->floorIndex.end(); ++floorIt) {
+                for (auto chunkIt = floorIt->begin(); chunkIt != floorIt->end(); ++chunkIt) {
+                    auto &tiles = chunkIt.value();
+                    std::sort(tiles.begin(), tiles.end(),
+                              [](const OtbmTile *a, const OtbmTile *b) {
+                                  return a->y != b->y ? a->y < b->y : a->x < b->x;
+                              });
+                    ++sortedChunks;
+                    if ((sortedChunks & 0xFF) == 0 && totalChunks > 0) {
+                        const int progress = 75 + static_cast<int>(2 * sortedChunks / totalChunks);
+                        if (progress != lastSortProgress) {
+                            lastSortProgress = progress;
+                            publishProgress(progress,
+                                QStringLiteral("Sorting renderer chunks..."));
+                        }
+                    }
+                }
+            }
+            publishProgress(77, QStringLiteral("Attaching map document..."));
+        }
+
+        if (!guard) return;
+        result->reader->moveToThread(guiThread);
+        QMetaObject::invokeMethod(guard, [guard, targetGuard, generation, path, result] {
+            if (!guard || !targetGuard
+                || guard->m_mapLoadGeneration.load(std::memory_order_acquire) != generation)
+                return;
+            if (!result->error.isEmpty()) {
+                targetGuard->failBackgroundLoad(result->error);
+                emit guard->mapLoadFinished(false, path, result->error);
+                return;
+            }
+
+            bool adopted = false;
+            {
+                std::lock_guard<std::recursive_mutex> lock(guard->m_dataMutex);
+                guard->m_chunkStore.tiles() = std::move(result->floorIndex);
+                guard->m_chunkStore.indexedTileCount() =
+                    static_cast<qsizetype>(result->reader->tiles().size());
+                guard->m_spawnIndex.setPrebuilt(std::move(result->spawnCenters));
+                guard->m_asyncFloorIndexReady = true;
+                adopted = targetGuard->adoptLoadedState(*result->reader);
+                if (!adopted) guard->m_asyncFloorIndexReady = false;
+            }
+            if (!adopted) {
+                const QString error = QStringLiteral("Could not attach the loaded map document");
+                targetGuard->failBackgroundLoad(error);
+                emit guard->mapLoadFinished(false, path, error);
+                return;
+            }
+            emit guard->mapLoadFinished(true, path, QString());
+        }, Qt::QueuedConnection);
+    }).detach();
+    return true;
 }
 
 QVariantMap MapView::importMap(const QString &path, int offsetX, int offsetY,
@@ -175,22 +311,16 @@ QVariantMap MapView::cleanupMap(bool invalidItems, bool emptyTiles,
 
 void MapView::rebuildAtlas()
 {
-    {
-
-        std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
-        resetAtlas();
-        buildAtlasImage();
-    }
-    clearChunkQuadCache();
-    m_atlasDirty = true;
-    emit atlasChanged();
-    emit contentUpdated(); update();
+    std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
+    buildAtlasImage();
 }
 
 void MapView::setOtbm(OtbmReader *reader)
 {
     if (m_otbm == reader) return;
     if (m_otbm) disconnect(m_otbm, nullptr, this, nullptr);
+    if (m_mapLoadCancel) m_mapLoadCancel->store(true, std::memory_order_release);
+    m_mapLoadGeneration.fetch_add(1, std::memory_order_acq_rel);
     m_otbm = reader;
     if (m_otbm) connect(m_otbm, &OtbmReader::loadedChanged, this, &MapView::onMapLoaded);
     emit readersChanged();
@@ -223,15 +353,13 @@ void MapView::setSpr(SprReader *reader)
 
 void MapView::setFloor(int floor)
 {
-    if (m_ingamePreview) return;
     floor = std::clamp(floor, 0, 15);
-    if (m_floor == floor) return;
-    m_floor = floor;
-    if (m_movingSel)
-        m_moveMoved = m_moveMoved || m_floor != m_moveSrcZ;
+    if (m_navigationController.floor() == floor) return;
+    m_navigationController.floor() = floor;
+    if (m_selectionController.moving())
+        m_selectionController.moveChanged() = m_selectionController.moveChanged() || m_navigationController.floor() != m_selectionController.moveSourceZ();
     emit floorChanged();
-    m_spawnIndex.invalidate();
-    m_lightChunks.clear();
+    clearLightChunks();
     m_lightDirty = true;
 
     emit contentUpdated(); update();
@@ -239,20 +367,24 @@ void MapView::setFloor(int floor)
 
 void MapView::setTileSize(int size)
 {
-    if (m_ingamePreview) return;
     size = std::clamp(size, 1, 256);
-    if (m_tileSize == size) return;
-    m_tileSize = size;
+    if (m_navigationController.tileSize() == size) return;
+    m_navigationController.tileSize() = size;
     emit tileSizeChanged();
     emit contentUpdated(); update();
 }
 
 QString MapView::doodadPreviewSource(int serverId) const
 {
-    if (!m_brushStore || !m_otb || !m_dat || !m_spr || serverId <= 0) return QString();
-    const QString name = m_brushStore->doodadBrushForServerId(serverId);
-    if (name.isEmpty()) return QString();
-    const QVector<BrushStore::DoodadTile> tiles = m_brushStore->doodadPreviewTiles(name);
+    if (!m_brushController.store() || !m_otb || !m_dat || !m_spr || serverId <= 0) return QString();
+    const QString name = m_brushController.store()->doodadBrushForServerId(serverId);
+    return doodadPreviewSourceForName(name);
+}
+
+QString MapView::doodadPreviewSourceForName(const QString &name) const
+{
+    if (!m_brushController.store() || !m_otb || !m_dat || !m_spr || name.isEmpty()) return QString();
+    const QVector<BrushStore::DoodadTile> tiles = m_brushController.store()->doodadPreviewTiles(name);
     if (tiles.isEmpty()) return QString();
 
     auto clientItemFor = [&](int sid) -> const ClientItem * {
@@ -326,11 +458,45 @@ QString MapView::doodadPreviewSource(int serverId) const
     return QStringLiteral("data:image/png;base64,") + QString::fromLatin1(bytes.toBase64());
 }
 
+void MapView::useDoodadBrush(const QString &name)
+{
+    BrushStore *store = m_brushController.store();
+    if (!store || !store->isDoodadBrush(name)) return;
+
+    if (m_editController.selectionMode()) {
+        m_editController.selectionMode() = false;
+        emit selectionModeChanged();
+    }
+    if (m_editController.activeZone() != 0) {
+        m_editController.activeZone() = 0;
+        emit activeZoneChanged();
+    }
+    m_brushController.serverId() = store->prefabLookId(name);
+    m_brushController.groundBrush().clear();
+    m_brushController.wallBrush().clear();
+    m_brushController.doodadBrush() = name;
+    m_brushController.carpetBrush().clear();
+    m_brushController.tableBrush().clear();
+    m_brushController.doorBrushId() = 0;
+    m_brushController.creatureBrush().clear();
+    m_brushController.spawnBrush() = false;
+    m_brushController.doodadVariant() = -1;
+    setCursor(Qt::CrossCursor);
+
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+        for (int id : store->doodadItemIds(name)) ensureItemSprites(id);
+    }
+    emit brushChanged();
+    emit contentUpdated();
+    update();
+}
+
 void MapView::setEraseMode(bool on)
 {
-    if (m_eraseMode == on) return;
-    m_eraseMode = on;
-    setCursor((on || m_brushServerId > 0 || m_activeZone != 0) ? Qt::CrossCursor : Qt::ArrowCursor);
+    if (m_editController.eraseMode() == on) return;
+    m_editController.eraseMode() = on;
+    setCursor((on || m_brushController.serverId() > 0 || m_editController.activeZone() != 0) ? Qt::CrossCursor : Qt::ArrowCursor);
     emit eraseModeChanged();
     emit contentUpdated(); update();
 }
@@ -338,21 +504,21 @@ void MapView::setEraseMode(bool on)
 void MapView::setActiveZone(int zone)
 {
     const quint32 z = static_cast<quint32>(zone < 0 ? 0 : zone);
-    if (m_activeZone == z) return;
-    m_activeZone = z;
+    if (m_editController.activeZone() == z) return;
+    m_editController.activeZone() = z;
     if (z != 0) {
 
-        if (m_brushServerId != 0) {
-            m_brushServerId = 0;
-            m_activeGroundBrush.clear();
-            m_activeWallBrush.clear();
-            m_activeDoodadBrush.clear();
-            m_activeCarpetBrush.clear();
-            m_activeTableBrush.clear();
-            m_activeDoorBrushId = 0;
+        if (m_brushController.serverId() != 0) {
+            m_brushController.serverId() = 0;
+            m_brushController.groundBrush().clear();
+            m_brushController.wallBrush().clear();
+            m_brushController.doodadBrush().clear();
+            m_brushController.carpetBrush().clear();
+            m_brushController.tableBrush().clear();
+            m_brushController.doorBrushId() = 0;
             emit brushChanged();
         }
-        if (m_selectionMode) { m_selectionMode = false; emit selectionModeChanged(); }
+        if (m_editController.selectionMode()) { m_editController.selectionMode() = false; emit selectionModeChanged(); }
     }
     setCursor(z != 0 ? Qt::CrossCursor : Qt::ArrowCursor);
     emit activeZoneChanged();
@@ -361,10 +527,10 @@ void MapView::setActiveZone(int zone)
 
 void MapView::setSelectionMode(bool on)
 {
-    if (m_selectionMode == on) return;
-    m_selectionMode = on;
+    if (m_editController.selectionMode() == on) return;
+    m_editController.selectionMode() = on;
 
-    setCursor(on ? Qt::ArrowCursor : (m_brushServerId > 0 ? Qt::CrossCursor : Qt::ArrowCursor));
+    setCursor(on ? Qt::ArrowCursor : (m_brushController.serverId() > 0 ? Qt::CrossCursor : Qt::ArrowCursor));
     emit selectionModeChanged();
     emit contentUpdated(); update();
 }
@@ -374,44 +540,44 @@ void MapView::applyBrushServerId(int serverId, bool asBrush)
     if (serverId < 0) serverId = 0;
 
     if (serverId > 0) {
-        if (m_selectionMode) { m_selectionMode = false; emit selectionModeChanged(); }
-        if (m_activeZone != 0) { m_activeZone = 0; emit activeZoneChanged(); }
-        m_creatureBrush.clear();
-        m_spawnBrush = false;
+        if (m_editController.selectionMode()) { m_editController.selectionMode() = false; emit selectionModeChanged(); }
+        if (m_editController.activeZone() != 0) { m_editController.activeZone() = 0; emit activeZoneChanged(); }
+        m_brushController.creatureBrush().clear();
+        m_brushController.spawnBrush() = false;
     }
-    m_brushServerId = serverId;
+    m_brushController.serverId() = serverId;
 
-    m_activeGroundBrush = (asBrush && m_brushStore && serverId > 0)
-                              ? m_brushStore->groundBrushForServerId(serverId)
+    m_brushController.groundBrush() = (asBrush && m_brushController.store() && serverId > 0)
+                              ? m_brushController.store()->groundBrushForServerId(serverId)
                               : QString();
 
-    m_activeWallBrush = (asBrush && m_brushStore && serverId > 0)
-                            ? m_brushStore->wallBrushForServerId(serverId)
+    m_brushController.wallBrush() = (asBrush && m_brushController.store() && serverId > 0)
+                            ? m_brushController.store()->wallBrushForServerId(serverId)
                             : QString();
 
-    const QString prevDoodad = m_activeDoodadBrush;
-    m_activeDoodadBrush = (asBrush && m_brushStore && serverId > 0)
-                              ? m_brushStore->doodadBrushForServerId(serverId)
+    const QString prevDoodad = m_brushController.doodadBrush();
+    m_brushController.doodadBrush() = (asBrush && m_brushController.store() && serverId > 0)
+                              ? m_brushController.store()->doodadBrushForServerId(serverId)
                               : QString();
-    m_activeCarpetBrush = (asBrush && m_brushStore && serverId > 0)
-                              ? m_brushStore->carpetBrushForServerId(serverId)
+    m_brushController.carpetBrush() = (asBrush && m_brushController.store() && serverId > 0)
+                              ? m_brushController.store()->carpetBrushForServerId(serverId)
                               : QString();
-    m_activeTableBrush = (asBrush && m_brushStore && serverId > 0)
-                             ? m_brushStore->tableBrushForServerId(serverId)
+    m_brushController.tableBrush() = (asBrush && m_brushController.store() && serverId > 0)
+                             ? m_brushController.store()->tableBrushForServerId(serverId)
                              : QString();
-    m_activeDoorBrushId = (asBrush && m_brushStore
-                           && m_brushStore->isDoorItem(serverId))
+    m_brushController.doorBrushId() = (asBrush && m_brushController.store()
+                           && m_brushController.store()->isDoorItem(serverId))
                               ? serverId : 0;
-    if (m_activeDoorBrushId > 0) m_activeWallBrush.clear();
+    if (m_brushController.doorBrushId() > 0) m_brushController.wallBrush().clear();
 
-    if (m_activeDoodadBrush != prevDoodad) m_doodadVariant = -1;
+    if (m_brushController.doodadBrush() != prevDoodad) m_brushController.doodadVariant() = -1;
     setCursor(serverId > 0 ? Qt::CrossCursor : Qt::ArrowCursor);
     if (serverId > 0) {
         std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
         ensureItemSprites(serverId);
 
-        if (!m_activeDoodadBrush.isEmpty() && m_brushStore)
-            for (int id : m_brushStore->doodadItemIds(m_activeDoodadBrush))
+        if (!m_brushController.doodadBrush().isEmpty() && m_brushController.store())
+            for (int id : m_brushController.store()->doodadItemIds(m_brushController.doodadBrush()))
                 ensureItemSprites(id);
     }
     emit brushChanged();
@@ -420,22 +586,31 @@ void MapView::applyBrushServerId(int serverId, bool asBrush)
 
 void MapView::onMapLoaded()
 {
-    if (m_ingamePreview) setIngamePreview(false);
-
     const bool reportProgress = m_otbm && m_otbm->isLoading() && m_otbm->isLoaded();
-    if (reportProgress)
+    const bool preparedAsyncIndex = m_asyncFloorIndexReady;
+    if (reportProgress && !preparedAsyncIndex)
         m_otbm->reportLoadingProgress(72, QStringLiteral("Indexing visible floors..."));
-    rebuildFloorIndex();
-    if (reportProgress)
-        m_otbm->reportLoadingProgress(74, QStringLiteral("Building sprite atlas..."));
-    {
-        std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
-        buildAtlasImage();
+    if (m_asyncFloorIndexReady) {
+        m_asyncFloorIndexReady = false;
+        updateCurrentFloor();
+        clearChunkQuadCache();
+        ++m_dataVersion;
+        m_minimapService.invalidate();
+    } else {
+        rebuildFloorIndex();
     }
     if (reportProgress)
-        m_otbm->reportLoadingProgress(75, QStringLiteral("Preparing map canvas..."));
+        m_otbm->reportLoadingProgress(preparedAsyncIndex ? 78 : 75,
+                                      QStringLiteral("Preparing map canvas..."));
+    {
+        std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
+        // During background loading the client profile is selected only after
+        // map adoption. Defer atlas construction so an atlas for the previous
+        // client is not built and immediately discarded.
+        if (reportProgress) resetAtlas();
+        else buildAtlasImage();
+    }
     clearChunkQuadCache();
-    m_atlasDirty = true;
     m_floorDirty = true;
     emit atlasChanged();
     centerOnContent();
@@ -445,33 +620,31 @@ void MapView::onMapLoaded()
 void MapView::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry)
 {
     QQuickItem::geometryChange(newGeometry, oldGeometry);
-    if (m_ingamePreview) centerPreviewCamera();
     emit contentUpdated(); update();
 }
 
 void MapView::centerOnContent()
 {
-    if (m_ingamePreview) return;
     updateCurrentFloor();
-    if (m_floorChunkTiles.isEmpty()) {
-        m_originX = 0;
-        m_originY = 0;
+    if (m_chunkStore.tiles().isEmpty()) {
+        m_navigationController.originX() = 0;
+        m_navigationController.originY() = 0;
         emit contentUpdated(); update();
         return;
     }
-    const qreal viewTilesW = width() / std::max(1, m_tileSize);
-    const qreal viewTilesH = height() / std::max(1, m_tileSize);
-    m_originX = (m_minTileX + m_maxTileX + 1) / 2.0 - viewTilesW / 2.0;
-    m_originY = (m_minTileY + m_maxTileY + 1) / 2.0 - viewTilesH / 2.0;
+    const qreal viewTilesW = width() / std::max(1, m_navigationController.tileSize());
+    const qreal viewTilesH = height() / std::max(1, m_navigationController.tileSize());
+    m_navigationController.originX() = (m_minTileX + m_maxTileX + 1) / 2.0 - viewTilesW / 2.0;
+    m_navigationController.originY() = (m_minTileY + m_maxTileY + 1) / 2.0 - viewTilesH / 2.0;
     emit contentUpdated(); update();
 }
 
 void MapView::centerOnTile(int x, int y, int z)
 {
-    if (z >= 0 && z <= 15 && z != m_floor) setFloor(z);
-    const qreal viewTilesW = width() / std::max(1, m_tileSize);
-    const qreal viewTilesH = height() / std::max(1, m_tileSize);
-    m_originX = x + 0.5 - viewTilesW / 2.0;
-    m_originY = y + 0.5 - viewTilesH / 2.0;
+    if (z >= 0 && z <= 15 && z != m_navigationController.floor()) setFloor(z);
+    const qreal viewTilesW = width() / std::max(1, m_navigationController.tileSize());
+    const qreal viewTilesH = height() / std::max(1, m_navigationController.tileSize());
+    m_navigationController.originX() = x + 0.5 - viewTilesW / 2.0;
+    m_navigationController.originY() = y + 0.5 - viewTilesH / 2.0;
     emit contentUpdated(); update();
 }

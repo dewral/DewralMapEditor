@@ -35,7 +35,7 @@ Window {
         app.requestAppClose();
     }
 
-    TibiaDialogBackground {
+    DmeDialogBackground {
         anchors.fill: parent
         visible: !root.githubUi
 
@@ -238,6 +238,7 @@ Window {
         mapPropertiesDialog: mapPropsDialog
         statsDialog: statsDialog
         brushEditorDialog: brushEditorDialog
+        aiMapAssistantDialog: aiMapAssistantDialog
         themeDialog: themeDialog
         borderizeConfirm: borderizeMapConfirm
         randomizeConfirm: randomizeMapConfirm
@@ -267,13 +268,13 @@ Window {
         onActivated: prefs.paletteCollapsed = !prefs.paletteCollapsed
     }
 
-    TibiaConfirmDialog {
+    DmeConfirmDialog {
         id: borderizeMapConfirm
         title: "Borderize Map"
         message: "Recalculate auto-borders on the entire current floor?"
         onAccepted: workspace.mapView.borderizeMap()
     }
-    TibiaConfirmDialog {
+    DmeConfirmDialog {
         id: randomizeMapConfirm
         title: "Randomize Map"
         message: "Randomize ground variants on the entire current floor?"
@@ -431,6 +432,7 @@ Window {
         id: classicToolBarComponent
         EditorToolBar {
             mapView: workspace.mapView
+            settings: prefs
         }
     }
 
@@ -438,6 +440,7 @@ Window {
         id: githubToolBarComponent
         GithubEditorToolBar {
             mapView: workspace.mapView
+            settings: prefs
         }
     }
 
@@ -472,13 +475,13 @@ Window {
         }
     }
 
-    TibiaConfirmDialog {
+    DmeConfirmDialog {
         id: closeTabConfirm
         property int tabIndex: -1
         onAccepted: app.doCloseTab(tabIndex)
     }
 
-    TibiaDialog {
+    DmeDialog {
         id: appCloseConfirm
         title: "Unsaved maps"
         property string message: ""
@@ -496,7 +499,7 @@ Window {
             Row {
                 spacing: 6
                 anchors.horizontalCenter: parent.horizontalCenter
-                TibiaButton {
+                DmeButton {
                     text: "Save all"
                     width: 130
                     variant: "primary"
@@ -505,7 +508,7 @@ Window {
                         app.beginSaveAllAndClose();
                     }
                 }
-                TibiaButton {
+                DmeButton {
                     text: "Discard all"
                     width: 110
                     variant: "danger"
@@ -514,7 +517,7 @@ Window {
                         app.finishAppClose();
                     }
                 }
-                TibiaButton {
+                DmeButton {
                     text: "Cancel"
                     width: 90
                     onClicked: appCloseConfirm.close()
@@ -625,6 +628,22 @@ Window {
         function open() {
             brushEditorLoader.active = true;
             brushEditorLoader.item["open"]();
+        }
+    }
+
+    QtObject {
+        id: aiMapAssistantDialog
+        function open() {
+            aiMapAssistantLoader.active = true;
+            aiMapAssistantLoader.item["open"]();
+        }
+    }
+    Loader {
+        id: aiMapAssistantLoader
+        active: false
+        sourceComponent: AiMapAssistantDialog {
+            mapCtrl: workspace.mapView
+            onClosed: Qt.callLater(() => aiMapAssistantLoader.active = false)
         }
     }
     Loader {
@@ -880,6 +899,9 @@ Window {
         }
         function openVersionFolderDialog() {
             ensureWindow().openVersionFolderDialog();
+        }
+        function beginRecoveryLoad(path) {
+            ensureWindow().beginRecoveryLoad(path);
         }
     }
     Loader {

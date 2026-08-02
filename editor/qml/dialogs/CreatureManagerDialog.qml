@@ -5,7 +5,7 @@ import QtQuick.Dialogs
 import Tibia 1.0
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: dialog
 
     property int selectedRow: -1
@@ -102,7 +102,7 @@ TibiaDialog {
                 width: 280
                 spacing: 6
 
-                TibiaPanel {
+                DmePanel {
                     width: parent.width
                     height: 350
 
@@ -170,7 +170,7 @@ TibiaDialog {
                         }
                     }
 
-                    TibiaScrollBar {
+                    DmeScrollBar {
                         anchors {
                             right: parent.right
                             top: parent.top
@@ -183,12 +183,12 @@ TibiaDialog {
 
                 Row {
                     spacing: 6
-                    TibiaButton {
+                    DmeButton {
                         text: "New"
                         width: 86
                         onClicked: dialog.clearEditor()
                     }
-                    TibiaButton {
+                    DmeButton {
                         text: "Delete"
                         width: 86
                         enabled: dialog.originalName.length > 0
@@ -204,7 +204,7 @@ TibiaDialog {
                                 dialog.selectRow(0);
                         }
                     }
-                    TibiaButton {
+                    DmeButton {
                         text: "Import..."
                         width: 96
                         onClicked: importDialog.open()
@@ -217,13 +217,13 @@ TibiaDialog {
                 spacing: 6
 
                 Text { text: "Name"; color: "#999"; font.pixelSize: 11 }
-                TibiaTextField {
+                DmeTextField {
                     id: nameField
                     width: parent.width
                     placeholderText: "Creature name"
                 }
 
-                TibiaCheckBox {
+                DmeCheckBox {
                     id: npcCheck
                     text: "NPC"
                     onClicked: checked = !checked
@@ -239,7 +239,7 @@ TibiaDialog {
                     Column {
                         spacing: 3
                         Text { text: "Look Type"; color: "#777"; font.pixelSize: 10 }
-                        TibiaSpinBox {
+                        DmeSpinBox {
                             id: lookTypeField
                             width: 130
                             from: 0
@@ -249,7 +249,7 @@ TibiaDialog {
                     Column {
                         spacing: 3
                         Text { text: "Look Item"; color: "#777"; font.pixelSize: 10 }
-                        TibiaSpinBox {
+                        DmeSpinBox {
                             id: lookItemField
                             width: 130
                             from: 0
@@ -265,18 +265,18 @@ TibiaDialog {
                     rowSpacing: 5
 
                     Text { text: "Head"; color: "#777"; width: 70; font.pixelSize: 11 }
-                    TibiaSpinBox { id: headField; width: 110; from: 0; to: 255 }
+                    DmeSpinBox { id: headField; width: 110; from: 0; to: 255 }
                     Text { text: "Body"; color: "#777"; width: 70; font.pixelSize: 11 }
-                    TibiaSpinBox { id: bodyField; width: 110; from: 0; to: 255 }
+                    DmeSpinBox { id: bodyField; width: 110; from: 0; to: 255 }
                     Text { text: "Legs"; color: "#777"; width: 70; font.pixelSize: 11 }
-                    TibiaSpinBox { id: legsField; width: 110; from: 0; to: 255 }
+                    DmeSpinBox { id: legsField; width: 110; from: 0; to: 255 }
                     Text { text: "Feet"; color: "#777"; width: 70; font.pixelSize: 11 }
-                    TibiaSpinBox { id: feetField; width: 110; from: 0; to: 255 }
+                    DmeSpinBox { id: feetField; width: 110; from: 0; to: 255 }
                 }
 
                 Item { width: 1; height: 10 }
 
-                TibiaButton {
+                DmeButton {
                     text: dialog.originalName.length > 0 ? "Save Changes" : "Add Creature"
                     width: 130
                     onClicked: dialog.saveCurrent()
@@ -293,7 +293,7 @@ TibiaDialog {
             wrapMode: Text.WordWrap
         }
 
-        TibiaButton {
+        DmeButton {
             anchors.horizontalCenter: parent.horizontalCenter
             text: "Close"
             width: 90

@@ -5,6 +5,8 @@
 #include <QSettings>
 #include <QSurfaceFormat>
 
+#include <cstdio>
+
 #include "backend.h"
 #include "mapview.h"
 #include "mapglview.h"
@@ -35,8 +37,19 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName(QStringLiteral("DewralMapEditor"));
 
     Backend backend(nullptr);
+    QObject::connect(&app, &QCoreApplication::aboutToQuit,
+                     backend.docMgr(), &DocumentManager::markCleanShutdown);
 
     QQmlApplicationEngine engine;
+
+    QObject::connect(&engine, &QQmlApplicationEngine::warnings,
+                     [](const QList<QQmlError> &warnings) {
+        for (const QQmlError &warning : warnings) {
+            const QByteArray message = warning.toString().toLocal8Bit();
+            std::fprintf(stderr, "%s\n", message.constData());
+        }
+        std::fflush(stderr);
+    });
 
     engine.addImageProvider(QStringLiteral("tibiaui"),
                             new UiThemeImageProvider(backend.uiTheme()));
@@ -45,6 +58,8 @@ int main(int argc, char *argv[])
     engine.load(url);
 
     if (engine.rootObjects().isEmpty()) {
+        std::fprintf(stderr, "DME: QML engine did not create a root window.\n");
+        std::fflush(stderr);
         return -1;
     }
 

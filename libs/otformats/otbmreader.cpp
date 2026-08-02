@@ -15,16 +15,73 @@
 #include <algorithm>
 #include <cstring>
 #include <functional>
+#include <limits>
 #include <utility>
+
+OtbmItemExtra::OtbmItemExtra() = default;
+OtbmItemExtra::~OtbmItemExtra() = default;
+OtbmItemExtra::OtbmItemExtra(OtbmItemExtra &&other) noexcept = default;
+OtbmItemExtra &OtbmItemExtra::operator=(OtbmItemExtra &&other) noexcept = default;
+
+OtbmItemExtra::OtbmItemExtra(const OtbmItemExtra &other)
+    : text(other.text), description(other.description),
+      has_teleport(other.has_teleport), tele_x(other.tele_x), tele_y(other.tele_y),
+      tele_z(other.tele_z), door_id(other.door_id), tier(other.tier),
+      podium_raw(other.podium_raw), has_attribute_map(other.has_attribute_map),
+      attribute_map(other.attribute_map), depot_id(other.depot_id),
+      action_id(other.action_id), unique_id(other.unique_id),
+      children(other.children
+                   ? std::make_unique<std::vector<OtbmMapItem>>(*other.children)
+                   : nullptr)
+{
+}
+
+OtbmItemExtra &OtbmItemExtra::operator=(const OtbmItemExtra &other)
+{
+    if (this == &other) return *this;
+    text = other.text;
+    description = other.description;
+    has_teleport = other.has_teleport;
+    tele_x = other.tele_x;
+    tele_y = other.tele_y;
+    tele_z = other.tele_z;
+    door_id = other.door_id;
+    tier = other.tier;
+    podium_raw = other.podium_raw;
+    has_attribute_map = other.has_attribute_map;
+    attribute_map = other.attribute_map;
+    depot_id = other.depot_id;
+    action_id = other.action_id;
+    unique_id = other.unique_id;
+    children = other.children
+                   ? std::make_unique<std::vector<OtbmMapItem>>(*other.children)
+                   : nullptr;
+    return *this;
+}
 
 namespace {
 
 struct NodeWriter {
-    QByteArray buf;
-    void raw(uint8_t b) { buf.append(static_cast<char>(b)); }
+    explicit NodeWriter(QIODevice *device) : m_device(device) {
+        m_buffer.reserve(64 * 1024);
+    }
+
+    ~NodeWriter() { flush(); }
+
+    bool finish() { return flush(); }
+    bool ok() const { return m_ok; }
+    QString errorString() const {
+        return m_device ? m_device->errorString() : QStringLiteral("No output device");
+    }
+
+    void raw(uint8_t b) {
+        if (!m_ok) return;
+        m_buffer.append(static_cast<char>(b));
+        if (m_buffer.size() >= 64 * 1024) flush();
+    }
     void data(uint8_t b) {
-        if (b == 0xFD || b == 0xFE || b == 0xFF) buf.append(static_cast<char>(0xFD));
-        buf.append(static_cast<char>(b));
+        if (b == 0xFD || b == 0xFE || b == 0xFF) raw(0xFD);
+        raw(b);
     }
     void u16(uint16_t v) { data(v & 0xFF); data((v >> 8) & 0xFF); }
     void u32(uint32_t v) { data(v & 0xFF); data((v >> 8) & 0xFF); data((v >> 16) & 0xFF); data((v >> 24) & 0xFF); }
@@ -38,6 +95,22 @@ struct NodeWriter {
     }
     void start(uint8_t type) { raw(0xFE); data(type); }
     void end() { raw(0xFF); }
+
+private:
+    bool flush() {
+        if (!m_ok || m_buffer.isEmpty()) return m_ok;
+        const qint64 size = m_buffer.size();
+        if (!m_device || m_device->write(m_buffer.constData(), size) != size) {
+            m_ok = false;
+            return false;
+        }
+        m_buffer.clear();
+        return true;
+    }
+
+    QIODevice *m_device = nullptr;
+    QByteArray m_buffer;
+    bool m_ok = true;
 };
 
 void appendU32(QByteArray &out, uint32_t value)
@@ -106,8 +179,8 @@ void writeAttributeMap(NodeWriter &w, const OtbmMapItem &item)
         attributes.push_back({QByteArray(key), 1, stringAttributeValue(value)});
     };
 
-    addInteger("aid", item.action_id);
-    addInteger("uid", item.unique_id);
+    addInteger("aid", item.actionId());
+    addInteger("uid", item.uniqueId());
     addString("text", extra.text);
     addString("desc", extra.description);
     addInteger("tier", extra.tier);
@@ -140,9 +213,9 @@ void writeMapItem(NodeWriter &w, const OtbmMapItem &item)
             w.data(static_cast<uint8_t>(std::min<uint16_t>(item.count, 255)));
         }
     }
-    if (!useAttributeMap && item.action_id) { w.data(static_cast<uint8_t>(OtbmAttribute::ActionId)); w.u16(static_cast<uint16_t>(item.action_id)); }
-    if (!useAttributeMap && item.unique_id) { w.data(static_cast<uint8_t>(OtbmAttribute::UniqueId)); w.u16(static_cast<uint16_t>(item.unique_id)); }
-    if (item.depot_id)  { w.data(static_cast<uint8_t>(OtbmAttribute::DepotId));  w.u16(item.depot_id); }
+    if (!useAttributeMap && item.actionId()) { w.data(static_cast<uint8_t>(OtbmAttribute::ActionId)); w.u16(static_cast<uint16_t>(item.actionId())); }
+    if (!useAttributeMap && item.uniqueId()) { w.data(static_cast<uint8_t>(OtbmAttribute::UniqueId)); w.u16(static_cast<uint16_t>(item.uniqueId())); }
+    if (item.depotId())  { w.data(static_cast<uint8_t>(OtbmAttribute::DepotId));  w.u16(item.depotId()); }
 
     if (item.extra) {
         const OtbmItemExtra &e = *item.extra;
@@ -241,8 +314,8 @@ bool readAttributeMap(BinaryNode &node, OtbmMapItem &item)
 
         if (type == 2 && valueRaw.size() == 4) {
             const uint32_t value = rawU32(valueRaw);
-            if (key == QByteArrayLiteral("aid")) item.action_id = static_cast<uint16_t>(value);
-            else if (key == QByteArrayLiteral("uid")) item.unique_id = static_cast<uint16_t>(value);
+            if (key == QByteArrayLiteral("aid")) item.setActionId(static_cast<uint16_t>(value));
+            else if (key == QByteArrayLiteral("uid")) item.setUniqueId(static_cast<uint16_t>(value));
             else if (key == QByteArrayLiteral("tier")) extra.tier = static_cast<uint8_t>(value);
         } else if (type == 1 && valueRaw.size() >= 4) {
             const uint32_t length = rawU32(valueRaw);
@@ -280,19 +353,19 @@ bool readItemAttribute(BinaryNode &node, OtbmAttribute attr, OtbmMapItem &item)
     case OtbmAttribute::ActionId: {
         uint16_t value = 0;
         if (!node.getU16(value)) return false;
-        item.action_id = value;
+        item.setActionId(value);
         return true;
     }
     case OtbmAttribute::UniqueId: {
         uint16_t value = 0;
         if (!node.getU16(value)) return false;
-        item.unique_id = value;
+        item.setUniqueId(value);
         return true;
     }
     case OtbmAttribute::DepotId: {
         uint16_t value = 0;
         if (!node.getU16(value)) return false;
-        item.depot_id = value;
+        item.setDepotId(value);
         return true;
     }
 
@@ -352,9 +425,9 @@ QVariantMap itemToVariant(const OtbmMapItem &item)
     map.insert(QStringLiteral("serverId"), item.server_id);
     map.insert(QStringLiteral("count"), item.count);
     map.insert(QStringLiteral("isGround"), item.is_ground);
-    if (item.action_id) map.insert(QStringLiteral("actionId"), item.action_id);
-    if (item.unique_id) map.insert(QStringLiteral("uniqueId"), item.unique_id);
-    if (item.depot_id) map.insert(QStringLiteral("depotId"), item.depot_id);
+    if (item.actionId()) map.insert(QStringLiteral("actionId"), item.actionId());
+    if (item.uniqueId()) map.insert(QStringLiteral("uniqueId"), item.uniqueId());
+    if (item.depotId()) map.insert(QStringLiteral("depotId"), item.depotId());
 
     if (item.extra) {
         const OtbmItemExtra &e = *item.extra;
@@ -395,6 +468,8 @@ void OtbmReader::reset()
     m_posIndex.clear();
     m_undoStack.clear();
     m_redoStack.clear();
+    m_undoBytes = 0;
+    m_redoBytes = 0;
     m_currentGroup = UndoAction{};
     m_groupRecorded.clear();
     m_undoGrouping = false;
@@ -451,7 +526,18 @@ void OtbmReader::reportLoadingProgress(int progress, const QString &stage)
         m_loadingStage = stage;
         emit loadingStageChanged();
     }
-    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 5);
+    if (m_detachedProgress) m_detachedProgress(progress, stage);
+    // Some synchronous client-data loaders still use this method to keep the
+    // loading dialog repainting. Posted progress updates can arrive while
+    // processEvents() is active, so never enter a second nested event loop.
+    // Without this guard a large map can build a recursive chain of queued
+    // progress callbacks and eventually overflow the GUI thread stack.
+    static thread_local bool processingEvents = false;
+    if (!m_detachedLoading && !processingEvents) {
+        processingEvents = true;
+        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 5);
+        processingEvents = false;
+    }
 }
 
 void OtbmReader::finishLoading(bool success)
@@ -474,57 +560,59 @@ bool OtbmReader::loadFile(const QString &path)
     reportLoadingProgress(0, QStringLiteral("Opening map..."));
     reset();
 
-    NodeFileReader file;
+    {
+        NodeFileReader file;
 
-    if (!file.loadFile(path,
-                       {QByteArrayLiteral("OTBM"), QByteArray(4, '\0')},
-                       [this](double progress) {
-                           reportLoadingProgress(2 + static_cast<int>(progress * 28.0),
-                                                 QStringLiteral("Reading OTBM structure..."));
-                       })) {
-        return abortLoad(file.errorString());
+        if (!file.loadFile(path,
+                           {QByteArrayLiteral("OTBM"), QByteArray(4, '\0')},
+                           [this](double progress) {
+                               reportLoadingProgress(2 + static_cast<int>(progress * 28.0),
+                                                     QStringLiteral("Reading OTBM structure..."));
+                           }, [this] { return loadCancelled(); })) {
+            return abortLoad(file.errorString());
+        }
+
+        reportLoadingProgress(31, QStringLiteral("Reading map header..."));
+        BinaryNode &root = file.rootNode();
+        if (!parseRootHeader(root)) {
+            return abortLoad(m_errorString);
+        }
+
+        if (root.children().size() != 1) {
+            return abortLoad(root.children().isEmpty()
+                ? QStringLiteral("Missing MapData node in the OTBM file")
+                : QStringLiteral("Invalid number of MapData nodes in the OTBM file"));
+        }
+
+        BinaryNode mapData = root.children().first();
+        reportLoadingProgress(34, QStringLiteral("Reading map tiles..."));
+        if (!parseMapData(mapData)) {
+            return abortLoad(m_errorString);
+        }
     }
 
-    reportLoadingProgress(31, QStringLiteral("Reading map header..."));
-    BinaryNode &root = file.rootNode();
-    if (!parseRootHeader(root)) {
-        return abortLoad(m_errorString);
-    }
-
-    if (root.children().size() != 1) {
-        return abortLoad(root.children().isEmpty()
-            ? QStringLiteral("Missing MapData node in the OTBM file")
-            : QStringLiteral("Invalid number of MapData nodes in the OTBM file"));
-    }
-
-    BinaryNode mapData = root.children().first();
-    reportLoadingProgress(34, QStringLiteral("Reading map tiles..."));
-    if (!parseMapData(mapData)) {
-        return abortLoad(m_errorString);
-    }
-
-    QSet<quint64> tilePositions;
-    tilePositions.reserve(static_cast<qsizetype>(m_tiles.size()));
+    reportLoadingProgress(59, QStringLiteral("Indexing map positions..."));
+    m_posIndex.clear();
+    m_posIndex.reserve(static_cast<int>(m_tiles.size()));
     qsizetype checkedTiles = 0;
     for (const OtbmTile &tile : m_tiles) {
+        if ((checkedTiles & 0xFFF) == 0 && loadCancelled())
+            return abortLoad(QStringLiteral("Loading cancelled"));
         const quint64 key = posKey3d(tile.x, tile.y, tile.z);
-        if (tilePositions.contains(key)) {
+        if (!m_posIndex.insert(key, static_cast<int>(checkedTiles))) {
             return abortLoad(QStringLiteral("Duplicate tile at position %1, %2, %3")
                                  .arg(tile.x).arg(tile.y).arg(tile.z));
         }
-        tilePositions.insert(key);
         ++checkedTiles;
         if ((checkedTiles & 0xFFF) == 0 && !m_tiles.empty()) {
             reportLoadingProgress(59 + static_cast<int>(5.0 * checkedTiles / m_tiles.size()),
-                                  QStringLiteral("Validating map tiles..."));
+                                  QStringLiteral("Indexing map positions..."));
         }
     }
 
-    reportLoadingProgress(65, QStringLiteral("Indexing map positions..."));
-    rebuildPosIndex();
-
     // Spawn and house XML files are optional sidecars and never block map loading.
     reportLoadingProgress(68, QStringLiteral("Loading spawn data..."));
+    if (loadCancelled()) return abortLoad(QStringLiteral("Loading cancelled"));
     loadSpawnsXml(path);
     reportLoadingProgress(70, QStringLiteral("Loading house data..."));
     loadHousesXml(path);
@@ -536,6 +624,88 @@ bool OtbmReader::loadFile(const QString &path)
     reportLoadingProgress(72, QStringLiteral("Preparing map view..."));
     emit loadedChanged();
     reportLoadingProgress(76, QStringLiteral("Map data loaded..."));
+    return true;
+}
+
+bool OtbmReader::loadFileDetached(
+    const QString &path, std::function<void(int, const QString &)> progress,
+    std::function<bool()> cancelled)
+{
+    m_detachedLoading = true;
+    m_detachedProgress = std::move(progress);
+    m_detachedCancelled = std::move(cancelled);
+    const bool result = loadFile(path);
+    m_detachedProgress = {};
+    m_detachedCancelled = {};
+    m_detachedLoading = false;
+    return result;
+}
+
+bool OtbmReader::loadCancelled() const
+{
+    return m_detachedCancelled && m_detachedCancelled();
+}
+
+void OtbmReader::beginBackgroundLoad()
+{
+    if (!m_loading) {
+        m_loading = true;
+        emit loadingChanged();
+    }
+    m_errorString.clear();
+    emit errorChanged();
+    reportLoadingProgress(0, QStringLiteral("Opening map in background..."));
+}
+
+void OtbmReader::failBackgroundLoad(const QString &error)
+{
+    setError(error.isEmpty() ? QStringLiteral("Failed to load the OTBM file") : error);
+    finishLoading(false);
+}
+
+bool OtbmReader::adoptLoadedState(OtbmReader &source)
+{
+    if (!source.m_loaded) return false;
+
+    using std::swap;
+    swap(m_tiles, source.m_tiles);
+    swap(m_posIndex, source.m_posIndex);
+    swap(m_undoStack, source.m_undoStack);
+    swap(m_redoStack, source.m_redoStack);
+    swap(m_lastAffected, source.m_lastAffected);
+    swap(m_lastUndoStructural, source.m_lastUndoStructural);
+    swap(m_undoBytes, source.m_undoBytes);
+    swap(m_redoBytes, source.m_redoBytes);
+    swap(m_undoGrouping, source.m_undoGrouping);
+    swap(m_currentGroup, source.m_currentGroup);
+    swap(m_groupRecorded, source.m_groupRecorded);
+    swap(m_towns, source.m_towns);
+    swap(m_waypoints, source.m_waypoints);
+    swap(m_houses, source.m_houses);
+    swap(m_otbmVersion, source.m_otbmVersion);
+    swap(m_width, source.m_width);
+    swap(m_height, source.m_height);
+    swap(m_otbItemsMajor, source.m_otbItemsMajor);
+    swap(m_otbItemsMinor, source.m_otbItemsMinor);
+    swap(m_description, source.m_description);
+    swap(m_spawnFile, source.m_spawnFile);
+    swap(m_houseFile, source.m_houseFile);
+    swap(m_spawnsXmlLoaded, source.m_spawnsXmlLoaded);
+    swap(m_housesXmlLoaded, source.m_housesXmlLoaded);
+    swap(m_spawnsModified, source.m_spawnsModified);
+    swap(m_housesModified, source.m_housesModified);
+    swap(m_itemCount, source.m_itemCount);
+    swap(m_loaded, source.m_loaded);
+    swap(m_dirty, source.m_dirty);
+    swap(m_filePath, source.m_filePath);
+
+    m_errorString.clear();
+    emit errorChanged();
+    emit filePathChanged();
+    emit dirtyChanged();
+    emit mapChanged();
+    reportLoadingProgress(78, QStringLiteral("Map data loaded..."));
+    emit loadedChanged();
     return true;
 }
 
@@ -763,6 +933,10 @@ bool OtbmReader::parseTileArea(BinaryNode &area)
     }
 
     for (const BinaryNode &sourceTile : area.children()) {
+        if (loadCancelled()) {
+            setError(QStringLiteral("Loading cancelled"));
+            return false;
+        }
         BinaryNode tile = sourceTile;
         if (!parseTile(tile, baseX, baseY, baseZ)) return false;
     }
@@ -851,6 +1025,7 @@ bool OtbmReader::parseTile(BinaryNode &tile, uint16_t baseX, uint16_t baseY, uin
         result.items.push_back(std::move(item));
     }
 
+    result.items.shrink_to_fit();
     for (const OtbmMapItem &item : result.items) m_itemCount += countItems(item);
     m_tiles.push_back(std::move(result));
     return true;
@@ -1076,14 +1251,16 @@ int countMatches(const OtbmMapItem &item, uint16_t sid)
     return n;
 }
 
-int countMatches(const std::vector<OtbmMapItem> &items, uint16_t sid)
+template <typename ItemContainer>
+int countMatches(const ItemContainer &items, uint16_t sid)
 {
     int n = 0;
     for (const OtbmMapItem &item : items) n += countMatches(item, sid);
     return n;
 }
 
-bool hasMatch(const std::vector<OtbmMapItem> &items, uint16_t sid)
+template <typename ItemContainer>
+bool hasMatch(const ItemContainer &items, uint16_t sid)
 {
     for (const OtbmMapItem &item : items) {
         if (item.server_id == sid) return true;
@@ -1092,13 +1269,14 @@ bool hasMatch(const std::vector<OtbmMapItem> &items, uint16_t sid)
     return false;
 }
 
-int replaceMatches(std::vector<OtbmMapItem> &items, uint16_t fromId, uint16_t toId)
+template <typename ItemContainer>
+int replaceMatches(ItemContainer &items, uint16_t fromId, uint16_t toId)
 {
     int n = 0;
     for (OtbmMapItem &item : items) {
 
         if (item.server_id == fromId) { item.server_id = toId; ++n; }
-        if (item.children) n += replaceMatches(*item.children, fromId, toId);
+        if (item.children()) n += replaceMatches(*item.children(), fromId, toId);
     }
     return n;
 }
@@ -1110,7 +1288,8 @@ int countNodes(const OtbmMapItem &item)
     return total;
 }
 
-int removeMatches(std::vector<OtbmMapItem> &items, const std::vector<uint16_t> &ids,
+template <typename ItemContainer>
+int removeMatches(ItemContainer &items, const std::vector<uint16_t> &ids,
                   int &removedNodes)
 {
     int n = 0;
@@ -1120,7 +1299,7 @@ int removeMatches(std::vector<OtbmMapItem> &items, const std::vector<uint16_t> &
             removedNodes += countNodes(*it);
             it = items.erase(it);
         } else {
-            if (it->children) n += removeMatches(*it->children, ids, removedNodes);
+            if (it->children()) n += removeMatches(*it->children(), ids, removedNodes);
             ++it;
         }
     }
@@ -1746,9 +1925,9 @@ OtbmMapItem *OtbmReader::itemAtPath(OtbmTile &tile, const std::vector<int> &path
 
     OtbmMapItem *item = &tile.items[static_cast<size_t>(path[0])];
     for (size_t depth = 1; depth < path.size(); ++depth) {
-        if (!item->children || path[depth] < 0
-            || path[depth] >= static_cast<int>(item->children->size())) return nullptr;
-        item = &(*item->children)[static_cast<size_t>(path[depth])];
+        if (!item->children() || path[depth] < 0
+            || path[depth] >= static_cast<int>(item->children()->size())) return nullptr;
+        item = &(*item->children())[static_cast<size_t>(path[depth])];
     }
     return item;
 }
@@ -1764,9 +1943,9 @@ const OtbmMapItem *OtbmReader::itemAtPath(int x, int y, int z,
 
     const OtbmMapItem *item = &tile.items[static_cast<size_t>(path[0])];
     for (size_t depth = 1; depth < path.size(); ++depth) {
-        if (!item->children || path[depth] < 0
-            || path[depth] >= static_cast<int>(item->children->size())) return nullptr;
-        item = &(*item->children)[static_cast<size_t>(path[depth])];
+        if (!item->children() || path[depth] < 0
+            || path[depth] >= static_cast<int>(item->children()->size())) return nullptr;
+        item = &(*item->children())[static_cast<size_t>(path[depth])];
     }
     return item;
 }
@@ -1795,8 +1974,8 @@ bool OtbmReader::setItemServerIdAt(int x, int y, int z, int index,
 bool OtbmReader::setItemActionIdAt(int x, int y, int z, int index, uint16_t actionId)
 {
     return mutateItemAt(x, y, z, index, [actionId](OtbmMapItem &item) {
-        if (item.action_id == actionId) return false;
-        item.action_id = actionId;
+        if (item.actionId() == actionId) return false;
+        item.setActionId(actionId);
         return true;
     });
 }
@@ -1804,8 +1983,8 @@ bool OtbmReader::setItemActionIdAt(int x, int y, int z, int index, uint16_t acti
 bool OtbmReader::setItemUniqueIdAt(int x, int y, int z, int index, uint16_t uniqueId)
 {
     return mutateItemAt(x, y, z, index, [uniqueId](OtbmMapItem &item) {
-        if (item.unique_id == uniqueId) return false;
-        item.unique_id = uniqueId;
+        if (item.uniqueId() == uniqueId) return false;
+        item.setUniqueId(uniqueId);
         return true;
     });
 }
@@ -1834,8 +2013,8 @@ bool OtbmReader::setItemDescriptionAt(int x, int y, int z, int index,
 bool OtbmReader::setItemDepotIdAt(int x, int y, int z, int index, uint16_t depotId)
 {
     return mutateItemAt(x, y, z, index, [depotId](OtbmMapItem &item) {
-        if (item.depot_id == depotId) return false;
-        item.depot_id = depotId;
+        if (item.depotId() == depotId) return false;
+        item.setDepotId(depotId);
         return true;
     });
 }
@@ -1983,14 +2162,14 @@ bool OtbmReader::removeContainerChild(int x, int y, int z,
     if (tileIt == m_posIndex.end()) return false;
     OtbmTile &tile = m_tiles[static_cast<size_t>(tileIt.value())];
     OtbmMapItem *container = itemAtPath(tile, path);
-    if (!container || !container->children || childIndex < 0
-        || childIndex >= static_cast<int>(container->children->size())) return false;
+    if (!container || !container->children() || childIndex < 0
+        || childIndex >= static_cast<int>(container->children()->size())) return false;
 
     recordTile(x, y, z);
     container = itemAtPath(tile, path);
-    auto child = container->children->begin() + childIndex;
+    auto child = container->children()->begin() + childIndex;
     m_itemCount -= countItems(*child);
-    container->children->erase(child);
+    container->children()->erase(child);
     if (!m_undoGrouping) emit mapChanged();
     return true;
 }
@@ -2004,14 +2183,14 @@ bool OtbmReader::moveContainerChild(int x, int y, int z,
     OtbmTile &tile = m_tiles[static_cast<size_t>(tileIt.value())];
     OtbmMapItem *container = itemAtPath(tile, path);
     const int target = childIndex + delta;
-    if (!container || !container->children || childIndex < 0 || target < 0
-        || childIndex >= static_cast<int>(container->children->size())
-        || target >= static_cast<int>(container->children->size())) return false;
+    if (!container || !container->children() || childIndex < 0 || target < 0
+        || childIndex >= static_cast<int>(container->children()->size())
+        || target >= static_cast<int>(container->children()->size())) return false;
 
     recordTile(x, y, z);
     container = itemAtPath(tile, path);
-    std::swap((*container->children)[static_cast<size_t>(childIndex)],
-              (*container->children)[static_cast<size_t>(target)]);
+    std::swap((*container->children())[static_cast<size_t>(childIndex)],
+              (*container->children())[static_cast<size_t>(target)]);
     if (!m_undoGrouping) emit mapChanged();
     return true;
 }
@@ -2019,8 +2198,8 @@ bool OtbmReader::moveContainerChild(int x, int y, int z,
 bool OtbmReader::setTopItemActionId(int x, int y, int z, uint16_t actionId)
 {
     return mutateTopItem(x, y, z, [actionId](OtbmMapItem &i) {
-        if (i.action_id == actionId) return false;
-        i.action_id = actionId;
+        if (i.actionId() == actionId) return false;
+        i.setActionId(actionId);
         return true;
     });
 }
@@ -2028,8 +2207,8 @@ bool OtbmReader::setTopItemActionId(int x, int y, int z, uint16_t actionId)
 bool OtbmReader::setTopItemUniqueId(int x, int y, int z, uint16_t uniqueId)
 {
     return mutateTopItem(x, y, z, [uniqueId](OtbmMapItem &i) {
-        if (i.unique_id == uniqueId) return false;
-        i.unique_id = uniqueId;
+        if (i.uniqueId() == uniqueId) return false;
+        i.setUniqueId(uniqueId);
         return true;
     });
 }
@@ -2247,7 +2426,7 @@ void OtbmReader::recordTile(int x, int y, int z)
     if (it != m_posIndex.end()) {
         snap.existed = true;
         const OtbmTile &t = m_tiles[static_cast<size_t>(it.value())];
-        snap.items = t.items;
+        snap.items.assign(t.items.begin(), t.items.end());
         snap.flags = t.flags;
         snap.spawn_radius = t.spawn_radius;
         snap.creature_name = t.creature_name;
@@ -2269,13 +2448,86 @@ void OtbmReader::recordTile(int x, int y, int z)
 
 void OtbmReader::pushUndo(UndoAction &&action)
 {
+    m_redoStack.clear();
+    m_redoBytes = 0;
     if (action.tiles.empty() || m_undoLimit <= 0) return;
+    action.bytes = estimateActionBytes(action);
+    m_undoBytes += action.bytes;
     m_undoStack.push_back(std::move(action));
+    trimUndoHistory();
+    trimHistoryMemory();
+}
+
+qsizetype OtbmReader::estimateItemDynamicBytes(const OtbmMapItem &item)
+{
+    qsizetype bytes = 0;
+    if (item.extra) {
+        const OtbmItemExtra &extra = *item.extra;
+        bytes += static_cast<qsizetype>(sizeof(OtbmItemExtra));
+        bytes += extra.text.capacity() * static_cast<qsizetype>(sizeof(QChar));
+        bytes += extra.description.capacity() * static_cast<qsizetype>(sizeof(QChar));
+        bytes += extra.podium_raw.capacity();
+        bytes += static_cast<qsizetype>(extra.attribute_map.capacity())
+                 * static_cast<qsizetype>(sizeof(OtbmItemExtra::NamedAttribute));
+        for (const OtbmItemExtra::NamedAttribute &attribute : extra.attribute_map) {
+            bytes += attribute.key.capacity();
+            bytes += attribute.value_raw.capacity();
+        }
+    }
+    if (item.children()) {
+        bytes += static_cast<qsizetype>(sizeof(std::vector<OtbmMapItem>));
+        bytes += static_cast<qsizetype>(item.children()->capacity())
+                 * static_cast<qsizetype>(sizeof(OtbmMapItem));
+        for (const OtbmMapItem &child : *item.children())
+            bytes += estimateItemDynamicBytes(child);
+    }
+    return bytes;
+}
+
+qsizetype OtbmReader::estimateActionBytes(const UndoAction &action)
+{
+    qsizetype bytes = static_cast<qsizetype>(sizeof(UndoAction));
+    bytes += static_cast<qsizetype>(action.tiles.capacity())
+             * static_cast<qsizetype>(sizeof(TileSnapshot));
+    for (const TileSnapshot &snapshot : action.tiles) {
+        bytes += snapshot.creature_name.capacity()
+                 * static_cast<qsizetype>(sizeof(QChar));
+        bytes += static_cast<qsizetype>(snapshot.items.capacity())
+                 * static_cast<qsizetype>(sizeof(OtbmMapItem));
+        for (const OtbmMapItem &item : snapshot.items)
+            bytes += estimateItemDynamicBytes(item);
+    }
+    return bytes;
+}
+
+void OtbmReader::trimUndoHistory()
+{
     while (static_cast<int>(m_undoStack.size()) > m_undoLimit) {
+        m_undoBytes -= m_undoStack.front().bytes;
         m_undoStack.pop_front();
     }
+}
 
-    m_redoStack.clear();
+void OtbmReader::trimRedoHistory()
+{
+    while (static_cast<int>(m_redoStack.size()) > m_undoLimit) {
+        m_redoBytes -= m_redoStack.front().bytes;
+        m_redoStack.pop_front();
+    }
+}
+
+void OtbmReader::trimHistoryMemory()
+{
+    while (m_undoBytes + m_redoBytes > kHistoryByteLimit
+           && m_undoStack.size() + m_redoStack.size() > 1) {
+        if (m_undoStack.size() > 1 || m_redoStack.empty()) {
+            m_undoBytes -= m_undoStack.front().bytes;
+            m_undoStack.pop_front();
+        } else {
+            m_redoBytes -= m_redoStack.front().bytes;
+            m_redoStack.pop_front();
+        }
+    }
 }
 
 OtbmReader::TileSnapshot OtbmReader::currentSnapshot(int x, int y, int z) const
@@ -2286,7 +2538,7 @@ OtbmReader::TileSnapshot OtbmReader::currentSnapshot(int x, int y, int z) const
     if (it != m_posIndex.end()) {
         snap.existed = true;
         const OtbmTile &t = m_tiles[static_cast<size_t>(it.value())];
-        snap.items = t.items;
+        snap.items.assign(t.items.begin(), t.items.end());
         snap.flags = t.flags;
         snap.spawn_radius = t.spawn_radius;
         snap.creature_name = t.creature_name;
@@ -2320,9 +2572,9 @@ void OtbmReader::endUndoGroup()
 void OtbmReader::setUndoLimit(int n)
 {
     m_undoLimit = n < 0 ? 0 : n;
-    while (static_cast<int>(m_undoStack.size()) > m_undoLimit) {
-        m_undoStack.pop_front();
-    }
+    trimUndoHistory();
+    trimRedoHistory();
+    trimHistoryMemory();
 }
 
 void OtbmReader::restoreSnapshots(const std::vector<TileSnapshot> &snapshots)
@@ -2400,11 +2652,22 @@ void OtbmReader::restoreSnapshots(const std::vector<TileSnapshot> &snapshots)
     if (!removals.empty()) {
         std::sort(removals.begin(), removals.end(), std::greater<int>());
         removals.erase(std::unique(removals.begin(), removals.end()), removals.end());
-        for (int index : removals)
-            m_tiles.erase(m_tiles.begin() + index);
-    }
+        for (int index : removals) {
+            const int lastIndex = static_cast<int>(m_tiles.size()) - 1;
+            if (index < 0 || index > lastIndex) continue;
 
-    if (m_lastUndoStructural) rebuildPosIndex();
+            const OtbmTile &removed = m_tiles[static_cast<size_t>(index)];
+            m_posIndex.erase(posKey3d(removed.x, removed.y, removed.z));
+
+            if (index != lastIndex) {
+                m_tiles[static_cast<size_t>(index)] = std::move(m_tiles.back());
+                const OtbmTile &moved = m_tiles[static_cast<size_t>(index)];
+                m_posIndex.insert(posKey3d(moved.x, moved.y, moved.z), index);
+                m_lastAffected.push_back({moved.x, moved.y, moved.z});
+            }
+            m_tiles.pop_back();
+        }
+    }
 }
 
 bool OtbmReader::undo()
@@ -2412,13 +2675,17 @@ bool OtbmReader::undo()
     if (m_undoStack.empty()) return false;
     UndoAction action = std::move(m_undoStack.back());
     m_undoStack.pop_back();
+    m_undoBytes -= action.bytes;
 
     UndoAction redoAction;
     redoAction.tiles.reserve(action.tiles.size());
     for (const TileSnapshot &snap : action.tiles)
         redoAction.tiles.push_back(currentSnapshot(snap.x, snap.y, snap.z));
+    redoAction.bytes = estimateActionBytes(redoAction);
+    m_redoBytes += redoAction.bytes;
     m_redoStack.push_back(std::move(redoAction));
-    while (static_cast<int>(m_redoStack.size()) > m_undoLimit) m_redoStack.pop_front();
+    trimRedoHistory();
+    trimHistoryMemory();
 
     m_lastAffected.clear();
     restoreSnapshots(action.tiles);
@@ -2433,13 +2700,17 @@ bool OtbmReader::redo()
     if (m_redoStack.empty()) return false;
     UndoAction action = std::move(m_redoStack.back());
     m_redoStack.pop_back();
+    m_redoBytes -= action.bytes;
 
     UndoAction undoAction;
     undoAction.tiles.reserve(action.tiles.size());
     for (const TileSnapshot &snap : action.tiles)
         undoAction.tiles.push_back(currentSnapshot(snap.x, snap.y, snap.z));
+    undoAction.bytes = estimateActionBytes(undoAction);
+    m_undoBytes += undoAction.bytes;
     m_undoStack.push_back(std::move(undoAction));
-    while (static_cast<int>(m_undoStack.size()) > m_undoLimit) m_undoStack.pop_front();
+    trimUndoHistory();
+    trimHistoryMemory();
 
     m_lastAffected.clear();
     restoreSnapshots(action.tiles);
@@ -2591,8 +2862,8 @@ QVariantMap OtbmReader::importFile(const QString &path, int offsetX, int offsetY
                 item.extra->has_teleport = false;
             }
         }
-        if (item.children)
-            for (OtbmMapItem &child : *item.children) adjustItem(child);
+        if (item.children())
+            for (OtbmMapItem &child : *item.children()) adjustItem(child);
     };
 
     beginUndoGroup();
@@ -2720,7 +2991,7 @@ QVariantMap OtbmReader::cleanupMap(const QSet<uint16_t> &validServerIds,
                 item = items.erase(item);
                 continue;
             }
-            if (item->children) removed += removeInvalid(*item->children);
+            if (item->children()) removed += removeInvalid(*item->children());
             ++item;
         }
         return removed;
@@ -2731,15 +3002,15 @@ QVariantMap OtbmReader::cleanupMap(const QSet<uint16_t> &validServerIds,
     clearDuplicateIds = [&](std::vector<OtbmMapItem> &items) {
         int cleared = 0;
         for (OtbmMapItem &item : items) {
-            if (item.unique_id != 0) {
-                if (usedUniqueIds.contains(item.unique_id)) {
-                    item.unique_id = 0;
+            if (item.uniqueId() != 0) {
+                if (usedUniqueIds.contains(item.uniqueId())) {
+                    item.setUniqueId(0);
                     ++cleared;
                 } else {
-                    usedUniqueIds.insert(item.unique_id);
+                    usedUniqueIds.insert(item.uniqueId());
                 }
             }
-            if (item.children) cleared += clearDuplicateIds(*item.children);
+            if (item.children()) cleared += clearDuplicateIds(*item.children());
         }
         return cleared;
     };
@@ -2748,7 +3019,7 @@ QVariantMap OtbmReader::cleanupMap(const QSet<uint16_t> &validServerIds,
     for (OtbmTile &tile : m_tiles) {
         bool recorded = false;
         if (removeInvalidItems) {
-            std::vector<OtbmMapItem> probe = tile.items;
+            std::vector<OtbmMapItem> probe(tile.items.begin(), tile.items.end());
             const int count = removeInvalid(probe);
             if (count > 0) {
                 recordTile(tile.x, tile.y, tile.z);
@@ -2759,7 +3030,7 @@ QVariantMap OtbmReader::cleanupMap(const QSet<uint16_t> &validServerIds,
             }
         }
         if (clearDuplicateUniqueIds) {
-            std::vector<OtbmMapItem> probe = tile.items;
+            std::vector<OtbmMapItem> probe(tile.items.begin(), tile.items.end());
             const int count = clearDuplicateIds(probe);
             if (count > 0) {
                 if (!recorded) recordTile(tile.x, tile.y, tile.z);
@@ -2825,6 +3096,56 @@ QVariantMap OtbmReader::cleanupMap(const QSet<uint16_t> &validServerIds,
 
 bool OtbmReader::saveFile(const QString &path)
 {
+    return saveFileInternal(path, false);
+}
+
+bool OtbmReader::saveRecoveryFile(const QString &path)
+{
+    const QString oldFilePath = m_filePath;
+    const QString oldSpawnFile = m_spawnFile;
+    const QString oldHouseFile = m_houseFile;
+    const QString oldDescription = m_description;
+    const bool oldDirty = m_dirty;
+    const bool oldSpawnsLoaded = m_spawnsXmlLoaded;
+    const bool oldHousesLoaded = m_housesXmlLoaded;
+    const bool oldSpawnsModified = m_spawnsModified;
+    const bool oldHousesModified = m_housesModified;
+
+    const QString base = QFileInfo(path).completeBaseName();
+    m_spawnFile = base + QStringLiteral(".spawn.xml");
+    m_houseFile = base + QStringLiteral(".house.xml");
+    m_spawnsXmlLoaded = true;
+    m_housesXmlLoaded = true;
+    const bool result = saveFileInternal(path, true);
+
+    m_filePath = oldFilePath;
+    m_spawnFile = oldSpawnFile;
+    m_houseFile = oldHouseFile;
+    m_description = oldDescription;
+    m_dirty = oldDirty;
+    m_spawnsXmlLoaded = oldSpawnsLoaded;
+    m_housesXmlLoaded = oldHousesLoaded;
+    m_spawnsModified = oldSpawnsModified;
+    m_housesModified = oldHousesModified;
+    return result;
+}
+
+void OtbmReader::adoptRecoveryIdentity(const QString &originalPath,
+                                       const QString &spawnFile,
+                                       const QString &houseFile)
+{
+    if (m_filePath != originalPath) {
+        m_filePath = originalPath;
+        emit filePathChanged();
+    }
+    m_spawnFile = spawnFile;
+    m_houseFile = houseFile;
+    setDirty(true);
+    emit mapChanged();
+}
+
+bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
+{
     if (!m_loaded) {
         setError(QStringLiteral("No loaded map to save"));
         return false;
@@ -2862,7 +3183,14 @@ bool OtbmReader::saveFile(const QString &path)
         return false;
     }
 
-    NodeWriter w;
+    QSaveFile mapOutput(path);
+    if (!mapOutput.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        restoreDocumentMetadata();
+        setError(QStringLiteral("Cannot prepare map file: %1").arg(path));
+        return false;
+    }
+
+    NodeWriter w(&mapOutput);
 
     w.raw(0); w.raw(0); w.raw(0); w.raw(0);
 
@@ -2882,45 +3210,40 @@ bool OtbmReader::saveFile(const QString &path)
     if (!m_spawnFile.isEmpty()) { w.data(static_cast<uint8_t>(OtbmAttribute::ExtSpawnFile)); w.str(m_spawnFile); }
     if (!m_houseFile.isEmpty()) { w.data(static_cast<uint8_t>(OtbmAttribute::ExtHouseFile)); w.str(m_houseFile); }
 
-    QHash<quint64, std::vector<const OtbmTile *>> areas;
+    quint64 activeArea = std::numeric_limits<quint64>::max();
+    bool areaOpen = false;
     for (const OtbmTile &tile : m_tiles) {
         const int areaX = tile.x & 0xFF00;
         const int areaY = tile.y & 0xFF00;
-        areas[posKey3d(areaX, areaY, tile.z)].push_back(&tile);
-    }
+        const quint64 area = posKey3d(areaX, areaY, tile.z);
+        if (!areaOpen || area != activeArea) {
+            if (areaOpen) w.end();
+            activeArea = area;
+            areaOpen = true;
+            w.start(static_cast<uint8_t>(OtbmNode::TileArea));
+            w.u16(static_cast<uint16_t>(areaX));
+            w.u16(static_cast<uint16_t>(areaY));
+            w.data(tile.z);
+        }
 
-    for (auto it = areas.begin(); it != areas.end(); ++it) {
-        const std::vector<const OtbmTile *> &group = it.value();
-        if (group.empty()) continue;
-        const int areaX = group.front()->x & 0xFF00;
-        const int areaY = group.front()->y & 0xFF00;
-        const int areaZ = group.front()->z;
+        const bool house = tile.is_house;
+        w.start(static_cast<uint8_t>(house ? OtbmNode::HouseTile : OtbmNode::Tile));
+        w.data(static_cast<uint8_t>(tile.x & 0xFF));
+        w.data(static_cast<uint8_t>(tile.y & 0xFF));
+        if (house) {
+            w.u32(tile.house_id);
+        }
+        if (tile.flags != 0) {
+            w.data(static_cast<uint8_t>(OtbmAttribute::TileFlags));
+            w.u32(tile.flags);
+        }
 
-        w.start(static_cast<uint8_t>(OtbmNode::TileArea));
-        w.u16(static_cast<uint16_t>(areaX));
-        w.u16(static_cast<uint16_t>(areaY));
-        w.data(static_cast<uint8_t>(areaZ));
-
-        for (const OtbmTile *tile : group) {
-            const bool house = tile->is_house;
-            w.start(static_cast<uint8_t>(house ? OtbmNode::HouseTile : OtbmNode::Tile));
-            w.data(static_cast<uint8_t>(tile->x & 0xFF));
-            w.data(static_cast<uint8_t>(tile->y & 0xFF));
-            if (house) {
-                w.u32(tile->house_id);
-            }
-            if (tile->flags != 0) {
-                w.data(static_cast<uint8_t>(OtbmAttribute::TileFlags));
-                w.u32(tile->flags);
-            }
-
-            for (const OtbmMapItem &item : tile->items) {
-                writeMapItem(w, item);
-            }
-            w.end();
+        for (const OtbmMapItem &item : tile.items) {
+            writeMapItem(w, item);
         }
         w.end();
     }
+    if (areaOpen) w.end();
 
     if (!m_towns.empty()) {
         w.start(static_cast<uint8_t>(OtbmNode::Towns));
@@ -2951,6 +3274,15 @@ bool OtbmReader::saveFile(const QString &path)
 
     w.end();
     w.end();
+
+    if (!w.finish()) {
+        const QString error = w.errorString();
+        mapOutput.cancelWriting();
+        restoreDocumentMetadata();
+        setError(QStringLiteral("Failed while writing map file %1: %2")
+                     .arg(path, error));
+        return false;
+    }
 
     struct ExternalBackup {
         QString path;
@@ -2991,7 +3323,6 @@ bool OtbmReader::saveFile(const QString &path)
 
     QSaveFile spawnOutput(spawnTarget);
     QSaveFile houseOutput(houseTarget);
-    QSaveFile mapOutput(path);
     auto stage = [this](QSaveFile &output, const QString &target,
                         const QByteArray &data, const QString &label) {
         if (target.isEmpty()) return true;
@@ -3005,8 +3336,7 @@ bool OtbmReader::saveFile(const QString &path)
     };
 
     if (!stage(spawnOutput, spawnTarget, spawnData, QStringLiteral("spawn file"))
-        || !stage(houseOutput, houseTarget, houseData, QStringLiteral("house file"))
-        || !stage(mapOutput, path, w.buf, QStringLiteral("map file"))) {
+        || !stage(houseOutput, houseTarget, houseData, QStringLiteral("house file"))) {
         const QString error = m_errorString;
         restoreDocumentMetadata();
         setError(error);
@@ -3044,9 +3374,10 @@ bool OtbmReader::saveFile(const QString &path)
         return true;
     };
 
-    if (!createPersistentBackup(path, QStringLiteral("map"))
-        || !createPersistentBackup(spawnTarget, QStringLiteral("spawn file"))
-        || !createPersistentBackup(houseTarget, QStringLiteral("house file"))) {
+    if (!recoveryMode
+        && (!createPersistentBackup(path, QStringLiteral("map"))
+            || !createPersistentBackup(spawnTarget, QStringLiteral("spawn file"))
+            || !createPersistentBackup(houseTarget, QStringLiteral("house file")))) {
         const QString error = m_errorString;
         restoreDocumentMetadata();
         setError(error);
@@ -3092,20 +3423,20 @@ bool OtbmReader::saveFile(const QString &path)
         return rollback(spawnCommitted, houseCommitted,
                         QStringLiteral("Failed to commit map file: %1").arg(path));
 
-    if (!spawnTarget.isEmpty() || m_spawnFile.isEmpty()) {
+    if (!recoveryMode && (!spawnTarget.isEmpty() || m_spawnFile.isEmpty())) {
         m_spawnsXmlLoaded = true;
         m_spawnsModified = false;
     }
-    if (!houseTarget.isEmpty() || m_houseFile.isEmpty()) {
+    if (!recoveryMode && (!houseTarget.isEmpty() || m_houseFile.isEmpty())) {
         m_housesXmlLoaded = true;
         m_housesModified = false;
     }
 
-    if (m_filePath != path) {
+    if (!recoveryMode && m_filePath != path) {
         m_filePath = path;
         emit filePathChanged();
     }
-    setDirty(false);
+    if (!recoveryMode) setDirty(false);
     return true;
 }
 

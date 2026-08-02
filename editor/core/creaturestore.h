@@ -42,6 +42,7 @@ public:
     QString errorString() const { return m_errorString; }
 
     const CreatureType *byName(const QString &name) const;
+    const QVector<CreatureType> &creatureTypes() const { return m_creatures; }
     Q_INVOKABLE int rowForName(const QString &name) const;
     Q_INVOKABLE QVariantMap creatureAt(int row) const;
     Q_INVOKABLE bool saveCreature(const QString &originalName,

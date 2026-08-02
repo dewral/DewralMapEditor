@@ -18,6 +18,7 @@
 #include "brushstore.h"
 #include "uitheme.h"
 #include "creaturestore.h"
+#include "aimapassistant.h"
 
 class Backend : public QObject
 {
@@ -36,6 +37,7 @@ class Backend : public QObject
     Q_PROPERTY(UiTheme *uiTheme READ uiTheme CONSTANT)
     Q_PROPERTY(CreatureStore *creatureStore READ creatureStore CONSTANT)
     Q_PROPERTY(ItemsXmlReader *itemsXml READ itemsXml CONSTANT)
+    Q_PROPERTY(AiMapAssistant *aiMapAssistant READ aiMapAssistant CONSTANT)
 
 public:
     // An explicit parent makes QML use create() instead of constructing a second singleton.
@@ -55,6 +57,7 @@ public:
     UiTheme *uiTheme() { return &m_uiTheme; }
     CreatureStore *creatureStore() { return &m_creatureStore; }
     ItemsXmlReader *itemsXml() { return &m_itemsXml; }
+    AiMapAssistant *aiMapAssistant() { return &m_aiMapAssistant; }
 
 signals:
     void otbmReaderChanged();
@@ -72,6 +75,7 @@ private:
     CreatureStore m_creatureStore;
     OtfiReader m_otfiReader;
     UiTheme m_uiTheme;
+    AiMapAssistant m_aiMapAssistant;
 };
 
 #endif

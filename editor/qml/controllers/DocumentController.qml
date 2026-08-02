@@ -24,17 +24,86 @@ Item {
     property string pendingKey: ""
     property var pendingNewMap: null
     property string savedToast: ""
+    property string activeLoadPath: ""
+    property string activePreferredProfileKey: ""
+    property bool waitingForAtlas: false
+    property string atlasCompletionPath: ""
+    property bool recoveringSession: false
+    property var recoveryQueue: []
+    property var activeRecovery: null
 
     property bool appCloseAllowed: false
     property var appCloseSaveQueue: []
     property bool appCloseSaveAsPending: false
 
+    Connections {
+        target: controller.mapView
+        function onMapLoadFinished(success, path, error) {
+            if (path !== controller.activeLoadPath)
+                return;
+            const preferred = controller.activePreferredProfileKey;
+            controller.activeLoadPath = "";
+            controller.activePreferredProfileKey = "";
+            if (!success)
+                return;
+            controller.completeLoadedMap(path, preferred);
+        }
+        function onAtlasBuildFinished(success, error) {
+            if (!controller.waitingForAtlas)
+                return;
+            controller.waitingForAtlas = false;
+            var path = controller.atlasCompletionPath;
+            controller.atlasCompletionPath = "";
+            if (!success) {
+                if (Backend.otbmReader.loading)
+                    Backend.otbmReader.finishLoading(false);
+                controller.showToast(error || "Could not build the sprite atlas");
+                return;
+            }
+            controller.finalizeLoadedMap(path);
+        }
+    }
+
     function initialize() {
         loadRecent();
         profiles.load();
         palettes.load();
-        if (!settings.showStartup && recentMaps.length > 0)
+        Backend.docMgr.configureAutosave(settings.autosaveEnabled,
+                                         settings.autosaveIntervalMinutes);
+        if (Backend.docMgr.recoveryCount === 0
+                && !settings.showStartup && recentMaps.length > 0)
             loadEverything(recentMaps[0]);
+    }
+
+    function recoverPreviousSession() {
+        recoveryQueue = Backend.docMgr.recoveries.slice();
+        if (recoveryQueue.length === 0)
+            return;
+        recoveringSession = true;
+        recoverNextDocument();
+    }
+
+    function recoverNextDocument() {
+        if (recoveryQueue.length === 0) {
+            activeRecovery = null;
+            recoveringSession = false;
+            started = true;
+            return;
+        }
+        var queue = recoveryQueue.slice();
+        activeRecovery = queue.shift();
+        recoveryQueue = queue;
+        startupWindow.beginRecoveryLoad(activeRecovery.recoveryPath);
+        if (!loadEverything(activeRecovery.recoveryPath,
+                            activeRecovery.profileKey || "")) {
+            showToast("Could not recover " + activeRecovery.title);
+            activeRecovery = null;
+            Qt.callLater(recoverNextDocument);
+        }
+    }
+
+    function discardPreviousSession() {
+        Backend.docMgr.discardRecoveries();
     }
 
     function loadRecent() {
@@ -79,6 +148,7 @@ Item {
         if (Backend.otbmReader.loaded || Backend.otbmReader.filePath !== "")
             Backend.docMgr.newDocument();
         Backend.otbmReader.newMap(width, height, profiles.profileVer(key), Backend.otbReader.majorVersion, Backend.otbReader.minorVersion);
+        Backend.docMgr.setCurrentProfileKey(String(key));
         mapView.centerOnTile(Math.floor(width / 2), Math.floor(height / 2), 7);
         started = true;
     }
@@ -88,19 +158,28 @@ Item {
             return false;
 
         var existing = Backend.docMgr.indexOfPath(mapPath);
-        if (existing >= 0 && existing !== Backend.docMgr.currentIndex) {
-            Backend.docMgr.currentIndex = existing;
-            if (profiles.ensureClientLoaded(Backend.docMgr.current, preferredProfileKey) && Backend.docMgr.current.filePath !== "")
-                profiles.rememberMapProfile(Backend.docMgr.current.filePath, profiles.loadedClientKey);
-            started = true;
-            return true;
+        if (existing >= 0) {
+            if (existing !== Backend.docMgr.currentIndex)
+                Backend.docMgr.currentIndex = existing;
+            if (Backend.docMgr.current.loaded)
+                return completeLoadedMap(mapPath, preferredProfileKey);
         }
 
         if (Backend.otbmReader.loaded && Backend.otbmReader.filePath !== mapPath)
             Backend.docMgr.newDocument();
-        if (!mapView.loadMap(mapPath))
+        activeLoadPath = mapPath;
+        activePreferredProfileKey = preferredProfileKey === undefined
+                                  || preferredProfileKey === null
+                                  ? "" : String(preferredProfileKey);
+        if (!mapView.loadMap(mapPath)) {
+            activeLoadPath = "";
+            activePreferredProfileKey = "";
             return false;
+        }
+        return true;
+    }
 
+    function completeLoadedMap(mapPath, preferredProfileKey) {
         if (!profiles.ensureClientLoaded(Backend.otbmReader, preferredProfileKey)) {
             if (Backend.otbmReader.loading)
                 Backend.otbmReader.finishLoading(false);
@@ -115,11 +194,44 @@ Item {
             return false;
         }
 
+        if (mapView.atlasBuilding) {
+            waitingForAtlas = true;
+            atlasCompletionPath = mapPath;
+            return true;
+        }
+        return finalizeLoadedMap(mapPath);
+    }
+
+    function finalizeLoadedMap(mapPath) {
+        if (activeRecovery && activeRecovery.recoveryPath === mapPath) {
+            var recovery = activeRecovery;
+            Backend.docMgr.adoptCurrentRecovery(recovery.id,
+                                                recovery.originalPath || "");
+            Backend.docMgr.setCurrentProfileKey(profiles.loadedClientKey);
+            if (recovery.originalPath) {
+                profiles.rememberMapProfile(recovery.originalPath,
+                                            profiles.loadedClientKey);
+                addRecent(recovery.originalPath);
+            }
+            if (Backend.otbmReader.loading)
+                Backend.otbmReader.finishLoading(true);
+            activeRecovery = null;
+            Qt.callLater(recoverNextDocument);
+            return true;
+        }
         profiles.rememberMapProfile(mapPath, profiles.loadedClientKey);
+        Backend.docMgr.setCurrentProfileKey(profiles.loadedClientKey);
         addRecent(mapPath);
-        if (Backend.otbmReader.loading)
-            Backend.otbmReader.finishLoading(true);
         started = true;
+        if (Backend.otbmReader.loading) {
+            Backend.otbmReader.reportLoadingProgress(100, "Map ready");
+            // Let the main window complete one scene-graph turn before the
+            // startup loading window is removed.
+            Qt.callLater(function () {
+                if (Backend.otbmReader.loading)
+                    Backend.otbmReader.finishLoading(true);
+            });
+        }
         return true;
     }
 
@@ -133,7 +245,10 @@ Item {
         pendingMapPath = "";
         pendingKey = "";
         if (mapPath !== "") {
-            loadEverything(mapPath, pickedKey);
+            if (Backend.otbmReader.loaded && Backend.otbmReader.filePath === mapPath)
+                completeLoadedMap(mapPath, pickedKey);
+            else
+                loadEverything(mapPath, pickedKey);
         } else if (pendingNewMap) {
             var newMap = pendingNewMap;
             pendingNewMap = null;
@@ -281,6 +396,11 @@ Item {
         function onCurrentChanged() {
             if (Backend.docMgr.current && Backend.docMgr.current.loaded)
                 controller.profiles.ensureClientLoaded(Backend.docMgr.current);
+        }
+        function onAutosaveFailed(title, error) {
+            controller.showToast("Autosave failed"
+                                 + (title ? " for " + title : "")
+                                 + ": " + error);
         }
     }
 

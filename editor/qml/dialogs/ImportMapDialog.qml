@@ -3,7 +3,7 @@ import QtQuick.Dialogs
 import Tibia 1.0
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: dialog
 
     required property var mapCtrl
@@ -44,14 +44,14 @@ TibiaDialog {
         Row {
             spacing: 6
 
-            TibiaTextField {
+            DmeTextField {
                 width: 340
                 text: dialog.sourcePath
                 placeholderText: "Select an .otbm file"
                 onEditingFinished: dialog.sourcePath = text
             }
 
-            TibiaButton {
+            DmeButton {
                 text: "Browse..."
                 width: 90
                 onClicked: sourceFileDialog.open()
@@ -72,7 +72,7 @@ TibiaDialog {
                 color: "#c0c0c0"
                 anchors.verticalCenter: parent.verticalCenter
             }
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: xOffset
                 width: 120
                 from: -65535
@@ -84,7 +84,7 @@ TibiaDialog {
                 color: "#c0c0c0"
                 anchors.verticalCenter: parent.verticalCenter
             }
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: yOffset
                 width: 120
                 from: -65535
@@ -96,7 +96,7 @@ TibiaDialog {
                 color: "#c0c0c0"
                 anchors.verticalCenter: parent.verticalCenter
             }
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: zOffset
                 width: 70
                 from: -15
@@ -110,14 +110,14 @@ TibiaDialog {
             font.pixelSize: 11
         }
 
-        TibiaCheckBox {
+        DmeCheckBox {
             id: housesCheck
             text: "Import houses and towns"
             checked: true
             onClicked: checked = !checked
         }
 
-        TibiaCheckBox {
+        DmeCheckBox {
             id: spawnsCheck
             text: "Import creatures and spawns"
             checked: true
@@ -131,7 +131,7 @@ TibiaDialog {
                 color: "#c0c0c0"
                 anchors.verticalCenter: parent.verticalCenter
             }
-            TibiaComboBox {
+            DmeComboBox {
                 id: collisionMode
                 width: 190
                 model: ["Skip existing tile", "Replace existing tile", "Merge tile contents"]
@@ -152,7 +152,7 @@ TibiaDialog {
             spacing: 6
             anchors.horizontalCenter: parent.horizontalCenter
 
-            TibiaButton {
+            DmeButton {
                 text: "Import"
                 width: 100
                 variant: "primary"
@@ -177,7 +177,7 @@ TibiaDialog {
                 }
             }
 
-            TibiaButton {
+            DmeButton {
                 text: "Close"
                 width: 90
                 onClicked: dialog.close()

@@ -2,6 +2,7 @@
 
 #include <QFile>
 #include <algorithm>
+#include <limits>
 #include <utility>
 
 namespace {
@@ -26,36 +27,36 @@ uint32_t readLe32(const QByteArray &data, qsizetype offset)
 
 bool BinaryNode::getU8(uint8_t &value)
 {
-    if (m_readOffset + 1 > m_data.size()) {
-        m_readOffset = m_data.size();
+    if (!m_storage || m_readOffset + 1 > m_dataSize) {
+        m_readOffset = m_dataSize;
         return false;
     }
 
-    value = static_cast<uint8_t>(m_data.at(m_readOffset));
+    value = static_cast<uint8_t>(m_storage->at(m_dataStart + m_readOffset));
     ++m_readOffset;
     return true;
 }
 
 bool BinaryNode::getU16(uint16_t &value)
 {
-    if (m_readOffset + 2 > m_data.size()) {
-        m_readOffset = m_data.size();
+    if (!m_storage || m_readOffset + 2 > m_dataSize) {
+        m_readOffset = m_dataSize;
         return false;
     }
 
-    value = readLe16(m_data, m_readOffset);
+    value = readLe16(*m_storage, m_dataStart + m_readOffset);
     m_readOffset += 2;
     return true;
 }
 
 bool BinaryNode::getU32(uint32_t &value)
 {
-    if (m_readOffset + 4 > m_data.size()) {
-        m_readOffset = m_data.size();
+    if (!m_storage || m_readOffset + 4 > m_dataSize) {
+        m_readOffset = m_dataSize;
         return false;
     }
 
-    value = readLe32(m_data, m_readOffset);
+    value = readLe32(*m_storage, m_dataStart + m_readOffset);
     m_readOffset += 4;
     return true;
 }
@@ -79,7 +80,7 @@ bool BinaryNode::getString(QString &value)
 bool BinaryNode::skip(qsizetype count)
 {
     if (count < 0 || count > bytesRemaining()) {
-        m_readOffset = m_data.size();
+        m_readOffset = m_dataSize;
         return false;
     }
 
@@ -90,28 +91,37 @@ bool BinaryNode::skip(qsizetype count)
 bool BinaryNode::readBytes(qsizetype count, QByteArray &out)
 {
     if (count < 0 || count > bytesRemaining()) {
-        m_readOffset = m_data.size();
+        m_readOffset = m_dataSize;
         return false;
     }
 
-    out = m_data.mid(m_readOffset, count);
-    m_readOffset += count;
+    out = m_storage->mid(m_dataStart + m_readOffset, count);
+    m_readOffset += static_cast<uint32_t>(count);
     return true;
 }
 
 qsizetype BinaryNode::bytesRemaining() const
 {
-    return m_readOffset < m_data.size() ? m_data.size() - m_readOffset : 0;
+    return m_readOffset < m_dataSize ? m_dataSize - m_readOffset : 0;
+}
+
+const QVector<BinaryNode> &BinaryNode::children() const
+{
+    static const QVector<BinaryNode> empty;
+    return m_children ? *m_children : empty;
 }
 
 bool NodeFileReader::loadFile(const QString &path,
                               const QVector<QByteArray> &acceptedIdentifiers,
-                              ProgressCallback progressCallback)
+                              ProgressCallback progressCallback,
+                              CancelCallback cancelCallback)
 {
     m_root = BinaryNode();
+    m_nodeData.clear();
     m_ok = false;
     m_errorString.clear();
     m_progressCallback = std::move(progressCallback);
+    m_cancelCallback = std::move(cancelCallback);
     m_lastProgressPosition = 0;
     reportProgress(0, 1);
 
@@ -121,17 +131,36 @@ bool NodeFileReader::loadFile(const QString &path,
         return false;
     }
 
-    const QByteArray data = file.readAll();
-    if (data.size() < 5) {
+    const qint64 fileSize = file.size();
+    if (fileSize < 5) {
         setError(QStringLiteral("The file is too small to be a valid node file"));
         return false;
     }
+    if (static_cast<quint64>(fileSize) > std::numeric_limits<uint32_t>::max()) {
+        setError(QStringLiteral("Node files larger than 4 GiB are not supported"));
+        return false;
+    }
+    m_nodeData.reserve(static_cast<qsizetype>(fileSize));
 
-    const QByteArray identifier = data.left(4);
-    const bool wildcardIdentifier = identifier == QByteArray(4, '\0');
+    uchar *mapped = file.map(0, fileSize);
+    QByteArray fallback;
+    if (!mapped) {
+        fallback = file.readAll();
+        if (fallback.size() != fileSize) {
+            setError(QStringLiteral("Could not read the complete node file"));
+            return false;
+        }
+    }
+    const QByteArrayView data = mapped
+        ? QByteArrayView(reinterpret_cast<const char *>(mapped), static_cast<qsizetype>(fileSize))
+        : QByteArrayView(fallback);
+
+    const QByteArrayView identifier = data.first(4);
+    const bool wildcardIdentifier = identifier[0] == '\0' && identifier[1] == '\0'
+                                 && identifier[2] == '\0' && identifier[3] == '\0';
     bool accepted = wildcardIdentifier || acceptedIdentifiers.isEmpty();
     for (const QByteArray &candidate : acceptedIdentifiers) {
-        if (candidate.size() == 4 && identifier == candidate) {
+        if (candidate.size() == 4 && identifier == QByteArrayView(candidate)) {
             accepted = true;
             break;
         }
@@ -155,17 +184,27 @@ bool NodeFileReader::loadFile(const QString &path,
 
     m_ok = true;
     reportProgress(data.size(), data.size());
+    if (mapped) file.unmap(mapped);
     return true;
 }
 
-bool NodeFileReader::parseNode(const QByteArray &data, qsizetype &pos, BinaryNode &node, int depth)
+bool NodeFileReader::parseNode(QByteArrayView data, qsizetype &pos, BinaryNode &node, int depth)
 {
     if (depth > kMaxDepth) {
         setError(QStringLiteral("Node nesting is too deep (corrupt file?)"));
         return false;
     }
 
+    node.m_storage = &m_nodeData;
+    node.m_dataStart = static_cast<uint32_t>(m_nodeData.size());
+    node.m_dataSize = 0;
+    node.m_readOffset = 0;
+
     while (pos < data.size()) {
+        if ((pos & 0xFFFF) == 0 && m_cancelCallback && m_cancelCallback()) {
+            setError(QStringLiteral("Loading cancelled"));
+            return false;
+        }
         reportProgress(pos, data.size());
         uint8_t byte = static_cast<uint8_t>(data.at(pos));
         ++pos;
@@ -175,7 +214,8 @@ bool NodeFileReader::parseNode(const QByteArray &data, qsizetype &pos, BinaryNod
                 setError(QStringLiteral("Truncated escape sequence in node file"));
                 return false;
             }
-            node.m_data.append(data.at(pos));
+            m_nodeData.append(data.at(pos));
+            ++node.m_dataSize;
             ++pos;
             continue;
         }
@@ -189,7 +229,8 @@ bool NodeFileReader::parseNode(const QByteArray &data, qsizetype &pos, BinaryNod
             return true;
         }
 
-        node.m_data.append(static_cast<char>(byte));
+        m_nodeData.append(static_cast<char>(byte));
+        ++node.m_dataSize;
     }
 
     setError(QStringLiteral("Unexpected end of node file"));
@@ -210,9 +251,13 @@ void NodeFileReader::reportProgress(qsizetype position, qsizetype total)
                                   0.0, 1.0));
 }
 
-bool NodeFileReader::parseChildNodes(const QByteArray &data, qsizetype &pos, BinaryNode &node, int depth)
+bool NodeFileReader::parseChildNodes(QByteArrayView data, qsizetype &pos, BinaryNode &node, int depth)
 {
     while (pos < data.size()) {
+        if ((pos & 0xFFFF) == 0 && m_cancelCallback && m_cancelCallback()) {
+            setError(QStringLiteral("Loading cancelled"));
+            return false;
+        }
         uint8_t marker = static_cast<uint8_t>(data.at(pos));
         ++pos;
 
@@ -221,7 +266,9 @@ bool NodeFileReader::parseChildNodes(const QByteArray &data, qsizetype &pos, Bin
             if (!parseNode(data, pos, child, depth + 1)) {
                 return false;
             }
-            node.m_children.append(std::move(child));
+            if (!node.m_children)
+                node.m_children = std::make_shared<QVector<BinaryNode>>();
+            node.m_children->append(std::move(child));
             continue;
         }
 

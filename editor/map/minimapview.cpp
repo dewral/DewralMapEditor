@@ -31,8 +31,9 @@ void MinimapView::setSource(MapView *s)
 void MinimapView::maybeRepaint()
 {
     if (!m_source) return;
+    if (m_source->editingStrokeActive()) return;
     // Track bitmap and viewport changes that are visible on the minimap.
-    // Czysty hover myszy nie zmienia zadnej z tych wartosci -> zero repaintow.
+    // Mouse hover alone changes none of these values, so it needs no repaint.
     const quint32 ver = m_source->minimapVersion();
     const double ox = m_source->glOriginX(), oy = m_source->glOriginY();
     const int ts = m_source->tileSize(), fl = m_source->floor();

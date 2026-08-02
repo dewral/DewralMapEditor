@@ -72,6 +72,8 @@ void BrushStore::clear()
     m_doors.clear();
     m_doodads.clear();
     m_doodadByServerId.clear();
+    m_prefabs.clear();
+    m_prefabPalettes.clear();
     m_carpets.clear();
     m_carpetByServerId.clear();
     m_tables.clear();
@@ -221,7 +223,16 @@ void BrushStore::parseRoot(const QJsonObject &root)
         const QJsonObject d = it.value().toObject();
         DoodadDef def;
         def.lookid = d.value(QStringLiteral("lookid")).toInt();
-        if (def.lookid > 0) m_doodadByServerId.insert(def.lookid, it.key());
+        const bool prefab = d.value(QStringLiteral("prefab")).toBool();
+        if (prefab) {
+            m_prefabs.insert(it.key());
+            const QString palette = d.value(QStringLiteral("prefab_palette"))
+                                        .toString(QStringLiteral("My Prefabs"));
+            m_prefabPalettes.insert(it.key(), palette.trimmed().isEmpty()
+                                                  ? QStringLiteral("My Prefabs") : palette.trimmed());
+        } else if (def.lookid > 0) {
+            m_doodadByServerId.insert(def.lookid, it.key());
+        }
 
         const QJsonArray alts = d.value(QStringLiteral("alternates")).toArray();
         for (const QJsonValue &av : alts) {
@@ -403,12 +414,103 @@ bool BrushStore::saveJson() const
     return f.commit();
 }
 
-void BrushStore::applyRawAndSave()
+bool BrushStore::applyRawAndSave()
 {
+    if (!saveJson()) return false;
     clear();
     parseRoot(m_rawRoot);
-    saveJson();
+    ++m_revision;
     emit brushesChanged();
+    return true;
+}
+
+QStringList BrushStore::prefabPaletteNames() const
+{
+    QSet<QString> unique;
+    for (auto it = m_prefabPalettes.cbegin(); it != m_prefabPalettes.cend(); ++it)
+        unique.insert(it.value());
+    QStringList result(unique.begin(), unique.end());
+    result.sort(Qt::CaseInsensitive);
+    return result;
+}
+
+QVariantList BrushStore::prefabsForPalette(const QString &palette) const
+{
+    QVariantList result;
+    QStringList names;
+    for (auto it = m_prefabPalettes.cbegin(); it != m_prefabPalettes.cend(); ++it)
+        if (it.value() == palette) names.append(it.key());
+    names.sort(Qt::CaseInsensitive);
+    for (const QString &name : names) {
+        QVariantMap entry;
+        entry.insert(QStringLiteral("name"), name);
+        entry.insert(QStringLiteral("lookid"), prefabLookId(name));
+        result.append(entry);
+    }
+    return result;
+}
+
+int BrushStore::prefabLookId(const QString &name) const
+{
+    const DoodadDef *def = doodadDef(name);
+    return def ? def->lookid : 0;
+}
+
+bool BrushStore::savePrefab(const QString &nameValue, const QString &paletteValue,
+                            const QVariantList &tiles)
+{
+    const QString name = nameValue.trimmed();
+    const QString palette = paletteValue.trimmed().isEmpty()
+                                ? QStringLiteral("My Prefabs") : paletteValue.trimmed();
+    if (name.isEmpty() || tiles.isEmpty() || m_path.isEmpty()) return false;
+    if (m_doodads.contains(name) && !m_prefabs.contains(name)) return false;
+
+    QJsonArray jsonTiles;
+    int lookid = 0;
+    for (const QVariant &tileValue : tiles) {
+        const QVariantMap tile = tileValue.toMap();
+        QJsonArray items;
+        for (const QVariant &itemValue : tile.value(QStringLiteral("items")).toList()) {
+            const int id = itemValue.toInt();
+            if (id <= 0) continue;
+            if (lookid == 0) lookid = id;
+            items.append(id);
+        }
+        if (items.isEmpty()) continue;
+        QJsonObject object;
+        object.insert(QStringLiteral("dx"), tile.value(QStringLiteral("dx")).toInt());
+        object.insert(QStringLiteral("dy"), tile.value(QStringLiteral("dy")).toInt());
+        object.insert(QStringLiteral("dz"), tile.value(QStringLiteral("dz")).toInt());
+        object.insert(QStringLiteral("items"), items);
+        jsonTiles.append(object);
+    }
+    if (jsonTiles.isEmpty() || lookid <= 0) return false;
+
+    QJsonObject composite;
+    composite.insert(QStringLiteral("chance"), 1);
+    composite.insert(QStringLiteral("tiles"), jsonTiles);
+    QJsonObject alternate;
+    alternate.insert(QStringLiteral("singles"), QJsonArray());
+    alternate.insert(QStringLiteral("composites"), QJsonArray{composite});
+    QJsonObject prefab;
+    prefab.insert(QStringLiteral("lookid"), lookid);
+    prefab.insert(QStringLiteral("prefab"), true);
+    prefab.insert(QStringLiteral("prefab_palette"), palette);
+    prefab.insert(QStringLiteral("alternates"), QJsonArray{alternate});
+
+    QJsonObject doodads = m_rawRoot.value(QStringLiteral("doodads")).toObject();
+    doodads.insert(name, prefab);
+    m_rawRoot.insert(QStringLiteral("doodads"), doodads);
+    return applyRawAndSave();
+}
+
+void BrushStore::deletePrefab(const QString &name)
+{
+    if (!m_prefabs.contains(name)) return;
+    QJsonObject doodads = m_rawRoot.value(QStringLiteral("doodads")).toObject();
+    doodads.remove(name);
+    m_rawRoot.insert(QStringLiteral("doodads"), doodads);
+    applyRawAndSave();
 }
 
 QStringList BrushStore::groundBrushNames() const
@@ -547,8 +649,7 @@ bool BrushStore::saveGroundBrush(const QString &name, int zorder,
     grounds.insert(name, g);
     m_rawRoot.insert(QStringLiteral("grounds"), grounds);
     m_rawRoot.insert(QStringLiteral("borders"), borders);
-    applyRawAndSave();
-    return true;
+    return applyRawAndSave();
 }
 
 void BrushStore::deleteGroundBrush(const QString &name)
@@ -604,8 +705,7 @@ bool BrushStore::saveWallBrush(const QString &name, const QVariantList &align17)
     QJsonObject walls = m_rawRoot.value(QStringLiteral("walls")).toObject();
     walls.insert(name, w);
     m_rawRoot.insert(QStringLiteral("walls"), walls);
-    applyRawAndSave();
-    return true;
+    return applyRawAndSave();
 }
 
 void BrushStore::deleteWallBrush(const QString &name)

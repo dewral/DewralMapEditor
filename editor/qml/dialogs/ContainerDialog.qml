@@ -4,7 +4,7 @@ import QtQuick
 import Tibia 1.0
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: dialog
 
     required property var mapCtrl
@@ -90,7 +90,7 @@ TibiaDialog {
         Row {
             spacing: 8
 
-            TibiaButton {
+            DmeButton {
                 text: "Back"
                 width: 70
                 enabled: dialog.currentPath.length > dialog.rootPath.length
@@ -107,7 +107,7 @@ TibiaDialog {
             }
         }
 
-        TibiaPanel {
+        DmePanel {
             width: parent.width
             height: 320
 
@@ -192,7 +192,7 @@ TibiaDialog {
                 }
             }
 
-            TibiaScrollBar {
+            DmeScrollBar {
                 anchors {
                     right: parent.right
                     top: parent.top
@@ -211,7 +211,7 @@ TibiaDialog {
                 color: "#999"
                 anchors.verticalCenter: parent.verticalCenter
             }
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: newItemId
                 width: 120
                 from: 100
@@ -225,7 +225,7 @@ TibiaDialog {
                 anchors.verticalCenter: parent.verticalCenter
                 elide: Text.ElideRight
             }
-            TibiaButton {
+            DmeButton {
                 text: "Add Item"
                 width: 90
                 onClicked: {
@@ -240,7 +240,7 @@ TibiaDialog {
             spacing: 6
             anchors.horizontalCenter: parent.horizontalCenter
 
-            TibiaButton {
+            DmeButton {
                 text: "Open"
                 width: 80
                 enabled: dialog.selectedItem !== null
@@ -248,7 +248,7 @@ TibiaDialog {
                              || dialog.selectedItem.childCount > 0)
                 onClicked: dialog.openSelectedContainer()
             }
-            TibiaButton {
+            DmeButton {
                 text: "Move Up"
                 width: 90
                 enabled: dialog.selectedItem !== null
@@ -259,7 +259,7 @@ TibiaDialog {
                         dialog.refresh(index + 1);
                 }
             }
-            TibiaButton {
+            DmeButton {
                 text: "Move Down"
                 width: 90
                 enabled: dialog.selectedItem !== null
@@ -270,7 +270,7 @@ TibiaDialog {
                         dialog.refresh(index - 1);
                 }
             }
-            TibiaButton {
+            DmeButton {
                 text: "Delete"
                 width: 80
                 variant: "danger"
@@ -282,7 +282,7 @@ TibiaDialog {
                         dialog.refresh(index);
                 }
             }
-            TibiaButton {
+            DmeButton {
                 text: "Close"
                 width: 80
                 onClicked: dialog.close()

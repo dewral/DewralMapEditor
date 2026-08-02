@@ -52,7 +52,6 @@ bool TilesetStore::loadJsonInto(const QString &path,
             if (!it.value().isArray()) continue;
             QVariantList ids;
             for (const QJsonValue &v : it.value().toArray()) ids.append(v.toInt());
-            if (ids.isEmpty()) continue;
             names[cat].append(it.key());
             items[cat][it.key()] = ids;
             any = true;

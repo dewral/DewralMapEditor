@@ -3,7 +3,7 @@ import QtQuick.Controls
 import Tibia 1.0
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: root
     property var mapCtrl: null
 
@@ -161,13 +161,13 @@ TibiaDialog {
             }
             spacing: 6
 
-            TibiaTextField {
+            DmeTextField {
                 width: parent.width
                 placeholderText: "Search by name or ID..."
                 onTextChanged: pf.searchText = text
             }
 
-            TibiaPanel {
+            DmePanel {
                 width: parent.width
                 height: pickerCol.height - 30
 
@@ -228,7 +228,7 @@ TibiaDialog {
                         }
                     }
                 }
-                TibiaScrollBar {
+                DmeScrollBar {
                     anchors {
                         right: parent.right
                         top: parent.top
@@ -252,13 +252,13 @@ TibiaDialog {
 
             Row {
                 spacing: 6
-                TibiaButton {
+                DmeButton {
                     text: "Ground brush"
                     width: 110
                     opacity: root.tab === "ground" ? 1.0 : 0.55
                     onClicked: root.tab = "ground"
                 }
-                TibiaButton {
+                DmeButton {
                     text: "Wall brush"
                     width: 110
                     opacity: root.tab === "wall" ? 1.0 : 0.55
@@ -273,18 +273,18 @@ TibiaDialog {
 
                 Row {
                     spacing: 6
-                    TibiaComboBox {
+                    DmeComboBox {
                         id: groundCombo
                         width: 150
                         height: 23
                         onActivated: root.loadGround(model[currentIndex])
                     }
-                    TibiaButton {
+                    DmeButton {
                         text: "New"
                         width: 60
                         onClicked: root.newGround()
                     }
-                    TibiaButton {
+                    DmeButton {
                         text: "Remove"
                         width: 60
                         enabled: root.curGround !== ""
@@ -302,7 +302,7 @@ TibiaDialog {
                         font.pixelSize: 11
                         anchors.verticalCenter: parent.verticalCenter
                     }
-                    TibiaTextField {
+                    DmeTextField {
                         id: groundNameField
                         width: 150
                         height: 22
@@ -313,7 +313,7 @@ TibiaDialog {
                         font.pixelSize: 11
                         anchors.verticalCenter: parent.verticalCenter
                     }
-                    TibiaSpinBox {
+                    DmeSpinBox {
                         id: zorderField
                         width: 80
                         from: 0
@@ -370,7 +370,7 @@ TibiaDialog {
                                     onClicked: gItems.remove(index)
                                 }
                             }
-                            TibiaSpinBox {
+                            DmeSpinBox {
                                 width: 44
                                 height: 18
                                 from: 1
@@ -396,7 +396,7 @@ TibiaDialog {
                         font.pixelSize: 11
                         anchors.verticalCenter: parent.verticalCenter
                     }
-                    TibiaComboBox {
+                    DmeComboBox {
                         id: targetCombo
                         width: 190
                         height: 23
@@ -563,12 +563,12 @@ TibiaDialog {
 
                 Row {
                     spacing: 6
-                    TibiaButton {
+                    DmeButton {
                         text: "Save"
                         width: 90
                         onClicked: root.saveGround()
                     }
-                    TibiaButton {
+                    DmeButton {
                         text: "Test on map"
                         width: 120
                         enabled: gItems.count > 0 && root.curGround !== ""
@@ -585,18 +585,18 @@ TibiaDialog {
 
                 Row {
                     spacing: 6
-                    TibiaComboBox {
+                    DmeComboBox {
                         id: wallCombo
                         width: 150
                         height: 23
                         onActivated: root.loadWall(model[currentIndex])
                     }
-                    TibiaButton {
+                    DmeButton {
                         text: "New"
                         width: 60
                         onClicked: root.newWall()
                     }
-                    TibiaButton {
+                    DmeButton {
                         text: "Remove"
                         width: 60
                         enabled: root.curWall !== ""
@@ -614,7 +614,7 @@ TibiaDialog {
                         font.pixelSize: 11
                         anchors.verticalCenter: parent.verticalCenter
                     }
-                    TibiaTextField {
+                    DmeTextField {
                         id: wallNameField
                         width: 150
                         height: 22
@@ -686,14 +686,14 @@ TibiaDialog {
                     }
                 }
 
-                TibiaButton {
+                DmeButton {
                     text: "Save"
                     width: 90
                     onClicked: root.saveWall()
                 }
             }
 
-            TibiaButton {
+            DmeButton {
                 text: "Close"
                 width: 90
                 onClicked: root.close()

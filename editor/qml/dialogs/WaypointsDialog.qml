@@ -4,7 +4,7 @@ import QtQuick
 import Tibia 1.0
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: dialog
 
     required property var mapCtrl
@@ -63,7 +63,7 @@ TibiaDialog {
     contentItem: Column {
         spacing: 8
 
-        TibiaPanel {
+        DmePanel {
             width: parent.width
             height: 190
 
@@ -126,7 +126,7 @@ TibiaDialog {
                 }
             }
 
-            TibiaScrollBar {
+            DmeScrollBar {
                 anchors {
                     right: parent.right
                     top: parent.top
@@ -140,12 +140,12 @@ TibiaDialog {
         Row {
             spacing: 6
 
-            TibiaButton {
+            DmeButton {
                 text: "Add"
                 width: 90
                 onClicked: dialog.refresh(Backend.otbmReader.addWaypoint())
             }
-            TibiaButton {
+            DmeButton {
                 text: "Remove"
                 width: 90
                 enabled: dialog.selectedIndex >= 0
@@ -161,7 +161,7 @@ TibiaDialog {
             color: "#999"
             font.pixelSize: 11
         }
-        TibiaTextField {
+        DmeTextField {
             id: nameField
             width: parent.width
             enabled: dialog.selectedIndex >= 0
@@ -176,7 +176,7 @@ TibiaDialog {
         Row {
             spacing: 6
 
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: xField
                 width: 90
                 from: 0
@@ -184,7 +184,7 @@ TibiaDialog {
                 enabled: dialog.selectedIndex >= 0
                 onValueModified: dialog.applyPosition()
             }
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: yField
                 width: 90
                 from: 0
@@ -192,7 +192,7 @@ TibiaDialog {
                 enabled: dialog.selectedIndex >= 0
                 onValueModified: dialog.applyPosition()
             }
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: zField
                 width: 70
                 from: 0
@@ -200,7 +200,7 @@ TibiaDialog {
                 enabled: dialog.selectedIndex >= 0
                 onValueModified: dialog.applyPosition()
             }
-            TibiaButton {
+            DmeButton {
                 text: "Go To"
                 width: 80
                 enabled: dialog.selectedIndex >= 0
@@ -213,7 +213,7 @@ TibiaDialog {
             spacing: 6
             anchors.horizontalCenter: parent.horizontalCenter
 
-            TibiaButton {
+            DmeButton {
                 text: "Close"
                 width: 90
                 onClicked: {

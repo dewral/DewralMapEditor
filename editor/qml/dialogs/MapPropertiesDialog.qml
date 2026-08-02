@@ -2,7 +2,7 @@ import QtQuick
 import Tibia 1.0
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: dialog
 
     required property var app
@@ -75,7 +75,7 @@ TibiaDialog {
                 color: "#c0c0c0"
                 anchors.verticalCenter: parent.verticalCenter
             }
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: widthField
                 width: 120
                 from: 256
@@ -86,7 +86,7 @@ TibiaDialog {
                 color: "#c0c0c0"
                 anchors.verticalCenter: parent.verticalCenter
             }
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: heightField
                 width: 120
                 from: 256
@@ -108,7 +108,7 @@ TibiaDialog {
                 text: "Spawns"
                 color: "#c0c0c0"
             }
-            TibiaTextField {
+            DmeTextField {
                 id: spawnField
                 width: 400
                 placeholderText: "Optional, e.g. map-spawn.xml"
@@ -117,7 +117,7 @@ TibiaDialog {
                 text: "Houses"
                 color: "#c0c0c0"
             }
-            TibiaTextField {
+            DmeTextField {
                 id: houseField
                 width: 400
                 placeholderText: "Optional, e.g. map-house.xml"
@@ -158,13 +158,13 @@ TibiaDialog {
         Row {
             spacing: 6
             anchors.horizontalCenter: parent.horizontalCenter
-            TibiaButton {
+            DmeButton {
                 text: "OK"
                 width: 90
                 variant: "primary"
                 onClicked: dialog.applyProperties()
             }
-            TibiaButton {
+            DmeButton {
                 text: "Cancel"
                 width: 90
                 onClicked: dialog.close()

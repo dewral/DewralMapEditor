@@ -2,7 +2,7 @@ import QtQuick
 import Tibia 1.0
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: dialog
 
     required property var mapCtrl
@@ -28,35 +28,35 @@ TibiaDialog {
             wrapMode: Text.WordWrap
         }
 
-        TibiaCheckBox {
+        DmeCheckBox {
             id: invalidItems
             text: "Remove items missing from the loaded OTB"
             checked: true
             onClicked: checked = !checked
         }
 
-        TibiaCheckBox {
+        DmeCheckBox {
             id: emptyTiles
             text: "Remove empty tiles"
             checked: true
             onClicked: checked = !checked
         }
 
-        TibiaCheckBox {
+        DmeCheckBox {
             id: invalidHouses
             text: "Clear tiles assigned to missing houses"
             checked: true
             onClicked: checked = !checked
         }
 
-        TibiaCheckBox {
+        DmeCheckBox {
             id: duplicateUniqueIds
             text: "Clear duplicate unique IDs (keep the first)"
             checked: true
             onClicked: checked = !checked
         }
 
-        TibiaCheckBox {
+        DmeCheckBox {
             id: unusedHouses
             text: "Remove house definitions without tiles"
             checked: false
@@ -76,7 +76,7 @@ TibiaDialog {
             spacing: 6
             anchors.horizontalCenter: parent.horizontalCenter
 
-            TibiaButton {
+            DmeButton {
                 text: "Run Cleanup"
                 width: 110
                 variant: "danger"
@@ -102,7 +102,7 @@ TibiaDialog {
                 }
             }
 
-            TibiaButton {
+            DmeButton {
                 text: "Close"
                 width: 90
                 onClicked: dialog.close()

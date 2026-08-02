@@ -3,7 +3,7 @@ import QtQuick
 import QtQuick.Controls
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: root
 
     title: "Appearance"
@@ -26,7 +26,7 @@ TibiaDialog {
             color: Backend.uiTheme.style === "github-dark" ? "#B8B8B8" : "#999"
             font.pixelSize: 11
         }
-        TibiaComboBox {
+        DmeComboBox {
             id: styleCombo
             width: parent.width - 24
             height: 23
@@ -52,7 +52,7 @@ TibiaDialog {
             wrapMode: Text.WordWrap
         }
 
-        TibiaSeparator {
+        DmeSeparator {
             width: parent.width - 24
             visible: Backend.uiTheme.style === "classic"
         }
@@ -70,7 +70,7 @@ TibiaDialog {
             visible: Backend.uiTheme.style === "classic"
             Repeater {
                 model: Backend.uiTheme.presets
-                delegate: TibiaButton {
+                delegate: DmeButton {
                     required property var modelData
                     text: modelData.name
                     width: 68
@@ -82,7 +82,7 @@ TibiaDialog {
             }
         }
 
-        TibiaSeparator {
+        DmeSeparator {
             width: parent.width - 24
             visible: Backend.uiTheme.style === "classic"
         }
@@ -103,7 +103,7 @@ TibiaDialog {
                 font.pixelSize: 11
                 anchors.verticalCenter: parent.verticalCenter
             }
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: rField
                 width: 62
                 from: 0
@@ -115,7 +115,7 @@ TibiaDialog {
                 font.pixelSize: 11
                 anchors.verticalCenter: parent.verticalCenter
             }
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: gField
                 width: 62
                 from: 0
@@ -127,7 +127,7 @@ TibiaDialog {
                 font.pixelSize: 11
                 anchors.verticalCenter: parent.verticalCenter
             }
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: bField
                 width: 62
                 from: 0
@@ -165,13 +165,13 @@ TibiaDialog {
         Row {
             spacing: 6
             anchors.horizontalCenter: parent.horizontalCenter
-            TibiaButton {
+            DmeButton {
                 text: "Apply"
                 width: 90
                 visible: Backend.uiTheme.style === "classic"
                 onClicked: Backend.uiTheme.tint = root.draft
             }
-            TibiaButton {
+            DmeButton {
                 text: "Close"
                 width: 90
                 onClicked: root.close()

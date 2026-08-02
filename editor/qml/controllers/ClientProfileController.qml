@@ -208,8 +208,10 @@ QtObject {
 
         if (loadedClientKey === key && loadedClientFolder === folder)
         {
-            if (Backend.otbmReader.loading)
-                Backend.otbmReader.reportLoadingProgress(96, "Client data already loaded...");
+            if (Backend.otbmReader.loading) {
+                Backend.otbmReader.reportLoadingProgress(94, "Rebuilding sprite atlas...");
+                mapView.rebuildAtlas();
+            }
             return true;
         }
 
@@ -246,10 +248,8 @@ QtObject {
             Backend.otbmReader.reportLoadingProgress(92, "Loading editor palettes...");
         loadProfileData(key);
         if (Backend.otbmReader.loading)
-            Backend.otbmReader.reportLoadingProgress(95, "Rebuilding sprite atlas...");
+            Backend.otbmReader.reportLoadingProgress(94, "Rebuilding sprite atlas...");
         mapView.rebuildAtlas();
-        if (Backend.otbmReader.loading)
-            Backend.otbmReader.reportLoadingProgress(98, "Finalizing map...");
         return true;
     }
 }

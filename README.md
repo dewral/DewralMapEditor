@@ -25,7 +25,7 @@ multi-floor Tibia maps.
   zone tools, spawns, creatures, houses, and towns.
 - Supports selection, multi-floor selection, moving items between floors,
   cut/copy/paste, undo/redo, item properties, search, and replacement tools.
-- Includes an in-game preview mode for walking around the map. [ WIP ]
+- Includes a configurable In-game Preview window. [ WIP ]
 - Loads maps even when optional house and spawn sidecar files are absent.
 - Lets you switch between the modern GitHub-inspired interface and the
   Tibia-inspired Classic UI from the theme settings.
@@ -225,10 +225,28 @@ directory.
 | Copy / cut / paste | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` |
 | Rotate doodad variant | `R` |
 | Go to position | `Ctrl+G` |
-| Exit in-game preview | `Esc` |
 
 While dragging an item, changing floors keeps the item attached to the cursor
 and drops it on the active floor.
+
+## AI Map Assistant
+
+The experimental AI Map Assistant can plan ground terrain inside a selection.
+It sends the selected tile coordinates, current ground brush names, and the
+available ground brushes to the OpenAI Responses API. The API key is read only
+from the process environment and is never stored in a map or project file.
+
+Start DME from PowerShell with:
+
+```powershell
+$env:OPENAI_API_KEY = "your-api-key"
+.\dist\DME.exe
+```
+
+Optionally set `OPENAI_MODEL`; the default is `gpt-5.6-luna`. In DME, select up
+to 1024 tiles on the current floor and choose **Edit > AI Map Assistant**. The
+assistant creates a validated plan first and changes the map only after
+**Apply** is pressed. The complete change is one undo step.
 
 ## Project structure
 

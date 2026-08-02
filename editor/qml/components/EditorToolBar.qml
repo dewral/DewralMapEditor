@@ -2,14 +2,16 @@ import QtQuick
 import QtQuick.Controls
 import Tibia 1.0
 import "../style"
+import "../themes/classic/controls" as Classic
 
 Item {
     id: toolBar
     required property var mapView
+    required property var settings
     height: Backend.otbmReader.loaded ? 40 : 0
     visible: Backend.otbmReader.loaded
 
-    TibiaPanel {
+    DmePanel {
         anchors.fill: parent
     }
 
@@ -131,7 +133,6 @@ Item {
             delegate: TbBtn {
                 required property var modelData
 
-                enabled: !toolBar.mapView.ingamePreview
                 tip: modelData.label
                 dot: modelData.col
                 active: toolBar.mapView.activeZone === modelData.flag
@@ -143,7 +144,6 @@ Item {
 
         TbBtn {
             label: "Erase"
-            enabled: !toolBar.mapView.ingamePreview
             active: toolBar.mapView.eraseMode
             activeBg: "#5a3030"
             activeBorder: "#dc8f8f"
@@ -159,36 +159,34 @@ Item {
 
         TbBtn {
             label: toolBar.mapView.selectionMode ? "Selection (Space)" : "Draw (Space)"
-            enabled: !toolBar.mapView.ingamePreview
             active: true
             activeBg: toolBar.mapView.selectionMode ? "#2f3a4a" : "#22432f"
             activeBorder: toolBar.mapView.selectionMode ? "#6aa0dc" : "#7fdc8f"
             onClicked: toolBar.mapView.toggleSelectionMode()
         }
         TbBtn {
-            label: toolBar.mapView.ingamePreview ? "Exit preview (Esc)" : "In-game preview"
-            active: toolBar.mapView.ingamePreview
-            onClicked: toolBar.mapView.ingamePreview = !toolBar.mapView.ingamePreview
+            label: "In-game preview"
+            active: toolBar.settings.showIngamePreviewWindow
+            onClicked: toolBar.settings.showIngamePreviewWindow =
+                       !toolBar.settings.showIngamePreviewWindow
         }
         TbBtn {
             visible: toolBar.mapView.brushServerId > 0
-            enabled: !toolBar.mapView.ingamePreview
             label: Backend.otbReader.nameForServerId(toolBar.mapView.brushServerId) + "  X"
             active: true
             onClicked: toolBar.mapView.brushServerId = 0
         }
         TbBtn {
             visible: toolBar.mapView.selectionCount > 0
-            enabled: !toolBar.mapView.ingamePreview
             label: "Clear sel (" + toolBar.mapView.selectionCount + ")"
             onClicked: toolBar.mapView.clearSelection()
         }
         Text {
-            visible: toolBar.mapView.ingamePreview || toolBar.mapView.pasting
-                     || toolBar.mapView.eraseMode || toolBar.mapView.activeZone !== 0
-            text: toolBar.mapView.ingamePreview
-                  ? "WASD / arrows to walk - Esc to exit"
-                  : (toolBar.mapView.pasting ? "PASTE MODE - left click to confirm, Esc/right click to cancel" : (toolBar.mapView.eraseMode ? (toolBar.mapView.activeZone !== 0 ? "ERASE: zone" : "ERASE: items") : "Ctrl+left click = erase"))
+            visible: toolBar.mapView.pasting || toolBar.mapView.eraseMode
+                     || toolBar.mapView.activeZone !== 0
+            text: toolBar.mapView.pasting
+                  ? "PASTE MODE - left click to confirm, Esc/right click to cancel"
+                  : (toolBar.mapView.eraseMode ? (toolBar.mapView.activeZone !== 0 ? "ERASE: zone" : "ERASE: items") : "Ctrl+left click = erase")
             color: toolBar.mapView.pasting ? "#6aa0dc" : (toolBar.mapView.eraseMode ? "#dc8f8f" : "#888")
             font.pixelSize: 10
             anchors.verticalCenter: parent.verticalCenter
@@ -243,9 +241,8 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
         }
 
-        TibiaDarkButton {
+        Classic.ClassicDarkButton {
             label: "Center"
-            enabled: !toolBar.mapView.ingamePreview
             onClicked: toolBar.mapView.centerOnContent()
             anchors.verticalCenter: parent.verticalCenter
         }
@@ -263,24 +260,22 @@ Item {
             font.pixelSize: 11
             anchors.verticalCenter: parent.verticalCenter
         }
-        TibiaDarkButton {
+        Classic.ClassicDarkButton {
             readOnly: true
             width: 26
             label: toolBar.mapView.floor
             anchors.verticalCenter: parent.verticalCenter
         }
 
-        TibiaDarkButton {
+        Classic.ClassicDarkButton {
             width: 26
             label: "-"
-            enabled: !toolBar.mapView.ingamePreview
             onClicked: toolBar.mapView.floor = toolBar.mapView.floor + 1
             anchors.verticalCenter: parent.verticalCenter
         }
-        TibiaDarkButton {
+        Classic.ClassicDarkButton {
             width: 26
             label: "+"
-            enabled: !toolBar.mapView.ingamePreview
             onClicked: toolBar.mapView.floor = toolBar.mapView.floor - 1
             anchors.verticalCenter: parent.verticalCenter
         }

@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: gotoPosDialog
 
     required property var mapCtrl
@@ -24,21 +24,21 @@ TibiaDialog {
 
         Row {
             spacing: 6
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: xField2
                 width: 78
                 from: 0
                 to: 65535
                 value: Math.round(gotoPosDialog.mapCtrl.glOriginX())
             }
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: yField2
                 width: 78
                 from: 0
                 to: 65535
                 value: Math.round(gotoPosDialog.mapCtrl.glOriginY())
             }
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: zField2
                 width: 62
                 from: 0
@@ -50,12 +50,12 @@ TibiaDialog {
         Row {
             spacing: 6
             anchors.horizontalCenter: parent.horizontalCenter
-            TibiaButton {
+            DmeButton {
                 text: "OK"
                 width: 90
                 onClicked: gotoPosDialog.go()
             }
-            TibiaButton {
+            DmeButton {
                 text: "Cancel"
                 width: 90
                 onClicked: gotoPosDialog.close()

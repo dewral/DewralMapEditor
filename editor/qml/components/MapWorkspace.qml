@@ -16,7 +16,7 @@ Item {
     property alias mapGl: mapGl
     property alias context: mapArea.ctx
 
-    TibiaPanel {
+    DmePanel {
         anchors.fill: parent
         visible: !workspace.githubUi
     }
@@ -155,7 +155,13 @@ Item {
             settings: workspace.settings
         }
 
-        TibiaMenu {
+        IngamePreviewPanel {
+            mapView: mapView
+            settings: workspace.settings
+            githubUi: workspace.githubUi
+        }
+
+        DmeMenu {
             id: contextMenu
             Action {
                 text: "Cut"
@@ -166,6 +172,11 @@ Item {
                 text: "Copy"
                 enabled: mapView.selectionCount > 0
                 onTriggered: mapView.copySelection()
+            }
+            Action {
+                text: "Add Prefab..."
+                enabled: mapView.selectionCount > 0
+                onTriggered: prefabDialog.openForSelection()
             }
             Action {
                 text: "Copy Position"
@@ -203,7 +214,7 @@ Item {
                 onTriggered: Backend.fileTools.setClipboard(mapArea.ctx.name)
             }
             MenuSeparator {}
-            TibiaMenuItem {
+            DmeMenuItem {
                 text: "Select Brush"
                 visible: mapArea.ctx.hasItem && mapView.brushForServerId(mapArea.ctx.serverId) !== ""
                 height: visible ? implicitHeight : 0
@@ -214,25 +225,25 @@ Item {
                 enabled: mapArea.ctx.hasItem
                 onTriggered: workspace.paletteNavigator.selectRaw(mapArea.ctx.serverId)
             }
-            TibiaMenuItem {
+            DmeMenuItem {
                 text: "Select Creature"
                 visible: mapArea.ctx.creatureName !== ""
                 height: visible ? implicitHeight : 0
                 onTriggered: workspace.paletteNavigator.selectCreature(mapArea.ctx.creatureName)
             }
-            TibiaMenuItem {
+            DmeMenuItem {
                 text: "Go To Destination"
                 visible: mapArea.ctx.teleport === true && mapArea.ctx.hasTeleportDest === true
                 height: visible ? implicitHeight : 0
                 onTriggered: mapView.centerOnPosition(mapArea.ctx.teleportX, mapArea.ctx.teleportY, mapArea.ctx.teleportZ)
             }
-            TibiaMenuItem {
+            DmeMenuItem {
                 text: "Rotate Item"
                 visible: mapArea.ctx.canRotate === true
                 height: visible ? implicitHeight : 0
                 onTriggered: mapView.rotateContextItem()
             }
-            TibiaMenuItem {
+            DmeMenuItem {
                 text: mapArea.ctx.doorOpen === true ? "Close Door" : "Open Door"
                 visible: mapArea.ctx.door === true
                 height: visible ? implicitHeight : 0
@@ -242,6 +253,114 @@ Item {
                 text: "Properties"
                 enabled: mapArea.ctx.hasItem || mapArea.ctx.creatureName !== "" || mapArea.ctx.spawnRadius > 0
                 onTriggered: workspace.propertiesDialog.open()
+            }
+        }
+
+        DmeDialog {
+            id: prefabDialog
+            title: "Add Prefab"
+            property var paletteNames: {
+                const revision = Backend.tilesetStore.revision;
+                return Backend.tilesetStore.namesFor("doodad");
+            }
+
+            function openForSelection() {
+                prefabName.text = "";
+                newPrefabPalette.text = "";
+                prefabError.text = "";
+                prefabPalette.currentIndex = paletteNames.length > 0 ? 0 : paletteNames.length;
+                open();
+                Qt.callLater(function() { prefabName.forceActiveFocus(); });
+            }
+
+            function commit() {
+                const creatingPalette = prefabPalette.currentIndex >= paletteNames.length;
+                const palette = creatingPalette ? newPrefabPalette.text.trim()
+                                                : prefabPalette.currentText;
+                if (prefabName.text.trim() === "") {
+                    prefabError.text = "Enter a prefab name.";
+                    return;
+                }
+                if (palette === "") {
+                    prefabError.text = "Select or enter a doodad category.";
+                    return;
+                }
+                if (creatingPalette && !Backend.tilesetStore.newTileset("doodad", palette)) {
+                    prefabError.text = Backend.tilesetStore.errorString || "Could not create the doodad category.";
+                    return;
+                }
+                const result = mapView.saveSelectionAsPrefab(prefabName.text.trim(), palette);
+                if (!result.success) {
+                    if (creatingPalette)
+                        Backend.tilesetStore.deleteTileset("doodad", palette);
+                    prefabError.text = result.error || "Could not save the prefab.";
+                    return;
+                }
+                close();
+                workspace.paletteNavigator.selectPrefabPalette(palette, prefabName.text.trim());
+            }
+
+            contentItem: Column {
+                width: 300
+                spacing: 8
+
+                Text {
+                    text: "Name"
+                    color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"
+                    font.pixelSize: 11
+                }
+                DmeTextField {
+                    id: prefabName
+                    width: parent.width
+                    placeholderText: "Prefab name"
+                    onAccepted: prefabDialog.commit()
+                }
+                Text {
+                    text: "Doodad category"
+                    color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"
+                    font.pixelSize: 11
+                }
+                DmeComboBox {
+                    id: prefabPalette
+                    width: parent.width
+                    model: prefabDialog.paletteNames.concat(["New category..."])
+                }
+                DmeTextField {
+                    id: newPrefabPalette
+                    width: parent.width
+                    visible: prefabPalette.currentIndex >= prefabDialog.paletteNames.length
+                    height: visible ? implicitHeight : 0
+                    placeholderText: "New doodad category"
+                    onAccepted: prefabDialog.commit()
+                }
+                Text {
+                    id: prefabError
+                    width: parent.width
+                    color: "#F85149"
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                }
+                Text {
+                    width: parent.width
+                    text: "All item stacks in the selected tiles will be stored. Creatures and spawns are not included."
+                    color: workspace.githubUi ? "#8B949E" : "#A0A0A0"
+                    font.pixelSize: 10
+                    wrapMode: Text.WordWrap
+                }
+                Row {
+                    spacing: 8
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    DmeButton {
+                        text: "Add"
+                        width: 90
+                        onClicked: prefabDialog.commit()
+                    }
+                    DmeButton {
+                        text: "Cancel"
+                        width: 90
+                        onClicked: prefabDialog.close()
+                    }
+                }
             }
         }
 
@@ -255,7 +374,7 @@ Item {
                 margins: 10
             }
 
-            TibiaPanel {
+            DmePanel {
                 anchors.fill: parent
             }
             Text {
@@ -514,6 +633,54 @@ Item {
                 radius: 4
                 color: "#3FB950"
                 anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+    }
+
+    Rectangle {
+        id: loadingOverlay
+        visible: Backend.otbmReader.loading
+        anchors.centerIn: parent
+        width: Math.min(420, parent.width - 40)
+        height: 112
+        z: 100
+        radius: workspace.githubUi ? 7 : 2
+        color: workspace.githubUi ? "#F0161B22" : "#F02A2A2A"
+        border.width: 1
+        border.color: workspace.githubUi ? "#3B4654" : "#777"
+
+        Column {
+            anchors { fill: parent; margins: 16 }
+            spacing: 10
+
+            Text {
+                text: "Loading map in background"
+                color: workspace.githubUi ? "#E6EDF3" : "#E0E0E0"
+                font.pixelSize: 13
+                font.bold: true
+            }
+            Text {
+                width: parent.width
+                text: Backend.otbmReader.loadingStage
+                color: workspace.githubUi ? "#A7B1BC" : "#C0C0C0"
+                font.pixelSize: 11
+                elide: Text.ElideRight
+            }
+            Rectangle {
+                width: parent.width
+                height: 7
+                radius: 4
+                color: workspace.githubUi ? "#21262D" : "#151515"
+                Rectangle {
+                    width: parent.width * Backend.otbmReader.loadingProgress / 100
+                    height: parent.height
+                    radius: parent.radius
+                    color: workspace.githubUi ? "#2EA043" : "#4FAE62"
+
+                    Behavior on width {
+                        NumberAnimation { duration: 100; easing.type: Easing.OutCubic }
+                    }
+                }
             }
         }
     }

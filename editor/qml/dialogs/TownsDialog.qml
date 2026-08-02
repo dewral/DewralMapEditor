@@ -3,7 +3,7 @@ import QtQuick
 import QtQuick.Controls
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: townsDialog
 
     required property var app
@@ -71,7 +71,7 @@ TibiaDialog {
     contentItem: Column {
         spacing: 8
 
-        TibiaPanel {
+        DmePanel {
             width: parent.width
             height: 140
 
@@ -118,7 +118,7 @@ TibiaDialog {
                 }
             }
 
-            TibiaScrollBar {
+            DmeScrollBar {
                 anchors {
                     right: parent.right
                     top: parent.top
@@ -131,12 +131,12 @@ TibiaDialog {
 
         Row {
             spacing: 6
-            TibiaButton {
+            DmeButton {
                 text: "Add"
                 width: 90
                 onClicked: townsDialog.refresh(Backend.otbmReader.addTown())
             }
-            TibiaButton {
+            DmeButton {
                 text: "Remove"
                 width: 90
                 enabled: townsDialog.selectedId >= 0
@@ -156,7 +156,7 @@ TibiaDialog {
             id: nameRow
             spacing: 6
             enabled: townsDialog.selectedTown !== null
-            TibiaTextField {
+            DmeTextField {
                 id: nameField
                 width: 210
                 onEditingFinished: {
@@ -188,7 +188,7 @@ TibiaDialog {
                 townsDialog.refresh(townsDialog.selectedId);
             }
 
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: xField
                 width: 78
                 from: 0
@@ -196,7 +196,7 @@ TibiaDialog {
                 enabled: parent.hasSel
                 onValueModified: parent.applyTemple()
             }
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: yField
                 width: 78
                 from: 0
@@ -204,7 +204,7 @@ TibiaDialog {
                 enabled: parent.hasSel
                 onValueModified: parent.applyTemple()
             }
-            TibiaSpinBox {
+            DmeSpinBox {
                 id: zField
                 width: 62
                 from: 0
@@ -212,7 +212,7 @@ TibiaDialog {
                 enabled: parent.hasSel
                 onValueModified: parent.applyTemple()
             }
-            TibiaButton {
+            DmeButton {
                 text: "Go To"
                 width: 70
                 enabled: parent.hasSel
@@ -223,7 +223,7 @@ TibiaDialog {
         Row {
             spacing: 6
             anchors.horizontalCenter: parent.horizontalCenter
-            TibiaButton {
+            DmeButton {
                 text: "OK"
                 width: 90
                 onClicked: {
@@ -233,7 +233,7 @@ TibiaDialog {
                 }
             }
 
-            TibiaButton {
+            DmeButton {
                 text: "Cancel"
                 width: 90
                 onClicked: townsDialog.close()

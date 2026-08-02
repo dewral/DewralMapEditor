@@ -15,13 +15,11 @@
 #include <vector>
 #include <cstdint>
 #include <cstdlib>
-#include <thread>
 #include <memory>
 #include <mutex>
-#include <condition_variable>
-#include <deque>
 #include <atomic>
 #include <set>
+#include <map>
 #include <tuple>
 #include <utility>
 
@@ -46,6 +44,7 @@ class MapView : public QQuickItem
     Q_PROPERTY(int floor READ floor WRITE setFloor NOTIFY floorChanged)
     Q_PROPERTY(int tileSize READ tileSize WRITE setTileSize NOTIFY tileSizeChanged)
     Q_PROPERTY(int spriteCount READ spriteCount NOTIFY atlasChanged)
+    Q_PROPERTY(bool atlasBuilding READ atlasBuilding NOTIFY atlasBuildingChanged)
 
     Q_PROPERTY(bool showLowerFloors READ showLowerFloors WRITE setShowLowerFloors NOTIFY showLowerFloorsChanged)
 
@@ -63,8 +62,11 @@ class MapView : public QQuickItem
 
     Q_PROPERTY(bool automagic READ automagic WRITE setAutomagic NOTIFY automagicChanged)
     Q_PROPERTY(QString hoverText READ hoverText NOTIFY hoverChanged)
+    Q_PROPERTY(int hoverX READ hoverX NOTIFY hoverChanged)
+    Q_PROPERTY(int hoverY READ hoverY NOTIFY hoverChanged)
 
     Q_PROPERTY(int brushServerId READ brushServerId WRITE setBrushServerId NOTIFY brushChanged)
+    Q_PROPERTY(QString doodadBrush READ doodadBrush NOTIFY brushChanged)
 
     Q_PROPERTY(QString creatureBrush READ creatureBrush WRITE setCreatureBrush NOTIFY brushChanged)
     Q_PROPERTY(bool spawnBrush READ spawnBrush WRITE setSpawnBrush NOTIFY brushChanged)
@@ -99,9 +101,6 @@ class MapView : public QQuickItem
     Q_PROPERTY(int activeZone READ activeZone WRITE setActiveZone NOTIFY activeZoneChanged)
 
     Q_PROPERTY(bool eraseMode READ eraseMode WRITE setEraseMode NOTIFY eraseModeChanged)
-    Q_PROPERTY(bool ingamePreview READ ingamePreview WRITE setIngamePreview NOTIFY ingamePreviewChanged)
-    Q_PROPERTY(int previewX READ previewX NOTIFY previewPositionChanged)
-    Q_PROPERTY(int previewY READ previewY NOTIFY previewPositionChanged)
 
 public:
     explicit MapView(QQuickItem *parent = nullptr);
@@ -111,53 +110,53 @@ public:
     OtbReader *otb() const { return m_otb; }
     DatReader *dat() const { return m_dat; }
     SprReader *spr() const { return m_spr; }
-    int floor() const { return m_floor; }
-    int tileSize() const { return m_tileSize; }
-    int spriteCount() const { return m_atlasSlots.size(); }
-    int selectionCount() const { return m_selected.size(); }
+    int floor() const { return m_navigationController.floor(); }
+    int tileSize() const { return m_navigationController.tileSize(); }
+    int spriteCount() const { return m_atlasService.spriteCount(); }
+    bool atlasBuilding() const { return m_atlasBuilding; }
+    int selectionCount() const { return m_selectionController.selected().size(); }
     QString hoverText() const { return m_hoverText; }
-    int brushServerId() const { return m_brushServerId; }
-    bool selectionMode() const { return m_selectionMode; }
+    int hoverX() const { return m_hoverX; }
+    int hoverY() const { return m_hoverY; }
+    int brushServerId() const { return m_brushController.serverId(); }
+    QString doodadBrush() const { return m_brushController.doodadBrush(); }
+    bool selectionMode() const { return m_editController.selectionMode(); }
     void setSelectionMode(bool on);
-    int activeZone() const { return static_cast<int>(m_activeZone); }
+    int activeZone() const { return static_cast<int>(m_editController.activeZone()); }
     void setActiveZone(int zone);
-    bool eraseMode() const { return m_eraseMode; }
+    bool eraseMode() const { return m_editController.eraseMode(); }
 
     void setEraseMode(bool on);
-    bool ingamePreview() const { return m_ingamePreview; }
-    void setIngamePreview(bool on);
-    int previewX() const { return m_previewX; }
-    int previewY() const { return m_previewY; }
-
-    Q_INVOKABLE void toggleSelectionMode() { setSelectionMode(!m_selectionMode); }
+    Q_INVOKABLE void toggleSelectionMode() { setSelectionMode(!m_editController.selectionMode()); }
 
     void setBrushServerId(int serverId) { applyBrushServerId(serverId, false); }
 
     Q_INVOKABLE void useGroundBrush(int serverId) { applyBrushServerId(serverId, true); }
+    Q_INVOKABLE void useDoodadBrush(const QString &name);
 
-    Q_INVOKABLE void setBrushStore(BrushStore *bs) { m_brushStore = bs; }
+    Q_INVOKABLE void setBrushStore(BrushStore *bs) { m_brushController.store() = bs; }
 
     Q_INVOKABLE void setCreatureStore(CreatureStore *cs) { m_creatureStore = cs; }
 
     Q_INVOKABLE QString brushForServerId(int serverId) const {
-        if (!m_brushStore || serverId <= 0) return QString();
-        QString n = m_brushStore->groundBrushForServerId(serverId);
-        if (n.isEmpty()) n = m_brushStore->wallBrushForServerId(serverId);
-        if (n.isEmpty()) n = m_brushStore->doodadBrushForServerId(serverId);
-        if (n.isEmpty()) n = m_brushStore->carpetBrushForServerId(serverId);
-        if (n.isEmpty()) n = m_brushStore->tableBrushForServerId(serverId);
+        if (!m_brushController.store() || serverId <= 0) return QString();
+        QString n = m_brushController.store()->groundBrushForServerId(serverId);
+        if (n.isEmpty()) n = m_brushController.store()->wallBrushForServerId(serverId);
+        if (n.isEmpty()) n = m_brushController.store()->doodadBrushForServerId(serverId);
+        if (n.isEmpty()) n = m_brushController.store()->carpetBrushForServerId(serverId);
+        if (n.isEmpty()) n = m_brushController.store()->tableBrushForServerId(serverId);
         return n;
     }
 
-    QString creatureBrush() const { return m_creatureBrush; }
+    QString creatureBrush() const { return m_brushController.creatureBrush(); }
     void setCreatureBrush(const QString &name);
-    bool spawnBrush() const { return m_spawnBrush; }
+    bool spawnBrush() const { return m_brushController.spawnBrush(); }
     void setSpawnBrush(bool on);
-    int creatureSpawntime() const { return m_creatureSpawntime; }
+    int creatureSpawntime() const { return m_brushController.creatureSpawntime(); }
     void setCreatureSpawntime(int s) {
         s = std::clamp(s, 1, 86400);
-        if (m_creatureSpawntime == s) return;
-        m_creatureSpawntime = s;
+        if (m_brushController.creatureSpawntime() == s) return;
+        m_brushController.creatureSpawntime() = s;
         emit brushChanged();
     }
     bool showAnimations() const { return m_showAnimations; }
@@ -200,6 +199,7 @@ public:
     void setShowSpawns(bool on) {
         if (m_showSpawns == on) return;
         m_showSpawns = on;
+        ++m_metadataOverlayVersion;
         ++m_dataVersion;
         emit viewFlagsChanged();
         emit contentUpdated(); update();
@@ -214,6 +214,7 @@ public:
     void setShowZonesAlways(bool on) {
         if (m_showZonesAlways == on) return;
         m_showZonesAlways = on;
+        ++m_metadataOverlayVersion;
         ++m_dataVersion;
         emit viewFlagsChanged();
         emit contentUpdated(); update();
@@ -222,7 +223,7 @@ public:
     void setTorchOn(bool on) {
         if (m_torchOn == on) return;
         m_torchOn = on;
-        m_lightChunks.clear();
+        clearLightChunks();
         m_lightDirty = true;
         emit torchChanged();
         emit contentUpdated(); update();
@@ -232,42 +233,43 @@ public:
         value = std::clamp(value, 0, 255);
         if (m_lightAmbient == value) return;
         m_lightAmbient = value;
-        m_lightChunks.clear();
+        clearLightChunks();
         m_lightDirty = true;
         emit torchChanged();
         emit contentUpdated(); update();
     }
 
-    int selectionFloors() const { return m_selectionFloors; }
+    int selectionFloors() const { return m_selectionController.floorMode(); }
     void setSelectionFloors(int m) {
         m = std::clamp(m, 0, 2);
-        if (m_selectionFloors == m) return;
-        m_selectionFloors = m;
+        if (m_selectionController.floorMode() == m) return;
+        m_selectionController.floorMode() = m;
         emit selectionOptionsChanged();
     }
-    bool compensatedSelect() const { return m_compensatedSelect; }
+    bool compensatedSelect() const { return m_selectionController.compensated(); }
     void setCompensatedSelect(bool on) {
-        if (m_compensatedSelect == on) return;
-        m_compensatedSelect = on;
+        if (m_selectionController.compensated() == on) return;
+        m_selectionController.compensated() = on;
         emit selectionOptionsChanged();
     }
 
-    int houseBrush() const { return m_houseBrush; }
+    int houseBrush() const { return m_brushController.houseBrush(); }
     void setHouseBrush(int id);
-    bool houseExitMode() const { return m_houseExitMode; }
+    bool houseExitMode() const { return m_brushController.houseExitMode(); }
     void setHouseExitMode(bool on);
 
-    int spawnBrushRadius() const { return m_spawnBrushRadius; }
+    int spawnBrushRadius() const { return m_brushController.spawnRadius(); }
     void setSpawnBrushRadius(int r) {
         r = std::clamp(r, 1, 15);
-        if (m_spawnBrushRadius == r) return;
-        m_spawnBrushRadius = r;
+        if (m_brushController.spawnRadius() == r) return;
+        m_brushController.spawnRadius() = r;
         emit brushChanged();
     }
 
     Q_INVOKABLE QString doodadPreviewSource(int serverId) const;
+    Q_INVOKABLE QString doodadPreviewSourceForName(const QString &name) const;
 
-    QString activeGroundBrush() const { return m_activeGroundBrush; }
+    QString activeGroundBrush() const { return m_brushController.groundBrush(); }
     bool showLowerFloors() const { return m_showLowerFloors; }
     void setShowLowerFloors(bool on);
     bool showShade() const { return m_showShade; }
@@ -281,18 +283,25 @@ public:
     bool glShowShade() const { return m_showShade; }
     bool placeEffect() const { return m_placeEffect; }
     void setPlaceEffect(bool on) { if (m_placeEffect != on) { m_placeEffect = on; emit placeEffectChanged(); } }
-    int brushSize() const { return m_brushSize; }
-    void setBrushSize(int r) { r = std::clamp(r, 0, 11);
-        if (m_brushSize != r) { m_brushSize = r; emit brushParamsChanged(); emit contentUpdated(); update(); } }
-    QString brushShape() const { return m_brushShape; }
+    int brushSize() const { return m_brushController.size(); }
+    void setBrushSize(int size) {
+        if (m_brushController.setSize(size)) {
+            emit brushParamsChanged();
+            emit contentUpdated();
+            update();
+        }
+    }
+    QString brushShape() const { return m_brushController.shape(); }
     void setBrushShape(const QString &s) {
-        if (m_brushShape != s && (s == QLatin1String("square") || s == QLatin1String("circle")))
-            { m_brushShape = s; emit brushParamsChanged(); emit contentUpdated(); update(); } }
+        if (m_brushController.setShape(s)) {
+            emit brushParamsChanged();
+            emit contentUpdated();
+            update();
+        }
+    }
 
     bool brushCovers(int dx, int dy) const {
-        if (m_brushShape == QLatin1String("circle"))
-            return dx * dx + dy * dy <= m_brushSize * m_brushSize;
-        return std::abs(dx) <= m_brushSize && std::abs(dy) <= m_brushSize;
+        return m_brushController.covers(dx, dy);
     }
 
     const QImage &minimapImage();
@@ -300,23 +309,46 @@ public:
     int minimapOriginY() const { return m_minimapService.originY(); }
     quint32 minimapVersion() const { return m_minimapService.version(); }
 
-    const QImage &glAtlasImage() const { return m_atlasImage; }
-    int glAtlasGeneration() const { return m_atlasGeneration; }
-    struct AtlasPatch { int x = 0; int y = 0; QImage image; };
+    const QImage &glAtlasImage() const { return m_atlasService.image(); }
+    int glAtlasGeneration() const { return m_atlasService.generation(); }
+    using AtlasPatch = MapAtlasService::Patch;
     void glTakeAtlasPatches(QVector<AtlasPatch> &out) {
-        out = std::move(m_atlasPatches);
-        m_atlasPatches.clear();
+        m_atlasService.takePatches(out);
     }
     void glReleaseAtlasImage(int generation) {
-        if (generation == m_atlasGeneration) m_atlasImage = QImage();
+        m_atlasService.releaseImage(generation);
     }
-    Q_INVOKABLE double glOriginX() const { return m_originX; }
-    Q_INVOKABLE double glOriginY() const { return m_originY; }
+    void glPublishAtlasTexture(quint32 texture, int width, int height, int generation) {
+        m_sharedAtlasTexture.store(texture, std::memory_order_release);
+        m_sharedAtlasWidth.store(width, std::memory_order_relaxed);
+        m_sharedAtlasHeight.store(height, std::memory_order_relaxed);
+        m_sharedAtlasGeneration.store(generation, std::memory_order_release);
+    }
+    quint32 glSharedAtlasTexture() const {
+        return m_sharedAtlasTexture.load(std::memory_order_acquire);
+    }
+    int glSharedAtlasWidth() const { return m_sharedAtlasWidth.load(std::memory_order_relaxed); }
+    int glSharedAtlasHeight() const { return m_sharedAtlasHeight.load(std::memory_order_relaxed); }
+    int glSharedAtlasGeneration() const {
+        return m_sharedAtlasGeneration.load(std::memory_order_acquire);
+    }
+    Q_INVOKABLE double glOriginX() const { return m_navigationController.originX(); }
+    Q_INVOKABLE double glOriginY() const { return m_navigationController.originY(); }
+    double glPointerVisualOffsetX() const;
+    double glPointerVisualOffsetY() const;
     int glBottomFloor() const { return renderBottomFloor(); }
 
-    int glQuadCacheVersion() const { return m_quadCacheVer.load(std::memory_order_relaxed); }
+    int glQuadCacheVersion() const {
+        return m_chunkStore.cacheVersion().load(std::memory_order_relaxed);
+    }
+    int glChunkCacheResetVersion() const {
+        return m_chunkStore.resetVersion().load(std::memory_order_relaxed);
+    }
+    void glTakeDirtyChunks(QVector<QPair<int, quint64>> &out);
 
     quint64 glContentVersion() const;
+    quint64 glMetadataOverlayVersion() const;
+    quint64 glPointerOverlayVersion() const;
 
     void glCollectFloorInstances(int z, int cMinX, int cMinY, int cMaxX, int cMaxY,
                                  bool groundOnly, std::vector<float> &out, bool &complete);
@@ -336,6 +368,7 @@ public:
     void glCollectEffectInstances(std::vector<float> &out);
 
     bool hasActiveEffects() const { return !m_activeEffects.empty(); }
+    bool editingStrokeActive() const { return m_brushController.painting(); }
 
     void glCollectSelectionInstances(std::vector<float> &out);
 
@@ -349,10 +382,10 @@ public:
     void lightRect(int &tx, int &ty, int &tw, int &th) const {
         tx = m_lightTX; ty = m_lightTY; tw = m_lightTW; th = m_lightTH;
     }
+    void glBuildPreviewLightGrid(int floor, int tx, int ty, int tw, int th,
+                                 std::vector<uint32_t> &out);
 
     void glCollectGhostInstances(std::vector<float> &out);
-    void glCollectPreviewPlayerInstances(std::vector<float> &out);
-
     void glCollectGridInstances(std::vector<float> &out);
 
     void glCollectWallOutlineInstances(std::vector<float> &out);
@@ -365,19 +398,19 @@ public:
                                     std::vector<float> &outPvp);
 
     bool glRubberBandRect(double &x0, double &y0, double &x1, double &y1) const {
-        if (m_ingamePreview || !m_selecting) return false;
-        x0 = std::min(m_anchorX, m_rubberX) * kSprite;
-        y0 = std::min(m_anchorY, m_rubberY) * kSprite;
-        x1 = (std::max(m_anchorX, m_rubberX) + 1) * kSprite;
-        y1 = (std::max(m_anchorY, m_rubberY) + 1) * kSprite;
+        if (!m_selectionController.selecting()) return false;
+        x0 = std::min(m_selectionController.anchorX(), m_selectionController.rubberX()) * kSprite;
+        y0 = std::min(m_selectionController.anchorY(), m_selectionController.rubberY()) * kSprite;
+        x1 = (std::max(m_selectionController.anchorX(), m_selectionController.rubberX()) + 1) * kSprite;
+        y1 = (std::max(m_selectionController.anchorY(), m_selectionController.rubberY()) + 1) * kSprite;
         return true;
     }
 
     bool glBrushRect(double &x0, double &y0, double &x1, double &y1) const {
-        if (m_ingamePreview || m_movingSel || m_selecting || m_selectionMode
+        if (m_selectionController.moving() || m_selectionController.selecting() || m_editController.selectionMode()
             || m_hoverX < 0) return false;
-        if (m_brushServerId <= 0 && m_activeZone == 0 && !m_eraseMode) return false;
-        const int r = m_brushSize;
+        if (m_brushController.serverId() <= 0 && m_editController.activeZone() == 0 && !m_editController.eraseMode()) return false;
+        const int r = m_brushController.size();
         x0 = static_cast<double>((m_hoverX - r) * kSprite);
         y0 = static_cast<double>((m_hoverY - r) * kSprite);
         x1 = static_cast<double>((m_hoverX + r + 1) * kSprite);
@@ -410,7 +443,7 @@ public:
     Q_INVOKABLE void centerOnTile(int x, int y, int z);
 
     Q_INVOKABLE void zoomSteps(int steps) {
-        if (!m_ingamePreview) zoomAt(steps, width() / 2.0, height() / 2.0);
+        zoomAt(steps, width() / 2.0, height() / 2.0);
     }
     Q_INVOKABLE void clearSelection();
 
@@ -455,17 +488,19 @@ public:
     void placeItemOnFloor(int x, int y, int z, const OtbmMapItem &item);
 
     Q_INVOKABLE void copySelection();
+    Q_INVOKABLE QVariantMap saveSelectionAsPrefab(const QString &name,
+                                                  const QString &palette);
 
     Q_INVOKABLE void cutSelection();
 
     Q_INVOKABLE void startPasting();
     Q_INVOKABLE void cancelPasting();
-    Q_INVOKABLE bool hasClipboard() const { return !m_clipboard.empty(); }
-    bool pasting() const { return m_pasting; }
-    bool automagic() const { return m_automagic; }
+    Q_INVOKABLE bool hasClipboard() const { return !m_selectionController.clipboard().empty(); }
+    bool pasting() const { return m_selectionController.pasting(); }
+    bool automagic() const { return m_brushController.automagic(); }
     void setAutomagic(bool on) {
-        if (m_automagic == on) return;
-        m_automagic = on;
+        if (m_brushController.automagic() == on) return;
+        m_brushController.automagic() = on;
         emit automagicChanged();
     }
 
@@ -474,6 +509,10 @@ public:
     Q_INVOKABLE void borderizeSelection();
 
     Q_INVOKABLE void randomizeSelection();
+
+    Q_INVOKABLE QVariantMap aiSelectionContext() const;
+    Q_INVOKABLE QVariantMap applyAiGroundPlan(const QVariantMap &plan,
+                                               const QVariantMap &context);
 
     Q_INVOKABLE int removeItemOnSelection(int serverId);
 
@@ -491,7 +530,7 @@ public:
 
     Q_INVOKABLE void centerOnPosition(int x, int y, int z);
     Q_INVOKABLE bool goToPreviousPosition();
-    Q_INVOKABLE bool hasPreviousPosition() const { return m_prevCenterValid; }
+    Q_INVOKABLE bool hasPreviousPosition() const { return m_navigationController.previousCenterValid(); }
 
     Q_INVOKABLE void undo();
 
@@ -504,6 +543,8 @@ signals:
     void floorChanged();
     void tileSizeChanged();
     void atlasChanged();
+    void atlasBuildingChanged();
+    void atlasBuildFinished(bool success, const QString &error);
     void selectionChanged();
     void selectionModeChanged();
     void selectionOptionsChanged();
@@ -522,8 +563,7 @@ signals:
     void showShadeChanged();
     void placeEffectChanged();
     void brushParamsChanged();
-    void ingamePreviewChanged();
-    void previewPositionChanged();
+    void mapLoadFinished(bool success, const QString &path, const QString &error);
 
     void contentUpdated();
     void contextMenuRequested(qreal x, qreal y);
@@ -549,18 +589,9 @@ private:
     static constexpr int kSprite = 32;
     // Keep a single atlas compatible with the 16K texture limit while allowing
     // all sprites from post-10.98 clients to fit vertically.
-    static constexpr int kAtlasColumns = 128;
     static constexpr int kChunkTiles = 32;
 
-    struct QuadRef {
-        int worldX;
-        int worldY;
-        int atlasSlot;
-        bool ground;
-        int tileX = 0, tileY = 0;
-        bool topItem = false;
-        int zoneFlags = 0;
-    };
+    using QuadRef = MapQuadRef;
 
     void buildStaticIndex();
     void updateCurrentFloor();
@@ -568,8 +599,9 @@ private:
     bool chunkHasContent(quint64 chunkKey) const;
     void resetAtlas();
     void buildAtlasImage();
-    void addSpritesToAtlas(const QSet<uint32_t> &sids);
     void ensureItemSprites(int serverId);
+    void queueAtlasSprites(const QSet<uint32_t> &spriteIds);
+    void startAtlasJob(QSet<uint32_t> spriteIds, bool replaceAtlas);
     int  atlasSlotForSprite(uint32_t spriteId) const;
 
     // The optional flag tracks chunks that require animation invalidation.
@@ -583,7 +615,6 @@ private:
 
     void startWorker();
     void stopWorker();
-    void workerLoop();
     void requestChunkQuads(int z, quint64 chunkKey);
 
     std::shared_ptr<const std::vector<QuadRef>> takeChunkQuads(int z, quint64 chunkKey);
@@ -597,11 +628,15 @@ private:
         ++m_dataVersion;
         emit selectionChanged();
     }
+    void invalidateSpawnIndex() {
+        m_spawnIndex.invalidate();
+        ++m_metadataOverlayVersion;
+    }
     void clearChunkQuadCache();
 
     int renderBottomFloor() const {
-        if (!m_showLowerFloors) return m_floor;
-        return (m_floor < 8) ? 7 : std::min(15, m_floor + 2);
+        if (!m_showLowerFloors) return m_navigationController.floor();
+        return (m_navigationController.floor() < 8) ? 7 : std::min(15, m_navigationController.floor() + 2);
     }
 
     static quint64 chunkKey(int cx, int cy) {
@@ -627,13 +662,6 @@ private:
     QVariantMap itemContextInfo(const OtbmMapItem &item, int index) const;
     void applyRubberBand();
     void updateHoverText();
-    bool previewWalkable(int x, int y) const;
-    bool findPreviewStart(int &x, int &y) const;
-    bool previewDirectionForKey(int key, int &dx, int &dy, int &direction) const;
-    void movePreviewForKey(int key);
-    void centerPreviewCamera();
-    void stopPreviewMovement();
-
     void applyBrushServerId(int serverId, bool asBrush);
     void paintAt(int x, int y);
 
@@ -668,7 +696,7 @@ private:
 
     void onTileEdited(int x, int y, int z);
 
-    void beginEditBatch() { ++m_editBatchDepth; }
+    void beginEditBatch() { m_editController.beginBatch(); }
     void endEditBatch();
 
     void flushEditedChunksLocked();
@@ -681,53 +709,18 @@ private:
     DatReader *m_dat = nullptr;
     SprReader *m_spr = nullptr;
 
-    int m_floor = 7;
-    int m_tileSize = 32;
-    qreal m_originX = 0;
-    qreal m_originY = 0;
-    QPointF m_lastMouse;
-
-    MapFloorTileIndex m_floorChunkTiles;
-    qsizetype m_indexedTileCount = 0;
-
-    QHash<int, QSet<quint64>> m_dirtyFloorChunks;
-
-    std::set<std::pair<int, quint64>> m_pendingChunkRecompute;
-    int m_editBatchDepth = 0;
+    MapChunkStore m_chunkStore;
+    MapEditController m_editController;
+    MapBrushController m_brushController;
+    MapSelectionController m_selectionController;
+    MapNavigationController m_navigationController;
+    MapItemController m_itemController;
 
     mutable std::recursive_mutex m_dataMutex;
-    std::mutex m_quadMutex;
-
-    QHash<int, QHash<quint64, std::shared_ptr<const std::vector<QuadRef>>>> m_quadCache;
-
-    QHash<int, QHash<quint64, quint32>> m_chunkVer;
-
-    // Animated chunk membership is protected by m_quadMutex.
-    QHash<int, QSet<quint64>> m_animChunks;
-
-    quint32 m_chunkVerCounter = 0;
-    std::thread m_worker;
-    std::condition_variable m_reqCv;
-    std::mutex m_reqMutex;
-    struct ChunkRequest {
-        int z;
-        quint64 key;
-        quint64 generation;
-    };
-    std::deque<ChunkRequest> m_reqQueue;
-
-    std::set<std::tuple<int, quint64, quint64>> m_reqPending;
-
-    std::atomic<quint64> m_chunkTaskGeneration{1};
-    std::atomic<bool> m_workerStop{false};
-    std::atomic<int> m_quadCacheVer{0};
-
     static constexpr int kPlaceEffectId = 3;
     struct ActiveEffect { int x, y, z; qint64 startMs; };
     std::vector<ActiveEffect> m_activeEffects;
     bool m_placeEffect = true;
-    int m_brushSize = 0;
-    QString m_brushShape = QStringLiteral("square");
     QElapsedTimer m_effectClock;
 
     qreal m_prevOriginX = 1e18, m_prevOriginY = 1e18;
@@ -735,9 +728,6 @@ private:
 
     int m_minTileX = 0, m_minTileY = 0, m_maxTileX = 0, m_maxTileY = 0;
     bool m_floorDirty = true;
-
-    QSet<quint64> m_selected;
-    QSet<quint64> m_selChunks;
 
     bool m_dragDraw = false;
     int m_dragStartX = 0, m_dragStartY = 0;
@@ -748,49 +738,10 @@ private:
 
     void cleanManagedBordersAt(int x, int y);
 
-    bool m_selWholeStack = false;
-    QSet<quint64> m_rubberBase;
-    bool m_selecting = false;
-
-    struct ClipTile {
-        int dx, dy, dz = 0;
-        std::vector<OtbmMapItem> items;
-        QString creature; int spawntime = 60; bool npc = false;
-        int spawnRadius = 0;
-    };
-    std::vector<ClipTile> m_clipboard;
-    bool m_pasting = false;
-    bool m_automagic = true;
-
-    int m_prevCenterX = 0, m_prevCenterY = 0, m_prevCenterZ = 0;
-    bool m_prevCenterValid = false;
+    using ClipTile = MapClipboardTile;
 
     void commitPasteAt(int px, int py);
-    bool m_panning = false;
-
-    QSet<int> m_heldArrows;
-    QTimer *m_arrowTimer = nullptr;
-    QElapsedTimer m_arrowClock;
-    QSet<int> m_previewHeldKeys;
-    QTimer *m_previewMoveTimer = nullptr;
-    int m_previewLastKey = 0;
-    bool m_ingamePreview = false;
-    int m_previewX = 0;
-    int m_previewY = 0;
-    int m_previewDirection = 0;
-    int m_previewStepFrame = 0;
-    int m_previewLookType = 128;
-    qreal m_previewSavedOriginX = 0;
-    qreal m_previewSavedOriginY = 0;
-    int m_previewSavedTileSize = 32;
-    bool m_previewSavedLowerFloors = true;
-    int m_brushServerId = 0;
-    BrushStore *m_brushStore = nullptr;
     CreatureStore *m_creatureStore = nullptr;
-    QString m_creatureBrush;
-    bool m_spawnBrush = false;
-    int m_creatureSpawntime = 60;
-    int m_spawnBrushRadius = 3;
     bool m_torchOn = false;
     bool m_showAnimations = false;
     bool m_minimapOn = false;
@@ -808,6 +759,7 @@ private:
         if (flag == on) return;
         flag = on;
         clearChunkQuadCache();
+        ++m_metadataOverlayVersion;
         ++m_dataVersion;
         emit viewFlagsChanged();
         emit contentUpdated(); update();
@@ -826,74 +778,52 @@ private:
     bool m_lightDirty = true;
     int m_lightAmbient = 40;
 
-    QHash<quint64, std::vector<uint32_t>> m_lightChunks;
-    void computeLightChunk(int cx, int cy, std::vector<uint32_t> &out) const;
+    QHash<int, QHash<quint64, std::vector<uint32_t>>> m_lightChunks;
+    std::mutex m_lightMutex;
+    void clearLightChunks() {
+        std::lock_guard<std::mutex> lock(m_lightMutex);
+        m_lightChunks.clear();
+    }
+    void computeLightChunk(int floor, int cx, int cy, std::vector<uint32_t> &out) const;
+    void buildLightGrid(int floor, int tx, int ty, int tw, int th,
+                        std::vector<uint32_t> &out);
     void invalidateLightAround(int x, int y, int z);
-    int m_selectionFloors = 0;
-    bool m_compensatedSelect = true;
-    int m_houseBrush = 0;
-    bool m_houseExitMode = false;
     void placeHouseAt(int x, int y);
-    QSet<int> m_ensuredOutfits;
-    void ensureOutfitSprites(int lookType);
+    void ensureCreatureSprites(const CreatureStore::CreatureType &creature);
     void placeSpawnAt(int x, int y);
     void placeCreatureBrushAt(int x, int y);
     bool tileInAnySpawn(int x, int y) const;
 
     mutable MapSpawnIndexService m_spawnIndex;
-    QString m_activeGroundBrush;
-    QString m_activeWallBrush;
-    QString m_activeDoodadBrush;
-    QString m_activeCarpetBrush;
-    QString m_activeTableBrush;
-    int m_activeDoorBrushId = 0;
-    int m_doodadVariant = -1;
-
-    QSet<quint64> m_strokePlaced;
-    QSet<quint64> m_strokeBorderTiles;
 
     mutable QHash<quint64, QString> m_groundNameCache;
     mutable bool m_groundNameCacheOn = false;
-    bool m_selectionMode = true;
-    quint32 m_activeZone = 0;
-    bool m_eraseMode = false;
-    bool m_eraseStroke = false;
-
-    bool m_bulkEdit = false;
-    bool m_painting = false;
-    int m_paintLastX = -2000000, m_paintLastY = -2000000;
-    int m_anchorX = 0, m_anchorY = 0;
-    int m_rubberX = 0, m_rubberY = 0;
     int m_hoverX = -1, m_hoverY = -1;
-    int m_contextX = 0, m_contextY = 0;
-    int m_contextItemIndex = -1;
-
-    bool m_movingSel = false;
-    bool m_moveMoved = false;
-    int m_moveSrcX = 0, m_moveSrcY = 0;
-    int m_moveSrcZ = 0;
-    int m_moveServerId = 0;
     QString m_hoverText;
-    // Dlawik emisji hoverChanged (statusbar) - patrz updateHoverText().
+    // Throttles hoverChanged emissions used by the status bar.
     QTimer *m_hoverEmitTimer = nullptr;
 
     MapMinimapService m_minimapService;
     void minimapUpdateTile(int x, int y, int z);
 
-    QImage m_atlasImage;
-    QVector<AtlasPatch> m_atlasPatches;
-    int m_atlasRows = 0;
-    int m_atlasGeneration = 0;
+    MapAtlasService m_atlasService;
+    std::atomic<quint64> m_atlasBuildGeneration{0};
+    std::shared_ptr<int> m_lifetimeToken = std::make_shared<int>(0);
+    QSet<uint32_t> m_pendingAtlasSpriteIds;
+    std::set<std::pair<int, quint64>> m_atlasDirtyChunks;
+    bool m_atlasBuilding = false;
+    std::atomic<quint32> m_sharedAtlasTexture{0};
+    std::atomic<int> m_sharedAtlasWidth{1};
+    std::atomic<int> m_sharedAtlasHeight{1};
+    std::atomic<int> m_sharedAtlasGeneration{-1};
     int m_dataVersion = 0;
-
-    QHash<uint32_t, int> m_spriteToSlot;
-
-    QSet<int> m_ensuredServerIds;
-    std::vector<QRect> m_atlasSlots;
-    bool m_atlasDirty = true;
+    quint32 m_metadataOverlayVersion = 0;
 
     bool m_showLowerFloors = true;
     bool m_showShade = true;
+    std::atomic<quint64> m_mapLoadGeneration{0};
+    std::shared_ptr<std::atomic_bool> m_mapLoadCancel;
+    bool m_asyncFloorIndexReady = false;
 };
 
 #endif

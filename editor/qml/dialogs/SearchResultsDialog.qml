@@ -4,7 +4,7 @@ import QtQuick
 import Tibia 1.0
 import "../style"
 
-TibiaDialog {
+DmeDialog {
     id: dialog
 
     required property var mapCtrl
@@ -60,7 +60,7 @@ TibiaDialog {
             }
         }
 
-        TibiaPanel {
+        DmePanel {
             width: parent.width
             height: 390
 
@@ -148,7 +148,7 @@ TibiaDialog {
                 }
             }
 
-            TibiaScrollBar {
+            DmeScrollBar {
                 anchors {
                     right: parent.right
                     top: parent.top
@@ -163,7 +163,7 @@ TibiaDialog {
             spacing: 6
             anchors.horizontalCenter: parent.horizontalCenter
 
-            TibiaButton {
+            DmeButton {
                 text: "Go To"
                 width: 90
                 enabled: resultList.currentIndex >= 0
@@ -174,13 +174,13 @@ TibiaDialog {
                 }
             }
 
-            TibiaButton {
+            DmeButton {
                 text: "Refresh"
                 width: 90
                 onClicked: dialog.runSearch()
             }
 
-            TibiaButton {
+            DmeButton {
                 text: "Close"
                 width: 90
                 onClicked: dialog.close()

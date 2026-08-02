@@ -2,147 +2,207 @@
 #include "mapview.h"
 #include "mapview_p.h"
 
-#include <QPainter>
-#include <QMouseEvent>
-#include <QHoverEvent>
-#include <QWheelEvent>
-#include <QCursor>
-#include <QKeyEvent>
-#include <QElapsedTimer>
-#include <QTimer>
-#include <QGuiApplication>
-#include <QSet>
+#include <QCoreApplication>
+#include <QMetaObject>
 #include <algorithm>
-#include <cmath>
-#include <cstring>
-#include <vector>
+#include <exception>
+#include <thread>
 
 void MapView::resetAtlas()
 {
-    m_atlasImage = QImage();
-    m_atlasPatches.clear();
-    m_atlasRows = 0;
-    m_spriteToSlot.clear();
-    m_atlasSlots.clear();
-    m_ensuredServerIds.clear();
-    m_ensuredOutfits.clear();
-
-    ++m_atlasGeneration;
+    m_atlasService.reset();
     ++m_dataVersion;
-}
-
-void MapView::addSpritesToAtlas(const QSet<uint32_t> &sids)
-{
-    if (!m_spr) return;
-    std::vector<uint32_t> toAdd;
-    for (uint32_t sid : sids)
-        if (sid != 0 && !m_spriteToSlot.contains(sid)) toAdd.push_back(sid);
-    if (toAdd.empty()) return;
-    std::sort(toAdd.begin(), toAdd.end());
-
-    constexpr int headroom = 1024;
-    const int oldCount = static_cast<int>(m_atlasSlots.size());
-    const int newCount = oldCount + static_cast<int>(toAdd.size());
-    const int capacity = m_atlasRows * kAtlasColumns;
-
-    bool grew = false;
-    if (oldCount == 0 || newCount > capacity) {
-        const int rows = (newCount + headroom + kAtlasColumns - 1) / kAtlasColumns;
-        QImage img(kAtlasColumns * kSprite, std::max(1, rows) * kSprite,
-                   QImage::Format_RGBA8888);
-        img.fill(Qt::transparent);
-
-        if (!m_atlasImage.isNull()) {
-            QPainter cp(&img);
-            cp.drawImage(0, 0, m_atlasImage);
-        } else if (oldCount > 0) {
-            QPainter cp(&img);
-            m_spr->beginBulkAccess();
-            for (auto it = m_spriteToSlot.constBegin(); it != m_spriteToSlot.constEnd(); ++it) {
-                const int oldSlot = it.value();
-                auto sprite = m_spr->loadSpriteUncached(it.key());
-                if (!sprite || sprite->image.isNull()) continue;
-                cp.drawImage((oldSlot % kAtlasColumns) * kSprite,
-                             (oldSlot / kAtlasColumns) * kSprite,
-                             sprite->image);
-            }
-            m_spr->endBulkAccess();
-        }
-
-        m_atlasImage = img;
-        m_atlasPatches.clear();
-        m_atlasRows = rows;
-        grew = true;
-    }
-
-    std::unique_ptr<QPainter> painter;
-    if (!m_atlasImage.isNull()) painter = std::make_unique<QPainter>(&m_atlasImage);
-
-    m_spr->beginBulkAccess();
-    int slot = oldCount;
-    for (uint32_t sid : toAdd) {
-        const int sx = (slot % kAtlasColumns) * kSprite;
-        const int sy = (slot / kAtlasColumns) * kSprite;
-        auto sprite = m_spr->loadSpriteUncached(sid);
-        if (sprite && !sprite->image.isNull()) {
-            if (painter) painter->drawImage(sx, sy, sprite->image);
-            else m_atlasPatches.push_back(AtlasPatch{sx, sy, sprite->image});
-        }
-        m_spriteToSlot.insert(sid, slot);
-        m_atlasSlots.push_back(QRect(sx, sy, kSprite, kSprite));
-        ++slot;
-    }
-    m_spr->endBulkAccess();
-    if (painter) painter->end();
-    ++m_atlasGeneration;
-    if (grew) ++m_dataVersion;
 }
 
 void MapView::ensureItemSprites(int serverId)
 {
-
-    if (m_ensuredServerIds.contains(serverId)) return;
-    m_ensuredServerIds.insert(serverId);
-
-    const int cid = m_otb ? m_otb->clientIdForServerId(serverId) : 0;
-    const ClientItem *ci = (m_dat && cid > 0) ? m_dat->itemByClientId(static_cast<uint16_t>(cid)) : nullptr;
-    if (!ci) return;
-    QSet<uint32_t> sids;
-    for (uint32_t sid : ci->sprite_ids) if (sid != 0) sids.insert(sid);
-    addSpritesToAtlas(sids);
+    queueAtlasSprites(MapAtlasService::itemSpriteIds(serverId, m_otb, m_dat));
 }
 
 void MapView::buildAtlasImage()
 {
-
-    if (!m_otbm || !m_otbm->isLoaded() || !m_otb || !m_dat || !m_spr) return;
-
-    m_ensuredServerIds.clear();
-    m_ensuredOutfits.clear();
-
-    QSet<uint32_t> used;
-    for (const OtbmTile &tile : m_otbm->tiles()) {
-        for (const OtbmMapItem &item : tile.items) {
-            const int cid = m_otb->clientIdForServerId(item.server_id);
-            if (cid <= 0) continue;
-            const ClientItem *ci = m_dat->itemByClientId(static_cast<uint16_t>(cid));
-            if (!ci) continue;
-            for (uint32_t sid : ci->sprite_ids) if (sid != 0) used.insert(sid);
-        }
-
-        if (!tile.creature_name.isEmpty() && m_creatureStore) {
-            if (const auto *ct = m_creatureStore->byName(tile.creature_name))
-                if (const ClientItem *of = m_dat->outfitByLookType(static_cast<uint16_t>(ct->lookType)))
-                    for (uint32_t sid : of->sprite_ids) if (sid != 0) used.insert(sid);
-        }
+    if (!m_otbm || !m_otbm->isLoaded() || !m_otb || !m_otb->isLoaded()
+        || !m_dat || !m_dat->isLoaded() || !m_spr || !m_spr->isLoaded()) {
+        startAtlasJob({}, true);
+        return;
     }
-    if (const ClientItem *fx = m_dat->effectById(kPlaceEffectId))
-        for (uint32_t sid : fx->sprite_ids) if (sid != 0) used.insert(sid);
 
-    addSpritesToAtlas(used);
+    const QSet<uint32_t> spriteIds = MapAtlasService::collectSpriteIds(
+        m_otbm, m_otb, m_dat, m_creatureStore, kPlaceEffectId);
+    startAtlasJob(spriteIds, true);
+}
+
+void MapView::queueAtlasSprites(const QSet<uint32_t> &spriteIds)
+{
+    QSet<uint32_t> missing;
+    for (uint32_t spriteId : spriteIds) {
+        if (spriteId != 0 && m_atlasService.slotForSprite(spriteId) < 0)
+            missing.insert(spriteId);
+    }
+    if (missing.isEmpty()) return;
+    if (m_atlasBuilding) {
+        m_pendingAtlasSpriteIds.unite(missing);
+        return;
+    }
+    startAtlasJob(std::move(missing), false);
+}
+
+void MapView::startAtlasJob(QSet<uint32_t> spriteIds, bool replaceAtlas)
+{
+    const quint64 generation = m_atlasBuildGeneration.fetch_add(
+        1, std::memory_order_acq_rel) + 1;
+
+    if (replaceAtlas) {
+        m_pendingAtlasSpriteIds.clear();
+        m_atlasDirtyChunks.clear();
+        resetAtlas();
+        clearChunkQuadCache();
+        emit atlasChanged();
+        emit contentUpdated();
+        update();
+    }
+
+    if (!m_spr || !m_spr->isLoaded() || m_spr->sourcePath().isEmpty()) {
+        if (m_atlasBuilding) {
+            m_atlasBuilding = false;
+            emit atlasBuildingChanged();
+        }
+        emit atlasBuildFinished(false, QStringLiteral("Sprite file is not loaded"));
+        return;
+    }
+
+    const bool patchOnly = !replaceAtlas
+        && m_atlasService.canAppendWithoutGrowth(spriteIds.size());
+    MapAtlasService base;
+    if (!replaceAtlas && !patchOnly) base = m_atlasService;
+    const QString sprPath = m_spr->sourcePath();
+    const bool extended = m_spr->extendedFormat();
+    const bool useAlpha = m_spr->usesAlpha();
+    const std::weak_ptr<int> lifetime = m_lifetimeToken;
+    MapView *const self = this;
+    QObject *const dispatcher = QCoreApplication::instance();
+
+    if (!m_atlasBuilding) {
+        m_atlasBuilding = true;
+        emit atlasBuildingChanged();
+    }
+    if (m_otbm && m_otbm->isLoading())
+        m_otbm->reportLoadingProgress(94,
+            QStringLiteral("Decoding sprites and building atlas in background..."));
+
+    struct AtlasResult {
+        MapAtlasService atlas;
+        QVector<MapAtlasService::DecodedSprite> decodedSprites;
+        QString error;
+    };
+    auto result = std::make_shared<AtlasResult>();
+
+    std::thread([lifetime, self, dispatcher, generation, sprPath, extended,
+                 useAlpha, replaceAtlas, patchOnly, spriteIds = std::move(spriteIds),
+                 base = std::move(base), result]() mutable {
+        try {
+            SprReader decoder;
+            if (!decoder.loadFile(sprPath, 0, extended, useAlpha)) {
+                result->error = decoder.errorString();
+            } else if (patchOnly) {
+                std::vector<uint32_t> sortedIds;
+                sortedIds.reserve(static_cast<size_t>(spriteIds.size()));
+                for (uint32_t spriteId : spriteIds) sortedIds.push_back(spriteId);
+                std::sort(sortedIds.begin(), sortedIds.end());
+                result->decodedSprites.reserve(static_cast<qsizetype>(sortedIds.size()));
+                decoder.beginBulkAccess();
+                for (uint32_t spriteId : sortedIds) {
+                    const auto sprite = decoder.loadSpriteUncached(spriteId);
+                    result->decodedSprites.push_back(
+                        {spriteId, sprite ? sprite->image : QImage()});
+                }
+                decoder.endBulkAccess();
+            } else if (!spriteIds.isEmpty()) {
+                int lastProgress = -1;
+                base.addSprites(&decoder, spriteIds,
+                    [lifetime, self, dispatcher, generation, &lastProgress]
+                    (int completed, int total) {
+                        if (total <= 0 || lifetime.expired() || !dispatcher) return;
+                        const int progress = 94 + completed * 5 / total;
+                        if (progress == lastProgress) return;
+                        lastProgress = progress;
+                        QMetaObject::invokeMethod(dispatcher,
+                            [lifetime, self, generation, progress] {
+                                if (lifetime.expired()
+                                    || self->m_atlasBuildGeneration.load(
+                                           std::memory_order_acquire) != generation
+                                    || !self->m_otbm || !self->m_otbm->isLoading())
+                                    return;
+                                self->m_otbm->reportLoadingProgress(progress,
+                                    QStringLiteral("Decoding sprites and building atlas..."));
+                            }, Qt::QueuedConnection);
+                    });
+            }
+            if (!patchOnly) result->atlas = std::move(base);
+        } catch (const std::exception &exception) {
+            result->error = QStringLiteral("Sprite atlas build failed: %1")
+                                .arg(QString::fromLocal8Bit(exception.what()));
+        } catch (...) {
+            result->error = QStringLiteral("Sprite atlas build failed unexpectedly");
+        }
+
+        if (lifetime.expired() || !dispatcher) return;
+        QMetaObject::invokeMethod(dispatcher,
+            [lifetime, self, generation, replaceAtlas, patchOnly, result]() mutable {
+                if (lifetime.expired()
+                    || self->m_atlasBuildGeneration.load(std::memory_order_acquire)
+                           != generation)
+                    return;
+
+                bool success = result->error.isEmpty();
+                if (success) {
+                    std::lock_guard<std::recursive_mutex> lock(self->m_dataMutex);
+                    if (patchOnly) {
+                        success = self->m_atlasService.addDecodedSprites(
+                            std::move(result->decodedSprites));
+                        if (!success)
+                            result->error = QStringLiteral(
+                                "Sprite atlas capacity changed while decoding");
+                    } else {
+                        self->m_atlasService.adoptBuilt(std::move(result->atlas));
+                    }
+                }
+                if (success) {
+                    std::lock_guard<std::recursive_mutex> lock(self->m_dataMutex);
+                    ++self->m_dataVersion;
+                    if (replaceAtlas) {
+                        self->clearChunkQuadCache();
+                    } else {
+                        for (const auto &[floor, key] : self->m_atlasDirtyChunks) {
+                            std::vector<QuadRef> quads;
+                            bool animated = false;
+                            self->collectFloorChunkQuads(floor, key, quads, &animated);
+                            self->storeChunkQuads(floor, key, std::move(quads), animated);
+                        }
+                    }
+                    self->m_atlasDirtyChunks.clear();
+                    if (self->m_otbm && self->m_otbm->isLoading())
+                        self->m_otbm->reportLoadingProgress(99,
+                            QStringLiteral("Sprite atlas ready..."));
+                }
+
+                self->m_atlasBuilding = false;
+                emit self->atlasBuildingChanged();
+                emit self->atlasChanged();
+                emit self->contentUpdated();
+                self->update();
+                emit self->atlasBuildFinished(success, result->error);
+
+                if (!self->m_pendingAtlasSpriteIds.isEmpty()) {
+                    QSet<uint32_t> pending = std::move(self->m_pendingAtlasSpriteIds);
+                    self->m_pendingAtlasSpriteIds.clear();
+                    self->queueAtlasSprites(pending);
+                }
+            }, Qt::QueuedConnection);
+    }).detach();
 }
 
 int MapView::atlasSlotForSprite(uint32_t spriteId) const
 {
-    return m_spriteToSlot.value(spriteId, -1);
+    return m_atlasService.slotForSprite(spriteId);
 }

@@ -5,7 +5,7 @@ import QtQuick.Controls
 import Tibia 1.0
 import "../style"
 
-TibiaMenuBar {
+DmeMenuBar {
     id: menuBar
     required property var appController
     required property var mapView
@@ -28,6 +28,7 @@ TibiaMenuBar {
     required property var mapPropertiesDialog
     required property var statsDialog
     required property var brushEditorDialog
+    required property var aiMapAssistantDialog
     required property var themeDialog
     required property var borderizeConfirm
     required property var randomizeConfirm
@@ -39,7 +40,7 @@ TibiaMenuBar {
     anchors.left: menuBar.titleBarItem.left
     anchors.leftMargin: menuBar.menuLeftInset
 
-    TibiaMenu {
+    DmeMenu {
         title: "File"
         focus: false
         Action {
@@ -89,7 +90,7 @@ TibiaMenuBar {
         }
     }
 
-    TibiaMenu {
+    DmeMenu {
         title: "Edit"
         focus: false
         Action {
@@ -124,7 +125,7 @@ TibiaMenuBar {
         }
         MenuSeparator {}
 
-        TibiaMenu {
+        DmeMenu {
             title: "Border Options"
             Action {
                 text: "Border Automagic"
@@ -157,7 +158,7 @@ TibiaMenuBar {
             }
         }
 
-        TibiaMenu {
+        DmeMenu {
             title: "Other Options"
             Action {
                 text: "Remove Items by ID..."
@@ -203,9 +204,15 @@ TibiaMenuBar {
             enabled: menuBar.mapView.hasClipboard
             onTriggered: menuBar.mapView.startPasting()
         }
+        MenuSeparator {}
+        Action {
+            text: "AI Map Assistant..."
+            enabled: menuBar.mapView.selectionCount > 0
+            onTriggered: menuBar.aiMapAssistantDialog.open()
+        }
     }
 
-    TibiaMenu {
+    DmeMenu {
         title: "Search"
         focus: false
 
@@ -244,7 +251,7 @@ TibiaMenuBar {
         }
     }
 
-    TibiaMenu {
+    DmeMenu {
         title: "Map"
         focus: false
         Action {
@@ -259,12 +266,12 @@ TibiaMenuBar {
             onTriggered: menuBar.waypointsDialog.open()
         }
 
-        TibiaMenu {
+        DmeMenu {
             id: mapProfileMenu
             title: "Client profile"
             Instantiator {
                 model: menuBar.appController.configuredProfileKeys()
-                delegate: TibiaMenuItem {
+                delegate: DmeMenuItem {
                     required property string modelData
                     text: menuBar.appController.profileLabel(modelData)
                     checkable: true
@@ -311,7 +318,7 @@ TibiaMenuBar {
         }
     }
 
-    TibiaMenu {
+    DmeMenu {
         title: "Select"
         focus: false
         Action {
@@ -348,7 +355,7 @@ TibiaMenuBar {
         }
         MenuSeparator {}
 
-        TibiaMenu {
+        DmeMenu {
             title: "Selection Mode"
             Action {
                 text: "Compensate Selection"
@@ -395,7 +402,7 @@ TibiaMenuBar {
         }
     }
 
-    TibiaMenu {
+    DmeMenu {
         title: "Tools"
         focus: false
 
@@ -406,7 +413,7 @@ TibiaMenuBar {
         }
     }
 
-    TibiaMenu {
+    DmeMenu {
         title: "View"
         focus: false
         Action {
@@ -443,7 +450,7 @@ TibiaMenuBar {
             checked: menuBar.mapView.torchOn
             onTriggered: menuBar.mapView.torchOn = !menuBar.mapView.torchOn
         }
-        TibiaMenu {
+        DmeMenu {
             id: lightStrengthMenu
             title: "Light ambient"
             Instantiator {
@@ -455,7 +462,7 @@ TibiaMenuBar {
                     { label: "Bright", value: 128 },
                     { label: "Full light", value: 255 }
                 ]
-                delegate: TibiaMenuItem {
+                delegate: DmeMenuItem {
                     required property var modelData
                     text: modelData.label
                     checkable: true
@@ -474,6 +481,14 @@ TibiaMenuBar {
             checkable: true
             checked: menuBar.mapView.minimapOn
             onTriggered: menuBar.mapView.minimapOn = !menuBar.mapView.minimapOn
+        }
+        Action {
+            text: "In-game preview window"
+            shortcut: "Ctrl+Shift+I"
+            checkable: true
+            checked: menuBar.settings.showIngamePreviewWindow
+            onTriggered: menuBar.settings.showIngamePreviewWindow =
+                         !menuBar.settings.showIngamePreviewWindow
         }
         MenuSeparator {}
         Action {
@@ -576,7 +591,7 @@ TibiaMenuBar {
         }
         MenuSeparator {}
 
-        TibiaMenu {
+        DmeMenu {
             title: "Icon Size"
             Action {
                 text: "Small"
@@ -604,12 +619,12 @@ TibiaMenuBar {
         }
         MenuSeparator {}
 
-        TibiaMenu {
+        DmeMenu {
             id: fpsMenu
             title: "Limit FPS"
             Instantiator {
                 model: [0, 30, 60, 120, 144, 240]
-                delegate: TibiaMenuItem {
+                delegate: DmeMenuItem {
                     required property int modelData
                     text: modelData === 0 ? "Unlimited" : (modelData + " FPS")
                     checkable: true
@@ -623,25 +638,64 @@ TibiaMenuBar {
                 onObjectRemoved: (index, object) => fpsMenu.removeItem(object)
             }
         }
-        TibiaMenuItem {
+        DmeMenuItem {
             text: "V-Sync"
             checkable: true
             checked: menuBar.settings.vsyncEnabled
             onTriggered: menuBar.settings.vsyncEnabled = !menuBar.settings.vsyncEnabled
         }
 
-        TibiaMenu {
+        DmeMenu {
             id: undoMenu
             title: "Undo max"
             Instantiator {
                 model: [100, 500, 1000, 5000]
-                delegate: TibiaMenuItem {
+                delegate: DmeMenuItem {
                     required property int modelData
                     text: modelData + " steps"
                     onTriggered: Backend.otbmReader.setUndoLimit(modelData)
                 }
                 onObjectAdded: (index, object) => undoMenu.insertItem(index, object)
                 onObjectRemoved: (index, object) => undoMenu.removeItem(object)
+            }
+        }
+
+        DmeMenu {
+            id: autosaveMenu
+            title: "Autosave"
+            DmeMenuItem {
+                text: "Enabled"
+                checkable: true
+                checked: menuBar.settings.autosaveEnabled
+                onTriggered: {
+                    menuBar.settings.autosaveEnabled = !menuBar.settings.autosaveEnabled;
+                    Backend.docMgr.configureAutosave(
+                        menuBar.settings.autosaveEnabled,
+                        menuBar.settings.autosaveIntervalMinutes);
+                }
+            }
+            MenuSeparator {}
+            Instantiator {
+                model: [1, 3, 5, 10]
+                delegate: DmeMenuItem {
+                    required property int modelData
+                    text: "Every " + modelData
+                          + (modelData === 1 ? " minute" : " minutes")
+                    checkable: true
+                    checked: menuBar.settings.autosaveIntervalMinutes === modelData
+                    onTriggered: {
+                        menuBar.settings.autosaveIntervalMinutes = modelData;
+                        Backend.docMgr.configureAutosave(
+                            menuBar.settings.autosaveEnabled, modelData);
+                    }
+                }
+                onObjectAdded: (index, object) => autosaveMenu.insertItem(index + 2, object)
+                onObjectRemoved: (index, object) => autosaveMenu.removeItem(object)
+            }
+            MenuSeparator {}
+            DmeMenuItem {
+                text: "Save recovery now"
+                onTriggered: Backend.docMgr.autosaveNow()
             }
         }
     }

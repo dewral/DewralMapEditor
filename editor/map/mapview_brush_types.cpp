@@ -55,7 +55,6 @@ void MapView::paintGroundBrushAt(int cx, int cy)
     m_brushController.bulkEdit() = savedBulk;
     endEditBatch();
 }
-
 void MapView::paintDoodadBrushAt(int cx, int cy)
 {
     std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
@@ -355,4 +354,3 @@ void MapView::paintWallBrushAt(int cx, int cy)
     m_brushController.bulkEdit() = savedBulk;
     endEditBatch();
 }
-

@@ -29,7 +29,6 @@ int MapView::groundServerIdAt(const OtbmTile *tile) const
         if (itemCategory(it.server_id) == 0) return it.server_id;
     return 0;
 }
-
 QString MapView::groundBrushNameAt(int x, int y) const
 {
     if (!m_brushController.store()) return QString();
@@ -102,4 +101,3 @@ void MapView::recomputeBordersAt(int x, int y)
     }
     onTileEdited(x, y, m_navigationController.floor());
 }
-

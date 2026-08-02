@@ -116,7 +116,8 @@ void SprReader::reset()
     m_cacheLru.clear();
     m_cacheBytes = 0;
     m_dataUrlCache.clear();
-    m_itemDataUrlCache.clear();
+    m_dataUrlCacheLru.clear();
+    m_dataUrlCacheBytes = 0;
     m_loaded = false;
     endResetModel();
 
@@ -364,15 +365,13 @@ QImage SprReader::spriteImage(int spriteId)
 
 QString SprReader::spriteImageSource(int spriteId)
 {
-    auto cached = m_dataUrlCache.find(spriteId);
-    if (cached != m_dataUrlCache.end()) {
-        return cached.value();
-    }
+    const QString key = QStringLiteral("s:%1").arg(spriteId);
+    const QString cached = cachedDataUrl(key);
+    if (!cached.isEmpty()) return cached;
 
     QImage img = spriteImage(spriteId);
     QString dataUrl = imageToDataUrl(img);
-    if (m_dataUrlCache.size() >= kMaxDataUrlCache) m_dataUrlCache.clear();
-    m_dataUrlCache.insert(spriteId, dataUrl);
+    cacheDataUrl(key, dataUrl);
     return dataUrl;
 }
 
@@ -389,11 +388,10 @@ QString SprReader::itemImageSource(const QVariantList &spriteIds,
         return spriteImageSource(0);
     }
 
-    const QString key = makeItemCacheKey(spriteIds, width, height, layerCount);
-    auto cached = m_itemDataUrlCache.find(key);
-    if (cached != m_itemDataUrlCache.end()) {
-        return cached.value();
-    }
+    const QString key = QStringLiteral("i:")
+                        + makeItemCacheKey(spriteIds, width, height, layerCount);
+    const QString cached = cachedDataUrl(key);
+    if (!cached.isEmpty()) return cached;
 
     QImage composite(width * kDefaultSpriteSize,
                      height * kDefaultSpriteSize,
@@ -431,9 +429,48 @@ QString SprReader::itemImageSource(const QVariantList &spriteIds,
     painter.end();
 
     const QString dataUrl = imageToDataUrl(composite);
-    if (m_itemDataUrlCache.size() >= kMaxDataUrlCache) m_itemDataUrlCache.clear();
-    m_itemDataUrlCache.insert(key, dataUrl);
+    cacheDataUrl(key, dataUrl);
     return dataUrl;
+}
+
+QString SprReader::cachedDataUrl(const QString &key)
+{
+    auto cached = m_dataUrlCache.find(key);
+    if (cached == m_dataUrlCache.end()) return {};
+    m_dataUrlCacheLru.splice(m_dataUrlCacheLru.begin(), m_dataUrlCacheLru,
+                             cached->lru);
+    return cached->value;
+}
+
+void SprReader::cacheDataUrl(QString key, QString value)
+{
+    const qsizetype bytes = static_cast<qsizetype>(sizeof(DataUrlCacheEntry))
+                            + (key.size() + value.size())
+                                  * static_cast<qsizetype>(sizeof(QChar));
+    if (bytes > kMaxDataUrlCacheBytes) return;
+
+    auto existing = m_dataUrlCache.find(key);
+    if (existing != m_dataUrlCache.end()) {
+        m_dataUrlCacheBytes -= existing->bytes;
+        m_dataUrlCacheLru.erase(existing->lru);
+        m_dataUrlCache.erase(existing);
+    }
+
+    m_dataUrlCacheLru.push_front(key);
+    auto lru = m_dataUrlCacheLru.begin();
+    m_dataUrlCache.insert(std::move(key), DataUrlCacheEntry{std::move(value), lru, bytes});
+    m_dataUrlCacheBytes += bytes;
+
+    while (m_dataUrlCacheBytes > kMaxDataUrlCacheBytes
+           && !m_dataUrlCacheLru.empty()) {
+        const QString oldestKey = m_dataUrlCacheLru.back();
+        auto oldest = m_dataUrlCache.find(oldestKey);
+        if (oldest != m_dataUrlCache.end()) {
+            m_dataUrlCacheBytes -= oldest->bytes;
+            m_dataUrlCache.erase(oldest);
+        }
+        m_dataUrlCacheLru.pop_back();
+    }
 }
 
 int SprReader::rowCount(const QModelIndex &parent) const

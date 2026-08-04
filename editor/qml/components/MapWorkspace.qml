@@ -10,11 +10,34 @@ Item {
     required property var propertiesDialog
     required property var browseFieldDialog
     required property var paletteNavigator
-    readonly property bool githubUi: Backend.uiTheme.style === "github-dark"
+    readonly property bool githubUi: Backend.uiTheme.style !== "classic"
+    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     property alias mapView: mapView
     property alias mapGl: mapGl
     property alias context: mapArea.ctx
+
+    function positionText(format) {
+        var x = mapArea.ctx.x;
+        var y = mapArea.ctx.y;
+        var z = mapArea.ctx.z;
+        switch (format) {
+        case "tuple":
+            return "(" + x + ", " + y + ", " + z + ")";
+        case "lua":
+            return "{x = " + x + ", y = " + y + ", z = " + z + "}";
+        case "position":
+            return "Position(" + x + ", " + y + ", " + z + ")";
+        case "json":
+            return "{\"x\":" + x + ",\"y\":" + y + ",\"z\":" + z + "}";
+        default:
+            return x + ", " + y + ", " + z;
+        }
+    }
+
+    function copyPosition(format) {
+        Backend.fileTools.setClipboard(positionText(format));
+    }
 
     DmePanel {
         anchors.fill: parent
@@ -24,10 +47,10 @@ Item {
     Rectangle {
         anchors.fill: parent
         visible: workspace.githubUi
-        color: "#0D1117"
+        color: workspace.grayUi ? "#1A1A1A" : "#0D1117"
         border {
             width: 1
-            color: "#242D38"
+            color: workspace.grayUi ? "#3A3A3A" : "#242D38"
         }
     }
 
@@ -180,7 +203,30 @@ Item {
             }
             Action {
                 text: "Copy Position"
-                onTriggered: Backend.fileTools.setClipboard(mapArea.ctx.x + ", " + mapArea.ctx.y + ", " + mapArea.ctx.z)
+                onTriggered: workspace.copyPosition("plain")
+            }
+            DmeMenu {
+                title: "Copy Position As"
+                DmeMenuItem {
+                    text: "Plain: x, y, z"
+                    onTriggered: workspace.copyPosition("plain")
+                }
+                DmeMenuItem {
+                    text: "Tuple: (x, y, z)"
+                    onTriggered: workspace.copyPosition("tuple")
+                }
+                DmeMenuItem {
+                    text: "OTClient: Position(x, y, z)"
+                    onTriggered: workspace.copyPosition("position")
+                }
+                DmeMenuItem {
+                    text: "Lua table: {x = ..., y = ..., z = ...}"
+                    onTriggered: workspace.copyPosition("lua")
+                }
+                DmeMenuItem {
+                    text: "JSON: {\"x\":...,\"y\":...,\"z\":...}"
+                    onTriggered: workspace.copyPosition("json")
+                }
             }
             Action {
                 text: "Browse Field"
@@ -306,7 +352,7 @@ Item {
 
                 Text {
                     text: "Name"
-                    color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"
+                    color: workspace.grayUi ? "#E0E0E0" : (workspace.githubUi ? "#C9D1D9" : "#D0D0D0")
                     font.pixelSize: 11
                 }
                 DmeTextField {
@@ -317,7 +363,7 @@ Item {
                 }
                 Text {
                     text: "Doodad category"
-                    color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"
+                    color: workspace.grayUi ? "#E0E0E0" : (workspace.githubUi ? "#C9D1D9" : "#D0D0D0")
                     font.pixelSize: 11
                 }
                 DmeComboBox {
@@ -343,7 +389,7 @@ Item {
                 Text {
                     width: parent.width
                     text: "All item stacks in the selected tiles will be stored. Creatures and spawns are not included."
-                    color: workspace.githubUi ? "#8B949E" : "#A0A0A0"
+                    color: workspace.grayUi ? "#919191" : (workspace.githubUi ? "#8B949E" : "#A0A0A0")
                     font.pixelSize: 10
                     wrapMode: Text.WordWrap
                 }
@@ -365,6 +411,7 @@ Item {
         }
 
         Item {
+            z: 20
             visible: mapView.minimapOn
             width: 236
             height: 262
@@ -499,10 +546,10 @@ Item {
             bottomMargin: 1
         }
         height: visible ? 44 : 0
-        color: "#0F141B"
+        color: workspace.grayUi ? "#202020" : "#0F141B"
         border {
             width: 1
-            color: "#242D38"
+            color: workspace.grayUi ? "#3A3A3A" : "#242D38"
         }
 
         Row {
@@ -524,14 +571,14 @@ Item {
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "Coordinates"
-                color: "#A7B1BC"
+                color: workspace.grayUi ? "#A0A0A0" : "#A7B1BC"
                 font.pixelSize: 12
             }
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: mapView.hoverText.length > 0 ? mapView.hoverText : "\u2014"
-                color: mapView.hoverText.length > 0 ? "#E6EDF3" : "#6E7681"
+                color: mapView.hoverText.length > 0 ? (workspace.grayUi ? "#E8E8E8" : "#E6EDF3") : (workspace.grayUi ? "#777777" : "#6E7681")
                 font.pixelSize: 12
             }
         }
@@ -552,14 +599,14 @@ Item {
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "Floor"
-                color: "#A7B1BC"
+                color: workspace.grayUi ? "#A0A0A0" : "#A7B1BC"
                 font.pixelSize: 12
             }
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "Z - " + mapView.floor
-                color: "#E6EDF3"
+                color: workspace.grayUi ? "#E8E8E8" : "#E6EDF3"
                 font.pixelSize: 12
                 font.weight: Font.DemiBold
             }
@@ -567,21 +614,21 @@ Item {
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "\u2304"
-                color: "#8B949E"
+                color: workspace.grayUi ? "#929292" : "#8B949E"
                 font.pixelSize: 15
             }
 
             Rectangle {
                 width: 1
                 height: 20
-                color: "#242D38"
+                color: workspace.grayUi ? "#3A3A3A" : "#242D38"
                 anchors.verticalCenter: parent.verticalCenter
             }
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "Zoom"
-                color: "#A7B1BC"
+                color: workspace.grayUi ? "#A0A0A0" : "#A7B1BC"
                 font.pixelSize: 12
             }
 
@@ -590,7 +637,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 horizontalAlignment: Text.AlignRight
                 text: Math.round(mapView.tileSize / 32 * 100) + "%"
-                color: "#E6EDF3"
+                color: workspace.grayUi ? "#E8E8E8" : "#E6EDF3"
                 font.pixelSize: 12
                 font.weight: Font.DemiBold
             }
@@ -598,7 +645,7 @@ Item {
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "\u2304"
-                color: "#8B949E"
+                color: workspace.grayUi ? "#929292" : "#8B949E"
                 font.pixelSize: 15
             }
 
@@ -621,7 +668,7 @@ Item {
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: mapGl.fps > 0 ? ("FPS " + mapGl.fps) : "FPS idle"
-                color: "#3FB950"
+                color: workspace.grayUi ? "#C79A3B" : "#3FB950"
                 font {
                     pixelSize: 12
                     weight: Font.DemiBold
@@ -631,7 +678,7 @@ Item {
                 width: 7
                 height: 7
                 radius: 4
-                color: "#3FB950"
+                color: workspace.grayUi ? "#C79A3B" : "#3FB950"
                 anchors.verticalCenter: parent.verticalCenter
             }
         }
@@ -645,9 +692,9 @@ Item {
         height: 112
         z: 100
         radius: workspace.githubUi ? 7 : 2
-        color: workspace.githubUi ? "#F0161B22" : "#F02A2A2A"
+        color: workspace.grayUi ? "#F01C1C1C" : (workspace.githubUi ? "#F0161B22" : "#F02A2A2A")
         border.width: 1
-        border.color: workspace.githubUi ? "#3B4654" : "#777"
+        border.color: workspace.grayUi ? "#454545" : (workspace.githubUi ? "#3B4654" : "#777")
 
         Column {
             anchors { fill: parent; margins: 16 }
@@ -655,14 +702,14 @@ Item {
 
             Text {
                 text: "Loading map in background"
-                color: workspace.githubUi ? "#E6EDF3" : "#E0E0E0"
+                color: workspace.grayUi ? "#F0F0F0" : (workspace.githubUi ? "#E6EDF3" : "#E0E0E0")
                 font.pixelSize: 13
                 font.bold: true
             }
             Text {
                 width: parent.width
                 text: Backend.otbmReader.loadingStage
-                color: workspace.githubUi ? "#A7B1BC" : "#C0C0C0"
+                color: workspace.grayUi ? "#999999" : (workspace.githubUi ? "#A7B1BC" : "#C0C0C0")
                 font.pixelSize: 11
                 elide: Text.ElideRight
             }
@@ -670,12 +717,12 @@ Item {
                 width: parent.width
                 height: 7
                 radius: 4
-                color: workspace.githubUi ? "#21262D" : "#151515"
+                color: workspace.grayUi ? "#292929" : (workspace.githubUi ? "#21262D" : "#151515")
                 Rectangle {
                     width: parent.width * Backend.otbmReader.loadingProgress / 100
                     height: parent.height
                     radius: parent.radius
-                    color: workspace.githubUi ? "#2EA043" : "#4FAE62"
+                    color: workspace.grayUi ? "#C79A3B" : (workspace.githubUi ? "#2EA043" : "#4FAE62")
 
                     Behavior on width {
                         NumberAnimation { duration: 100; easing.type: Easing.OutCubic }

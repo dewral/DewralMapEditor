@@ -7,9 +7,14 @@ Item {
     property int to: 100
     property int stepSize: 1
     property bool editable: true
+    property var nextTabItem: null
+    property var previousTabItem: null
+    property var pasteHandler: null
     signal valueModified(int value)
     implicitWidth: 96
     implicitHeight: 22
+
+    function focusEditor() { input.forceActiveFocus(); input.selectAll(); }
 
     function setValue(nextValue) {
         var clamped = Math.max(from, Math.min(to, nextValue));
@@ -40,6 +45,16 @@ Item {
         validator: IntValidator { bottom: root.from; top: root.to }
         onTextEdited: root.setValue(parseInt(text || "0", 10))
         onEditingFinished: root.setValue(parseInt(text || "0", 10))
+        Keys.priority: Keys.BeforeItem
+        Keys.onPressed: function(event) {
+            if (event.matches(StandardKey.Paste) && root.pasteHandler) {
+                event.accepted = root.pasteHandler();
+            } else if (event.key === Qt.Key_Tab && root.nextTabItem) {
+                root.nextTabItem.focusEditor(); event.accepted = true;
+            } else if (event.key === Qt.Key_Backtab && root.previousTabItem) {
+                root.previousTabItem.focusEditor(); event.accepted = true;
+            }
+        }
     }
     Binding { target: input; property: "text"; value: String(root.value); when: !input.activeFocus }
     Column {

@@ -4,28 +4,30 @@ import Tibia 1.0
 
 Dialog {
     id: root
+    readonly property bool modernTheme: Backend.uiTheme.style !== "classic"
+    readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
     modal: true
-    dim: Backend.uiTheme.style === "github-dark"
+    dim: modernTheme
     anchors.centerIn: Overlay.overlay
     closePolicy: Popup.CloseOnEscape
-    padding: Backend.uiTheme.style === "github-dark" ? 16 : 12
+    padding: modernTheme ? 16 : 12
     background: DmeDialogBackground {}
 
     header: Item {
         visible: root.title.length > 0
-        implicitHeight: visible ? (Backend.uiTheme.style === "github-dark" ? 38 : 28) : 0
+        implicitHeight: visible ? (root.modernTheme ? 38 : 28) : 0
         Rectangle {
-            visible: Backend.uiTheme.style === "github-dark"
+            visible: root.modernTheme
             anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-            height: 1; color: "#30363D"
+            height: 1; color: root.grayTheme ? "#3A3A3A" : "#30363D"
         }
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            x: Backend.uiTheme.style === "github-dark" ? 16 : (parent.width - width) / 2
+            x: root.modernTheme ? 16 : (parent.width - width) / 2
             text: root.title
-            color: Backend.uiTheme.style === "github-dark" ? "#F0F6FC" : "#c0c0c0"
+            color: root.grayTheme ? "#F0F0F0" : (root.modernTheme ? "#F0F6FC" : "#c0c0c0")
             font.bold: true
-            font.pixelSize: Backend.uiTheme.style === "github-dark" ? 14 : 13
+            font.pixelSize: root.modernTheme ? 14 : 13
         }
     }
     Overlay.modal: Rectangle { color: "#99000000" }

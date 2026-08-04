@@ -5,6 +5,7 @@ import "../style"
 
 Item {
     id: panel
+    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     required property var mapView
     required property var settings
@@ -101,9 +102,9 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        color: panel.githubUi ? "#161B22" : "#242424"
+        color: panel.grayUi ? "#242424" : (panel.githubUi ? "#161B22" : "#242424")
         border.width: 1
-        border.color: panel.githubUi ? "#3B4654" : "#777"
+        border.color: panel.grayUi ? "#484848" : (panel.githubUi ? "#3B4654" : "#777")
         radius: panel.githubUi ? 6 : 0
     }
 
@@ -116,12 +117,12 @@ Item {
         id: header
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 1 }
         height: panel.headerHeight
-        color: panel.githubUi ? "#0F141B" : "#303030"
+        color: panel.grayUi ? "#202020" : (panel.githubUi ? "#0F141B" : "#303030")
 
         Text {
             anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
             text: "In-game Preview"
-            color: panel.githubUi ? "#E6EDF3" : "#E0E0E0"
+            color: panel.grayUi ? "#E8E8E8" : (panel.githubUi ? "#E6EDF3" : "#E0E0E0")
             font.pixelSize: 12
             font.bold: true
         }
@@ -205,7 +206,7 @@ Item {
     Rectangle {
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 1 }
         height: panel.footerHeight
-        color: panel.githubUi ? "#0F141B" : "#303030"
+        color: panel.grayUi ? "#202020" : (panel.githubUi ? "#0F141B" : "#303030")
 
         Text {
             anchors { left: parent.left; leftMargin: 8; verticalCenter: parent.verticalCenter }

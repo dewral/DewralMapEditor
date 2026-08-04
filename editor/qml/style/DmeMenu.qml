@@ -4,11 +4,12 @@ import Tibia 1.0
 
 Menu {
     id: root
+    readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
     implicitWidth: Math.max(160, implicitContentWidth + leftPadding + rightPadding)
     padding: 1
     overlap: 0
     background: Loader {
-        sourceComponent: Backend.uiTheme.style === "github-dark" ? githubMenuBackground : classicMenuBackground
+        sourceComponent: Backend.uiTheme.style === "classic" ? classicMenuBackground : githubMenuBackground
     }
     Component {
         id: classicMenuBackground
@@ -20,7 +21,7 @@ Menu {
     }
     Component {
         id: githubMenuBackground
-        Rectangle { implicitWidth: 150; radius: 6; color: "#10151C"; border.width: 1; border.color: "#2D3743" }
+        Rectangle { implicitWidth: 150; radius: 6; color: root.grayTheme ? "#202020" : "#10151C"; border.width: 1; border.color: root.grayTheme ? "#424242" : "#2D3743" }
     }
     delegate: DmeMenuItem {}
 }

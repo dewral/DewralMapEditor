@@ -1,6 +1,7 @@
 import QtQuick
 import "../themes/classic/controls" as Classic
 import "../themes/github/controls" as Github
+import "../themes/gray/controls" as Gray
 import Tibia 1.0
 
 Item {
@@ -15,7 +16,7 @@ Item {
     Loader {
         id: controlLoader
         anchors.fill: parent
-        sourceComponent: Backend.uiTheme.style === "github-dark" ? githubCheckBox : classicCheckBox
+        sourceComponent: Backend.uiTheme.style === "classic" ? classicCheckBox : (Backend.uiTheme.style === "gray-dark" ? grayCheckBox : githubCheckBox)
     }
     Component {
         id: classicCheckBox
@@ -31,4 +32,5 @@ Item {
             onClicked: root.clicked()
         }
     }
+    Component { id: grayCheckBox; Gray.GrayCheckBox { text: root.text; checked: root.checked; enabled: root.enabled; onClicked: root.clicked() } }
 }

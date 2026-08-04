@@ -9,6 +9,7 @@ Column {
     required property var app
     required property var mapCtrl
     required property bool githubUi
+    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     spacing: 4
 
@@ -107,13 +108,13 @@ Column {
                 height: creatureGrid.cellHeight - 2
                 property bool isBrush: root.mapCtrl.creatureBrush === name
                 color: isBrush
-                       ? (root.githubUi ? "#163B2C" : "#2f6f4f")
+                       ? (root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
                        : (root.githubUi
-                          ? (creatureMouseArea.containsMouse ? "#161E27" : "#0D1117")
+                          ? (creatureMouseArea.containsMouse ? (root.grayUi ? "#303030" : "#161E27") : (root.grayUi ? "#242424" : "#0D1117"))
                           : (creatureMouseArea.containsMouse ? "#3A3A3A" : "#2A2A2A"))
                 border.color: isBrush
-                              ? (root.githubUi ? "#2EA043" : "#7fdc8f")
-                              : (root.githubUi ? "#202A35" : "#3a3a3a")
+                              ? (root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
+                              : (root.githubUi ? (root.grayUi ? "#424242" : "#202A35") : "#3a3a3a")
                 border.width: isBrush ? 2 : 1
 
                 Column {
@@ -138,7 +139,7 @@ Column {
                     }
                     Text {
                         text: name
-                        color: root.githubUi ? "#A7B1BC" : "#c0c0c0"
+                        color: root.grayUi ? "#999999" : (root.githubUi ? "#A7B1BC" : "#c0c0c0")
                         font.pixelSize: 10
                         width: creatureGrid.cellWidth - 8
                         horizontalAlignment: Text.AlignHCenter

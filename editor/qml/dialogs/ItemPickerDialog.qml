@@ -8,7 +8,8 @@ DmeDialog {
     id: dialog
 
     property int initialServerId: 0
-    readonly property bool githubUi: Backend.uiTheme.style === "github-dark"
+    readonly property bool githubUi: Backend.uiTheme.style !== "classic"
+    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     signal itemSelected(int serverId)
 
@@ -110,9 +111,9 @@ DmeDialog {
                     width: itemList.width
                     height: 54
                     color: itemList.currentIndex === index
-                           ? (dialog.githubUi ? "#163B2C" : "#505050")
+                           ? (dialog.githubUi ? (dialog.grayUi ? "#4A3A1F" : "#163B2C") : "#505050")
                            : (rowMouse.containsMouse
-                              ? (dialog.githubUi ? "#161E27" : "#383838")
+                              ? (dialog.githubUi ? (dialog.grayUi ? "#303030" : "#161E27") : "#383838")
                               : "transparent")
 
                     Image {

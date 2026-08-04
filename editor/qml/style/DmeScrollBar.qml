@@ -5,7 +5,8 @@ Item {
     id: root
     property var flickable
     property bool dragging: false
-    readonly property bool githubTheme: Backend.uiTheme.style === "github-dark"
+    readonly property bool githubTheme: Backend.uiTheme.style !== "classic"
+    readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
 
     visible: flickable && flickable.contentHeight > flickable.height
     clip: true
@@ -85,7 +86,7 @@ Item {
     }
     Component {
         id: githubTrack
-        Item { Rectangle { anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 4; radius: 2; color: "#161B22" } }
+        Item { Rectangle { anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 4; radius: 2; color: root.grayTheme ? "#242424" : "#161B22" } }
     }
     Component {
         id: classicUp
@@ -93,7 +94,7 @@ Item {
     }
     Component {
         id: githubUp
-        Text { text: "\u2303"; color: upArea.containsMouse ? "#C9D1D9" : "#6E7681"; font.pixelSize: 9; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+        Text { text: "\u2303"; color: upArea.containsMouse ? (root.grayTheme ? "#E0E0E0" : "#C9D1D9") : (root.grayTheme ? "#777777" : "#6E7681"); font.pixelSize: 9; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
     }
     Component {
         id: classicDown
@@ -101,7 +102,7 @@ Item {
     }
     Component {
         id: githubDown
-        Text { text: "\u2304"; color: downArea.containsMouse ? "#C9D1D9" : "#6E7681"; font.pixelSize: 9; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+        Text { text: "\u2304"; color: downArea.containsMouse ? (root.grayTheme ? "#E0E0E0" : "#C9D1D9") : (root.grayTheme ? "#777777" : "#6E7681"); font.pixelSize: 9; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
     }
     Component {
         id: classicThumb
@@ -109,6 +110,6 @@ Item {
     }
     Component {
         id: githubThumb
-        Item { Rectangle { anchors.fill: parent; anchors.leftMargin: 3; anchors.rightMargin: 3; radius: 3; color: thumbArea.containsMouse || root.dragging ? "#8B949E" : "#57606A" } }
+        Item { Rectangle { anchors.fill: parent; anchors.leftMargin: 3; anchors.rightMargin: 3; radius: 3; color: thumbArea.containsMouse || root.dragging ? (root.grayTheme ? "#A0A0A0" : "#8B949E") : (root.grayTheme ? "#666666" : "#57606A") } }
     }
 }

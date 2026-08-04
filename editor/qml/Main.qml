@@ -13,7 +13,9 @@ import "themes/github"
 
 Window {
     id: root
-    readonly property bool githubUi: Backend.uiTheme.style === "github-dark"
+    // Both modern themes share one layout. Only their palettes differ.
+    readonly property bool githubUi: Backend.uiTheme.style !== "classic"
+    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
     readonly property int topBarHeight: githubUi ? 56 : 45
 
     visible: app.started
@@ -48,10 +50,10 @@ Window {
         visible: root.githubUi
         radius: root.visibility === Window.Maximized ? 0 : 6
         antialiasing: true
-        color: "#0D1117"
+        color: root.grayUi ? "#151515" : "#0D1117"
         border {
             width: 1
-            color: "#242D38"
+            color: root.grayUi ? "#383838" : "#242D38"
         }
     }
 
@@ -73,7 +75,7 @@ Window {
             visible: root.githubUi
             radius: root.visibility === Window.Maximized ? 0 : 6
             antialiasing: true
-            color: "#0D1117"
+            color: root.grayUi ? "#151515" : "#0D1117"
 
             Rectangle {
                 anchors {
@@ -82,7 +84,7 @@ Window {
                     bottom: parent.bottom
                 }
                 height: 1
-                color: "#212A35"
+                color: root.grayUi ? "#383838" : "#212A35"
             }
         }
 
@@ -107,7 +109,7 @@ Window {
             visible: root.githubUi
             anchors.centerIn: parent
             text: "Dewral Map Editor"
-            color: "#E6EDF3"
+            color: root.grayUi ? "#F0F0F0" : "#E6EDF3"
             font {
                 pixelSize: 14
                 weight: Font.DemiBold
@@ -126,10 +128,10 @@ Window {
             width: 30
             height: 30
             radius: 7
-            color: "#174D2B"
+            color: root.grayUi ? "#4A3A1F" : "#174D2B"
             border {
                 width: 1
-                color: "#2EA043"
+                color: root.grayUi ? "#C79A3B" : "#2EA043"
             }
             z: 5
 
@@ -317,7 +319,7 @@ Window {
             width: 1
             height: parent.height
             color: splitterArea.containsMouse || splitterArea.pressed
-                   ? (root.githubUi ? "#3A4655" : "#4a90e2")
+                   ? (root.grayUi ? "#595959" : (root.githubUi ? "#3A4655" : "#4a90e2"))
                    : "transparent"
         }
 
@@ -385,10 +387,12 @@ Window {
         Rectangle {
             anchors.fill: parent
             radius: 7
-            color: githubExpandArea.containsMouse ? "#171E27" : "#111820"
+            color: githubExpandArea.containsMouse ? (root.grayUi ? "#303030" : "#171E27")
+                                                    : (root.grayUi ? "#242424" : "#111820")
             border {
                 width: 1
-                color: githubExpandArea.containsMouse ? "#3A4655" : "#242D38"
+                color: githubExpandArea.containsMouse ? (root.grayUi ? "#595959" : "#3A4655")
+                                                       : (root.grayUi ? "#484848" : "#242D38")
             }
         }
 
@@ -423,7 +427,7 @@ Window {
         anchors.leftMargin: root.githubUi ? 0 : 4
         anchors.rightMargin: root.githubUi ? 1 : 8
 
-        sourceComponent: Backend.uiTheme.style === "github-dark"
+        sourceComponent: root.githubUi
                          ? githubToolBarComponent
                          : classicToolBarComponent
     }
@@ -455,7 +459,7 @@ Window {
         height: app.started ? (root.githubUi ? 42 : 22) : 0
         visible: app.started
 
-        sourceComponent: Backend.uiTheme.style === "github-dark"
+        sourceComponent: root.githubUi
                          ? githubTabsComponent
                          : classicTabsComponent
     }
@@ -492,7 +496,7 @@ Window {
             Text {
                 width: appCloseConfirm.width - 24
                 text: appCloseConfirm.message
-                color: root.githubUi ? "#C9D1D9" : "#c0c0c0"
+                color: root.grayUi ? "#E0E0E0" : (root.githubUi ? "#C9D1D9" : "#c0c0c0")
                 font.pixelSize: 12
                 wrapMode: Text.WordWrap
             }

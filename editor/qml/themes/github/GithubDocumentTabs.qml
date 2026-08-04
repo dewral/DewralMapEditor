@@ -5,13 +5,14 @@ import Tibia 1.0
 
 Item {
     id: tabs
+    readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
 
     required property var app
     required property var newMapDialog
 
     Rectangle {
         anchors.fill: parent
-        color: "#111722"
+        color: tabs.grayTheme ? "#181818" : "#111722"
 
         Rectangle {
             anchors {
@@ -20,7 +21,7 @@ Item {
                 bottom: parent.bottom
             }
             height: 1
-            color: "#242D38"
+            color: tabs.grayTheme ? "#383838" : "#242D38"
         }
     }
 
@@ -55,11 +56,11 @@ Item {
                     }
                     radius: 4
                     color: tab.active
-                           ? "#161D27"
-                           : (tabMouse.containsMouse ? "#151C24" : "transparent")
+                           ? (tabs.grayTheme ? "#282828" : "#161D27")
+                           : (tabMouse.containsMouse ? (tabs.grayTheme ? "#222222" : "#151C24") : "transparent")
                     border {
                         width: tab.active ? 1 : 0
-                        color: "#242D38"
+                        color: tabs.grayTheme ? "#424242" : "#242D38"
                     }
                 }
 
@@ -73,7 +74,7 @@ Item {
                     width: 9
                     height: 9
                     radius: 5
-                    color: "#3FB950"
+                    color: tabs.grayTheme ? "#C79A3B" : "#3FB950"
                 }
 
                 Text {
@@ -86,7 +87,7 @@ Item {
                         verticalCenter: parent.verticalCenter
                     }
                     text: tab.modelData.title + (tab.modelData.dirty ? "  \u25cf" : "")
-                    color: tab.active ? "#E6EDF3" : "#8B949E"
+                    color: tab.active ? (tabs.grayTheme ? "#F0F0F0" : "#E6EDF3") : (tabs.grayTheme ? "#929292" : "#8B949E")
                     font {
                         pixelSize: 11
                         weight: tab.active ? Font.DemiBold : Font.Normal
@@ -124,7 +125,7 @@ Item {
                     Text {
                         anchors.centerIn: parent
                         text: "\u00d7"
-                        color: closeMouse.containsMouse ? "#FF7B72" : "#8B949E"
+                        color: closeMouse.containsMouse ? "#FF7B72" : (tabs.grayTheme ? "#929292" : "#8B949E")
                         font.pixelSize: 14
                     }
 
@@ -149,17 +150,17 @@ Item {
                     margins: 2
                 }
                 radius: 5
-                color: newTabArea.containsMouse ? "#171E27" : "transparent"
+                color: newTabArea.containsMouse ? (tabs.grayTheme ? "#303030" : "#171E27") : "transparent"
                 border {
                     width: 1
-                    color: newTabArea.containsMouse ? "#3A4655" : "transparent"
+                    color: newTabArea.containsMouse ? (tabs.grayTheme ? "#595959" : "#3A4655") : "transparent"
                 }
             }
 
             Text {
                 anchors.centerIn: parent
                 text: "+"
-                color: newTabArea.containsMouse ? "#FFFFFF" : "#8B949E"
+                color: newTabArea.containsMouse ? "#FFFFFF" : (tabs.grayTheme ? "#929292" : "#8B949E")
                 font.pixelSize: 17
             }
 

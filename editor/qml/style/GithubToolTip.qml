@@ -1,11 +1,13 @@
 import QtQuick
 import QtQuick.Window
+import Tibia 1.0
 
 // Lightweight GitHub-style tooltip. It is an Item instead of a Controls
 // Popup so it also works in the editor's frameless Window (which is not an
 // ApplicationWindow and therefore has no guaranteed Controls overlay).
 Item {
     id: root
+    readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
 
     property Item targetItem
     property bool targetHovered: false
@@ -58,9 +60,9 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: 6
-        color: "#161B22"
+        color: root.grayTheme ? "#242424" : "#161B22"
         border.width: 1
-        border.color: "#30363D"
+        border.color: root.grayTheme ? "#484848" : "#30363D"
 
         Rectangle {
             anchors.left: parent.left
@@ -68,7 +70,7 @@ Item {
             anchors.bottom: parent.bottom
             width: 2
             radius: 1
-            color: "#2EA043"
+            color: root.grayTheme ? "#C79A3B" : "#2EA043"
         }
     }
 
@@ -80,7 +82,7 @@ Item {
         topPadding: 6
         bottomPadding: 6
         text: root.message
-        color: "#E6EDF3"
+        color: root.grayTheme ? "#F0F0F0" : "#E6EDF3"
         font.pixelSize: 12
         elide: Text.ElideRight
         verticalAlignment: Text.AlignVCenter

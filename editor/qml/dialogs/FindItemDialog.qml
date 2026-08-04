@@ -14,7 +14,8 @@ DmeDialog {
     property int total: 0
     property bool truncated: false
     readonly property bool propertyMode: searchMode === "properties"
-    readonly property bool githubUi: Backend.uiTheme.style === "github-dark"
+    readonly property bool githubUi: Backend.uiTheme.style !== "classic"
+    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     title: "Search for Item"
     width: 850
@@ -279,9 +280,9 @@ DmeDialog {
                             width: resultList.width - 12
                             height: 54
                             color: resultList.currentIndex === index
-                                   ? (dialog.githubUi ? "#163B2C" : "#505050")
+                                   ? (dialog.githubUi ? (dialog.grayUi ? "#4A3A1F" : "#163B2C") : "#505050")
                                    : (resultMouse.containsMouse
-                                      ? (dialog.githubUi ? "#161E27" : "#383838")
+                                      ? (dialog.githubUi ? (dialog.grayUi ? "#303030" : "#161E27") : "#383838")
                                       : "transparent")
 
                             Image {

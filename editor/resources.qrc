@@ -85,6 +85,14 @@
         <file alias="qml/themes/github/controls/GithubSpinBox.qml">qml/themes/github/controls/GithubSpinBox.qml</file>
         <file alias="qml/themes/github/controls/GithubComboBox.qml">qml/themes/github/controls/GithubComboBox.qml</file>
         <file alias="qml/themes/github/controls/GithubDialogBackground.qml">qml/themes/github/controls/GithubDialogBackground.qml</file>
+        <file alias="qml/themes/gray/controls/GrayButton.qml">qml/themes/gray/controls/GrayButton.qml</file>
+        <file alias="qml/themes/gray/controls/GrayPanel.qml">qml/themes/gray/controls/GrayPanel.qml</file>
+        <file alias="qml/themes/gray/controls/GrayCheckBox.qml">qml/themes/gray/controls/GrayCheckBox.qml</file>
+        <file alias="qml/themes/gray/controls/GrayTextField.qml">qml/themes/gray/controls/GrayTextField.qml</file>
+        <file alias="qml/themes/gray/controls/GraySeparator.qml">qml/themes/gray/controls/GraySeparator.qml</file>
+        <file alias="qml/themes/gray/controls/GraySpinBox.qml">qml/themes/gray/controls/GraySpinBox.qml</file>
+        <file alias="qml/themes/gray/controls/GrayComboBox.qml">qml/themes/gray/controls/GrayComboBox.qml</file>
+        <file alias="qml/themes/gray/controls/GrayDialogBackground.qml">qml/themes/gray/controls/GrayDialogBackground.qml</file>
         <!-- Tekstury classic UI (zrodlo: TibiaClient / otcv8-classicui-772gui; marginesy
              image-border/image-clip w komponentach stylu wyzej udokumentowane 1:1 z .otui) -->
         <file alias="ui/actionbar_background.png">ui/actionbar_background.png</file>

@@ -57,6 +57,7 @@ private:
     void hookDocument(OtbmReader *doc);
     void loadPreviousSession();
     void writeSession(bool cleanExit = false);
+    void scheduleSessionWrite();
     void autosaveDueDocument();
     QString recoveryDirectory() const;
     QString recoveryPath(const QString &id) const;
@@ -70,6 +71,7 @@ private:
     QHash<OtbmReader *, QString> m_profileKeys;
     QVariantList m_recoveries;
     QTimer m_autosaveTimer;
+    QTimer m_sessionWriteTimer;
     bool m_autosaveEnabled = true;
     int m_autosaveIntervalMinutes = 3;
     bool m_shuttingDown = false;

@@ -49,3 +49,11 @@ void FileTools::setClipboard(const QString &text) const
         cb->setText(text);
     }
 }
+
+QString FileTools::clipboardText() const
+{
+    if (const QClipboard *cb = QGuiApplication::clipboard()) {
+        return cb->text();
+    }
+    return QString();
+}

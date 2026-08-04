@@ -75,9 +75,21 @@ void MinimapView::paint(QPainter *p)
     const double sx = (cx - m_source->minimapOriginX()) - tilesW / 2.0;
     const double sy = (cy - m_source->minimapOriginY()) - tilesH / 2.0;
 
+    // Keep the cached map in the compact Indexed8 format, but rasterize only
+    // the small visible region to a format that every Qt Quick OpenGL paint
+    // target handles consistently.
+    const QSize viewportSize(std::max(1, static_cast<int>(std::ceil(width()))),
+                             std::max(1, static_cast<int>(std::ceil(height()))));
+    QImage viewport(viewportSize, QImage::Format_ARGB32_Premultiplied);
+    viewport.fill(QColor(12, 14, 18));
+    {
+        QPainter viewportPainter(&viewport);
+        viewportPainter.setRenderHint(QPainter::SmoothPixmapTransform, false);
+        viewportPainter.drawImage(QRectF(QPointF(0, 0), QSizeF(viewportSize)),
+                                  img, QRectF(sx, sy, tilesW, tilesH));
+    }
     p->setRenderHint(QPainter::SmoothPixmapTransform, false);
-    p->drawImage(QRectF(0, 0, width(), height()),
-                 img, QRectF(sx, sy, tilesW, tilesH));
+    p->drawImage(QPointF(0, 0), viewport);
 
     const double viewW = m_source->width() / ts * m_pxPerTile;
     const double viewH = m_source->height() / ts * m_pxPerTile;

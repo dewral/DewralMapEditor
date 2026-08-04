@@ -26,6 +26,11 @@ DocumentManager::DocumentManager(QObject *parent)
     connect(&m_autosaveTimer, &QTimer::timeout,
             this, &DocumentManager::autosaveDueDocument);
     m_autosaveTimer.start();
+    m_sessionWriteTimer.setSingleShot(true);
+    m_sessionWriteTimer.setInterval(500);
+    connect(&m_sessionWriteTimer, &QTimer::timeout, this, [this] {
+        writeSession(false);
+    });
     writeSession(false);
 }
 
@@ -129,8 +134,14 @@ void DocumentManager::hookDocument(OtbmReader *doc)
             removeRecoveryFiles(documentId(doc));
             m_lastRecoveryMs.remove(doc);
         }
-        writeSession(false);
+        scheduleSessionWrite();
     });
+}
+
+void DocumentManager::scheduleSessionWrite()
+{
+    if (!m_initializing && !m_shuttingDown)
+        m_sessionWriteTimer.start();
 }
 
 QString DocumentManager::recoveryDirectory() const
@@ -362,6 +373,7 @@ void DocumentManager::markCleanShutdown()
 {
     if (m_shuttingDown) return;
     m_autosaveTimer.stop();
+    m_sessionWriteTimer.stop();
     for (OtbmReader *doc : m_docs)
         removeRecoveryFiles(m_documentIds.value(doc));
     // Pending recovery from an earlier crash remains available until the user

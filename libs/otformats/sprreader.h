@@ -3,6 +3,7 @@
 
 #include <QAbstractListModel>
 #include <QImage>
+#include <QReadWriteLock>
 #include <QVector>
 #include <QHash>
 #include <QString>
@@ -22,6 +23,8 @@ struct SpriteData {
     bool decode(const uchar *encodedData, qsizetype encodedSize,
                 int spriteSize, bool useAlpha = false);
 };
+
+class DatReader;
 
 class SprReader : public QAbstractListModel
 {
@@ -73,6 +76,9 @@ public:
                                         int itemHeight,
                                         int layers);
 
+    int preloadItemImageSources(const DatReader *datReader);
+    QImage preloadedItemImage(int clientId) const;
+
 signals:
     void spriteCountChanged();
     void loadedChanged();
@@ -89,6 +95,8 @@ private:
     std::shared_ptr<SpriteData> loadSpriteImpl(uint32_t spriteId, bool cacheResult);
     std::shared_ptr<SpriteData> decodeSprite(uint32_t spriteId);
     void cacheSprite(uint32_t spriteId, const std::shared_ptr<SpriteData> &sprite);
+    QImage composeItemImage(const QVariantList &spriteIds, int itemWidth,
+                            int itemHeight, int layers);
     QString cachedDataUrl(const QString &key);
     void cacheDataUrl(QString key, QString value);
 
@@ -122,6 +130,8 @@ private:
     QHash<QString, DataUrlCacheEntry> m_dataUrlCache;
     std::list<QString> m_dataUrlCacheLru;
     qsizetype m_dataUrlCacheBytes = 0;
+    mutable QReadWriteLock m_preloadedItemLock;
+    QHash<int, QByteArray> m_preloadedItemPng;
 };
 
 #endif

@@ -12,6 +12,7 @@
 #include "mapglview.h"
 #include "minimapview.h"
 #include "palettefilter.h"
+#include "paletteimageprovider.h"
 
 int main(int argc, char *argv[])
 {
@@ -53,6 +54,8 @@ int main(int argc, char *argv[])
 
     engine.addImageProvider(QStringLiteral("tibiaui"),
                             new UiThemeImageProvider(backend.uiTheme()));
+    engine.addImageProvider(QStringLiteral("paletteitem"),
+                            new PaletteImageProvider(backend.sprReader()));
 
     const QUrl url(QStringLiteral("qrc:/qml/Main.qml"));
     engine.load(url);

@@ -16,7 +16,16 @@ void MapView::resetAtlas()
 
 void MapView::ensureItemSprites(int serverId)
 {
-    queueAtlasSprites(MapAtlasService::itemSpriteIds(serverId, m_otb, m_dat));
+    if (serverId <= 0 || !m_spr || !m_spr->isLoaded()) return;
+
+    const int previousGeneration = m_atlasService.generation();
+    m_atlasService.ensureItem(serverId, m_otb, m_dat, m_spr);
+    if (m_atlasService.generation() == previousGeneration) return;
+
+    ++m_dataVersion;
+    emit atlasChanged();
+    emit contentUpdated();
+    update();
 }
 
 void MapView::buildAtlasImage()

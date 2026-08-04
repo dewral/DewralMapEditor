@@ -4,7 +4,9 @@ import Tibia 1.0
 
 MenuBar {
     id: root
-    implicitHeight: Backend.uiTheme.style === "github-dark" ? 40 : 26
+    readonly property bool modernTheme: Backend.uiTheme.style !== "classic"
+    readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
+    implicitHeight: modernTheme ? 40 : 26
     leftPadding: 0
     rightPadding: 0
     spacing: 0
@@ -12,18 +14,18 @@ MenuBar {
     delegate: MenuBarItem {
         id: menuItem
         focusPolicy: Qt.NoFocus
-        width: Backend.uiTheme.style === "github-dark" ? Math.max(56, label.implicitWidth + 24) : Math.max(44, label.implicitWidth + 16)
-        implicitHeight: Backend.uiTheme.style === "github-dark" ? 40 : 26
+        width: root.modernTheme ? Math.max(56, label.implicitWidth + 24) : Math.max(44, label.implicitWidth + 16)
+        implicitHeight: root.modernTheme ? 40 : 26
         contentItem: Text {
             id: label
             text: menuItem.text
-            color: Backend.uiTheme.style === "github-dark" ? (menuItem.highlighted ? "#FFFFFF" : "#C9D1D9") : "#dcdcdc"
-            font.pixelSize: Backend.uiTheme.style === "github-dark" ? 13 : 12
+            color: root.modernTheme ? (menuItem.highlighted ? "#FFFFFF" : (root.grayTheme ? "#E0E0E0" : "#C9D1D9")) : "#dcdcdc"
+            font.pixelSize: root.modernTheme ? 13 : 12
             horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
         }
         background: Rectangle {
-            radius: Backend.uiTheme.style === "github-dark" ? 4 : 0
-            color: menuItem.highlighted ? (Backend.uiTheme.style === "github-dark" ? "#161B22" : "#1fffffff") : "transparent"
+            radius: root.modernTheme ? 4 : 0
+            color: menuItem.highlighted ? (root.modernTheme ? (root.grayTheme ? "#292929" : "#161B22") : "#1fffffff") : "transparent"
         }
     }
 }

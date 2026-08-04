@@ -5,6 +5,7 @@ import "../style"
 
 DmeDialog {
     id: root
+    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     property string mode: "find"
     property string scope: "selection"
@@ -133,7 +134,7 @@ DmeDialog {
                 text: root.mode === "remove"
                       ? ("Remove items by server ID from " + root.scopeLabel + ":")
                       : ("Find items by server ID in " + root.scopeLabel + ":")
-                color: "#C9D1D9"
+                color: root.grayUi ? "#E0E0E0" : "#C9D1D9"
                 font.pixelSize: 12
             }
 
@@ -144,7 +145,7 @@ DmeDialog {
                     width: 80
                     anchors.verticalCenter: parent.verticalCenter
                     text: "Server ID"
-                    color: "#8B949E"
+                    color: root.grayUi ? "#929292" : "#8B949E"
                     font.pixelSize: 11
                 }
 
@@ -160,7 +161,7 @@ DmeDialog {
                     width: 100
                     anchors.verticalCenter: parent.verticalCenter
                     text: root.itemName(simpleFromField.value)
-                    color: "#8B949E"
+                    color: root.grayUi ? "#929292" : "#8B949E"
                     font.pixelSize: 10
                     elide: Text.ElideRight
                 }
@@ -221,9 +222,9 @@ DmeDialog {
                 width: parent.width
                 height: 276
                 radius: 6
-                color: "#0D1117"
+                color: root.grayUi ? "#242424" : "#0D1117"
                 border.width: 1
-                border.color: "#30363D"
+                border.color: root.grayUi ? "#484848" : "#30363D"
                 clip: true
 
                 Text {
@@ -259,9 +260,9 @@ DmeDialog {
                         width: rulesView.width - (rulesView.ScrollBar.vertical.visible ? 12 : 0)
                         height: 58
                         radius: 5
-                        color: root.selectedRule === index ? "#174D2B" : ruleMouse.containsMouse ? "#21262D" : "#161B22"
+                        color: root.selectedRule === index ? (root.grayUi ? "#4A3A1F" : "#174D2B") : ruleMouse.containsMouse ? (root.grayUi ? "#303030" : "#21262D") : (root.grayUi ? "#242424" : "#161B22")
                         border.width: 1
-                        border.color: root.selectedRule === index ? "#3FB950" : "#30363D"
+                        border.color: root.selectedRule === index ? (root.grayUi ? "#C79A3B" : "#3FB950") : (root.grayUi ? "#484848" : "#30363D")
 
                         Row {
                             anchors {
@@ -281,7 +282,7 @@ DmeDialog {
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: "\u2192"
-                                color: "#3FB950"
+                                color: root.grayUi ? "#C79A3B" : "#3FB950"
                                 font.pixelSize: 22
                             }
 
@@ -333,7 +334,7 @@ DmeDialog {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "\u2192"
-                    color: "#3FB950"
+                    color: root.grayUi ? "#C79A3B" : "#3FB950"
                     font.pixelSize: 22
                 }
 
@@ -434,9 +435,9 @@ DmeDialog {
             width: 44
             height: 44
             radius: 5
-            color: "#0D1117"
+            color: root.grayUi ? "#242424" : "#0D1117"
             border.width: 1
-            border.color: previewMouse.containsMouse && clickable ? "#3FB950" : "#30363D"
+            border.color: previewMouse.containsMouse && clickable ? (root.grayUi ? "#C79A3B" : "#3FB950") : (root.grayUi ? "#484848" : "#30363D")
 
             Image {
                 anchors.centerIn: parent
@@ -468,7 +469,7 @@ DmeDialog {
 
             Text {
                 text: "Server ID " + itemId
-                color: "#8B949E"
+                color: root.grayUi ? "#929292" : "#8B949E"
                 font.pixelSize: 10
             }
         }

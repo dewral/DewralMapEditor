@@ -2,9 +2,11 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
+import Tibia 1.0
 
 Item {
     id: rail
+    readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
 
     property string currentKind: "Item Palette"
     property bool paletteCollapsed: false
@@ -15,7 +17,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        color: "#202020"
+        color: rail.grayTheme ? "#1A1A1A" : "#202020"
 
         Rectangle {
             anchors {
@@ -24,7 +26,7 @@ Item {
                 bottom: parent.bottom
             }
             width: 1
-            color: "#505050"
+            color: rail.grayTheme ? "#383838" : "#505050"
         }
     }
 
@@ -61,8 +63,8 @@ Item {
                     anchors.fill: parent
                     radius: 7
                     color: entry.active
-                           ? "#303030"
-                           : (entryArea.containsMouse ? "#3A3A3A" : "transparent")
+                           ? (rail.grayTheme ? "#4A3A1F" : "#303030")
+                           : (entryArea.containsMouse ? (rail.grayTheme ? "#2A2A2A" : "#3A3A3A") : "transparent")
                 }
 
                 Rectangle {
@@ -74,7 +76,7 @@ Item {
                     width: 3
                     height: 58
                     radius: 2
-                    color: "#B8B8B8"
+                    color: rail.grayTheme ? "#C79A3B" : "#B8B8B8"
                 }
 
                 Column {

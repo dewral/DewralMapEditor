@@ -47,7 +47,7 @@ DmeDialog {
         Rectangle {
             width: 480
             height: 68
-            color: Backend.uiTheme.style === "github-dark" ? "#0D1117" : "#2b2b2b"
+            color: Backend.uiTheme.style === "gray-dark" ? "#151515" : (Backend.uiTheme.style === "github-dark" ? "#0D1117" : "#2b2b2b")
             border.width: 1
             border.color: descriptionEdit.activeFocus ? "#2EA043" : "#555"
 
@@ -55,7 +55,7 @@ DmeDialog {
                 id: descriptionEdit
                 anchors.fill: parent
                 anchors.margins: 6
-                color: Backend.uiTheme.style === "github-dark" ? "#C9D1D9" : "#c0c0c0"
+                color: Backend.uiTheme.style === "gray-dark" ? "#E0E0E0" : (Backend.uiTheme.style === "github-dark" ? "#C9D1D9" : "#c0c0c0")
                 font.pixelSize: 12
                 selectByMouse: true
                 wrapMode: TextEdit.Wrap

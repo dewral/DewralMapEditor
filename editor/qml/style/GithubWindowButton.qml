@@ -1,7 +1,9 @@
 import QtQuick
+import Tibia 1.0
 
 Item {
     id: root
+    readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
 
     property string controlType: "minimize"
     property bool maximized: false
@@ -18,7 +20,7 @@ Item {
                 return "transparent";
             if (root.controlType === "close")
                 return controlMouse.pressed ? "#B62324" : "#DA3633";
-            return controlMouse.pressed ? "#30363D" : "#21262D";
+            return controlMouse.pressed ? (root.grayTheme ? "#353535" : "#30363D") : (root.grayTheme ? "#292929" : "#21262D");
         }
     }
 
@@ -56,7 +58,7 @@ Item {
             y: 2
             width: 8
             height: 8
-            color: "#0D1117"
+            color: root.grayTheme ? "#151515" : "#0D1117"
             border.width: 1
             border.color: controlMouse.containsMouse ? "#FFFFFF" : "#A7B1BC"
         }
@@ -67,7 +69,7 @@ Item {
             y: 4
             width: 8
             height: 8
-            color: controlMouse.containsMouse ? "#21262D" : "#0D1117"
+            color: controlMouse.containsMouse ? (root.grayTheme ? "#292929" : "#21262D") : (root.grayTheme ? "#151515" : "#0D1117")
             border.width: 1
             border.color: controlMouse.containsMouse ? "#FFFFFF" : "#A7B1BC"
         }

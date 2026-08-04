@@ -7,6 +7,7 @@ import "../../style"
 
 Item {
     id: toolBar
+    readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
 
     required property var mapView
     required property var settings
@@ -20,14 +21,14 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        color: "#10151C"
+        color: toolBar.grayTheme ? "#1A1A1A" : "#10151C"
 
         Rectangle {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             height: 1
-            color: "#242D38"
+            color: toolBar.grayTheme ? "#383838" : "#242D38"
         }
     }
 
@@ -54,15 +55,15 @@ Item {
             radius: 4
             color: {
                 if (button.active)
-                    return button.danger ? "#4B2328" : "#174D2B";
+                    return button.danger ? "#4B2328" : (toolBar.grayTheme ? "#4A3A1F" : "#174D2B");
                 if (mouse.pressed)
-                    return "#222B36";
-                return mouse.containsMouse ? "#171E27" : "#111820";
+                    return toolBar.grayTheme ? "#353535" : "#222B36";
+                return mouse.containsMouse ? (toolBar.grayTheme ? "#303030" : "#171E27") : (toolBar.grayTheme ? "#222222" : "#111820");
             }
             border.width: 1
             border.color: button.active
-                          ? (button.danger ? "#DA3633" : "#2EA043")
-                          : (mouse.containsMouse ? "#3A4655" : "#202A35")
+                          ? (button.danger ? "#DA3633" : (toolBar.grayTheme ? "#C79A3B" : "#2EA043"))
+                          : (mouse.containsMouse ? (toolBar.grayTheme ? "#595959" : "#3A4655") : (toolBar.grayTheme ? "#3A3A3A" : "#202A35"))
         }
 
         Row {
@@ -79,7 +80,7 @@ Item {
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: button.label
-                color: "#E6EDF3"
+                color: toolBar.grayTheme ? "#F0F0F0" : "#E6EDF3"
                 font.pixelSize: 12
                 font.weight: button.active ? Font.DemiBold : Font.Normal
             }
@@ -102,7 +103,7 @@ Item {
                 visible: button.label !== ""
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: button.label
-                color: button.active ? "#FFFFFF" : "#C9D1D9"
+                color: button.active ? "#FFFFFF" : (toolBar.grayTheme ? "#D8D8D8" : "#C9D1D9")
                 font.pixelSize: button.iconName === "" ? 11 : 12
                 font.weight: button.active ? Font.DemiBold : Font.Normal
             }
@@ -174,7 +175,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             width: 1
             height: 42
-            color: "#242D38"
+            color: toolBar.grayTheme ? "#383838" : "#242D38"
         }
 
         Repeater {

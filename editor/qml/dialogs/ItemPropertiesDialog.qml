@@ -306,9 +306,9 @@ DmeDialog {
                 visible: propsDialog.ctx.customAttributesSupported === true
                 width: 456
                 height: 116
-                color: Backend.uiTheme.style === "github-dark" ? "#0D1117" : "#242424"
+                color: Backend.uiTheme.style === "gray-dark" ? "#151515" : (Backend.uiTheme.style === "github-dark" ? "#0D1117" : "#242424")
                 border.width: 1
-                border.color: Backend.uiTheme.style === "github-dark" ? "#30363D" : "#555"
+                border.color: Backend.uiTheme.style === "gray-dark" ? "#3A3A3A" : (Backend.uiTheme.style === "github-dark" ? "#30363D" : "#555")
                 clip: true
 
                 Text {

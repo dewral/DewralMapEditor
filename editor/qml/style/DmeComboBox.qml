@@ -1,6 +1,7 @@
 import QtQuick
 import "../themes/classic/controls" as Classic
 import "../themes/github/controls" as Github
+import "../themes/gray/controls" as Gray
 import Tibia 1.0
 
 Item {
@@ -13,7 +14,7 @@ Item {
     implicitWidth: controlLoader.item ? controlLoader.item.implicitWidth : 140
     implicitHeight: controlLoader.item ? controlLoader.item.implicitHeight : 23
 
-    Loader { id: controlLoader; anchors.fill: parent; sourceComponent: Backend.uiTheme.style === "github-dark" ? githubCombo : classicCombo }
+    Loader { id: controlLoader; anchors.fill: parent; sourceComponent: Backend.uiTheme.style === "classic" ? classicCombo : (Backend.uiTheme.style === "gray-dark" ? grayCombo : githubCombo) }
     Component {
         id: classicCombo
         Classic.ClassicComboBox {
@@ -28,4 +29,5 @@ Item {
             onActivated: index => { root.currentIndex = index; root.activated(index); }
         }
     }
+    Component { id: grayCombo; Gray.GrayComboBox { model: root.model; currentIndex: root.currentIndex; enabled: root.enabled; onActivated: index => { root.currentIndex = index; root.activated(index); } } }
 }

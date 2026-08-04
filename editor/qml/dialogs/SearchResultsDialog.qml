@@ -13,7 +13,8 @@ DmeDialog {
     property var results: []
     property int total: 0
     property bool truncated: false
-    readonly property bool githubUi: Backend.uiTheme.style === "github-dark"
+    readonly property bool githubUi: Backend.uiTheme.style !== "classic"
+    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     title: "Search Results"
     width: 680
@@ -81,9 +82,9 @@ DmeDialog {
                     width: resultList.width
                     height: modelData.containerPath && modelData.containerPath.length ? 58 : 46
                     color: resultList.currentIndex === index
-                           ? (dialog.githubUi ? "#163B2C" : "#505050")
+                           ? (dialog.githubUi ? (dialog.grayUi ? "#4A3A1F" : "#163B2C") : "#505050")
                            : (mouse.containsMouse
-                              ? (dialog.githubUi ? "#161E27" : "#383838")
+                              ? (dialog.githubUi ? (dialog.grayUi ? "#303030" : "#161E27") : "#383838")
                               : "transparent")
 
                     Column {

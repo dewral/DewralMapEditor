@@ -23,7 +23,7 @@ DmeDialog {
 
         Text {
             text: "Application style"
-            color: Backend.uiTheme.style === "github-dark" ? "#B8B8B8" : "#999"
+            color: Backend.uiTheme.style === "gray-dark" ? "#C8C8C8" : (Backend.uiTheme.style === "github-dark" ? "#B8B8B8" : "#999")
             font.pixelSize: 11
         }
         DmeComboBox {
@@ -44,10 +44,12 @@ DmeDialog {
 
         Text {
             width: parent.width - 24
-            text: Backend.uiTheme.style === "github-dark"
-                  ? "Modern GitHub/Codex-inspired layout. Uses separate QML components while keeping the same editor actions."
-                  : "Original Tibia-inspired layout and textured controls."
-            color: Backend.uiTheme.style === "github-dark" ? "#8A8A8A" : "#8b949e"
+            text: Backend.uiTheme.style === "classic"
+                  ? "Original Tibia-inspired layout and textured controls."
+                  : (Backend.uiTheme.style === "gray-dark"
+                     ? "The same modern layout as GitHub Dark, with neutral gray surfaces and a turquoise accent."
+                     : "Modern GitHub/Codex-inspired layout. Uses separate QML components while keeping the same editor actions.")
+            color: Backend.uiTheme.style === "gray-dark" ? "#929292" : (Backend.uiTheme.style === "github-dark" ? "#8A8A8A" : "#8b949e")
             font.pixelSize: 10
             wrapMode: Text.WordWrap
         }

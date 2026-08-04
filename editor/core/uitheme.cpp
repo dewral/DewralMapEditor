@@ -53,7 +53,8 @@ UiTheme::UiTheme(QObject *parent)
         m_style = styleOverride;
     if (m_style == QLatin1String("flat"))
         m_style = QStringLiteral("github-dark");
-    if (m_style != QLatin1String("github-dark"))
+    if (m_style != QLatin1String("github-dark") &&
+        m_style != QLatin1String("gray-dark"))
         m_style = QStringLiteral("classic");
 }
 
@@ -65,9 +66,9 @@ QString UiTheme::style() const
 
 void UiTheme::setStyle(const QString &s)
 {
-    const QString v = (s == QLatin1String("github-dark"))
-                          ? s
-                          : QStringLiteral("classic");
+    const QString v = (s == QLatin1String("github-dark") ||
+                       s == QLatin1String("gray-dark"))
+                          ? s : QStringLiteral("classic");
     {
         QMutexLocker lock(&m_mutex);
         if (m_style == v) return;
@@ -87,8 +88,12 @@ QVariantList UiTheme::styles() const
     QVariantMap dark;
     dark.insert(QStringLiteral("name"), QStringLiteral("GitHub Dark"));
     dark.insert(QStringLiteral("id"), QStringLiteral("github-dark"));
+    QVariantMap gray;
+    gray.insert(QStringLiteral("name"), QStringLiteral("Gray UI"));
+    gray.insert(QStringLiteral("id"), QStringLiteral("gray-dark"));
     out.push_back(classic);
     out.push_back(dark);
+    out.push_back(gray);
     return out;
 }
 

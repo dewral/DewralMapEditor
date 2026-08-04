@@ -10,7 +10,8 @@ Rectangle {
     required property var app
 
     required property var mapCtrl
-    readonly property bool githubUi: Backend.uiTheme.style === "github-dark"
+    readonly property bool githubUi: Backend.uiTheme.style !== "classic"
+    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
     readonly property string currentKind: paletteCol.currentKind
 
     signal collapseRequested
@@ -138,11 +139,11 @@ Rectangle {
     }
 
     width: 210
-    color: githubUi ? "#0F141B" : "transparent"
+    color: grayUi ? "#1A1A1A" : (githubUi ? "#0F141B" : "transparent")
     radius: 0
     border {
         width: githubUi ? 1 : 0
-        color: "#242D38"
+        color: paletteRoot.grayUi ? "#3A3A3A" : "#242D38"
     }
 
     Rectangle {
@@ -334,12 +335,12 @@ Rectangle {
                             anchors.fill: parent
                             radius: 4
                             color: categoryTab.active
-                                   ? "#174D2B"
-                                   : (categoryTabArea.containsMouse ? "#151C24" : "transparent")
+                                   ? (paletteRoot.grayUi ? "#4A3A1F" : "#174D2B")
+                                   : (categoryTabArea.containsMouse ? (paletteRoot.grayUi ? "#303030" : "#151C24") : "transparent")
                             border {
                                 width: 1
-                                color: categoryTab.active ? "#2EA043"
-                                                          : (categoryTabArea.containsMouse ? "#2D3743" : "transparent")
+                                color: categoryTab.active ? (paletteRoot.grayUi ? "#C79A3B" : "#2EA043")
+                                                          : (categoryTabArea.containsMouse ? (paletteRoot.grayUi ? "#505050" : "#2D3743") : "transparent")
                             }
                         }
 
@@ -362,7 +363,7 @@ Rectangle {
                             Text {
                                 width: parent.width
                                 text: categoryTab.modelData.label
-                                color: categoryTab.active ? "#FFFFFF" : "#A7B1BC"
+                                color: categoryTab.active ? "#FFFFFF" : (paletteRoot.grayUi ? "#A0A0A0" : "#A7B1BC")
                                 font {
                                     pixelSize: githubCategoryRow.width < 300 ? 9 : 11
                                     weight: categoryTab.active ? Font.DemiBold : Font.Normal
@@ -396,17 +397,18 @@ Rectangle {
                     leftPadding: 38
                     rightPadding: 12
                     placeholderText: "Search items..."
-                    placeholderTextColor: "#768390"
-                    color: "#E6EDF3"
-                    selectionColor: "#2EA043"
+                    placeholderTextColor: paletteRoot.grayUi ? "#8A8A8A" : "#768390"
+                    color: paletteRoot.grayUi ? "#E8E8E8" : "#E6EDF3"
+                    selectionColor: paletteRoot.grayUi ? "#C79A3B" : "#2EA043"
                     selectedTextColor: "#FFFFFF"
                     font.pixelSize: 12
                     background: Rectangle {
                         radius: 4
-                        color: "#0D1117"
+                        color: paletteRoot.grayUi ? "#242424" : "#0D1117"
                         border {
                             width: githubSearch.activeFocus ? 2 : 1
-                            color: githubSearch.activeFocus ? "#3A7D55" : "#242D38"
+                            color: githubSearch.activeFocus ? (paletteRoot.grayUi ? "#C79A3B" : "#3A7D55")
+                                                            : (paletteRoot.grayUi ? "#484848" : "#242D38")
                         }
                     }
                     onTextChanged: paletteCol.queueSearch(text)
@@ -431,9 +433,11 @@ Rectangle {
                     Rectangle {
                         anchors.fill: parent
                         radius: 4
-                        color: filterArea.containsMouse ? "#171E27" : "#111820"
+                        color: filterArea.containsMouse ? (paletteRoot.grayUi ? "#303030" : "#171E27")
+                                                        : (paletteRoot.grayUi ? "#242424" : "#111820")
                         border.width: 1
-                        border.color: filterArea.containsMouse ? "#3A4655" : "#242D38"
+                        border.color: filterArea.containsMouse ? (paletteRoot.grayUi ? "#595959" : "#3A4655")
+                                                               : (paletteRoot.grayUi ? "#484848" : "#242D38")
                     }
 
                     GithubIcon {
@@ -508,7 +512,7 @@ Rectangle {
                        ? paletteCol.currentSubName
                        : paletteCol.currentKind)
                       + "  (" + paletteCol.displayedCount + ")"
-                color: "#8B949E"
+                color: paletteRoot.grayUi ? "#929292" : "#8B949E"
                 font.pixelSize: 12
                 elide: Text.ElideRight
             }
@@ -802,15 +806,19 @@ Rectangle {
             if (paletteRoot.mapCtrl.brushServerId > 0) {
                 if (paletteCol.currentKind === "Doodad Palette") {
                     const doodadRow = doodadGrid.rowForServerId(paletteRoot.mapCtrl.brushServerId);
-                    if (doodadRow >= 0)
+                    if (doodadRow >= 0 && doodadGrid.currentIndex !== doodadRow) {
+                        doodadGrid.currentIndex = doodadRow;
                         doodadGrid.positionViewAtIndex(doodadRow, GridView.Center);
+                    }
                     return;
                 }
                 var row = grid.directAllItems
                         ? Backend.otbReader.rowForServerId(paletteRoot.mapCtrl.brushServerId)
                         : paletteFilter.rowForServerId(paletteRoot.mapCtrl.brushServerId);
-                if (row >= 0)
+                if (row >= 0 && grid.currentIndex !== row) {
+                    grid.currentIndex = row;
                     grid.positionViewAtIndex(row, GridView.Center);
+                }
             }
         }
     }

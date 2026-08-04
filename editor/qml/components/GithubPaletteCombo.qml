@@ -1,8 +1,10 @@
 import QtQuick
 import QtQuick.Controls
+import Tibia 1.0
 
 ComboBox {
     id: root
+    readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
 
     height: 40
     leftPadding: 12
@@ -13,7 +15,7 @@ ComboBox {
         leftPadding: root.leftPadding
         rightPadding: root.rightPadding
         text: root.displayText
-        color: root.enabled ? "#E6EDF3" : "#768390"
+        color: root.enabled ? (root.grayTheme ? "#E8E8E8" : "#E6EDF3") : (root.grayTheme ? "#777777" : "#768390")
         font: root.font
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
@@ -23,15 +25,15 @@ ComboBox {
         x: root.width - width - 13
         anchors.verticalCenter: parent.verticalCenter
         text: "\u2304"
-        color: root.enabled ? "#C9D1D9" : "#768390"
+        color: root.enabled ? (root.grayTheme ? "#D8D8D8" : "#C9D1D9") : (root.grayTheme ? "#777777" : "#768390")
         font.pixelSize: 18
     }
 
     background: Rectangle {
         radius: 4
-        color: root.down ? "#171E27" : "#0D1117"
+        color: root.down ? (root.grayTheme ? "#303030" : "#171E27") : (root.grayTheme ? "#242424" : "#0D1117")
         border.width: root.activeFocus ? 2 : 1
-        border.color: root.activeFocus ? "#3A7D55" : "#242D38"
+        border.color: root.activeFocus ? (root.grayTheme ? "#C79A3B" : "#3A7D55") : (root.grayTheme ? "#484848" : "#242D38")
     }
 
     delegate: ItemDelegate {
@@ -45,13 +47,13 @@ ComboBox {
         highlighted: root.highlightedIndex === index
         contentItem: Text {
             text: comboDelegate.text
-            color: "#E6EDF3"
+            color: root.grayTheme ? "#E8E8E8" : "#E6EDF3"
             font.pixelSize: 12
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
         }
         background: Rectangle {
-            color: comboDelegate.highlighted ? "#1B2632" : "#10151C"
+            color: comboDelegate.highlighted ? (root.grayTheme ? "#303030" : "#1B2632") : (root.grayTheme ? "#202020" : "#10151C")
         }
     }
 
@@ -69,9 +71,9 @@ ComboBox {
         }
         background: Rectangle {
             radius: 4
-            color: "#10151C"
+            color: root.grayTheme ? "#202020" : "#10151C"
             border.width: 1
-            border.color: "#2D3743"
+            border.color: root.grayTheme ? "#484848" : "#2D3743"
         }
     }
 }

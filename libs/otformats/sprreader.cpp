@@ -1,4 +1,5 @@
 #include "sprreader.h"
+#include "datreader.h"
 
 #include <QFile>
 #include <QBuffer>
@@ -118,6 +119,10 @@ void SprReader::reset()
     m_dataUrlCache.clear();
     m_dataUrlCacheLru.clear();
     m_dataUrlCacheBytes = 0;
+    {
+        QWriteLocker lock(&m_preloadedItemLock);
+        m_preloadedItemPng.clear();
+    }
     m_loaded = false;
     endResetModel();
 
@@ -393,6 +398,21 @@ QString SprReader::itemImageSource(const QVariantList &spriteIds,
     const QString cached = cachedDataUrl(key);
     if (!cached.isEmpty()) return cached;
 
+    const QImage composite = composeItemImage(spriteIds, width, height, layerCount);
+
+    const QString dataUrl = imageToDataUrl(composite);
+    cacheDataUrl(key, dataUrl);
+    return dataUrl;
+}
+
+QImage SprReader::composeItemImage(const QVariantList &spriteIds,
+                                   int itemWidth,
+                                   int itemHeight,
+                                   int layers)
+{
+    const int width = qMax(1, itemWidth);
+    const int height = qMax(1, itemHeight);
+    const int layerCount = qMax(1, layers);
     QImage composite(width * kDefaultSpriteSize,
                      height * kDefaultSpriteSize,
                      QImage::Format_RGBA8888);
@@ -428,9 +448,50 @@ QString SprReader::itemImageSource(const QVariantList &spriteIds,
 
     painter.end();
 
-    const QString dataUrl = imageToDataUrl(composite);
-    cacheDataUrl(key, dataUrl);
-    return dataUrl;
+    return composite;
+}
+
+int SprReader::preloadItemImageSources(const DatReader *datReader)
+{
+    if (!m_loaded || !datReader || !datReader->isLoaded()) return 0;
+
+    QHash<int, QByteArray> preparedImages;
+    preparedImages.reserve(datReader->itemCount());
+    beginBulkAccess();
+    for (const ClientItem &item : datReader->items()) {
+        if (item.sprite_ids.empty()) continue;
+
+        QVariantList spriteIds;
+        spriteIds.reserve(static_cast<qsizetype>(item.sprite_ids.size()));
+        for (uint32_t spriteId : item.sprite_ids)
+            spriteIds.push_back(QVariant::fromValue(spriteId));
+
+        const QImage image = composeItemImage(spriteIds, item.width,
+                                              item.height, item.layers);
+        QByteArray png;
+        QBuffer buffer(&png);
+        if (buffer.open(QIODevice::WriteOnly) && image.save(&buffer, "PNG"))
+            preparedImages.insert(item.id, std::move(png));
+    }
+    endBulkAccess();
+    const int prepared = preparedImages.size();
+    {
+        QWriteLocker lock(&m_preloadedItemLock);
+        m_preloadedItemPng = std::move(preparedImages);
+    }
+    return prepared;
+}
+
+QImage SprReader::preloadedItemImage(int clientId) const
+{
+    QByteArray png;
+    {
+        QReadLocker lock(&m_preloadedItemLock);
+        const auto it = m_preloadedItemPng.constFind(clientId);
+        if (it == m_preloadedItemPng.constEnd()) return {};
+        png = it.value();
+    }
+    return QImage::fromData(png, "PNG");
 }
 
 QString SprReader::cachedDataUrl(const QString &key)

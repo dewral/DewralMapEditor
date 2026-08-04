@@ -59,6 +59,10 @@ public:
     ItemsXmlReader *itemsXml() { return &m_itemsXml; }
     AiMapAssistant *aiMapAssistant() { return &m_aiMapAssistant; }
 
+    Q_INVOKABLE int preloadPaletteSprites() {
+        return m_sprReader.preloadItemImageSources(&m_datReader);
+    }
+
 signals:
     void otbmReaderChanged();
 

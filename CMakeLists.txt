@@ -65,6 +65,8 @@ add_executable(DewralMapEditor
     editor/core/tilesetstore.h
     editor/core/palettefilter.cpp
     editor/core/palettefilter.h
+    editor/core/paletteimageprovider.cpp
+    editor/core/paletteimageprovider.h
     editor/core/filetools.cpp
     editor/core/filetools.h
     editor/core/uitheme.cpp

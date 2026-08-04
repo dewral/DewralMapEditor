@@ -126,6 +126,7 @@ public:
     Q_INVOKABLE QVariantMap detailsAt(int row) const;
 
     const ClientItem *itemByClientId(uint16_t clientId) const;
+    const std::vector<ClientItem> &items() const { return m_items; }
 
     const ClientItem *outfitByLookType(uint16_t lookType) const;
 

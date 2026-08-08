@@ -245,6 +245,9 @@ QtObject {
         loadedClientKey = key;
         loadedClientFolder = folder;
         if (Backend.otbmReader.loading)
+            Backend.otbmReader.reportLoadingProgress(90, "Preparing palette sprites...");
+        Backend.preloadPaletteSprites();
+        if (Backend.otbmReader.loading)
             Backend.otbmReader.reportLoadingProgress(92, "Loading editor palettes...");
         loadProfileData(key);
         if (Backend.otbmReader.loading)

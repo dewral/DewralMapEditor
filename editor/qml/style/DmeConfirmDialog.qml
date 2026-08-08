@@ -10,7 +10,7 @@ DmeDialog {
         Text {
             width: parent.width
             text: root.message
-            color: Backend.uiTheme.style === "github-dark" ? "#C9D1D9" : "#c0c0c0"
+            color: Backend.uiTheme.style === "gray-dark" ? "#E0E0E0" : (Backend.uiTheme.style === "github-dark" ? "#C9D1D9" : "#c0c0c0")
             font.pixelSize: 12
             wrapMode: Text.WordWrap
         }

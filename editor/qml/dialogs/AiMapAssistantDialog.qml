@@ -56,7 +56,7 @@ DmeDialog {
             width: parent.width
             height: 112
             radius: 5
-            color: Backend.uiTheme.style === "github-dark" ? "#0D1117" : "#202020"
+            color: Backend.uiTheme.style === "gray-dark" ? "#151515" : (Backend.uiTheme.style === "github-dark" ? "#0D1117" : "#202020")
             border.width: 1
             border.color: prompt.activeFocus ? "#2EA043" : "#404040"
 
@@ -66,7 +66,7 @@ DmeDialog {
                 anchors.margins: 5
                 placeholderText: "Np. mała piaszczysta wyspa z trawiastym środkiem i nieregularnym brzegiem"
                 wrapMode: TextEdit.Wrap
-                color: Backend.uiTheme.style === "github-dark" ? "#C9D1D9" : "#d0d0d0"
+                color: Backend.uiTheme.style === "gray-dark" ? "#E0E0E0" : (Backend.uiTheme.style === "github-dark" ? "#C9D1D9" : "#d0d0d0")
                 placeholderTextColor: "#777"
                 background: null
                 selectByMouse: true

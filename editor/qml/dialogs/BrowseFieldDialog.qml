@@ -13,7 +13,8 @@ DmeDialog {
     required property var paletteNavigator
     property var items: []
     property var selectedItem: null
-    readonly property bool githubUi: Backend.uiTheme.style === "github-dark"
+    readonly property bool githubUi: Backend.uiTheme.style !== "classic"
+    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     title: "Browse Field"
     width: 410
@@ -91,12 +92,12 @@ DmeDialog {
                     width: itemList.width
                     height: 48
                     color: itemList.currentIndex === index
-                           ? (dialog.githubUi ? "#163B2C" : "#505050")
+                           ? (dialog.githubUi ? (dialog.grayUi ? "#4A3A1F" : "#163B2C") : "#505050")
                            : (rowMouse.containsMouse
-                              ? (dialog.githubUi ? "#161E27" : "#383838")
+                              ? (dialog.githubUi ? (dialog.grayUi ? "#303030" : "#161E27") : "#383838")
                               : "transparent")
                     border.width: itemList.currentIndex === index ? 1 : 0
-                    border.color: dialog.githubUi ? "#2EA043" : "#777"
+                    border.color: dialog.githubUi ? (dialog.grayUi ? "#C79A3B" : "#2EA043") : "#777"
 
                     Image {
                         anchors {

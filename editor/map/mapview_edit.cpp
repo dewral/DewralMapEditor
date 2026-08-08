@@ -319,6 +319,7 @@ void MapView::flushEditedChunksLocked()
                     quads.push_back(quad);
             }
 
+            const size_t existingCount = quads.size();
             for (quint64 position : editedTiles) {
                 const int tileX = static_cast<int>(static_cast<qint32>(position >> 32));
                 const int tileY =
@@ -330,13 +331,24 @@ void MapView::flushEditedChunksLocked()
                 }
             }
 
+            const auto tileOrder = [](const QuadRef &a, const QuadRef &b) {
+                return a.tileY != b.tileY ? a.tileY < b.tileY
+                                         : a.tileX < b.tileX;
+            };
             std::stable_sort(
-                quads.begin(), quads.end(),
-                [](const QuadRef &a, const QuadRef &b) {
-                    return a.tileY != b.tileY ? a.tileY < b.tileY : a.tileX < b.tileX;
-                });
+                quads.begin() + static_cast<std::ptrdiff_t>(existingCount),
+                quads.end(), tileOrder);
+            std::inplace_merge(
+                quads.begin(),
+                quads.begin() + static_cast<std::ptrdiff_t>(existingCount),
+                quads.end(), tileOrder);
         } else {
-            collectFloorChunkQuads(zc.first, zc.second, quads, &animated);
+            // An evicted or not-yet-visible chunk must not be rebuilt on the
+            // GUI thread during a paint stroke. The chunk worker reads the
+            // latest tile state after the data lock is released.
+            invalidateChunkQuads(zc.first, zc.second);
+            requestChunkQuads(zc.first, zc.second);
+            continue;
         }
 
         storeChunkQuads(zc.first, zc.second, std::move(quads), animated);
@@ -379,6 +391,9 @@ void MapView::placeItemOnFloor(int x, int y, int z, const OtbmMapItem &src)
 {
     if (!m_otbm || src.server_id == 0) return;
 
+    QElapsedTimer placementTimer;
+    placementTimer.start();
+
     const uint16_t sid = src.server_id;
     const int cat = itemCategory(sid);
     const OtbmTile *tile = m_otbm->tileAt(x, y, z);
@@ -413,15 +428,31 @@ void MapView::placeItemOnFloor(int x, int y, int z, const OtbmMapItem &src)
         index = static_cast<int>(tile->items.size());
     }
 
+    // Queue a missing atlas sprite before taking the map data lock. Normal
+    // palette items are already present, while custom items can be decoded by
+    // the atlas worker without extending the edit's critical section.
+    ensureItemSprites(sid);
+    const qint64 atlasUs = placementTimer.nsecsElapsed() / 1000;
+
     bool placed;
+    qint64 mutationUs = 0;
+    qint64 tileUpdateUs = 0;
+    qint64 chunkUpdateUs = 0;
     {
         std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
-        ensureItemSprites(sid);
+        const qint64 beforeMutation = placementTimer.nsecsElapsed() / 1000;
         placed = m_otbm->placeItem(x, y, z, src, index, replace, cat == 0);
+        mutationUs = placementTimer.nsecsElapsed() / 1000 - beforeMutation;
         if (placed) {
+            const qint64 beforeTileUpdate = placementTimer.nsecsElapsed() / 1000;
             onTileEdited(x, y, z);
+            tileUpdateUs = placementTimer.nsecsElapsed() / 1000 - beforeTileUpdate;
 
-            if (!m_editController.batching()) flushEditedChunksLocked();
+            if (!m_editController.batching()) {
+                const qint64 beforeChunkUpdate = placementTimer.nsecsElapsed() / 1000;
+                flushEditedChunksLocked();
+                chunkUpdateUs = placementTimer.nsecsElapsed() / 1000 - beforeChunkUpdate;
+            }
         }
     }
     if (placed) {
@@ -430,5 +461,16 @@ void MapView::placeItemOnFloor(int x, int y, int z, const OtbmMapItem &src)
             m_activeEffects.push_back({x, y, m_navigationController.floor(), m_effectClock.elapsed()});
 
         if (!m_brushController.bulkEdit()) refreshAfterEdit(sid);
+    }
+
+    const qint64 totalUs = placementTimer.nsecsElapsed() / 1000;
+    if (totalUs >= 8000) {
+        qWarning().nospace()
+            << "DME_PERF slow placement sid=" << sid
+            << " total=" << totalUs / 1000.0 << "ms"
+            << " atlas=" << atlasUs / 1000.0 << "ms"
+            << " mutation=" << mutationUs / 1000.0 << "ms"
+            << " tile=" << tileUpdateUs / 1000.0 << "ms"
+            << " chunk=" << chunkUpdateUs / 1000.0 << "ms";
     }
 }

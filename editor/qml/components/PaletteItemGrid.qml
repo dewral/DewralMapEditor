@@ -11,6 +11,7 @@ Item {
     required property var filterModel
     required property string currentKind
     required property bool githubUi
+    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     signal contextMenuRequested(int serverId)
 
@@ -63,16 +64,15 @@ Item {
                                    && root.mapCtrl.brushServerId === serverId
             property string doodadPreview: typeof serverId !== "undefined"
                                            ? root.mapCtrl.doodadPreviewSource(serverId) : ""
-
             color: isBrush
-                   ? (root.githubUi ? "#163B2C" : "#2f6f4f")
+                   ? (root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
                    : (cellMouseArea.containsMouse
-                      ? (root.githubUi ? "#161E27" : "#303030")
-                      : (root.githubUi ? "#0D1117" : "#252525"))
+                      ? (root.githubUi ? (root.grayUi ? "#303030" : "#161E27") : "#303030")
+                      : (root.githubUi ? (root.grayUi ? "#242424" : "#0D1117") : "#252525"))
             border.color: isBrush
-                          ? (root.githubUi ? "#2EA043" : "#7fdc8f")
+                          ? (root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
                           : (root.githubUi
-                             ? (cellMouseArea.containsMouse ? "#3A4655" : "#202A35")
+                             ? (cellMouseArea.containsMouse ? (root.grayUi ? "#595959" : "#3A4655") : (root.grayUi ? "#424242" : "#202A35"))
                              : "#3a3a3a")
             border.width: isBrush ? 2 : 1
 
@@ -97,10 +97,14 @@ Item {
                 height: nativeH * fitScale
                 fillMode: Image.PreserveAspectFit
                 smooth: false
-                cache: false
+                cache: true
                 source: {
                     if (parent.doodadPreview !== "")
                         return parent.doodadPreview;
+                    if (typeof clientId !== "undefined" && clientId > 0)
+                        return "image://paletteitem/" + clientId;
+                    if (typeof itemId !== "undefined" && itemId > 0)
+                        return "image://paletteitem/" + itemId;
                     if (typeof spriteIds !== "undefined" && spriteIds.length > 0)
                         return Backend.sprReader.itemImageSource(
                                     spriteIds,
@@ -119,7 +123,7 @@ Item {
                 anchors.right: root.githubUi ? undefined : parent.right
                 anchors.margins: root.githubUi ? 4 : 2
                 font.pixelSize: root.githubUi ? (root.app.iconSizePx >= 88 ? 13 : 11) : 9
-                color: root.githubUi ? "#7D8590" : "#777"
+                color: root.grayUi ? "#929292" : (root.githubUi ? "#7D8590" : "#777")
                 text: {
                     if (typeof serverId !== "undefined")
                         return serverId;
@@ -154,11 +158,15 @@ Item {
                 onClicked: mouse => {
                     if (typeof serverId === "undefined")
                         return;
+                    grid.currentIndex = index;
                     if (mouse.button === Qt.RightButton) {
                         root.contextMenuRequested(serverId);
                     } else if (root.mapCtrl.brushServerId === serverId) {
                         root.mapCtrl.brushServerId = 0;
-                    } else if (root.currentKind === "All Items" || root.currentKind === "RAW Palette") {
+                    } else if (root.currentKind === "All Items"
+                               || root.currentKind === "RAW Palette"
+                               || root.currentKind === "Item Palette"
+                               || root.currentKind === "Collection Palette") {
                         root.mapCtrl.brushServerId = serverId;
                     } else {
                         root.mapCtrl.useGroundBrush(serverId);

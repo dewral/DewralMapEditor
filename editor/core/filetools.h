@@ -21,6 +21,7 @@ public:
     Q_INVOKABLE QString dirName(const QString &path) const;
     Q_INVOKABLE QString toLocalFile(const QUrl &url) const { return url.toLocalFile(); }
     Q_INVOKABLE void setClipboard(const QString &text) const;
+    Q_INVOKABLE QString clipboardText() const;
 };
 
 #endif

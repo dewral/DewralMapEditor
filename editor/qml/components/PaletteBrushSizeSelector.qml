@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import Tibia 1.0
 import "../style"
 
 Column {
@@ -7,6 +8,7 @@ Column {
 
     required property var mapCtrl
     required property bool githubUi
+    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     spacing: githubUi ? 9 : 3
 
@@ -14,12 +16,12 @@ Column {
         visible: root.githubUi
         width: parent.width
         height: visible ? 1 : 0
-        color: "#242D38"
+        color: root.grayUi ? "#3A3A3A" : "#242D38"
     }
 
     Text {
         text: "Brush size"
-        color: root.githubUi ? "#E6EDF3" : "#ddd"
+        color: root.grayUi ? "#F0F0F0" : (root.githubUi ? "#E6EDF3" : "#ddd")
         font.pixelSize: root.githubUi ? 12 : 11
         font.bold: true
     }

@@ -401,6 +401,7 @@ QSet<uint32_t> MapAtlasService::collectSpriteIds(
         for (uint32_t spriteId : effect->sprite_ids)
             if (spriteId != 0) spriteIds.insert(spriteId);
     }
+
     return spriteIds;
 }
 

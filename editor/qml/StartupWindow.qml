@@ -8,6 +8,8 @@ import "style"
 
 Window {
     id: startupScreen
+    readonly property bool modernTheme: Backend.uiTheme.style !== "classic"
+    readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
 
     required property var app
 
@@ -91,7 +93,7 @@ Window {
             Text {
                 anchors.centerIn: parent
                 text: startupScreen.title
-                color: Backend.uiTheme.style === "github-dark" ? "#F0F6FC" : "#c0c0c0"
+                color: startupScreen.grayTheme ? "#F0F0F0" : (startupScreen.modernTheme ? "#F0F6FC" : "#c0c0c0")
                 font.bold: true
                 font.pixelSize: 13
             }
@@ -150,7 +152,7 @@ Window {
                         Rectangle {
                             width: 180
                             height: 2
-                            color: Backend.uiTheme.style === "github-dark" ? "#2EA043" : "#4a90e2"
+                            color: startupScreen.grayTheme ? "#C79A3B" : (startupScreen.modernTheme ? "#2EA043" : "#4a90e2")
                         }
                     }
                     Text {
@@ -334,11 +336,13 @@ Window {
 
                             Rectangle {
                                 anchors.fill: parent
-                                radius: Backend.uiTheme.style === "github-dark" ? 5 : 0
-                                color: Backend.uiTheme.style === "github-dark"
-                                       ? (rma.pressed ? "#21262D" : (rma.containsMouse ? "#161E27" : "#0D1117"))
+                                radius: startupScreen.modernTheme ? 5 : 0
+                                color: startupScreen.modernTheme
+                                       ? (startupScreen.grayTheme
+                                          ? (rma.pressed ? "#353535" : (rma.containsMouse ? "#303030" : "#242424"))
+                                          : (rma.pressed ? "#21262D" : (rma.containsMouse ? "#161E27" : "#0D1117")))
                                        : (rma.pressed ? "#14ffffff" : (rma.containsMouse ? "#0affffff" : "transparent"))
-                                border.color: Backend.uiTheme.style === "github-dark" ? "#30363D" : "#555"
+                                border.color: startupScreen.grayTheme ? "#3A3A3A" : (startupScreen.modernTheme ? "#30363D" : "#555")
                                 border.width: 1
                             }
 
@@ -402,7 +406,7 @@ Window {
             Text {
                 width: parent.width
                 text: "Recover unsaved maps"
-                color: Backend.uiTheme.style === "github-dark" ? "#F0F6FC" : "#d6d6d6"
+                color: startupScreen.grayTheme ? "#F0F0F0" : (startupScreen.modernTheme ? "#F0F6FC" : "#d6d6d6")
                 font.pixelSize: 18
                 font.bold: true
             }
@@ -412,7 +416,7 @@ Window {
                       + (Backend.docMgr.recoveryCount === 1
                          ? " map from an interrupted session."
                          : " maps from an interrupted session.")
-                color: Backend.uiTheme.style === "github-dark" ? "#9DA7B3" : "#b8b8b8"
+                color: startupScreen.grayTheme ? "#999999" : (startupScreen.modernTheme ? "#9DA7B3" : "#b8b8b8")
                 font.pixelSize: 12
                 wrapMode: Text.WordWrap
             }
@@ -425,7 +429,7 @@ Window {
                         required property var modelData
                         width: parent.width
                         text: "• " + modelData.title + "  —  " + modelData.savedAt
-                        color: Backend.uiTheme.style === "github-dark" ? "#C9D1D9" : "#c0c0c0"
+                        color: startupScreen.grayTheme ? "#E0E0E0" : (startupScreen.modernTheme ? "#C9D1D9" : "#c0c0c0")
                         font.pixelSize: 11
                         elide: Text.ElideMiddle
                     }
@@ -484,7 +488,7 @@ Window {
                         verticalCenter: parent.verticalCenter
                     }
                     text: Backend.fileTools.fileName(startupScreen.loadingMapPath)
-                    color: "#C9D1D9"
+                    color: startupScreen.grayTheme ? "#E0E0E0" : "#C9D1D9"
                     font.pixelSize: 13
                     elide: Text.ElideMiddle
                 }
@@ -496,7 +500,7 @@ Window {
                         verticalCenter: parent.verticalCenter
                     }
                     text: Backend.otbmReader.loadingProgress + "%"
-                    color: "#56D364"
+                    color: startupScreen.grayTheme ? "#E3BC62" : "#56D364"
                     font.pixelSize: 12
                     font.weight: Font.DemiBold
                 }
@@ -507,7 +511,7 @@ Window {
                 width: parent.width
                 height: 7
                 radius: 4
-                color: "#21262D"
+                color: startupScreen.grayTheme ? "#353535" : "#21262D"
                 clip: true
 
                 Rectangle {
@@ -515,7 +519,7 @@ Window {
                     width: progressTrack.width * Backend.otbmReader.loadingProgress / 100
                     height: parent.height
                     radius: 4
-                    color: "#2EA043"
+                    color: startupScreen.grayTheme ? "#C79A3B" : "#2EA043"
 
                     Behavior on width {
                         NumberAnimation { duration: 100; easing.type: Easing.OutCubic }

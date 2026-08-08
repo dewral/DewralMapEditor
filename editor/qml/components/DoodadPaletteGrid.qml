@@ -14,6 +14,7 @@ Item {
     required property string categoryName
     required property string searchText
     required property bool githubUi
+    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     signal contextMenuRequested(int serverId)
 
@@ -36,6 +37,7 @@ Item {
                 prefab: false,
                 name: name,
                 serverId: sid,
+                clientId: details.clientId || 0,
                 spriteIds: details.spriteIds || [],
                 itemWidth: details.itemWidth || 1,
                 itemHeight: details.itemHeight || 1,
@@ -93,6 +95,7 @@ Item {
 
         delegate: Rectangle {
             id: cell
+            required property int index
             required property var modelData
 
             readonly property bool selected: modelData.prefab
@@ -106,12 +109,12 @@ Item {
             height: grid.cellHeight - grid.gap
             radius: root.githubUi ? 4 : 0
             clip: true
-            color: selected ? (root.githubUi ? "#163B2C" : "#2f6f4f")
-                            : (area.containsMouse ? (root.githubUi ? "#161E27" : "#303030")
-                                                  : (root.githubUi ? "#0D1117" : "#252525"))
+            color: selected ? (root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
+                            : (area.containsMouse ? (root.githubUi ? (root.grayUi ? "#303030" : "#161E27") : "#303030")
+                                                  : (root.githubUi ? (root.grayUi ? "#242424" : "#0D1117") : "#252525"))
             border.width: selected ? 2 : 1
-            border.color: selected ? (root.githubUi ? "#2EA043" : "#7fdc8f")
-                                   : (root.githubUi ? "#202A35" : "#3a3a3a")
+            border.color: selected ? (root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
+                                   : (root.githubUi ? (root.grayUi ? "#424242" : "#202A35") : "#3a3a3a")
 
             Image {
                 anchors.centerIn: parent
@@ -130,12 +133,14 @@ Item {
                 height: nativeHeight * scaleFactor
                 fillMode: Image.PreserveAspectFit
                 smooth: false
-                cache: cell.modelData.prefab
+                cache: true
                 source: cell.doodadSource !== "" ? cell.doodadSource
+                        : (cell.modelData.clientId > 0
+                           ? "image://paletteitem/" + cell.modelData.clientId
                         : Backend.sprReader.itemImageSource(cell.modelData.spriteIds,
                                                            cell.modelData.itemWidth,
                                                            cell.modelData.itemHeight,
-                                                           cell.modelData.layers)
+                                                           cell.modelData.layers))
             }
 
             Text {
@@ -145,7 +150,7 @@ Item {
                 anchors.margins: root.githubUi ? 4 : 2
                 width: root.githubUi ? parent.width - 8 : implicitWidth
                 text: cell.modelData.prefab ? cell.modelData.name : cell.modelData.serverId
-                color: root.githubUi ? "#7D8590" : "#777"
+                color: root.grayUi ? "#929292" : (root.githubUi ? "#7D8590" : "#777")
                 font.pixelSize: root.githubUi ? 11 : 9
                 horizontalAlignment: Text.AlignHCenter
                 elide: Text.ElideRight
@@ -163,6 +168,7 @@ Item {
                               + (cell.modelData.prefab ? "  (prefab)"
                                                       : "  (sid " + cell.modelData.serverId + ")")
                 onClicked: mouse => {
+                    grid.currentIndex = index;
                     if (mouse.button === Qt.RightButton) {
                         if (cell.modelData.prefab) {
                             prefabMenu.prefabName = cell.modelData.name;

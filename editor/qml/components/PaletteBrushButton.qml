@@ -4,6 +4,7 @@ import Tibia 1.0
 
 Item {
     id: root
+    readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
 
     property bool active: false
     property bool round: false
@@ -43,9 +44,9 @@ Item {
         anchors.fill: parent
         visible: root.githubStyle
         radius: 5
-        color: mouseArea.containsMouse ? "#171E27" : "#111820"
+        color: mouseArea.containsMouse ? (root.grayTheme ? "#303030" : "#171E27") : (root.grayTheme ? "#242424" : "#111820")
         border.width: root.active ? 2 : 1
-        border.color: root.active ? "#2EA043" : "#242D38"
+        border.color: root.active ? (root.grayTheme ? "#C79A3B" : "#2EA043") : (root.grayTheme ? "#484848" : "#242D38")
     }
 
     Rectangle {
@@ -53,8 +54,8 @@ Item {
         width: root.iconSize
         height: root.iconSize
         radius: root.round ? width / 2 : 0
-        color: root.active ? "#3FB950" : "#7D8590"
-        border.color: root.active ? "#7EE787" : "#A7B1BC"
+        color: root.active ? (root.grayTheme ? "#C79A3B" : "#3FB950") : (root.grayTheme ? "#858585" : "#7D8590")
+        border.color: root.active ? (root.grayTheme ? "#F0CD78" : "#7EE787") : (root.grayTheme ? "#B0B0B0" : "#A7B1BC")
         border.width: 1
     }
 

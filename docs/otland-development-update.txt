@@ -1,0 +1,142 @@
+[CENTER][B][SIZE=6]DME Development Update[/SIZE][/B]
+[SIZE=5]Large Maps, GPU Rendering, Advanced Search, Map Import and Prefabs[/SIZE][/CENTER]
+
+Another DME development update is ready. This update focuses on performance with real-world maps and introduces several tools that should make everyday mapping significantly easier.
+
+[B][SIZE=5]Large-map performance[/SIZE][/B]
+
+DME can now load and smoothly display a real-world OTBM map of approximately [B]180 MB[/B].
+
+Even when the entire map is visible at a very low zoom level, the editor maintains approximately [B]60 FPS[/B]. Waypoints are loaded correctly and can be displayed directly on the map.
+
+[IMG]https://i.imgur.com/Vk1Yyd9.png[/IMG]
+
+The renderer uses chunk caching and only prepares the map data required for the current view. This allows large multi-floor maps to remain responsive while navigating, zooming and editing.
+
+[B][SIZE=5]GPU rendering and resource usage[/SIZE][/B]
+
+One of the major architectural differences between DME and the traditional RME renderer is that DME moves a significant part of the rendering workload from the CPU to the [B]GPU[/B].
+
+DME uses instanced OpenGL rendering, cached map chunks and batched sprite processing. Prepared chunks can be reused between frames instead of repeatedly processing and submitting every visible tile and item from the CPU side.
+
+I compared DME and RME using the [B]same approximately 180 MB map, the same zoom level and the same computer[/B].
+
+[B]RME:[/B]
+
+[LIST]
+[*]CPU usage: [B]15.6%[/B]
+[*]System memory reported for the process: [B]3,722.9 MB[/B]
+[/LIST]
+
+[IMG]https://i.imgur.com/pa3nr4j.png[/IMG]
+
+[B]DME:[/B]
+
+[LIST]
+[*]CPU usage: [B]5.1%[/B]
+[*]System memory reported for the process: [B]561.7 MB[/B]
+[*]Additional rendering resources are stored in GPU memory
+[/LIST]
+
+[IMG]https://i.imgur.com/n4EEVQ0.png[/IMG]
+
+In this snapshot, DME used approximately [B]6.6 times less reported process memory[/B] and around [B]three times less CPU[/B] than RME.
+
+DME still keeps the CPU-side map representation in system RAM, while cached chunks, sprite data and rendering buffers are transferred to the GPU. GPU memory is reported separately by Windows and is not included in the standard process-memory values shown above.
+
+This does not mean that DME eliminates memory usage. Instead, a significant part of its rendering cache and visual processing is moved away from CPU-side rendering and handled by the GPU.
+
+These values represent a real-world snapshot rather than a controlled synthetic benchmark. Results may vary depending on the map, zoom level, visible floors, cache state, client assets and hardware.
+
+[B][SIZE=5]Advanced item search[/SIZE][/B]
+
+The new search window can find items using:
+
+[LIST]
+[*]Server ID
+[*]Client ID
+[*]Item name
+[*]Item type
+[*]Item properties
+[/LIST]
+
+Supported filters include containers, doors, teleports, beds, keys, writable items, unpassable items, path-blocking items, floor changes and many other properties.
+
+Search results include the item sprite, name, IDs and category.
+
+[IMG]https://i.imgur.com/ZnoCllK.png[/IMG]
+
+[B][SIZE=5]Map-wide search results[/SIZE][/B]
+
+DME can scan the entire map or only the current selection for:
+
+[LIST]
+[*]Unique IDs
+[*]Action IDs
+[*]Containers
+[*]Writable items
+[*]All relevant items
+[/LIST]
+
+Every result includes its map position and can be used to navigate directly to the matching tile. The tested 180 MB map produced more than [B]19,000 results[/B] without problems.
+
+[IMG]https://i.imgur.com/t3kcT7Y.png[/IMG]
+
+[B][SIZE=5]Replace and remove items[/SIZE][/B]
+
+Items can now be replaced or removed across the entire map or only inside a selection.
+
+Multiple replacement rules can be prepared before executing the operation. The changes are processed as a single editor action, so the complete operation can be reverted using undo.
+
+[IMG]https://i.imgur.com/EX2CVRh.png[/IMG]
+
+[B][SIZE=5]OTBM map import[/SIZE][/B]
+
+Another OTBM map can now be merged into the currently opened map.
+
+The importer supports:
+
+[LIST]
+[*]X, Y and Z offsets
+[*]Importing houses and towns
+[*]Importing creatures and spawns
+[*]Configurable tile-collision handling
+[/LIST]
+
+[IMG]https://i.imgur.com/Y2cSe2m.png[/IMG]
+
+[B][SIZE=5]Custom prefabs[/SIZE][/B]
+
+Selections can now be saved as reusable prefabs directly from the map context menu.
+
+[IMG]https://i.imgur.com/24n4dQn.png[/IMG]
+
+When creating a prefab, you can assign its name and doodad category. All item stacks from the selected tiles are stored, while creatures and spawns are intentionally excluded.
+
+[IMG]https://i.imgur.com/RlVTj8h.png[/IMG]
+
+The saved prefab immediately appears in the selected palette category and can be placed like a regular doodad brush.
+
+[IMG]https://i.imgur.com/oEKET7q.png[/IMG]
+
+This makes it possible to build a personal collection of complete ships, houses, rooms, decorations, structures or any other reusable map fragment.
+
+[B][SIZE=5]Current highlights[/SIZE][/B]
+
+[LIST]
+[*]Smooth rendering of an approximately 180 MB OTBM map at around 60 FPS
+[*]GPU-driven instanced OpenGL rendering
+[*]Approximately 6.6 times less reported process memory in the presented snapshot
+[*]Approximately three times lower CPU usage in the presented snapshot
+[*]Cached map chunks and batched sprite processing
+[*]Working waypoint loading, editing and map overlays
+[*]Advanced item and property search
+[*]Map-wide search result browser
+[*]Item replacement and removal tools
+[*]OTBM map importing with offsets and collision options
+[*]Reusable custom prefabs
+[*]Multi-floor selection and editing
+[*]Undo and redo support for editing operations
+[/LIST]
+
+DME is still under active development. Feedback, bug reports and feature suggestions are welcome.

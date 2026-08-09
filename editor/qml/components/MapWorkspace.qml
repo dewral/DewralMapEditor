@@ -202,6 +202,11 @@ Item {
                 onTriggered: prefabDialog.openForSelection()
             }
             Action {
+                text: "Generate Path from Prefabs..."
+                enabled: Backend.otbmReader.loaded
+                onTriggered: pathBuilderDialog.openForMap()
+            }
+            Action {
                 text: "Copy Position"
                 onTriggered: workspace.copyPosition("plain")
             }
@@ -406,6 +411,147 @@ Item {
                         width: 90
                         onClicked: prefabDialog.close()
                     }
+                }
+            }
+        }
+
+        DmeDialog {
+            id: pathBuilderDialog
+            title: "Prefab Path Generator"
+            property var paletteNames: []
+            property var prefabNames: []
+
+            function loadPrefabs() {
+                const rows = pathPalette.currentIndex >= 0
+                           ? Backend.brushStore.prefabsForPalette(pathPalette.currentText) : [];
+                const names = [];
+                for (let i = 0; i < rows.length; ++i)
+                    names.push(rows[i].name);
+                prefabNames = names;
+                straightPrefab.currentIndex = names.length > 0 ? 0 : -1;
+                cornerPrefab.currentIndex = names.length > 1 ? 1 : (names.length > 0 ? 0 : -1);
+                endPrefab.currentIndex = 0;
+            }
+
+            function openForMap() {
+                pathError.text = "";
+                const revision = Backend.brushStore.revision;
+                paletteNames = Backend.brushStore.prefabPaletteNames();
+                pathPalette.currentIndex = paletteNames.length > 0 ? 0 : -1;
+                loadPrefabs();
+                open();
+            }
+
+            function start() {
+                if (prefabNames.length === 0) {
+                    pathError.text = "This category does not contain any prefabs.";
+                    return;
+                }
+                const ending = endPrefab.currentIndex > 0
+                             ? prefabNames[endPrefab.currentIndex - 1] : "";
+                const result = mapView.startPathBuilder(straightPrefab.currentText,
+                                                        cornerPrefab.currentText,
+                                                        ending,
+                                                        pathSpacing.value);
+                if (!result.success) {
+                    pathError.text = result.error || "Could not start the path generator.";
+                    return;
+                }
+                close();
+            }
+
+            contentItem: Column {
+                width: 360
+                spacing: 8
+
+                Text {
+                    width: parent.width
+                    text: "Choose base prefabs in their canonical orientation. The generator rotates the tile layout and rotatable items automatically."
+                    color: workspace.grayUi ? "#B0B0B0" : (workspace.githubUi ? "#8B949E" : "#A0A0A0")
+                    font.pixelSize: 10
+                    wrapMode: Text.WordWrap
+                }
+                Text { text: "Doodad category"; color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"; font.pixelSize: 11 }
+                DmeComboBox {
+                    id: pathPalette
+                    width: parent.width
+                    model: pathBuilderDialog.paletteNames
+                    onActivated: pathBuilderDialog.loadPrefabs()
+                }
+                Text { text: "Straight prefab (west - east)"; color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"; font.pixelSize: 11 }
+                DmeComboBox { id: straightPrefab; width: parent.width; model: pathBuilderDialog.prefabNames }
+                Text { text: "Corner prefab (west - north)"; color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"; font.pixelSize: 11 }
+                DmeComboBox { id: cornerPrefab; width: parent.width; model: pathBuilderDialog.prefabNames }
+                Text { text: "Optional end prefab (opening to west)"; color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"; font.pixelSize: 11 }
+                DmeComboBox {
+                    id: endPrefab
+                    width: parent.width
+                    model: ["No separate ending"].concat(pathBuilderDialog.prefabNames)
+                }
+                Row {
+                    spacing: 8
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Segment spacing (tiles)"
+                        color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"
+                        font.pixelSize: 11
+                    }
+                    DmeSpinBox { id: pathSpacing; from: 1; to: 64; value: 4; width: 90 }
+                }
+                Text {
+                    id: pathError
+                    width: parent.width
+                    color: "#F85149"
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                }
+                Row {
+                    spacing: 8
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    DmeButton { text: "Start drawing"; width: 120; onClicked: pathBuilderDialog.start() }
+                    DmeButton { text: "Cancel"; width: 90; onClicked: pathBuilderDialog.close() }
+                }
+            }
+        }
+
+        Item {
+            z: 30
+            visible: mapView.pathBuilderActive
+            width: 430
+            height: 72
+            anchors {
+                top: parent.top
+                horizontalCenter: parent.horizontalCenter
+                topMargin: 12
+            }
+
+            DmePanel { anchors.fill: parent }
+            Column {
+                anchors.centerIn: parent
+                spacing: 6
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: mapView.pathPreviewCount > 0
+                          ? "Path preview: " + mapView.pathPreviewCount + " segments"
+                          : "Drag on the map to draw a path"
+                    color: workspace.githubUi ? "#C9D1D9" : "#E0E0E0"
+                    font.pixelSize: 11
+                }
+                Row {
+                    spacing: 8
+                    DmeButton {
+                        text: "Apply"
+                        width: 90
+                        enabled: mapView.pathPreviewCount > 0 && !mapView.pathBuilderDrawing
+                        onClicked: mapView.commitPathPreview()
+                    }
+                    DmeButton {
+                        text: "Redraw"
+                        width: 90
+                        enabled: mapView.pathPreviewCount > 0
+                        onClicked: mapView.clearPathPreview()
+                    }
+                    DmeButton { text: "Close"; width: 90; onClicked: mapView.cancelPathBuilder() }
                 }
             }
         }

@@ -370,19 +370,34 @@ QSet<uint32_t> MapAtlasService::collectSpriteIds(
     const OtbmReader *otbm, const OtbReader *otb, const DatReader *dat,
     const CreatureStore *creatures, int placementEffectId)
 {
-    QSet<uint32_t> spriteIds;
-    if (!otbm || !otbm->isLoaded() || !otb || !dat) return spriteIds;
+    QSet<uint16_t> uniqueServerIds;
+    if (!otbm || !otbm->isLoaded()) return {};
 
     for (const OtbmTile &tile : otbm->tiles()) {
-        for (const OtbmMapItem &mapItem : tile.items) {
-            const int clientId = otb->clientIdForServerId(mapItem.server_id);
-            const ClientItem *item = clientId > 0
-                ? dat->itemByClientId(static_cast<uint16_t>(clientId)) : nullptr;
-            if (!item) continue;
-            for (uint32_t spriteId : item->sprite_ids)
-                if (spriteId != 0) spriteIds.insert(spriteId);
-        }
+        for (const OtbmMapItem &mapItem : tile.items)
+            if (mapItem.server_id != 0) uniqueServerIds.insert(mapItem.server_id);
+    }
 
+    QVector<uint16_t> serverIds;
+    serverIds.reserve(uniqueServerIds.size());
+    for (uint16_t serverId : uniqueServerIds) serverIds.push_back(serverId);
+    return collectSpriteIds(serverIds, otb, dat, creatures, placementEffectId);
+}
+
+QSet<uint32_t> MapAtlasService::collectSpriteIds(
+    const QVector<uint16_t> &serverIds, const OtbReader *otb, const DatReader *dat,
+    const CreatureStore *creatures, int placementEffectId)
+{
+    QSet<uint32_t> spriteIds;
+    if (!otb || !dat) return spriteIds;
+
+    for (uint16_t serverId : serverIds) {
+        const int clientId = otb->clientIdForServerId(serverId);
+        const ClientItem *item = clientId > 0
+            ? dat->itemByClientId(static_cast<uint16_t>(clientId)) : nullptr;
+        if (!item) continue;
+        for (uint32_t spriteId : item->sprite_ids)
+            if (spriteId != 0) spriteIds.insert(spriteId);
     }
 
     // Preload only the static frames used by the creature palette and map

@@ -187,6 +187,7 @@ void MapView::paintFootprint(int x, int y)
 
 void MapView::setCreatureBrush(const QString &name)
 {
+    if (!name.isEmpty() && m_pathBuilder.active()) cancelPathBuilder();
     if (m_brushController.creatureBrush() == name) return;
     m_brushController.creatureBrush() = name;
     if (!name.isEmpty()) {
@@ -212,6 +213,7 @@ void MapView::setCreatureBrush(const QString &name)
 
 void MapView::setSpawnBrush(bool on)
 {
+    if (on && m_pathBuilder.active()) cancelPathBuilder();
     if (m_brushController.spawnBrush() == on) return;
     m_brushController.spawnBrush() = on;
     if (on) {
@@ -229,6 +231,7 @@ void MapView::setSpawnBrush(bool on)
 
 void MapView::setHouseBrush(int id)
 {
+    if (id > 0 && m_pathBuilder.active()) cancelPathBuilder();
     if (id < 0) id = 0;
     if (m_brushController.houseBrush() == id) return;
     m_brushController.houseBrush() = id;
@@ -249,6 +252,7 @@ void MapView::setHouseBrush(int id)
 
 void MapView::setHouseExitMode(bool on)
 {
+    if (on && m_pathBuilder.active()) cancelPathBuilder();
     if (m_brushController.houseExitMode() == on) return;
     m_brushController.houseExitMode() = on;
     if (on) {

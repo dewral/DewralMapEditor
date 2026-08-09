@@ -88,6 +88,9 @@ add_executable(DewralMapEditor
     editor/map/mapview_atlas.cpp
     editor/map/mapview_gl.cpp
     editor/map/mapview_input.cpp
+    editor/map/mapview_path.cpp
+    editor/map/mappathbuilder.cpp
+    editor/map/mappathbuilder.h
     editor/map/mapview.h
     editor/map/mapview_p.h
     editor/map/mapservices.cpp
@@ -164,6 +167,12 @@ if(BUILD_TESTING)
         tests/tile_position_index_test.cpp)
     target_include_directories(tile_position_index_test PRIVATE libs/otformats)
     add_test(NAME tile_position_index COMMAND tile_position_index_test)
+    add_executable(map_path_builder_test EXCLUDE_FROM_ALL
+        tests/map_path_builder_test.cpp
+        editor/map/mappathbuilder.cpp)
+    target_include_directories(map_path_builder_test PRIVATE editor/map)
+    target_link_libraries(map_path_builder_test PRIVATE Qt6::Core)
+    add_test(NAME map_path_builder COMMAND map_path_builder_test)
     add_executable(otbm_background_load_test EXCLUDE_FROM_ALL
         tests/otbm_background_load_test.cpp)
     target_include_directories(otbm_background_load_test PRIVATE libs/otformats)
@@ -187,7 +196,7 @@ if(BUILD_TESTING)
     add_test(NAME document_recovery COMMAND document_recovery_test)
     if(WIN32)
         set_tests_properties(otbm_compact_storage otbm_editing_storage
-                             otbm_background_load atlas_background_build
+                             otbm_background_load atlas_background_build map_path_builder
                              document_recovery PROPERTIES
             ENVIRONMENT_MODIFICATION
                 "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")

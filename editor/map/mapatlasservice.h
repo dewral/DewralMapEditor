@@ -38,6 +38,11 @@ public:
                                            const DatReader *dat,
                                            const CreatureStore *creatures,
                                            int placementEffectId);
+    static QSet<uint32_t> collectSpriteIds(const QVector<uint16_t> &serverIds,
+                                           const OtbReader *otb,
+                                           const DatReader *dat,
+                                           const CreatureStore *creatures,
+                                           int placementEffectId);
     static QSet<uint32_t> itemSpriteIds(int serverId, const OtbReader *otb,
                                        const DatReader *dat);
     static QSet<uint32_t> clientItemSpriteIds(int clientId, const DatReader *dat);

@@ -138,7 +138,22 @@ QVariantList MapView::selectionDetails() const
 void MapView::mousePressEvent(QMouseEvent *event)
 {
     forceActiveFocus();
+    m_pointerMovePending = false;
     m_navigationController.lastMouse() = event->position();
+
+    if (m_pathBuilder.active()) {
+        if (event->button() == Qt::LeftButton) {
+            const QPoint tile = tileAtScreen(event->position());
+            m_hoverX = tile.x();
+            m_hoverY = tile.y();
+            m_pathBuilder.begin(tile);
+            refreshPathPreview();
+        } else if (event->button() == Qt::RightButton) {
+            cancelPathBuilder();
+        }
+        event->accept();
+        return;
+    }
 
     if (m_selectionController.pasting()) {
         if (event->button() == Qt::LeftButton) {
@@ -269,7 +284,44 @@ void MapView::mousePressEvent(QMouseEvent *event)
 
 void MapView::mouseMoveEvent(QMouseEvent *event)
 {
-    const QPointF pos = event->position();
+    queuePointerMove(event->position(), false);
+    event->accept();
+}
+
+void MapView::queuePointerMove(const QPointF &position, bool hoverOnly)
+{
+    m_pendingPointerPosition = position;
+    m_pendingPointerHoverOnly = hoverOnly;
+    if (m_pointerMovePending) return;
+    m_pointerMovePending = true;
+    // Wake an otherwise idle renderer. Further events before its next tick
+    // overwrite only the pending position instead of scheduling more frames.
+    emit contentUpdated();
+}
+
+bool MapView::advancePointerFrame()
+{
+    if (!m_pointerMovePending) return false;
+    const QPointF position = m_pendingPointerPosition;
+    const bool hoverOnly = m_pendingPointerHoverOnly;
+    m_pointerMovePending = false;
+    processPointerMove(position, hoverOnly);
+    return true;
+}
+
+void MapView::processPointerMove(const QPointF &pos, bool hoverOnly)
+{
+
+    if (m_pathBuilder.active() && m_pathBuilder.drawing()) {
+        m_navigationController.lastMouse() = pos;
+        const QPoint tile = tileAtScreen(pos);
+        m_hoverX = tile.x();
+        m_hoverY = tile.y();
+        const bool changed = m_pathBuilder.append(tile);
+        updateHoverText();
+        if (changed) refreshPathPreview();
+        return;
+    }
 
     if (m_navigationController.panning()) {
 
@@ -279,7 +331,6 @@ void MapView::mouseMoveEvent(QMouseEvent *event)
         m_navigationController.originY() -= delta.y() / ts;
         m_navigationController.lastMouse() = pos;
         emit contentUpdated(); update();
-        event->accept();
         return;
     }
 
@@ -292,7 +343,6 @@ void MapView::mouseMoveEvent(QMouseEvent *event)
         if (t.x() != m_hoverX || t.y() != m_hoverY) {
             m_hoverX = t.x(); m_hoverY = t.y(); updateHoverText(); emit contentUpdated(); update();
         }
-        event->accept();
         return;
     }
 
@@ -305,7 +355,6 @@ void MapView::mouseMoveEvent(QMouseEvent *event)
             m_hoverX = t.x(); m_hoverY = t.y(); updateHoverText();
             if (m_dragDraw) { emit contentUpdated(); update(); }
         }
-        event->accept();
         return;
     }
 
@@ -317,7 +366,6 @@ void MapView::mouseMoveEvent(QMouseEvent *event)
             applyRubberBand();
             emit contentUpdated(); update();
         }
-        event->accept();
         return;
     }
 
@@ -326,17 +374,32 @@ void MapView::mouseMoveEvent(QMouseEvent *event)
         m_hoverX = h.x();
         m_hoverY = h.y();
         updateHoverText();
-        if (!m_editController.selectionMode() || m_selectionController.pasting()) {
+        const bool cursorVisual = m_brushController.serverId() > 0
+            || m_editController.activeZone() != 0 || m_editController.eraseMode()
+            || m_brushController.spawnBrush() || !m_brushController.creatureBrush().isEmpty()
+            || m_brushController.houseBrush() > 0 || m_brushController.houseExitMode()
+            || !m_brushController.doodadBrush().isEmpty();
+        const bool redraw = hoverOnly
+            ? (m_selectionController.pasting()
+               || (!m_editController.selectionMode() && cursorVisual))
+            : (!m_editController.selectionMode() || m_selectionController.pasting());
+        if (redraw) {
             emit contentUpdated();
             update();
         }
     }
-    event->accept();
 }
 
 void MapView::mouseReleaseEvent(QMouseEvent *event)
 {
-    if (event->button() == Qt::LeftButton && m_brushController.painting()) {
+    m_pointerMovePending = false;
+    processPointerMove(event->position(), false);
+    if (event->button() == Qt::LeftButton && m_pathBuilder.active()
+        && m_pathBuilder.drawing()) {
+        m_pathBuilder.append(tileAtScreen(event->position()));
+        m_pathBuilder.finish();
+        refreshPathPreview();
+    } else if (event->button() == Qt::LeftButton && m_brushController.painting()) {
         m_brushController.setPainting(false);
         if (m_dragDraw) {
 
@@ -381,6 +444,11 @@ void MapView::mouseUngrabEvent()
     m_selectionController.selecting() = false;
     m_navigationController.panning() = false;
     m_brushController.finishStroke();
+    m_pointerMovePending = false;
+    if (m_pathBuilder.drawing()) {
+        m_pathBuilder.finish();
+        emit pathBuilderChanged();
+    }
 
     emit contentUpdated();
     update();
@@ -390,20 +458,7 @@ void MapView::mouseUngrabEvent()
 void MapView::hoverMoveEvent(QHoverEvent *event)
 {
     if (m_navigationController.panning() || m_selectionController.selecting()) return;
-    m_navigationController.lastMouse() = event->position();
-    const QPoint h = tileAtScreen(event->position());
-    if (h.x() != m_hoverX || h.y() != m_hoverY) {
-        m_hoverX = h.x();
-        m_hoverY = h.y();
-        updateHoverText();
-        // Redraw only when hover has a visual representation on the map.
-        const bool cursorVisual = m_brushController.serverId() > 0 || m_editController.activeZone() != 0
-            || m_editController.eraseMode() || m_brushController.spawnBrush() || !m_brushController.creatureBrush().isEmpty()
-            || m_brushController.houseBrush() > 0 || m_brushController.houseExitMode() || !m_brushController.doodadBrush().isEmpty();
-        if (m_selectionController.pasting() || (!m_editController.selectionMode() && cursorVisual)) {
-            emit contentUpdated();
-        }
-    }
+    queuePointerMove(event->position(), true);
     event->accept();
 }
 
@@ -452,6 +507,19 @@ void MapView::zoomAt(int steps, qreal px, qreal py)
 
 void MapView::keyPressEvent(QKeyEvent *event)
 {
+    if (m_pathBuilder.active()) {
+        if (event->key() == Qt::Key_Escape) {
+            cancelPathBuilder();
+            event->accept();
+            return;
+        }
+        if ((event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter)
+            && !m_pathBuilder.drawing()) {
+            commitPathPreview();
+            event->accept();
+            return;
+        }
+    }
     if (event->key() == Qt::Key_Plus || event->key() == Qt::Key_Equal) {
         setFloor(m_navigationController.floor() - 1);
         event->accept();
@@ -539,46 +607,13 @@ void MapView::keyPressEvent(QKeyEvent *event)
     const int k = event->key();
     if (k == Qt::Key_Left || k == Qt::Key_Right || k == Qt::Key_Up || k == Qt::Key_Down) {
         if (!event->isAutoRepeat() && !m_navigationController.heldArrows().contains(k)) {
+            const bool starting = m_navigationController.heldArrows().isEmpty();
             m_navigationController.heldArrows().insert(k);
-            if (!m_navigationController.arrowTimer()) {
-                m_navigationController.arrowTimer() = new QTimer(this);
-                m_navigationController.arrowTimer()->setTimerType(Qt::CoarseTimer);
-                m_navigationController.arrowTimer()->setInterval(16);
-                connect(m_navigationController.arrowTimer(), &QTimer::timeout, this, [this] {
-                    const double dt = m_navigationController.arrowClock().nsecsElapsed() / 1e9;
-                    m_navigationController.arrowClock().restart();
-
-                    const bool fast = QGuiApplication::keyboardModifiers() & Qt::ShiftModifier;
-                    const double speed = (fast ? 60.0 : 25.0) * dt;
-                    const int dx = static_cast<int>(m_navigationController.heldArrows().contains(Qt::Key_Right))
-                                 - static_cast<int>(m_navigationController.heldArrows().contains(Qt::Key_Left));
-                    const int dy = static_cast<int>(m_navigationController.heldArrows().contains(Qt::Key_Down))
-                                 - static_cast<int>(m_navigationController.heldArrows().contains(Qt::Key_Up));
-                    if (dx == 0 && dy == 0) return;
-                    m_navigationController.originX() += dx * speed;
-                    m_navigationController.originY() += dy * speed;
-
-                    // Moving the camera changes the world tile below a stationary
-                    // mouse pointer. Keep brush, paste and selection previews bound
-                    // to the cursor while keyboard navigation is active.
-                    const QPointF mouse = m_navigationController.lastMouse();
-                    if (mouse.x() >= 0 && mouse.y() >= 0
-                        && mouse.x() < width() && mouse.y() < height()) {
-                        const QPoint hover = tileAtScreen(mouse);
-                        if (hover.x() != m_hoverX || hover.y() != m_hoverY) {
-                            m_hoverX = hover.x();
-                            m_hoverY = hover.y();
-                            updateHoverText();
-                        }
-                    }
-
-                    emit contentUpdated();
-                });
-            }
-            if (!m_navigationController.arrowTimer()->isActive()) {
+            if (starting)
                 m_navigationController.arrowClock().restart();
-                m_navigationController.arrowTimer()->start();
-            }
+            // Wake the demand-driven renderer. Subsequent movement is advanced
+            // by its frame clock, avoiding a second independent 16 ms timer.
+            emit contentUpdated();
         }
         event->accept();
         return;
@@ -590,9 +625,7 @@ void MapView::keyReleaseEvent(QKeyEvent *event)
 {
     const int k = event->key();
     if (!event->isAutoRepeat() && m_navigationController.heldArrows().remove(k)) {
-        if (m_navigationController.heldArrows().isEmpty() && m_navigationController.arrowTimer()) {
-            m_navigationController.arrowTimer()->stop();
-
+        if (m_navigationController.heldArrows().isEmpty()) {
             const QPointF mouse = m_navigationController.lastMouse();
             if (mouse.x() >= 0 && mouse.y() >= 0
                 && mouse.x() < width() && mouse.y() < height()) {
@@ -605,6 +638,7 @@ void MapView::keyReleaseEvent(QKeyEvent *event)
                 }
             }
         }
+        emit contentUpdated();
         event->accept();
         return;
     }
@@ -615,6 +649,40 @@ void MapView::focusOutEvent(QFocusEvent *event)
 {
 
     m_navigationController.heldArrows().clear();
-    if (m_navigationController.arrowTimer()) m_navigationController.arrowTimer()->stop();
+    m_pointerMovePending = false;
     QQuickItem::focusOutEvent(event);
+}
+
+bool MapView::advanceNavigationFrame()
+{
+    if (m_navigationController.heldArrows().isEmpty()) return false;
+
+    const double elapsed = m_navigationController.arrowClock().nsecsElapsed() / 1e9;
+    m_navigationController.arrowClock().restart();
+    const double dt = std::clamp(elapsed, 0.0, 0.05);
+    const int dx = static_cast<int>(m_navigationController.heldArrows().contains(Qt::Key_Right))
+                 - static_cast<int>(m_navigationController.heldArrows().contains(Qt::Key_Left));
+    const int dy = static_cast<int>(m_navigationController.heldArrows().contains(Qt::Key_Down))
+                 - static_cast<int>(m_navigationController.heldArrows().contains(Qt::Key_Up));
+    if (dt <= 0.0 || (dx == 0 && dy == 0)) return false;
+
+    const bool fast = QGuiApplication::keyboardModifiers() & Qt::ShiftModifier;
+    const double distance = (fast ? 60.0 : 25.0) * dt;
+    m_navigationController.originX() += dx * distance;
+    m_navigationController.originY() += dy * distance;
+
+    // The tile below a stationary pointer changes together with the camera.
+    const QPointF mouse = m_navigationController.lastMouse();
+    if (mouse.x() >= 0 && mouse.y() >= 0
+        && mouse.x() < width() && mouse.y() < height()) {
+        const QPoint hover = tileAtScreen(mouse);
+        if (hover.x() != m_hoverX || hover.y() != m_hoverY) {
+            m_hoverX = hover.x();
+            m_hoverY = hover.y();
+            updateHoverText();
+        }
+    }
+
+    emit contentUpdated();
+    return true;
 }

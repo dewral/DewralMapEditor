@@ -36,8 +36,11 @@ void MapView::buildAtlasImage()
         return;
     }
 
-    const QSet<uint32_t> spriteIds = MapAtlasService::collectSpriteIds(
-        m_otbm, m_otb, m_dat, m_creatureStore, kPlaceEffectId);
+    const QSet<uint32_t> spriteIds = m_loadedMapServerIdsReady
+        ? MapAtlasService::collectSpriteIds(m_loadedMapServerIds, m_otb, m_dat,
+                                            m_creatureStore, kPlaceEffectId)
+        : MapAtlasService::collectSpriteIds(m_otbm, m_otb, m_dat,
+                                            m_creatureStore, kPlaceEffectId);
     startAtlasJob(spriteIds, true);
 }
 

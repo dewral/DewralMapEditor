@@ -30,6 +30,7 @@
 #include "brushstore.h"
 #include "creaturestore.h"
 #include "mapservices.h"
+#include "mappathbuilder.h"
 
 class QTimer;
 
@@ -101,6 +102,9 @@ class MapView : public QQuickItem
     Q_PROPERTY(int activeZone READ activeZone WRITE setActiveZone NOTIFY activeZoneChanged)
 
     Q_PROPERTY(bool eraseMode READ eraseMode WRITE setEraseMode NOTIFY eraseModeChanged)
+    Q_PROPERTY(bool pathBuilderActive READ pathBuilderActive NOTIFY pathBuilderChanged)
+    Q_PROPERTY(bool pathBuilderDrawing READ pathBuilderDrawing NOTIFY pathBuilderChanged)
+    Q_PROPERTY(int pathPreviewCount READ pathPreviewCount NOTIFY pathBuilderChanged)
 
 public:
     explicit MapView(QQuickItem *parent = nullptr);
@@ -125,6 +129,9 @@ public:
     int activeZone() const { return static_cast<int>(m_editController.activeZone()); }
     void setActiveZone(int zone);
     bool eraseMode() const { return m_editController.eraseMode(); }
+    bool pathBuilderActive() const { return m_pathBuilder.active(); }
+    bool pathBuilderDrawing() const { return m_pathBuilder.drawing(); }
+    int pathPreviewCount() const { return m_pathBuilder.placements().size(); }
 
     void setEraseMode(bool on);
     Q_INVOKABLE void toggleSelectionMode() { setSelectionMode(!m_editController.selectionMode()); }
@@ -336,6 +343,12 @@ public:
     Q_INVOKABLE double glOriginY() const { return m_navigationController.originY(); }
     double glPointerVisualOffsetX() const;
     double glPointerVisualOffsetY() const;
+    bool navigationActive() const {
+        return !m_navigationController.heldArrows().isEmpty();
+    }
+    bool advanceNavigationFrame();
+    bool pointerMovePending() const { return m_pointerMovePending; }
+    bool advancePointerFrame();
     int glBottomFloor() const { return renderBottomFloor(); }
 
     int glQuadCacheVersion() const {
@@ -490,6 +503,13 @@ public:
     Q_INVOKABLE void copySelection();
     Q_INVOKABLE QVariantMap saveSelectionAsPrefab(const QString &name,
                                                   const QString &palette);
+    Q_INVOKABLE QVariantMap startPathBuilder(const QString &straightPrefab,
+                                             const QString &cornerPrefab,
+                                             const QString &endPrefab,
+                                             int spacing);
+    Q_INVOKABLE void clearPathPreview();
+    Q_INVOKABLE void cancelPathBuilder();
+    Q_INVOKABLE bool commitPathPreview();
 
     Q_INVOKABLE void cutSelection();
 
@@ -563,6 +583,7 @@ signals:
     void showShadeChanged();
     void placeEffectChanged();
     void brushParamsChanged();
+    void pathBuilderChanged();
     void mapLoadFinished(bool success, const QString &path, const QString &error);
 
     void contentUpdated();
@@ -658,6 +679,8 @@ private:
     static int selZ(quint64 k) { return static_cast<int>((k >> 48) & 0xffffu); }
 
     QPoint tileAtScreen(const QPointF &p) const;
+    void queuePointerMove(const QPointF &position, bool hoverOnly);
+    void processPointerMove(const QPointF &position, bool hoverOnly);
     const OtbmTile *currentFloorTileAt(int x, int y) const;
     QVariantMap itemContextInfo(const OtbmMapItem &item, int index) const;
     void applyRubberBand();
@@ -703,6 +726,10 @@ private:
     void refreshAfterEdit(uint16_t serverId);
 
     int itemCategory(uint16_t serverId) const;
+    int rotatedPathItemId(int serverId, int quarterTurns) const;
+    QVector<BrushStore::DoodadTile> pathPlacementTiles(
+        const MapPathBuilder::Placement &placement) const;
+    void refreshPathPreview();
 
     OtbmReader *m_otbm = nullptr;
     OtbReader *m_otb = nullptr;
@@ -715,6 +742,7 @@ private:
     MapSelectionController m_selectionController;
     MapNavigationController m_navigationController;
     MapItemController m_itemController;
+    MapPathBuilder m_pathBuilder;
 
     mutable std::recursive_mutex m_dataMutex;
     static constexpr int kPlaceEffectId = 3;
@@ -799,6 +827,9 @@ private:
     mutable QHash<quint64, QString> m_groundNameCache;
     mutable bool m_groundNameCacheOn = false;
     int m_hoverX = -1, m_hoverY = -1;
+    QPointF m_pendingPointerPosition;
+    bool m_pointerMovePending = false;
+    bool m_pendingPointerHoverOnly = false;
     QString m_hoverText;
     // Throttles hoverChanged emissions used by the status bar.
     QTimer *m_hoverEmitTimer = nullptr;
@@ -807,6 +838,8 @@ private:
     void minimapUpdateTile(int x, int y, int z);
 
     MapAtlasService m_atlasService;
+    QVector<uint16_t> m_loadedMapServerIds;
+    bool m_loadedMapServerIdsReady = false;
     std::atomic<quint64> m_atlasBuildGeneration{0};
     std::shared_ptr<int> m_lifetimeToken = std::make_shared<int>(0);
     QSet<uint32_t> m_pendingAtlasSpriteIds;
@@ -818,6 +851,7 @@ private:
     std::atomic<int> m_sharedAtlasGeneration{-1};
     int m_dataVersion = 0;
     quint32 m_metadataOverlayVersion = 0;
+    quint32 m_pathBuilderVersion = 0;
 
     bool m_showLowerFloors = true;
     bool m_showShade = true;

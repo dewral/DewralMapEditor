@@ -16,6 +16,7 @@
 #include <QGuiApplication>
 #include <QSet>
 #include <algorithm>
+#include <bitset>
 #include <climits>
 #include <cmath>
 #include <cstring>
@@ -138,6 +139,8 @@ bool MapView::loadMap(const QString &path)
         std::unique_ptr<OtbmReader> reader;
         MapFloorTileIndex floorIndex;
         MapSpawnIndexService::FloorCenters spawnCenters;
+        std::bitset<65536> serverIdBits;
+        QVector<uint16_t> serverIds;
         QString error;
     };
     auto result = std::make_shared<LoadResult>();
@@ -184,6 +187,8 @@ bool MapView::loadMap(const QString &path)
                 const quint64 key = (static_cast<quint64>(static_cast<quint32>(cx)) << 32)
                                   | static_cast<quint64>(static_cast<quint32>(cy));
                 result->floorIndex[tile.z][key].push_back(&tile);
+                for (const OtbmMapItem &item : tile.items)
+                    if (item.server_id != 0) result->serverIdBits.set(item.server_id);
                 auto &floorSpawns = result->spawnCenters[tile.z];
                 if (tile.spawn_radius > 0)
                     floorSpawns.push_back({tile.x, tile.y, tile.spawn_radius});
@@ -196,6 +201,10 @@ bool MapView::loadMap(const QString &path)
                     }
                 }
             }
+            result->serverIds.reserve(static_cast<qsizetype>(result->serverIdBits.count()));
+            for (size_t serverId = 1; serverId < result->serverIdBits.size(); ++serverId)
+                if (result->serverIdBits.test(serverId))
+                    result->serverIds.push_back(static_cast<uint16_t>(serverId));
             qsizetype totalChunks = 0;
             for (auto floorIt = result->floorIndex.cbegin();
                  floorIt != result->floorIndex.cend(); ++floorIt)
@@ -244,6 +253,8 @@ bool MapView::loadMap(const QString &path)
                 guard->m_chunkStore.indexedTileCount() =
                     static_cast<qsizetype>(result->reader->tiles().size());
                 guard->m_spawnIndex.setPrebuilt(std::move(result->spawnCenters));
+                guard->m_loadedMapServerIds = std::move(result->serverIds);
+                guard->m_loadedMapServerIdsReady = true;
                 guard->m_asyncFloorIndexReady = true;
                 adopted = targetGuard->adoptLoadedState(*result->reader);
                 if (!adopted) guard->m_asyncFloorIndexReady = false;
@@ -462,6 +473,7 @@ void MapView::useDoodadBrush(const QString &name)
 {
     BrushStore *store = m_brushController.store();
     if (!store || !store->isDoodadBrush(name)) return;
+    if (m_pathBuilder.active()) cancelPathBuilder();
 
     if (m_editController.selectionMode()) {
         m_editController.selectionMode() = false;
@@ -504,6 +516,7 @@ void MapView::setEraseMode(bool on)
 void MapView::setActiveZone(int zone)
 {
     const quint32 z = static_cast<quint32>(zone < 0 ? 0 : zone);
+    if (z != 0 && m_pathBuilder.active()) cancelPathBuilder();
     if (m_editController.activeZone() == z) return;
     m_editController.activeZone() = z;
     if (z != 0) {
@@ -527,6 +540,7 @@ void MapView::setActiveZone(int zone)
 
 void MapView::setSelectionMode(bool on)
 {
+    if (on && m_pathBuilder.active()) cancelPathBuilder();
     if (m_editController.selectionMode() == on) return;
     m_editController.selectionMode() = on;
 
@@ -538,6 +552,7 @@ void MapView::setSelectionMode(bool on)
 void MapView::applyBrushServerId(int serverId, bool asBrush)
 {
     if (serverId < 0) serverId = 0;
+    if (serverId > 0 && m_pathBuilder.active()) cancelPathBuilder();
 
     if (serverId > 0) {
         if (m_editController.selectionMode()) { m_editController.selectionMode() = false; emit selectionModeChanged(); }
@@ -597,6 +612,8 @@ void MapView::onMapLoaded()
         ++m_dataVersion;
         m_minimapService.invalidate();
     } else {
+        m_loadedMapServerIdsReady = false;
+        m_loadedMapServerIds.clear();
         rebuildFloorIndex();
     }
     if (reportProgress)

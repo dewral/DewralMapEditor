@@ -6,8 +6,6 @@
 #include <QSet>
 #include <QtGlobal>
 
-class QTimer;
-
 class MapNavigationController
 {
 public:
@@ -25,7 +23,6 @@ public:
     bool panning() const { return m_panning; }
     QSet<int> &heldArrows() { return m_heldArrows; }
     const QSet<int> &heldArrows() const { return m_heldArrows; }
-    QTimer *&arrowTimer() { return m_arrowTimer; }
     QElapsedTimer &arrowClock() { return m_arrowClock; }
 
     int &previousCenterX() { return m_previousCenterX; }
@@ -42,7 +39,6 @@ private:
     QPointF m_lastMouse;
     bool m_panning = false;
     QSet<int> m_heldArrows;
-    QTimer *m_arrowTimer = nullptr;
     QElapsedTimer m_arrowClock;
     int m_previousCenterX = 0;
     int m_previousCenterY = 0;

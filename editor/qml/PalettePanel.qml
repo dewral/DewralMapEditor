@@ -212,7 +212,7 @@ Rectangle {
         property var subNames: {
             const _r = Backend.tilesetStore.revision;
             if (currentKind === "All Items")
-                return Backend.tilesetStore.namesFor("item");
+                return Backend.tilesetStore.namesFor("raw");
             if (currentCategory !== "")
                 return Backend.tilesetStore.namesFor(currentCategory);
             if (currentKind === "My Palettes")
@@ -309,10 +309,12 @@ Rectangle {
                 width: parent.width
                 height: 62
                 spacing: 4
-                property real categoryWidth: Math.floor((width - spacing * 4) / 5)
+                readonly property int categoryCount: 6
+                property real categoryWidth: Math.floor((width - spacing * (categoryCount - 1)) / categoryCount)
 
                 Repeater {
                     model: [
+                        { label: "RAW", icon: "items", kind: "RAW Palette" },
                         { label: "Items", icon: "items", kind: "Item Palette" },
                         { label: "Terrain", icon: "terrain", kind: "Terrain Palette" },
                         { label: "Doodads", icon: "doodads", kind: "Doodad Palette" },
@@ -324,8 +326,8 @@ Rectangle {
                         id: categoryTab
 
                         required property var modelData
-                        readonly property bool active: modelData.kind === "Item Palette"
-                                                     ? (paletteCol.currentKind === "Item Palette" || paletteCol.currentKind === "All Items")
+                        readonly property bool active: modelData.kind === "RAW Palette"
+                                                     ? (paletteCol.currentKind === "RAW Palette" || paletteCol.currentKind === "All Items")
                                                      : paletteCol.currentKind === modelData.kind
 
                         width: githubCategoryRow.categoryWidth
@@ -471,7 +473,7 @@ Rectangle {
                     id: githubSubCombo
                     anchors.fill: parent
                     model: {
-                        if (paletteCol.currentKind === "Item Palette" || paletteCol.currentKind === "All Items")
+                        if (paletteCol.currentKind === "RAW Palette" || paletteCol.currentKind === "All Items")
                             return ["All Items"].concat(paletteCol.subNames);
                         if (paletteCol.showSub)
                             return paletteCol.subNames;
@@ -484,17 +486,17 @@ Rectangle {
                     currentIndex: {
                         if (paletteCol.currentKind === "All Items")
                             return 0;
-                        if (paletteCol.currentKind === "Item Palette")
+                        if (paletteCol.currentKind === "RAW Palette")
                             return subCombo.currentIndex + 1;
                         return paletteCol.showSub ? subCombo.currentIndex : 0;
                     }
-                    enabled: paletteCol.currentKind === "Item Palette" || paletteCol.currentKind === "All Items" || paletteCol.showSub
+                    enabled: paletteCol.currentKind === "All Items" || paletteCol.showSub
                     onActivated: index => {
-                        if (paletteCol.currentKind === "Item Palette" || paletteCol.currentKind === "All Items") {
+                        if (paletteCol.currentKind === "RAW Palette" || paletteCol.currentKind === "All Items") {
                             if (index === 0) {
                                 kindCombo.currentIndex = paletteCol.kinds.indexOf("All Items");
                             } else {
-                                kindCombo.currentIndex = paletteCol.kinds.indexOf("Item Palette");
+                                kindCombo.currentIndex = paletteCol.kinds.indexOf("RAW Palette");
                                 Qt.callLater(function () {
                                     subCombo.currentIndex = index - 1;
                                 });

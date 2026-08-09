@@ -1305,6 +1305,10 @@ void MapGLView::setSource(MapView *s)
 void MapGLView::driverTick()
 {
     if (!isVisible()) return;
+    if (!m_previewWindow && m_source && m_source->pointerMovePending())
+        m_source->advancePointerFrame();
+    if (!m_previewWindow && m_source && m_source->navigationActive())
+        m_source->advanceNavigationFrame();
     // Request a frame only for an actual change or an active magic effect.
     // Item animations are advanced by m_animTimer every 500 ms; the resulting
     // contentUpdated signal marks the next frame as pending.

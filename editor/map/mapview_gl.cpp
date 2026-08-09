@@ -141,6 +141,16 @@ quint64 MapView::glPointerOverlayVersion() const
     mix(static_cast<quint32>(m_selectionController.moveSourceZ()));
     mix(static_cast<quint32>(m_dragStartX));
     mix(static_cast<quint32>(m_dragStartY));
+    mix(static_cast<quint32>(m_pathBuilder.active()));
+    mix(static_cast<quint32>(m_pathBuilder.drawing()));
+    mix(static_cast<quint32>(m_pathBuilderVersion));
+    mix(static_cast<quint32>(m_pathBuilder.placements().size()));
+    for (const MapPathBuilder::Placement &placement : m_pathBuilder.placements()) {
+        mix(static_cast<quint32>(placement.x));
+        mix(static_cast<quint32>(placement.y));
+        mix(static_cast<quint32>(placement.quarterTurns));
+        mix(qHash(placement.prefab));
+    }
     return key;
 }
 
@@ -742,6 +752,43 @@ void MapView::glCollectGhostInstances(std::vector<float> &out)
     const auto &atlasSlots = m_atlasService.atlasSlots();
     if (m_hoverX < 0 || atlasSlots.empty() || !m_otb || !m_dat)
         return;
+
+    if (m_pathBuilder.active() && !m_pathBuilder.placements().isEmpty()) {
+        for (const MapPathBuilder::Placement &placement : m_pathBuilder.placements()) {
+            const QVector<BrushStore::DoodadTile> tiles = pathPlacementTiles(placement);
+            for (const BrushStore::DoodadTile &tile : tiles) {
+                if (m_navigationController.floor() + tile.dz != m_navigationController.floor())
+                    continue;
+                const int tx = placement.x + tile.dx;
+                const int ty = placement.y + tile.dy;
+                for (int serverId : tile.items) {
+                    const int clientId = m_otb->clientIdForServerId(serverId);
+                    const ClientItem *item = clientId > 0
+                        ? m_dat->itemByClientId(static_cast<uint16_t>(clientId)) : nullptr;
+                    if (!item || item->sprite_ids.empty()) continue;
+                    const int width = std::max<int>(1, item->width);
+                    const int height = std::max<int>(1, item->height);
+                    const int layers = std::max<int>(1, item->layers);
+                    for (int layer = 0; layer < layers; ++layer)
+                        for (int yy = 0; yy < height; ++yy)
+                            for (int xx = 0; xx < width; ++xx) {
+                                const uint32_t spriteId = cellSpriteId(
+                                    item, xx, yy, layer, width, height, tx, ty,
+                                    m_navigationController.floor());
+                                const int atlasSlot = spriteId > 0
+                                    ? atlasSlotForSprite(spriteId) : -1;
+                                if (atlasSlot < 0) continue;
+                                const QRect &slot = atlasSlots[static_cast<size_t>(atlasSlot)];
+                                out.push_back(static_cast<float>((tx - xx) * kSprite));
+                                out.push_back(static_cast<float>((ty - yy) * kSprite));
+                                out.push_back(static_cast<float>(slot.x()));
+                                out.push_back(static_cast<float>(slot.y()));
+                            }
+                }
+            }
+        }
+        return;
+    }
 
     if (m_selectionController.pasting() && !m_selectionController.clipboard().empty()) {
         for (const ClipTile &ct : m_selectionController.clipboard()) {

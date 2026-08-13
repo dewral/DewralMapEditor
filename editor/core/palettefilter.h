@@ -3,6 +3,7 @@
 
 #include <QSortFilterProxyModel>
 #include <QSet>
+#include <QHash>
 #include <QVariantList>
 #include <QtQml/qqmlregistration.h>
 
@@ -22,6 +23,7 @@ public:
     void setSearchText(const QString &t);
 
     Q_INVOKABLE void setIds(const QVariantList &ids);
+    Q_INVOKABLE void setOrderedIds(const QVariantList &ids);
 
     Q_INVOKABLE int rowForServerId(int serverId) const;
 
@@ -31,11 +33,13 @@ signals:
 
 protected:
     bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const override;
+    bool lessThan(const QModelIndex &left, const QModelIndex &right) const override;
 
 private:
     QString m_mode = QStringLiteral("all");
     QString m_search;
     QSet<int> m_ids;
+    QHash<int, int> m_order;
 };
 
 #endif

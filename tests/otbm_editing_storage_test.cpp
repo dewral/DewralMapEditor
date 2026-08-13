@@ -141,6 +141,39 @@ bool testPaintingStress()
     return true;
 }
 
+bool testItemStackReordering()
+{
+    OtbmReader map;
+    if (!map.newMap(128, 128, 1098, 3, 57)
+        || !map.addItem(50, 50, 7, 5000)
+        || !map.addItem(50, 50, 7, 5001)
+        || !map.addItem(50, 50, 7, 5002))
+        return false;
+
+    if (!map.moveItemAt(50, 50, 7, 1, 2)) return false;
+    const OtbmTile *tile = map.tileAt(50, 50, 7);
+    if (!require(tile && tile->items.size() == 3
+                     && tile->items[0].server_id == 5000
+                     && tile->items[1].server_id == 5002
+                     && tile->items[2].server_id == 5001,
+                 "Item stack reorder produced the wrong order"))
+        return false;
+
+    if (!require(map.undo(), "Undo failed after item stack reorder")) return false;
+    tile = map.tileAt(50, 50, 7);
+    if (!require(tile && tile->items[0].server_id == 5000
+                     && tile->items[1].server_id == 5001
+                     && tile->items[2].server_id == 5002,
+                 "Undo did not restore the original item stack order"))
+        return false;
+
+    if (!require(map.redo(), "Redo failed after item stack reorder")) return false;
+    tile = map.tileAt(50, 50, 7);
+    return require(tile && tile->items[1].server_id == 5002
+                       && tile->items[2].server_id == 5001,
+                   "Redo did not restore the reordered item stack");
+}
+
 }
 
 int main(int argc, char **argv)
@@ -154,5 +187,6 @@ int main(int argc, char **argv)
     if (!testImport(directory.filePath(QStringLiteral("import-source.otbm"))))
         return EXIT_FAILURE;
     if (!testPaintingStress()) return EXIT_FAILURE;
+    if (!testItemStackReordering()) return EXIT_FAILURE;
     return EXIT_SUCCESS;
 }

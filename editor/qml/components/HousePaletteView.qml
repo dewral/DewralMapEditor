@@ -39,6 +39,23 @@ Column {
         mapCtrl.houseBrush = house.id;
     }
 
+    function selectHouseId(houseId) {
+        refresh();
+        for (let index = 0; index < allHouses.length; ++index) {
+            if (allHouses[index].id === houseId) {
+                for (let townIndex = 0; townIndex < towns.length; ++townIndex) {
+                    if (towns[townIndex].id === allHouses[index].townId) {
+                        townCombo.currentIndex = townIndex;
+                        break;
+                    }
+                }
+                selectHouse(allHouses[index]);
+                return true;
+            }
+        }
+        return false;
+    }
+
     onVisibleChanged: {
         if (visible) {
             refresh();

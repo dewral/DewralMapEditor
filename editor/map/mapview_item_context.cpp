@@ -22,12 +22,13 @@
 #include <limits>
 #include <vector>
 
-QVariantMap MapView::itemContextInfo(const OtbmMapItem &item, int index) const
+QVariantMap MapView::itemContextInfo(const OtbmMapItem &item, int index,
+                                     int x, int y, int z) const
 {
     QVariantMap m;
-    m.insert(QStringLiteral("x"), m_itemController.contextX());
-    m.insert(QStringLiteral("y"), m_itemController.contextY());
-    m.insert(QStringLiteral("z"), m_navigationController.floor());
+    m.insert(QStringLiteral("x"), x);
+    m.insert(QStringLiteral("y"), y);
+    m.insert(QStringLiteral("z"), z);
     m.insert(QStringLiteral("index"), index);
     m.insert(QStringLiteral("hasItem"), true);
     m.insert(QStringLiteral("serverId"), item.server_id);
@@ -181,7 +182,9 @@ QVariantMap MapView::contextInfo() const
                            && m_itemController.contextItemIndex() < static_cast<int>(tile->items.size()))
                               ? m_itemController.contextItemIndex()
                               : static_cast<int>(tile->items.size()) - 1;
-        m = itemContextInfo(tile->items[static_cast<size_t>(index)], index);
+        m = itemContextInfo(tile->items[static_cast<size_t>(index)], index,
+                            m_itemController.contextX(), m_itemController.contextY(),
+                            m_navigationController.floor());
     } else {
         m.insert(QStringLiteral("x"), m_itemController.contextX());
         m.insert(QStringLiteral("y"), m_itemController.contextY());
@@ -218,22 +221,58 @@ QVariantMap MapView::contextInfo() const
              tile ? tile->creature_name.value() : QString());
     m.insert(QStringLiteral("creatureSpawntime"), tile ? tile->creature_spawntime : 0);
     m.insert(QStringLiteral("spawnRadius"), tile ? tile->spawn_radius : 0);
+    m.insert(QStringLiteral("houseId"), tile ? static_cast<int>(tile->house_id) : 0);
     return m;
 }
 
 QVariantList MapView::contextStack() const
 {
+    return stackAt(m_itemController.contextX(), m_itemController.contextY(),
+                   m_navigationController.floor());
+}
+
+QVariantList MapView::stackAt(int x, int y, int z) const
+{
     QVariantList result;
-    const OtbmTile *tile = currentFloorTileAt(m_itemController.contextX(), m_itemController.contextY());
+    if (!m_otbm || z < 0 || z > 15) return result;
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    const OtbmTile *tile = m_otbm->tileAt(x, y, z);
     if (!tile) return result;
 
     result.reserve(static_cast<qsizetype>(tile->items.size()));
     for (int index = static_cast<int>(tile->items.size()) - 1; index >= 0; --index) {
-        QVariantMap item = itemContextInfo(tile->items[static_cast<size_t>(index)], index);
+        QVariantMap item = itemContextInfo(tile->items[static_cast<size_t>(index)], index,
+                                           x, y, z);
         item.insert(QStringLiteral("top"), index == static_cast<int>(tile->items.size()) - 1);
         result.append(item);
     }
     return result;
+}
+
+bool MapView::setContextAt(int x, int y, int z, int index)
+{
+    if (!m_otbm || z != m_navigationController.floor()) return false;
+    const OtbmTile *tile = m_otbm->tileAt(x, y, z);
+    if (!tile || index < 0 || index >= static_cast<int>(tile->items.size())) return false;
+    m_itemController.setContext(x, y, index);
+    return true;
+}
+
+bool MapView::setContextFromSelection()
+{
+    if (!m_otbm || m_selectionController.selected().size() != 1) return false;
+
+    const quint64 key = *m_selectionController.selected().constBegin();
+    const int x = selX(key);
+    const int y = selY(key);
+    const int z = selZ(key);
+    if (z != m_navigationController.floor()) return false;
+
+    const OtbmTile *tile = m_otbm->tileAt(x, y, z);
+    if (!tile || tile->items.empty()) return false;
+
+    m_itemController.setContext(x, y, static_cast<int>(tile->items.size()) - 1);
+    return true;
 }
 
 bool MapView::setContextStackIndex(int index)
@@ -246,22 +285,76 @@ bool MapView::setContextStackIndex(int index)
 
 bool MapView::removeContextStackItem(int index)
 {
+    return removeStackItemAt(m_itemController.contextX(), m_itemController.contextY(),
+                             m_navigationController.floor(), index);
+}
+
+bool MapView::removeStackItemAt(int x, int y, int z, int index)
+{
     if (!m_otbm) return false;
     bool removed = false;
     {
         std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
-        removed = m_otbm->removeItemAt(m_itemController.contextX(), m_itemController.contextY(), m_navigationController.floor(), index);
+        removed = m_otbm->removeItemAt(x, y, z, index);
         if (removed) {
-            onTileEdited(m_itemController.contextX(), m_itemController.contextY(), m_navigationController.floor());
+            onTileEdited(x, y, z);
             flushEditedChunksLocked();
-            const OtbmTile *tile = currentFloorTileAt(m_itemController.contextX(), m_itemController.contextY());
-            m_itemController.contextItemIndex() = tile && !tile->items.empty()
-                                     ? std::min(index, static_cast<int>(tile->items.size()) - 1)
-                                     : -1;
+            if (x == m_itemController.contextX() && y == m_itemController.contextY()
+                && z == m_navigationController.floor()) {
+                const OtbmTile *tile = m_otbm->tileAt(x, y, z);
+                m_itemController.contextItemIndex() = tile && !tile->items.empty()
+                    ? std::min(index, static_cast<int>(tile->items.size()) - 1) : -1;
+            }
         }
     }
     if (removed) refreshAfterEdit(0);
     return removed;
+}
+
+bool MapView::moveContextStackItem(int index, int targetIndex)
+{
+    return moveStackItemAt(m_itemController.contextX(), m_itemController.contextY(),
+                           m_navigationController.floor(), index, targetIndex);
+}
+
+bool MapView::moveStackItemAt(int x, int y, int z, int index, int targetIndex)
+{
+    if (!m_otbm || !m_otb) return false;
+    bool moved = false;
+    int finalIndex = index;
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+        const OtbmTile *tile = m_otbm->tileAt(x, y, z);
+        if (!tile || index < 0 || index >= static_cast<int>(tile->items.size()))
+            return false;
+
+        const bool selectedIsGround =
+            m_otb->groupForServerId(tile->items[static_cast<size_t>(index)].server_id)
+            == static_cast<int>(OtbItemGroup::Ground);
+        const bool firstIsGround = !tile->items.empty()
+            && m_otb->groupForServerId(tile->items.front().server_id)
+                   == static_cast<int>(OtbItemGroup::Ground);
+        const int minimumIndex = firstIsGround ? 1 : 0;
+        if (selectedIsGround) return false;
+
+        finalIndex = std::clamp(targetIndex, minimumIndex,
+                                static_cast<int>(tile->items.size()) - 1);
+        if (finalIndex == index) return false;
+        moved = m_otbm->moveItemAt(x, y, z, index, finalIndex);
+        if (moved) {
+            if (x == m_itemController.contextX() && y == m_itemController.contextY()
+                && z == m_navigationController.floor())
+                m_itemController.contextItemIndex() = finalIndex;
+            onTileEdited(x, y, z);
+            flushEditedChunksLocked();
+            const quint64 key = chunkKey(floorDiv(x, kChunkTiles),
+                                         floorDiv(y, kChunkTiles));
+            invalidateChunkQuads(z, key);
+            requestChunkQuads(z, key);
+        }
+    }
+    if (moved) refreshAfterEdit(0);
+    return moved;
 }
 
 bool MapView::rotateContextItem()
@@ -348,8 +441,10 @@ QVariantList MapView::contextContainerItems(const QVariantList &pathValues) cons
 
     for (int index = static_cast<int>(container->children()->size()) - 1;
          index >= 0; --index) {
-        QVariantMap child =
-            itemContextInfo((*container->children())[static_cast<size_t>(index)], index);
+        QVariantMap child = itemContextInfo(
+            (*container->children())[static_cast<size_t>(index)], index,
+            m_itemController.contextX(), m_itemController.contextY(),
+            m_navigationController.floor());
         child.insert(QStringLiteral("childIndex"), index);
         QVariantList childPath = pathValues;
         childPath.append(index);

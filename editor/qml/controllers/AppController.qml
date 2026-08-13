@@ -24,6 +24,10 @@ Item {
     property alias appCloseSaveAsPending: documents.appCloseSaveAsPending
     property alias recoveringSession: documents.recoveringSession
 
+    function showToast(message) {
+        documents.showToast(message)
+    }
+
     property alias clientPaths: profiles.clientPaths
     property alias customProfiles: profiles.customProfiles
     property alias mapProfiles: profiles.mapProfiles
@@ -34,6 +38,8 @@ Item {
     property alias customPalettes: palettes.customPalettes
     property alias customPaletteNames: palettes.customPaletteNames
     property alias iconSizePx: palettes.iconSizePx
+    property alias recentBrushIds: palettes.recentBrushIds
+    property alias favoriteBrushIds: palettes.favoriteBrushIds
 
     ClientProfileController {
         id: profiles
@@ -44,6 +50,7 @@ Item {
     PaletteController {
         id: palettes
         settings: controller.settings
+        profileKey: profiles.loadedClientKey
     }
 
     DocumentController {
@@ -115,6 +122,18 @@ Item {
     }
     function removeItemFromPalette(name, serverId) {
         palettes.removeItemFromPalette(name, serverId);
+    }
+    function recordBrushUse(serverId) {
+        palettes.recordBrushUse(serverId);
+    }
+    function isFavoriteBrush(serverId) {
+        return palettes.isFavorite(serverId);
+    }
+    function toggleFavoriteBrush(serverId) {
+        palettes.toggleFavorite(serverId);
+    }
+    function clearRecentBrushes() {
+        palettes.clearRecentBrushes();
     }
 
     function addRecent(path) {

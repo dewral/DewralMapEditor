@@ -125,6 +125,15 @@ Rectangle {
         });
     }
 
+    function selectHouse(houseId) {
+        if (houseId <= 0)
+            return;
+        revealRequested();
+        clearPaletteSearch();
+        paletteCol.selectKind("House Palette");
+        Qt.callLater(function () { houseCol.selectHouseId(houseId); });
+    }
+
     function selectPrefabPalette(name, prefabName) {
         revealRequested();
         clearPaletteSearch();
@@ -181,7 +190,7 @@ Rectangle {
         anchors.bottomMargin: paletteRoot.githubUi ? 16 : 6
         spacing: paletteRoot.githubUi ? 10 : 4
 
-        property var kinds: ["All Items", "Terrain Palette", "Doodad Palette", "Collection Palette", "Door Palette", "Item Palette", "RAW Palette", "Creature Palette", "House Palette", "My Palettes"]
+        property var kinds: ["Recent", "Favorites", "All Items", "Terrain Palette", "Doodad Palette", "Collection Palette", "Door Palette", "Item Palette", "RAW Palette", "Creature Palette", "House Palette", "My Palettes"]
         property bool creatureMode: currentKind === "Creature Palette"
         property bool houseMode: currentKind === "House Palette"
         property string currentKind: kindCombo.currentText
@@ -219,7 +228,9 @@ Rectangle {
                 return app.customPaletteNames;
             return [];
         }
-        property bool showSub: currentKind !== "All Items" && !creatureMode && !houseMode
+        property bool quickCollection: currentKind === "Recent" || currentKind === "Favorites"
+        property bool showSub: currentKind !== "All Items" && !quickCollection
+                               && !creatureMode && !houseMode
         property string currentSubName: (subCombo.currentIndex >= 0 && subCombo.currentIndex < subNames.length) ? subNames[subCombo.currentIndex] : ""
 
         property string currentCustomName: currentKind === "My Palettes" ? currentSubName : ""
@@ -233,6 +244,10 @@ Rectangle {
             const _r = Backend.tilesetStore.revision;
             if (currentKind === "All Items")
                 return null;
+            if (currentKind === "Recent")
+                return app.recentBrushIds;
+            if (currentKind === "Favorites")
+                return app.favoriteBrushIds;
             if (currentSubName === "")
                 return [];
             if (currentKind === "My Palettes")
@@ -245,7 +260,10 @@ Rectangle {
                     paletteFilter.mode = "all";
                 return;
             }
-            paletteFilter.setIds(currentIds);
+            if (quickCollection)
+                paletteFilter.setOrderedIds(currentIds);
+            else
+                paletteFilter.setIds(currentIds);
         }
 
         property string pendingSearchText: ""
@@ -385,6 +403,27 @@ Rectangle {
                     }
                 }
 
+            }
+
+            Row {
+                width: parent.width
+                height: 32
+                spacing: 8
+
+                Repeater {
+                    model: [
+                        { label: "Recent", kind: "Recent" },
+                        { label: "Favorites", kind: "Favorites" }
+                    ]
+                    delegate: DmeButton {
+                        required property var modelData
+                        width: (githubControlsColumn.width - 8) / 2
+                        height: 32
+                        text: modelData.label
+                        checked: paletteCol.currentKind === modelData.kind
+                        onClicked: paletteCol.selectKind(modelData.kind)
+                    }
+                }
             }
 
             Row {
@@ -700,6 +739,18 @@ Rectangle {
             visible: paletteCol.showSub && paletteCol.currentSubName !== ""
         }
         DmeMenuItem {
+            text: app.isFavoriteBrush(palItemMenu.sid)
+                  ? "Remove from Favorites" : "Add to Favorites"
+            onTriggered: app.toggleFavoriteBrush(palItemMenu.sid)
+        }
+        DmeMenuItem {
+            text: "Clear Recent"
+            visible: paletteCol.currentKind === "Recent"
+            height: visible ? implicitHeight : 0
+            onTriggered: app.clearRecentBrushes()
+        }
+        MenuSeparator {}
+        DmeMenuItem {
             text: "Remove from \"" + (paletteCol.currentKind === "My Palettes" ? paletteCol.currentCustomName : paletteCol.currentSubName) + "\""
             visible: paletteCol.showSub && paletteCol.currentSubName !== ""
             height: visible ? implicitHeight : 0
@@ -804,6 +855,9 @@ Rectangle {
 
     Connections {
         target: paletteRoot.mapCtrl
+        function onBrushUsed(serverId) {
+            paletteRoot.app.recordBrushUse(serverId);
+        }
         function onBrushChanged() {
             if (paletteRoot.mapCtrl.brushServerId > 0) {
                 if (paletteCol.currentKind === "Doodad Palette") {

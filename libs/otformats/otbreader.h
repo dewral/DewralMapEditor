@@ -122,6 +122,9 @@ public:
 
     Q_INVOKABLE bool isTeleportItem(int serverId) const;
     bool blocksPathForServerId(int serverId) const;
+    bool isUnpassableForServerId(int serverId) const;
+    bool isClientUnpassableForServerId(int serverId) const;
+    bool isClientGroundForServerId(int serverId) const;
     Q_INVOKABLE int rotateToForServerId(int serverId) const;
     Q_INVOKABLE QVariantMap detailsAt(int row) const;
     Q_INVOKABLE QVariantMap findItems(const QVariantMap &query) const;

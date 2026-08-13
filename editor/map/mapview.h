@@ -11,6 +11,8 @@
 #include <QElapsedTimer>
 #include <QVariantList>
 #include <QVector>
+#include <QVector3D>
+#include <QFuture>
 #include <algorithm>
 #include <vector>
 #include <cstdint>
@@ -57,6 +59,8 @@ class MapView : public QQuickItem
 
     Q_PROPERTY(QString brushShape READ brushShape WRITE setBrushShape NOTIFY brushParamsChanged)
     Q_PROPERTY(int selectionCount READ selectionCount NOTIFY selectionChanged)
+    Q_PROPERTY(bool queryBusy READ queryBusy NOTIFY queryBusyChanged)
+    Q_PROPERTY(int queryProgress READ queryProgress NOTIFY queryProgressChanged)
     Q_PROPERTY(bool hasClipboard READ hasClipboard NOTIFY clipboardChanged)
 
     Q_PROPERTY(bool pasting READ pasting NOTIFY pastingChanged)
@@ -119,6 +123,8 @@ public:
     int spriteCount() const { return m_atlasService.spriteCount(); }
     bool atlasBuilding() const { return m_atlasBuilding; }
     int selectionCount() const { return m_selectionController.selected().size(); }
+    bool queryBusy() const { return m_queryBusy; }
+    int queryProgress() const { return m_queryProgress.load(std::memory_order_relaxed); }
     QString hoverText() const { return m_hoverText; }
     int hoverX() const { return m_hoverX; }
     int hoverY() const { return m_hoverY; }
@@ -395,8 +401,10 @@ public:
     void lightRect(int &tx, int &ty, int &tw, int &th) const {
         tx = m_lightTX; ty = m_lightTY; tw = m_lightTW; th = m_lightTH;
     }
-    void glBuildPreviewLightGrid(int floor, int tx, int ty, int tw, int th,
-                                 std::vector<uint32_t> &out);
+    void glBuildPreviewLightGrid(int firstFloor, int lastFloor,
+                                 int tx, int ty, int tw, int th,
+                                 qreal playerX, qreal playerY, int playerZ,
+                                 std::vector<uint32_t> &out) const;
 
     void glCollectGhostInstances(std::vector<float> &out);
     void glCollectGridInstances(std::vector<float> &out);
@@ -405,6 +413,7 @@ public:
     void glCollectPathingInstances(std::vector<float> &out);
 
     void glCollectZoneMarkInstances(std::vector<float> &outHouse,
+                                    std::vector<float> &outSelectedHouse,
                                     std::vector<float> &outPz,
                                     std::vector<float> &outNoPvp,
                                     std::vector<float> &outNoLogout,
@@ -464,11 +473,21 @@ public:
 
     Q_INVOKABLE QVariantMap contextInfo() const;
     Q_INVOKABLE QVariantList contextStack() const;
+    Q_INVOKABLE QVariantList stackAt(int x, int y, int z) const;
+    Q_INVOKABLE bool setContextFromSelection();
+    Q_INVOKABLE bool setContextAt(int x, int y, int z, int index);
     Q_INVOKABLE bool setContextStackIndex(int index);
     Q_INVOKABLE bool removeContextStackItem(int index);
+    Q_INVOKABLE bool removeStackItemAt(int x, int y, int z, int index);
+    Q_INVOKABLE bool moveContextStackItem(int index, int targetIndex);
+    Q_INVOKABLE bool moveStackItemAt(int x, int y, int z, int index, int targetIndex);
     Q_INVOKABLE bool rotateContextItem();
     Q_INVOKABLE bool switchContextDoor();
     Q_INVOKABLE QVariantMap searchItems(const QString &type, bool selectionOnly) const;
+    Q_INVOKABLE QVariantMap analyzeMap() const;
+    Q_INVOKABLE bool startItemSearch(const QString &type, bool selectionOnly);
+    Q_INVOKABLE bool startMapAnalysis();
+    Q_INVOKABLE void cancelMapQuery();
     Q_INVOKABLE QVariantList mapOverlayData(bool includeTooltips,
                                             bool includeWaypoints) const;
     Q_INVOKABLE QVariantList contextItemPath() const;
@@ -539,6 +558,11 @@ public:
     Q_INVOKABLE int replaceItemsOnSelection(int fromId, int toId);
 
     Q_INVOKABLE int countItemOnSelection(int serverId) const;
+    Q_INVOKABLE bool isPreviewWalkable(int x, int y, int z) const;
+    Q_INVOKABLE int previewWalkableFloorAt(int x, int y, int preferredZ) const;
+    Q_INVOKABLE QVector3D previewWalkablePositionAt(int x, int y, int preferredZ) const;
+    Q_INVOKABLE QString previewBlockReasonAt(int x, int y, int z) const;
+    int previewFirstVisibleFloor(int x, int y, int z) const;
 
     Q_INVOKABLE void borderizeMap();
 
@@ -579,12 +603,18 @@ signals:
     void automagicChanged();
     void hoverChanged();
     void brushChanged();
+    void brushUsed(int serverId);
     void showLowerFloorsChanged();
     void showShadeChanged();
     void placeEffectChanged();
     void brushParamsChanged();
     void pathBuilderChanged();
     void mapLoadFinished(bool success, const QString &path, const QString &error);
+    void queryBusyChanged();
+    void queryProgressChanged();
+    void itemSearchFinished(const QVariantMap &result);
+    void mapAnalysisFinished(const QVariantMap &result);
+    void operationWarning(const QString &message);
 
     void contentUpdated();
     void contextMenuRequested(qreal x, qreal y);
@@ -682,7 +712,8 @@ private:
     void queuePointerMove(const QPointF &position, bool hoverOnly);
     void processPointerMove(const QPointF &position, bool hoverOnly);
     const OtbmTile *currentFloorTileAt(int x, int y) const;
-    QVariantMap itemContextInfo(const OtbmMapItem &item, int index) const;
+    QVariantMap itemContextInfo(const OtbmMapItem &item, int index,
+                                int x, int y, int z) const;
     void applyRubberBand();
     void updateHoverText();
     void applyBrushServerId(int serverId, bool asBrush);
@@ -745,6 +776,10 @@ private:
     MapPathBuilder m_pathBuilder;
 
     mutable std::recursive_mutex m_dataMutex;
+    mutable std::atomic_bool m_queryCancel{false};
+    mutable std::atomic_int m_queryProgress{0};
+    bool m_queryBusy = false;
+    QFuture<void> m_queryFuture;
     static constexpr int kPlaceEffectId = 3;
     struct ActiveEffect { int x, y, z; qint64 startMs; };
     std::vector<ActiveEffect> m_activeEffects;

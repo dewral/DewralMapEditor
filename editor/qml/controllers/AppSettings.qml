@@ -7,6 +7,8 @@ Settings {
     property string mapProfilesJson: "{}"
     property string recentMapsJson: "[]"
     property string customPalettesJson: "{}"
+    property string recentBrushesJson: "{}"
+    property string favoriteBrushesJson: "{}"
     property bool showStartup: true
     property bool autosaveEnabled: true
     property int autosaveIntervalMinutes: 3
@@ -25,4 +27,6 @@ Settings {
     property bool paletteCollapsed: false
     property int iconSize: 66
     property bool githubLayoutV2Initialized: false
+    property bool checkUpdatesAutomatically: true
+    property string updateChannel: "stable"
 }

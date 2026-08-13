@@ -263,6 +263,8 @@ class OtbmReader : public QObject
     Q_PROPERTY(int waypointCount READ waypointCount NOTIFY loadedChanged)
     Q_PROPERTY(int undoCount READ undoCount NOTIFY mapChanged)
     Q_PROPERTY(int redoCount READ redoCount NOTIFY mapChanged)
+    Q_PROPERTY(qint64 editOperationCount READ editOperationCount NOTIFY mapChanged)
+    Q_PROPERTY(qint64 changedTileCount READ changedTileCount NOTIFY mapChanged)
 
 public:
     explicit OtbmReader(QObject *parent = nullptr);
@@ -356,6 +358,7 @@ public:
 
     bool removeTopItem(int x, int y, int z);
     bool removeItemAt(int x, int y, int z, int index);
+    bool moveItemAt(int x, int y, int z, int index, int targetIndex);
 
     bool setTileFlags(int x, int y, int z, uint32_t flags);
 
@@ -430,6 +433,8 @@ public:
     bool lastUndoChangedTileStructure() const { return m_lastUndoStructural; }
     int undoCount() const { return static_cast<int>(m_undoStack.size()); }
     int redoCount() const { return static_cast<int>(m_redoStack.size()); }
+    qint64 editOperationCount() const { return m_editOperationCount; }
+    qint64 changedTileCount() const { return m_changedTileCount; }
     Q_INVOKABLE int undoLimit() const { return m_undoLimit; }
     Q_INVOKABLE void setUndoLimit(int n);
 
@@ -525,6 +530,8 @@ private:
     bool m_undoGrouping = false;
     UndoAction m_currentGroup;
     QSet<quint64> m_groupRecorded;
+    qint64 m_editOperationCount = 0;
+    qint64 m_changedTileCount = 0;
     std::vector<OtbmTown> m_towns;
     std::vector<OtbmWaypoint> m_waypoints;
     std::vector<OtbmHouse> m_houses;

@@ -249,6 +249,8 @@ void MapView::refreshUndoRedoTilesLocked()
 
 MapView::~MapView()
 {
+    m_queryCancel.store(true, std::memory_order_relaxed);
+    if (m_queryFuture.isRunning()) m_queryFuture.waitForFinished();
     m_lifetimeToken.reset();
     m_atlasBuildGeneration.fetch_add(1, std::memory_order_acq_rel);
     if (m_mapLoadCancel) m_mapLoadCancel->store(true, std::memory_order_release);

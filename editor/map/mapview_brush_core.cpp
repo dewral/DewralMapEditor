@@ -118,6 +118,9 @@ void MapView::eraseAt(int cx, int cy)
 void MapView::paintFootprint(int x, int y)
 {
 
+    if (!m_brushController.eraseStroke() && m_brushController.serverId() > 0)
+        emit brushUsed(m_brushController.serverId());
+
     if (m_editController.activeZone() != 0) {
         paintZoneAt(x, y);
         return;
@@ -235,6 +238,7 @@ void MapView::setHouseBrush(int id)
     if (id < 0) id = 0;
     if (m_brushController.houseBrush() == id) return;
     m_brushController.houseBrush() = id;
+    ++m_metadataOverlayVersion;
     if (id > 0) {
         applyBrushServerId(0, false);
         m_brushController.creatureBrush().clear();

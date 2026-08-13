@@ -659,6 +659,15 @@ void MapView::commitPasteAt(int px, int py)
 {
     if (!m_otbm || m_selectionController.clipboard().empty()) return;
 
+    for (const ClipTile &ct : m_selectionController.clipboard()) {
+        const int targetZ = m_navigationController.floor() + ct.dz;
+        if (targetZ < 0 || targetZ > 15) {
+            emit operationWarning(QStringLiteral(
+                "Cannot paste: the multi-floor selection would extend outside floors 0-15."));
+            return;
+        }
+    }
+
     std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
     beginEditBatch();
     const bool savedBulk = m_brushController.bulkEdit();
@@ -670,7 +679,7 @@ void MapView::commitPasteAt(int px, int py)
     for (const ClipTile &ct : m_selectionController.clipboard()) {
         const int tx = px + ct.dx, ty = py + ct.dy;
 
-        const int tz = std::clamp(m_navigationController.floor() + ct.dz, 0, 15);
+        const int tz = m_navigationController.floor() + ct.dz;
 
         for (const OtbmMapItem &ci : ct.items)
             placeItemOnFloor(tx, ty, tz, ci);

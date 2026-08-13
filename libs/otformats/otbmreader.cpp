@@ -473,6 +473,8 @@ void OtbmReader::reset()
     m_currentGroup = UndoAction{};
     m_groupRecorded.clear();
     m_undoGrouping = false;
+    m_editOperationCount = 0;
+    m_changedTileCount = 0;
     m_towns.clear();
     m_waypoints.clear();
     m_houses.clear();
@@ -2376,6 +2378,32 @@ bool OtbmReader::removeItemAt(int x, int y, int z, int index)
     return true;
 }
 
+bool OtbmReader::moveItemAt(int x, int y, int z, int index, int targetIndex)
+{
+    auto it = m_posIndex.find(posKey3d(x, y, z));
+    if (it == m_posIndex.end()) return false;
+
+    OtbmTile &tile = m_tiles[static_cast<size_t>(it.value())];
+    const int size = static_cast<int>(tile.items.size());
+    if (index < 0 || index >= size || targetIndex < 0 || targetIndex >= size
+        || index == targetIndex) {
+        return false;
+    }
+
+    recordTile(x, y, z);
+    if (index < targetIndex) {
+        std::rotate(tile.items.begin() + index,
+                    tile.items.begin() + index + 1,
+                    tile.items.begin() + targetIndex + 1);
+    } else {
+        std::rotate(tile.items.begin() + targetIndex,
+                    tile.items.begin() + index,
+                    tile.items.begin() + index + 1);
+    }
+    if (!m_undoGrouping) emit mapChanged();
+    return true;
+}
+
 int OtbmReader::removeItemsById(int x, int y, int z, const std::vector<uint16_t> &ids, bool deep)
 {
     if (ids.empty()) return 0;
@@ -2450,7 +2478,10 @@ void OtbmReader::pushUndo(UndoAction &&action)
 {
     m_redoStack.clear();
     m_redoBytes = 0;
-    if (action.tiles.empty() || m_undoLimit <= 0) return;
+    if (action.tiles.empty()) return;
+    ++m_editOperationCount;
+    m_changedTileCount += static_cast<qint64>(action.tiles.size());
+    if (m_undoLimit <= 0) return;
     action.bytes = estimateActionBytes(action);
     m_undoBytes += action.bytes;
     m_undoStack.push_back(std::move(action));
@@ -2676,6 +2707,8 @@ bool OtbmReader::undo()
     UndoAction action = std::move(m_undoStack.back());
     m_undoStack.pop_back();
     m_undoBytes -= action.bytes;
+    ++m_editOperationCount;
+    m_changedTileCount += static_cast<qint64>(action.tiles.size());
 
     UndoAction redoAction;
     redoAction.tiles.reserve(action.tiles.size());
@@ -2701,6 +2734,8 @@ bool OtbmReader::redo()
     UndoAction action = std::move(m_redoStack.back());
     m_redoStack.pop_back();
     m_redoBytes -= action.bytes;
+    ++m_editOperationCount;
+    m_changedTileCount += static_cast<qint64>(action.tiles.size());
 
     UndoAction undoAction;
     undoAction.tiles.reserve(action.tiles.size());

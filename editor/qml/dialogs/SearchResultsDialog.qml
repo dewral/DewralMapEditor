@@ -13,6 +13,7 @@ DmeDialog {
     property var results: []
     property int total: 0
     property bool truncated: false
+    property bool loading: false
     readonly property bool githubUi: Backend.uiTheme.style !== "classic"
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
@@ -30,11 +31,22 @@ DmeDialog {
     }
 
     function runSearch() {
-        const response = mapCtrl.searchItems(searchType, selectionOnly);
+        loading = mapCtrl.startItemSearch(searchType, selectionOnly);
+    }
+
+    function applyResponse(response) {
+        loading = false;
+        if (response.cancelled === true)
+            return;
         results = response.results || [];
         total = response.total || 0;
         truncated = response.truncated === true;
         resultList.currentIndex = -1;
+    }
+
+    Connections {
+        target: dialog.mapCtrl
+        function onItemSearchFinished(response) { dialog.applyResponse(response); }
     }
 
     onOpened: runSearch()
@@ -54,7 +66,8 @@ DmeDialog {
             }
 
             Text {
-                text: dialog.total + " result(s)"
+                text: dialog.loading ? "Searching... " + dialog.mapCtrl.queryProgress + "%"
+                                     : dialog.total + " result(s)"
                       + (dialog.truncated ? " — showing first 10000" : "")
                 color: dialog.truncated ? "#e3b341" : "#8b949e"
                 font.pixelSize: 11
@@ -176,9 +189,10 @@ DmeDialog {
             }
 
             DmeButton {
-                text: "Refresh"
+                text: dialog.loading ? "Cancel" : "Refresh"
                 width: 90
-                onClicked: dialog.runSearch()
+                onClicked: dialog.loading ? dialog.mapCtrl.cancelMapQuery()
+                                          : dialog.runSearch()
             }
 
             DmeButton {

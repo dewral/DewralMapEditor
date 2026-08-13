@@ -409,6 +409,37 @@ bool OtbReader::blocksPathForServerId(int serverId) const
     return item.is_unpassable || item.blocks_pathfinder;
 }
 
+bool OtbReader::isUnpassableForServerId(int serverId) const
+{
+    const auto it = m_serverIdToRow.constFind(static_cast<uint16_t>(serverId));
+    if (it == m_serverIdToRow.cend()) return false;
+    return m_items[static_cast<size_t>(it.value())].is_unpassable;
+}
+
+bool OtbReader::isClientUnpassableForServerId(int serverId) const
+{
+    const auto it = m_serverIdToRow.constFind(static_cast<uint16_t>(serverId));
+    if (it == m_serverIdToRow.cend()) return false;
+    const OtbItem &item = m_items[static_cast<size_t>(it.value())];
+    if (m_datReader) {
+        if (const ClientItem *clientItem = m_datReader->itemByClientId(item.client_id))
+            return clientItem->is_unpassable;
+    }
+    return item.is_unpassable;
+}
+
+bool OtbReader::isClientGroundForServerId(int serverId) const
+{
+    const auto it = m_serverIdToRow.constFind(static_cast<uint16_t>(serverId));
+    if (it == m_serverIdToRow.cend()) return false;
+    const OtbItem &item = m_items[static_cast<size_t>(it.value())];
+    if (m_datReader) {
+        if (const ClientItem *clientItem = m_datReader->itemByClientId(item.client_id))
+            return clientItem->is_ground;
+    }
+    return item.group == static_cast<uint8_t>(OtbItemGroup::Ground);
+}
+
 bool OtbReader::isTeleportItem(int serverId) const
 {
 

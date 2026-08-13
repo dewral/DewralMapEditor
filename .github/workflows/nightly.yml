@@ -1,0 +1,94 @@
+name: Nightly Windows build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dme-nightly
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 180
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Cache vcpkg binary packages
+        uses: actions/cache@v4
+        with:
+          path: .cache/vcpkg
+          key: vcpkg-windows-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-windows-
+
+      - name: Build the development package
+        shell: pwsh
+        run: ./scripts/build-release.ps1 -BuildChannel development
+
+      - name: Create the update manifest
+        shell: pwsh
+        env:
+          REPOSITORY: ${{ github.repository }}
+          COMMIT_SHA: ${{ github.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          $archive = Get-Item "release/DewralMapEditor-windows-x64.zip"
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive.FullName).Hash.ToLowerInvariant()
+          $cmake = Get-Content "CMakeLists.txt" -Raw
+          if ($cmake -notmatch 'project\(DewralMapEditor VERSION ([0-9]+\.[0-9]+\.[0-9]+)') {
+            throw "The DME version could not be read from CMakeLists.txt."
+          }
+          $version = "$($Matches[1])-dev.$env:RUN_NUMBER"
+          $downloadUrl = "https://github.com/$env:REPOSITORY/releases/download/nightly/DewralMapEditor-windows-x64.zip"
+          $releaseUrl = "https://github.com/$env:REPOSITORY/releases/tag/nightly"
+          $manifest = [ordered]@{
+            schemaVersion = 1
+            channel = "development"
+            version = $version
+            commit = $env:COMMIT_SHA
+            publishedAt = (Get-Date).ToUniversalTime().ToString("o")
+            downloadUrl = $downloadUrl
+            releasePageUrl = $releaseUrl
+            sha256 = $hash
+            size = $archive.Length
+            notes = "Automated development build from commit $($env:COMMIT_SHA.Substring(0, 12))."
+          }
+          $manifest | ConvertTo-Json | Set-Content -Encoding utf8NoBOM "release/update-manifest.json"
+          "$hash  DewralMapEditor-windows-x64.zip" | Set-Content -Encoding ascii "release/SHA256SUMS-nightly.txt"
+          "NIGHTLY_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Publish the rolling nightly release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @(
+            "release/DewralMapEditor-windows-x64.zip",
+            "release/update-manifest.json",
+            "release/SHA256SUMS-nightly.txt"
+          )
+          $notes = "Automated development build $env:NIGHTLY_VERSION from commit $($env:GITHUB_SHA.Substring(0, 12)). This release is replaced after every successful push to main."
+          gh release view nightly --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            git tag --force nightly $env:GITHUB_SHA
+            git push origin refs/tags/nightly --force
+            if ($LASTEXITCODE -ne 0) { throw "Moving the nightly tag failed." }
+            gh release edit nightly --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "DME Nightly" --notes $notes --prerelease
+            if ($LASTEXITCODE -ne 0) { throw "Updating the nightly release metadata failed." }
+            gh release upload nightly @assets --repo $env:GITHUB_REPOSITORY --clobber
+            if ($LASTEXITCODE -ne 0) { throw "Uploading the nightly assets failed." }
+          } else {
+            gh release create nightly @assets --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "DME Nightly" --notes $notes --prerelease --latest=false
+            if ($LASTEXITCODE -ne 0) { throw "Creating the nightly release failed." }
+          }

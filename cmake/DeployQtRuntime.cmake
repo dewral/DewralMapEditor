@@ -15,7 +15,7 @@ execute_process(
         --no-system-d3d-compiler
         --no-system-dxc-compiler
         --verbose 0
-        --skip-plugin-types generic,qmltooling,networkinformation,tls
+        --skip-plugin-types generic,qmltooling,networkinformation
         --exclude-plugins qgif,qico,qjpeg
         --no-quickcontrols2fusion
         --no-quickcontrols2fusionstyleimpl
@@ -59,10 +59,11 @@ set(obsolete_runtime_paths
     "generic"
     "networkinformation"
     "qmltooling"
-    "tls"
     "imageformats/qgif.dll"
     "imageformats/qico.dll"
     "imageformats/qjpeg.dll"
+    "tls/qcertonlybackend.dll"
+    "tls/qopensslbackend.dll"
     "qml/QtQuick/Controls/FluentWinUI3"
     "qml/QtQuick/Controls/Fusion"
     "qml/QtQuick/Controls/Imagine"

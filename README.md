@@ -82,6 +82,20 @@ Each release provides two independent archives:
   DLLs, build output, or client assets. It contains the CMake/vcpkg build files
   and the generated RME material profiles.
 
+## Updates
+
+DME can check for updates from **Help > Check for Updates**. Two channels are
+available:
+
+- **Stable** downloads normal published GitHub releases.
+- **Development (nightly)** follows successful builds of the `main` branch.
+
+The nightly package is built and published automatically after each push. DME
+downloads the portable ZIP, verifies its SHA-256 digest, and hands installation
+to the separate `DMEUpdater.exe`. Modified maps must be saved before restarting;
+user settings, custom client profiles, and recovery files are not stored in the
+application folder and are not replaced.
+
 Do not download only `DME.exe`. The executable requires the DLL and QML files
 that are shipped beside it in the ready-to-run archive.
 

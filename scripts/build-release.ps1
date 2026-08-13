@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param()
+param(
+    [ValidateSet("stable", "development")]
+    [string] $BuildChannel = "stable"
+)
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
@@ -110,7 +113,7 @@ if (-not $env:VCPKG_BINARY_SOURCES) {
 Push-Location $repositoryRoot
 try {
     Write-Host "Configuring the project and installing dependencies..."
-    & cmake.exe --preset windows-vcpkg
+    & cmake.exe --preset windows-vcpkg "-DDME_BUILD_CHANNEL=$BuildChannel"
     if ($LASTEXITCODE -ne 0) {
         $manifestLog = Join-Path $repositoryRoot `
             "build\vcpkg-windows\vcpkg-manifest-install.log"

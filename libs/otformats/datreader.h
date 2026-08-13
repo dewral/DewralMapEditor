@@ -12,6 +12,23 @@
 #include <cstdint>
 #include <vector>
 
+struct ClientSpriteGroup {
+    uint8_t type = 0;
+    uint8_t width = 1;
+    uint8_t height = 1;
+    uint8_t layers = 1;
+    uint8_t pattern_x = 1;
+    uint8_t pattern_y = 1;
+    uint8_t pattern_z = 1;
+    uint8_t frames = 1;
+    std::vector<uint32_t> sprite_ids;
+
+    uint32_t totalSprites() const {
+        return static_cast<uint32_t>(width) * height * layers
+             * pattern_x * pattern_y * pattern_z * frames;
+    }
+};
+
 struct ClientItem {
     uint16_t id = 0;
 
@@ -24,6 +41,7 @@ struct ClientItem {
     uint8_t frames = 1;
 
     std::vector<uint32_t> sprite_ids;
+    std::vector<ClientSpriteGroup> sprite_groups;
 
     bool is_ground = false;
     uint16_t ground_speed = 0;
@@ -131,6 +149,9 @@ public:
     const ClientItem *outfitByLookType(uint16_t lookType) const;
 
     Q_INVOKABLE QVariantMap outfitPreview(int lookType) const;
+    Q_INVOKABLE QVariantMap outfitFramePreview(int lookType, int direction,
+                                               bool walking,
+                                               int animationPhase) const;
 
     Q_INVOKABLE QVariantMap itemPreview(int clientId) const;
 

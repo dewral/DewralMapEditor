@@ -123,7 +123,12 @@ public:
         m_useLinear = !(scale >= 1.0f && std::fabs(scale - std::round(scale)) < 0.01f);
 
         const int cameraFloor = std::clamp(view->previewFloor(), 0, 15);
-        const int previewTopFloor = cameraFloor <= 7 ? 0 : std::max(8, cameraFloor - 2);
+        const int previewTopFloor = m_previewWindow
+            ? src->previewFirstVisibleFloor(
+                  static_cast<int>(std::floor(view->previewCenterX())),
+                  static_cast<int>(std::floor(view->previewCenterY())),
+                  cameraFloor)
+            : cameraFloor;
         const int previewBottomFloor = cameraFloor <= 7 ? 7 : std::min(15, cameraFloor + 2);
         const int cameraOffset = cameraFloor - previewTopFloor;
         const double ox = m_previewWindow
@@ -332,7 +337,8 @@ public:
         for (int z = 0; z < 16; ++z) {
             FloorLight &light = m_floorLights[z];
             const bool floorEnabled = lightingEnabled && ts >= 4
-                                   && z >= m_curFloor && z <= m_botFloor;
+                                   && (m_previewWindow ? z == m_curFloor
+                                                       : z >= m_curFloor && z <= m_botFloor);
             if (!floorEnabled) {
                 if (light.enabled) {
                     light.enabled = false;
@@ -341,7 +347,7 @@ public:
                 continue;
             }
 
-            const int floorOffset = z - m_curFloor;
+            const int floorOffset = m_previewWindow ? 0 : z - m_curFloor;
             const int tx = static_cast<int>(std::floor(ox)) - 1 - floorOffset;
             const int ty = static_cast<int>(std::floor(oy)) - 1 - floorOffset;
             quint64 key = contentVersion;
@@ -354,6 +360,16 @@ public:
             mixLightKey(static_cast<quint32>(lightTW));
             mixLightKey(static_cast<quint32>(lightTH));
             mixLightKey(static_cast<quint32>(src->lightAmbient()));
+            if (m_previewWindow) {
+                mixLightKey(static_cast<quint32>(m_botFloor));
+                // Creature lights in OTClient follow the pixel walk offset.
+                // Quantizing to 1/32 tile gives the same pixel precision while
+                // keeping an exact and stable cache key at rest.
+                mixLightKey(static_cast<quint32>(
+                    qRound64(view->previewCenterX() * 32.0)));
+                mixLightKey(static_cast<quint32>(
+                    qRound64(view->previewCenterY() * 32.0)));
+            }
 
             if (key != light.key
                 && (!src->editingStrokeActive()
@@ -363,7 +379,10 @@ public:
                 light.ty = ty;
                 light.tw = lightTW;
                 light.th = lightTH;
-                src->glBuildPreviewLightGrid(z, tx, ty, lightTW, lightTH, light.pixels);
+                src->glBuildPreviewLightGrid(
+                    m_curFloor, m_botFloor, tx, ty, lightTW, lightTH,
+                    view->previewCenterX(), view->previewCenterY(),
+                    cameraFloor, light.pixels);
                 light.upload = true;
                 light.enabled = true;
                 ++m_lightVer;
@@ -403,10 +422,13 @@ public:
 
         if (!m_previewWindow && rebuildMetadataOverlays) {
             m_metadataOverlayVersion = metadataOverlayVersion;
-            src->glCollectZoneMarkInstances(m_zoneHouseInst, m_zonePzInst,
+            src->glCollectZoneMarkInstances(m_zoneHouseInst, m_zoneSelectedHouseInst,
+                                            m_zonePzInst,
                                             m_zoneNoPvpInst, m_zoneNoLogoutInst,
                                             m_zonePvpInst);
             uploadDyn(m_zoneHouseVbo, m_zoneHouseInst, m_zoneHouseCount);
+            uploadDyn(m_zoneSelectedHouseVbo, m_zoneSelectedHouseInst,
+                      m_zoneSelectedHouseCount);
             uploadDyn(m_zonePzVbo, m_zonePzInst, m_zonePzCount);
             uploadDyn(m_zoneNoPvpVbo, m_zoneNoPvpInst, m_zoneNoPvpCount);
             uploadDyn(m_zoneNoLogoutVbo, m_zoneNoLogoutInst, m_zoneNoLogoutCount);
@@ -656,7 +678,7 @@ public:
                 return;
             }
 
-            FloorLight &light = m_floorLights[z];
+            FloorLight &light = m_floorLights[m_previewWindow ? m_curFloor : z];
             if (!light.enabled || light.tw <= 0 || light.th <= 0 || light.pixels.empty()) {
                 m_prog->setUniformValue("uLightEnabled", false);
                 return;
@@ -770,7 +792,9 @@ public:
         };
 
         drawSpawnMarks(m_zoneHouseVbo, m_zoneHouseCount,
-                       QVector4D(0.35f, 0.55f, 1.0f, 0.24f));
+                       QVector4D(0.34f, 0.18f, 0.56f, 0.24f));
+        drawSpawnMarks(m_zoneSelectedHouseVbo, m_zoneSelectedHouseCount,
+                       QVector4D(0.10f, 0.52f, 0.25f, 0.34f));
         drawSpawnMarks(m_zonePzVbo, m_zonePzCount,
                        QVector4D(0.38f, 1.0f, 0.48f, 0.34f));
         drawSpawnMarks(m_zoneNoPvpVbo, m_zoneNoPvpCount,
@@ -918,7 +942,7 @@ private:
                 gl_Position = uMatrix * vec4(worldPx, 0.0, 1.0);
                 vec2 uv = aInst.zw + vec2(0.5) + aCorner * (uSprite - 1.0);
                 vUV = uv / uAtlasSize;
-                vLightWorldPx = aInst.xy + aCorner * uSprite;
+                vLightWorldPx = aInst.xy + uFloorOff + aCorner * uSprite;
                 vSel = aSel;
                 vZone = aZone;
             }
@@ -1185,6 +1209,9 @@ private:
     QOpenGLBuffer m_zoneHouseVbo;
     std::vector<float> m_zoneHouseInst;
     int m_zoneHouseCount = 0;
+    QOpenGLBuffer m_zoneSelectedHouseVbo;
+    std::vector<float> m_zoneSelectedHouseInst;
+    int m_zoneSelectedHouseCount = 0;
     QOpenGLBuffer m_zonePzVbo;
     std::vector<float> m_zonePzInst;
     int m_zonePzCount = 0;

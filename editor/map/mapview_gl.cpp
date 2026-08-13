@@ -368,10 +368,150 @@ quint32 MapView::glUpdateLightGrid()
     return m_lightVersion;
 }
 
-void MapView::glBuildPreviewLightGrid(int floor, int tx, int ty, int tw, int th,
-                                      std::vector<uint32_t> &out)
+void MapView::glBuildPreviewLightGrid(int firstFloor, int lastFloor,
+                                      int tx, int ty, int tw, int th,
+                                      qreal playerX, qreal playerY, int playerZ,
+                                      std::vector<uint32_t> &out) const
 {
-    buildLightGrid(floor, tx, ty, tw, th, out);
+    if (tw <= 0 || th <= 0) {
+        out.clear();
+        return;
+    }
+
+    // In-game Preview has its own world lighting. It must not inherit the
+    // editor's "Full light" setting, otherwise enabling lighting produces a
+    // completely white lightmap and appears to do nothing.
+    constexpr uint8_t previewAmbient = 40;
+    const uint32_t ambient = static_cast<uint32_t>(previewAmbient)
+                           | (static_cast<uint32_t>(previewAmbient) << 8)
+                           | (static_cast<uint32_t>(previewAmbient) << 16)
+                           | (255u << 24);
+    const size_t cellCount = static_cast<size_t>(tw) * th;
+    out.assign(cellCount, ambient);
+    if (!m_otbm || !m_otb || !m_dat) return;
+
+    firstFloor = qBound(0, firstFloor, 15);
+    lastFloor = qBound(firstFloor, lastFloor, 15);
+
+    struct Light { qreal x, y; int color, level; };
+    std::vector<Light> lights;
+    std::vector<size_t> lightStarts(cellCount, 0);
+    const auto &tileIndex = m_chunkStore.tiles();
+
+    // OTClient draws floors from the lowest visible one to the highest. A
+    // solid ground stores the current light-list offset for its screen cell;
+    // lights collected on lower floors are then ignored at that cell, while
+    // holes and translucent grounds keep them visible.
+    for (int floor = lastFloor; floor >= firstFloor; --floor) {
+        const auto floorIt = tileIndex.constFind(floor);
+        if (floorIt == tileIndex.cend()) {
+            if (floor == playerZ) {
+                const qreal offset = floor - firstFloor;
+                lights.push_back({playerX + offset, playerY + offset, 215, 6});
+            }
+            continue;
+        }
+
+        const qreal floorOffset = floor - firstFloor;
+        const size_t floorLightStart = lights.size();
+        constexpr int maxLightRadius = 32;
+        const int mapTx = static_cast<int>(std::floor(tx - floorOffset));
+        const int mapTy = static_cast<int>(std::floor(ty - floorOffset));
+        const int cx0 = floorDiv(mapTx - maxLightRadius, kChunkTiles);
+        const int cx1 = floorDiv(mapTx + tw - 1 + maxLightRadius, kChunkTiles);
+        const int cy0 = floorDiv(mapTy - maxLightRadius, kChunkTiles);
+        const int cy1 = floorDiv(mapTy + th - 1 + maxLightRadius, kChunkTiles);
+
+        // Match LightView::setFieldBrightness: perform the ground cut before
+        // appending lights belonging to this floor, so same-floor lights are
+        // still evaluated while lights from lower floors are discarded.
+        for (int cy = cy0; cy <= cy1; ++cy) {
+            for (int cx = cx0; cx <= cx1; ++cx) {
+                const auto chunkIt = floorIt->constFind(chunkKey(cx, cy));
+                if (chunkIt == floorIt->cend()) continue;
+                for (const OtbmTile *tile : chunkIt.value()) {
+                    if (!tile) continue;
+                    const int screenX = static_cast<int>(tile->x + floorOffset);
+                    const int screenY = static_cast<int>(tile->y + floorOffset);
+                    if (screenX < tx || screenX >= tx + tw
+                        || screenY < ty || screenY >= ty + th) {
+                        continue;
+                    }
+                    for (const OtbmMapItem &item : tile->items) {
+                        const int clientId = m_otb->clientIdForServerId(item.server_id);
+                        const ClientItem *client = clientId > 0
+                            ? m_dat->itemByClientId(static_cast<uint16_t>(clientId))
+                            : nullptr;
+                        if (client && client->is_ground && !client->is_translucent) {
+                            lightStarts[static_cast<size_t>(screenY - ty) * tw
+                                        + (screenX - tx)] = floorLightStart;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        for (int cy = cy0; cy <= cy1; ++cy) {
+            for (int cx = cx0; cx <= cx1; ++cx) {
+                const auto chunkIt = floorIt->constFind(chunkKey(cx, cy));
+                if (chunkIt == floorIt->cend()) continue;
+                for (const OtbmTile *tile : chunkIt.value()) {
+                    if (!tile) continue;
+                    for (const OtbmMapItem &item : tile->items) {
+                        const int clientId = m_otb->clientIdForServerId(item.server_id);
+                        const ClientItem *client = clientId > 0
+                            ? m_dat->itemByClientId(static_cast<uint16_t>(clientId))
+                            : nullptr;
+                        if (client && client->has_light && client->light_level > 0) {
+                            lights.push_back({tile->x + floorOffset,
+                                              tile->y + floorOffset, client->light_color,
+                                              qMin<int>(client->light_level, 255)});
+                        }
+                    }
+                }
+            }
+        }
+
+        if (floor == playerZ) {
+            lights.push_back({playerX + floorOffset, playerY + floorOffset, 215, 6});
+        }
+    }
+
+    for (size_t lightIndex = 0; lightIndex < lights.size(); ++lightIndex) {
+        const Light &light = lights[lightIndex];
+        const float red = ((light.color / 36) % 6) * 51 / 255.0f;
+        const float green = ((light.color / 6) % 6) * 51 / 255.0f;
+        const float blue = (light.color % 6) * 51 / 255.0f;
+        const int x0 = qMax(tx, static_cast<int>(std::floor(light.x - light.level)));
+        const int x1 = qMin(tx + tw - 1,
+                            static_cast<int>(std::ceil(light.x + light.level)));
+        const int y0 = qMax(ty, static_cast<int>(std::floor(light.y - light.level)));
+        const int y1 = qMin(ty + th - 1,
+                            static_cast<int>(std::ceil(light.y + light.level)));
+        for (int y = y0; y <= y1; ++y) {
+            for (int x = x0; x <= x1; ++x) {
+                const float dx = static_cast<float>(x - light.x);
+                const float dy = static_cast<float>(y - light.y);
+                const float distanceSquared = dx * dx + dy * dy;
+                if (distanceSquared > static_cast<float>(light.level * light.level)) continue;
+                const size_t pixelIndex = static_cast<size_t>(y - ty) * tw + (x - tx);
+                if (lightIndex < lightStarts[pixelIndex]) continue;
+                const float intensity = qBound(
+                    0.0f, (-std::sqrt(distanceSquared) + light.level) * 0.2f, 1.0f);
+                if (intensity < 0.01f) continue;
+
+                uint32_t &pixel = out[pixelIndex];
+                const int r = qMax<int>(pixel & 0xff, red * intensity * 255.0f);
+                const int g = qMax<int>((pixel >> 8) & 0xff, green * intensity * 255.0f);
+                const int b = qMax<int>((pixel >> 16) & 0xff, blue * intensity * 255.0f);
+                pixel = static_cast<uint32_t>(qMin(r, 255))
+                      | (static_cast<uint32_t>(qMin(g, 255)) << 8)
+                      | (static_cast<uint32_t>(qMin(b, 255)) << 16)
+                      | (255u << 24);
+            }
+        }
+    }
 }
 
 void MapView::glCollectSpawnMarkInstances(std::vector<float> &out, std::vector<float> &outSel)
@@ -629,12 +769,14 @@ void MapView::glCollectPathingInstances(std::vector<float> &out)
 }
 
 void MapView::glCollectZoneMarkInstances(std::vector<float> &outHouse,
+                                         std::vector<float> &outSelectedHouse,
                                          std::vector<float> &outPz,
                                          std::vector<float> &outNoPvp,
                                          std::vector<float> &outNoLogout,
                                          std::vector<float> &outPvp)
 {
     outHouse.clear();
+    outSelectedHouse.clear();
     outPz.clear();
     outNoPvp.clear();
     outNoLogout.clear();
@@ -663,9 +805,19 @@ void MapView::glCollectZoneMarkInstances(std::vector<float> &outHouse,
             auto cit = zit->constFind(chunkKey(cx, cy));
             if (cit == zit->cend()) continue;
             for (const OtbmTile *t : cit.value()) {
-                if (!t || !t->items.empty()) continue;
+                if (!t) continue;
                 if (t->x < tx0 || t->x > tx1 || t->y < ty0 || t->y > ty1) continue;
-                if (m_showHouses && t->is_house) {
+                const bool selectedHouse = m_showHouses
+                    && m_brushController.houseBrush() > 0
+                    && static_cast<int>(t->house_id) == m_brushController.houseBrush();
+                if (selectedHouse) {
+                    // A selected house is intentionally drawn over every one of
+                    // its tiles, including tiles containing ground or objects.
+                    outSelectedHouse.insert(outSelectedHouse.end(),
+                                            { t->x * 32.0f, t->y * 32.0f, 32.0f, 32.0f });
+                } else if (!t->items.empty()) {
+                    continue;
+                } else if (m_showHouses && (t->is_house || t->house_id > 0)) {
                     outHouse.insert(outHouse.end(),
                                     { t->x * 32.0f, t->y * 32.0f, 32.0f, 32.0f });
                 } else if (m_showZones && t->flags != 0) {

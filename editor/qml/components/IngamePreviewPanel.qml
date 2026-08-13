@@ -11,9 +11,6 @@ Item {
     required property var settings
     required property bool githubUi
 
-    property int centerX: -1
-    property int centerY: -1
-    property int centerZ: 7
     readonly property int headerHeight: 34
     readonly property int footerHeight: 30
     readonly property int contentWidth: settings.ingamePreviewWidthTiles * 32
@@ -25,6 +22,11 @@ Item {
     z: 40
     focus: visible
 
+    IngamePreviewController {
+        id: explorer
+        source: panel.mapView
+    }
+
     function clampPosition() {
         x = Math.max(0, Math.min(x, parent.width - width));
         y = Math.max(0, Math.min(y, parent.height - height));
@@ -34,28 +36,57 @@ Item {
         if (!settings.ingamePreviewFollowCursor)
             return;
         if (mapView.hoverX >= 0 && mapView.hoverY >= 0) {
-            centerX = mapView.hoverX;
-            centerY = mapView.hoverY;
-            centerZ = mapView.floor;
+            explorer.setPosition(mapView.hoverX, mapView.hoverY, mapView.floor);
         }
     }
 
     function ensureCamera() {
-        if (centerX < 0 || centerY < 0) {
+        if (!explorer.positioned) {
             if (mapView.hoverX >= 0 && mapView.hoverY >= 0) {
-                centerX = mapView.hoverX;
-                centerY = mapView.hoverY;
+                explorer.setPosition(mapView.hoverX, mapView.hoverY, mapView.floor);
             } else {
-                centerX = Math.floor(mapView.glOriginX() + mapView.width / (2 * mapView.tileSize));
-                centerY = Math.floor(mapView.glOriginY() + mapView.height / (2 * mapView.tileSize));
+                explorer.setPosition(
+                            Math.floor(mapView.glOriginX() + mapView.width / (2 * mapView.tileSize)),
+                            Math.floor(mapView.glOriginY() + mapView.height / (2 * mapView.tileSize)),
+                            mapView.floor);
             }
-            centerZ = mapView.floor;
         }
+    }
+
+    function resetToEditorPosition() {
+        if (mapView.hoverX >= 0 && mapView.hoverY >= 0) {
+            explorer.setPosition(mapView.hoverX, mapView.hoverY, mapView.floor);
+        } else {
+            explorer.setPosition(
+                        Math.floor(mapView.glOriginX() + mapView.width / (2 * mapView.tileSize)),
+                        Math.floor(mapView.glOriginY() + mapView.height / (2 * mapView.tileSize)),
+                        mapView.floor);
+        }
+    }
+
+    function movePlayer(dx, dy) {
+        ensureCamera();
+        if (settings.ingamePreviewFollowCursor)
+            settings.ingamePreviewFollowCursor = false;
+        explorer.walk(dx, dy);
+        forceActiveFocus();
+    }
+
+    function changeViewportWidth(delta) {
+        settings.ingamePreviewWidthTiles = Math.max(
+                    15, Math.min(31, settings.ingamePreviewWidthTiles + delta));
+        forceActiveFocus();
+    }
+
+    function changeViewportHeight(delta) {
+        settings.ingamePreviewHeightTiles = Math.max(
+                    9, Math.min(23, settings.ingamePreviewHeightTiles + delta));
+        forceActiveFocus();
     }
 
     onVisibleChanged: {
         if (visible) {
-            ensureCamera();
+            resetToEditorPosition();
             clampPosition();
             forceActiveFocus();
         }
@@ -66,7 +97,7 @@ Item {
     Component.onCompleted: {
         x = Math.max(8, parent.width - width - 12);
         y = 12;
-        ensureCamera();
+        if (visible) resetToEditorPosition();
     }
 
     Connections {
@@ -74,7 +105,7 @@ Item {
         function onHoverChanged() { panel.syncToCursor(); }
         function onFloorChanged() {
             if (panel.settings.ingamePreviewFollowCursor)
-                panel.centerZ = panel.mapView.floor;
+                panel.syncToCursor();
         }
     }
 
@@ -86,19 +117,33 @@ Item {
         }
         var dx = 0;
         var dy = 0;
-        if (event.key === Qt.Key_Left) dx = -1;
-        else if (event.key === Qt.Key_Right) dx = 1;
-        else if (event.key === Qt.Key_Up) dy = -1;
-        else if (event.key === Qt.Key_Down) dy = 1;
+        if (event.key === Qt.Key_Left || event.key === Qt.Key_A) dx = -1;
+        else if (event.key === Qt.Key_Right || event.key === Qt.Key_D) dx = 1;
+        else if (event.key === Qt.Key_Up || event.key === Qt.Key_W) dy = -1;
+        else if (event.key === Qt.Key_Down || event.key === Qt.Key_S) dy = 1;
         else return;
-
-        if (settings.ingamePreviewFollowCursor)
-            settings.ingamePreviewFollowCursor = false;
-        ensureCamera();
-        centerX += dx;
-        centerY += dy;
+        movePlayer(dx, dy);
         event.accepted = true;
     }
+
+    Connections {
+        target: Backend.docMgr
+        function onCurrentChanged() {
+            if (panel.visible)
+                Qt.callLater(panel.resetToEditorPosition)
+        }
+    }
+
+    // The map view normally owns keyboard focus. Window shortcuts keep offline
+    // walking responsive after clicking or hovering the editor canvas.
+    Shortcut { sequence: "Left"; context: Qt.WindowShortcut; enabled: panel.visible; autoRepeat: true; onActivated: panel.movePlayer(-1, 0) }
+    Shortcut { sequence: "Right"; context: Qt.WindowShortcut; enabled: panel.visible; autoRepeat: true; onActivated: panel.movePlayer(1, 0) }
+    Shortcut { sequence: "Up"; context: Qt.WindowShortcut; enabled: panel.visible; autoRepeat: true; onActivated: panel.movePlayer(0, -1) }
+    Shortcut { sequence: "Down"; context: Qt.WindowShortcut; enabled: panel.visible; autoRepeat: true; onActivated: panel.movePlayer(0, 1) }
+    Shortcut { sequence: "A"; context: Qt.WindowShortcut; enabled: panel.visible; autoRepeat: true; onActivated: panel.movePlayer(-1, 0) }
+    Shortcut { sequence: "D"; context: Qt.WindowShortcut; enabled: panel.visible; autoRepeat: true; onActivated: panel.movePlayer(1, 0) }
+    Shortcut { sequence: "W"; context: Qt.WindowShortcut; enabled: panel.visible; autoRepeat: true; onActivated: panel.movePlayer(0, -1) }
+    Shortcut { sequence: "S"; context: Qt.WindowShortcut; enabled: panel.visible; autoRepeat: true; onActivated: panel.movePlayer(0, 1) }
 
     Rectangle {
         anchors.fill: parent
@@ -151,6 +196,16 @@ Item {
                 }
             }
             Button {
+                width: 54; height: 24
+                text: explorer.noClip ? "NoClip" : "Collision"
+                checkable: true
+                checked: explorer.noClip
+                onClicked: {
+                    explorer.noClip = checked;
+                    panel.forceActiveFocus();
+                }
+            }
+            Button {
                 width: 26; height: 24
                 text: "×"
                 onClicked: panel.settings.showIngamePreviewWindow = false
@@ -158,7 +213,7 @@ Item {
         }
 
         MouseArea {
-            anchors { left: parent.left; right: parent.right; top: parent.top; bottom: parent.bottom; rightMargin: 158 }
+            anchors { left: parent.left; right: parent.right; top: parent.top; bottom: parent.bottom; rightMargin: 216 }
             cursorShape: Qt.SizeAllCursor
             property real pressX
             property real pressY
@@ -183,9 +238,9 @@ Item {
         height: panel.contentHeight
         source: panel.mapView
         previewWindow: true
-        previewCenterX: panel.centerX
-        previewCenterY: panel.centerY
-        previewFloor: panel.centerZ
+        previewCenterX: explorer.visualX
+        previewCenterY: explorer.visualY
+        previewFloor: explorer.z
         previewLighting: panel.settings.ingamePreviewLighting
         maxFps: panel.settings.glMaxFps > 0 ? Math.min(30, panel.settings.glMaxFps) : 0
         vsyncEnabled: panel.settings.vsyncEnabled
@@ -195,12 +250,18 @@ Item {
         anchors.fill: previewRenderer
         onPressed: panel.forceActiveFocus()
         onWheel: function(wheel) {
-            if (wheel.angleDelta.y > 0) panel.centerZ = Math.max(0, panel.centerZ - 1);
-            else panel.centerZ = Math.min(15, panel.centerZ + 1);
+            explorer.changeFloor(wheel.angleDelta.y > 0 ? -1 : 1);
             panel.settings.ingamePreviewFollowCursor = false;
             panel.forceActiveFocus();
             wheel.accepted = true;
         }
+    }
+
+    IngamePlayerOverlay {
+        id: playerLayer
+        anchors.fill: previewRenderer
+        z: 3
+        controller: explorer
     }
 
     Rectangle {
@@ -210,35 +271,73 @@ Item {
 
         Text {
             anchors { left: parent.left; leftMargin: 8; verticalCenter: parent.verticalCenter }
-            text: panel.centerX + ", " + panel.centerY + ", " + panel.centerZ
-            color: panel.githubUi ? "#A7B1BC" : "#D0D0D0"
+            text: explorer.lastBlockReason.length > 0
+                  ? explorer.lastBlockReason
+                  : explorer.x + ", " + explorer.y + ", " + explorer.z + "  |  WASD / arrows to walk"
+            color: explorer.lastBlockReason.length > 0 ? "#F85149" : (panel.githubUi ? "#A7B1BC" : "#D0D0D0")
             font.pixelSize: 11
+            width: parent.width - 252
+            elide: Text.ElideRight
         }
 
         Row {
             anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
             spacing: 4
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "W"
+                color: panel.githubUi ? "#8B949E" : "#B0B0B0"
+                font.pixelSize: 10
+                font.bold: true
+            }
             Button {
-                width: 26; height: 22; text: "−"
+                width: 24; height: 22; text: "−"
                 enabled: panel.settings.ingamePreviewWidthTiles > 15
-                onClicked: {
-                    panel.settings.ingamePreviewWidthTiles = Math.max(15, panel.settings.ingamePreviewWidthTiles - 2);
-                    panel.settings.ingamePreviewHeightTiles = Math.max(11, panel.settings.ingamePreviewHeightTiles - 2);
-                }
+                onClicked: panel.changeViewportWidth(-2)
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: panel.settings.ingamePreviewWidthTiles + "×" + panel.settings.ingamePreviewHeightTiles
+                width: 20
+                horizontalAlignment: Text.AlignHCenter
+                text: panel.settings.ingamePreviewWidthTiles
                 color: panel.githubUi ? "#A7B1BC" : "#D0D0D0"
                 font.pixelSize: 11
             }
             Button {
-                width: 26; height: 22; text: "+"
-                enabled: panel.settings.ingamePreviewWidthTiles < 29
-                onClicked: {
-                    panel.settings.ingamePreviewWidthTiles = Math.min(30, panel.settings.ingamePreviewWidthTiles + 2);
-                    panel.settings.ingamePreviewHeightTiles = Math.min(22, panel.settings.ingamePreviewHeightTiles + 2);
-                }
+                width: 24; height: 22; text: "+"
+                enabled: panel.settings.ingamePreviewWidthTiles < 31
+                onClicked: panel.changeViewportWidth(2)
+            }
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 1
+                height: 16
+                color: panel.grayUi ? "#484848" : (panel.githubUi ? "#30363D" : "#666")
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "H"
+                color: panel.githubUi ? "#8B949E" : "#B0B0B0"
+                font.pixelSize: 10
+                font.bold: true
+            }
+            Button {
+                width: 24; height: 22; text: "−"
+                enabled: panel.settings.ingamePreviewHeightTiles > 9
+                onClicked: panel.changeViewportHeight(-2)
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 20
+                horizontalAlignment: Text.AlignHCenter
+                text: panel.settings.ingamePreviewHeightTiles
+                color: panel.githubUi ? "#A7B1BC" : "#D0D0D0"
+                font.pixelSize: 11
+            }
+            Button {
+                width: 24; height: 22; text: "+"
+                enabled: panel.settings.ingamePreviewHeightTiles < 23
+                onClicked: panel.changeViewportHeight(2)
             }
         }
     }

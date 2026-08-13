@@ -338,46 +338,56 @@ void DatReader::readItemFlags(ClientItem &item, BinaryReader &reader)
 
 void DatReader::readSpriteData(ClientItem &item, BinaryReader &reader, bool outfits)
 {
-
     uint8_t groupCount = 1;
     const bool hasGroups = outfits && frameGroups();
     if (hasGroups) groupCount = std::max<uint8_t>(1, reader.readU8());
 
     for (uint8_t g = 0; g < groupCount; ++g) {
-        if (hasGroups) reader.readU8();
+        ClientSpriteGroup group;
+        if (hasGroups) group.type = reader.readU8();
 
-        item.width  = reader.readU8();
-        item.height = reader.readU8();
+        group.width  = reader.readU8();
+        group.height = reader.readU8();
 
-        if (item.width > 1 || item.height > 1) {
+        if (group.width > 1 || group.height > 1) {
             reader.readU8();
         }
 
-        item.layers    = reader.readU8();
-        item.pattern_x = reader.readU8();
-        item.pattern_y = reader.readU8();
-        item.pattern_z = reader.readU8();
-        item.frames    = reader.readU8();
+        group.layers    = reader.readU8();
+        group.pattern_x = reader.readU8();
+        group.pattern_y = reader.readU8();
+        group.pattern_z = reader.readU8();
+        group.frames    = reader.readU8();
 
-        if (item.frames > 1 && frameDurations()) {
+        if (group.frames > 1 && frameDurations()) {
             reader.readU8();
             reader.readU32();
             reader.readU8();
-            for (uint32_t f = 0; f < item.frames; ++f) {
+            for (uint32_t f = 0; f < group.frames; ++f) {
                 reader.readU32();
                 reader.readU32();
             }
         }
 
-        const uint32_t spriteCount = item.getTotalSprites();
-        if (g == 0) item.sprite_ids.reserve(spriteCount);
-
+        const uint32_t spriteCount = group.totalSprites();
+        group.sprite_ids.reserve(spriteCount);
         for (uint32_t i = 0; i < spriteCount; ++i) {
-
             const uint32_t sid = extendedSprites() ? reader.readU32() : reader.readU16();
-            if (g == 0) item.sprite_ids.push_back(sid);
-
+            group.sprite_ids.push_back(sid);
         }
+
+        if (g == 0) {
+            item.width = group.width;
+            item.height = group.height;
+            item.layers = group.layers;
+            item.pattern_x = group.pattern_x;
+            item.pattern_y = group.pattern_y;
+            item.pattern_z = group.pattern_z;
+            item.frames = group.frames;
+            item.sprite_ids = group.sprite_ids;
+        }
+
+        if (hasGroups) item.sprite_groups.push_back(std::move(group));
     }
 }
 
@@ -413,6 +423,76 @@ QVariantMap DatReader::outfitPreview(int lookType) const
     out.insert(QStringLiteral("ids"), ids);
     out.insert(QStringLiteral("width"), w);
     out.insert(QStringLiteral("height"), h);
+    return out;
+}
+
+QVariantMap DatReader::outfitFramePreview(int lookType, int direction,
+                                          bool walking,
+                                          int animationPhase) const
+{
+    QVariantMap out;
+    const ClientItem *outfit = outfitByLookType(
+        static_cast<uint16_t>(std::max(0, lookType)));
+    if (!outfit) return out;
+
+    const ClientSpriteGroup *group = nullptr;
+    if (!outfit->sprite_groups.empty()) {
+        const uint8_t wantedType = walking ? 1 : 0;
+        const auto it = std::find_if(outfit->sprite_groups.cbegin(),
+                                     outfit->sprite_groups.cend(),
+                                     [wantedType](const ClientSpriteGroup &candidate) {
+                                         return candidate.type == wantedType;
+                                     });
+        group = it != outfit->sprite_groups.cend()
+                    ? &*it : &outfit->sprite_groups.front();
+    }
+
+    const auto &spriteIds = group ? group->sprite_ids : outfit->sprite_ids;
+    if (spriteIds.empty()) return out;
+    const int width = std::max<int>(1, group ? group->width : outfit->width);
+    const int height = std::max<int>(1, group ? group->height : outfit->height);
+    const int layers = std::max<int>(1, group ? group->layers : outfit->layers);
+    const int directions = std::max<int>(1, group ? group->pattern_x
+                                                  : outfit->pattern_x);
+    const int patternY = std::max<int>(1, group ? group->pattern_y
+                                                : outfit->pattern_y);
+    const int patternZ = std::max<int>(1, group ? group->pattern_z
+                                                : outfit->pattern_z);
+    const int phases = std::max<int>(1, group ? group->frames : outfit->frames);
+    const int dir = std::clamp(direction, 0, directions - 1);
+    // Frame-group clients keep idle and moving phases in separate arrays.
+    // Older DATs store idle in phase 0 and walking in phases 1..N.
+    const int phase = group
+        ? (walking
+               ? ((std::max(1, animationPhase) - 1) % phases)
+               : 0)
+        : (walking && phases > 1
+               ? 1 + (((std::max(1, animationPhase) - 1) % (phases - 1)
+                       + (phases - 1)) % (phases - 1))
+               : 0);
+    const int frameStride = patternZ * patternY
+                          * directions * layers * height * width;
+
+    QVariantList ids;
+    ids.reserve(width * height);
+    for (int h = 0; h < height; ++h) {
+        for (int w = 0; w < width; ++w) {
+            // Base outfit layer, no addons/mount. This is the same ordering
+            // used by ThingType::getSpriteIndex in OTClientV8.
+            const int index = phase * frameStride
+                            + ((dir * layers) * height + h) * width + w;
+            ids.push_back(index >= 0
+                                  && index < static_cast<int>(spriteIds.size())
+                              ? QVariant(spriteIds[static_cast<size_t>(index)])
+                              : QVariant(0u));
+        }
+    }
+    out.insert(QStringLiteral("ids"), ids);
+    out.insert(QStringLiteral("width"), width);
+    out.insert(QStringLiteral("height"), height);
+    out.insert(QStringLiteral("frames"), phases);
+    out.insert(QStringLiteral("phase"), phase);
+    out.insert(QStringLiteral("grouped"), group != nullptr);
     return out;
 }
 

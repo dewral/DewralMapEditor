@@ -32,6 +32,7 @@ DmeMenuBar {
     required property var themeDialog
     required property var borderizeConfirm
     required property var randomizeConfirm
+    required property var updateDialog
     property int menuLeftInset: 4
     property int menuVerticalOffset: -4
 
@@ -311,7 +312,7 @@ DmeMenuBar {
             onTriggered: menuBar.mapPropertiesDialog.open()
         }
         Action {
-            text: "Statistics"
+            text: "Map Analyzer..."
             shortcut: "F8"
             enabled: Backend.otbmReader.loaded
             onTriggered: menuBar.statsDialog.open()
@@ -697,6 +698,44 @@ DmeMenuBar {
                 text: "Save recovery now"
                 onTriggered: Backend.docMgr.autosaveNow()
             }
+        }
+    }
+
+    DmeMenu {
+        title: "Help"
+        focus: false
+
+        Action {
+            text: "Check for Updates..."
+            onTriggered: {
+                menuBar.updateDialog.open();
+                Backend.updateService.checkForUpdates(
+                    menuBar.settings.updateChannel, false);
+            }
+        }
+
+        DmeMenu {
+            title: "Update Channel"
+            DmeMenuItem {
+                text: "Stable"
+                checkable: true
+                checked: menuBar.settings.updateChannel === "stable"
+                onTriggered: menuBar.settings.updateChannel = "stable"
+            }
+            DmeMenuItem {
+                text: "Development (nightly)"
+                checkable: true
+                checked: menuBar.settings.updateChannel === "development"
+                onTriggered: menuBar.settings.updateChannel = "development"
+            }
+        }
+
+        DmeMenuItem {
+            text: "Check automatically"
+            checkable: true
+            checked: menuBar.settings.checkUpdatesAutomatically
+            onTriggered: menuBar.settings.checkUpdatesAutomatically =
+                         !menuBar.settings.checkUpdatesAutomatically
         }
     }
 

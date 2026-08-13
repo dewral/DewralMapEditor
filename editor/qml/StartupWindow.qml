@@ -18,6 +18,18 @@ Window {
     property string loadingMapPath: ""
     property string loadingProfileKey: ""
 
+    Connections {
+        target: Backend.updateService
+        function onInteractionRequested() {
+            if (!startupScreen.app.started)
+                startupUpdateDialog.open();
+        }
+    }
+
+    UpdateDialog {
+        id: startupUpdateDialog
+    }
+
     function beginLoadMap(path, profileKey) {
         if (!path || loadingMap)
             return;

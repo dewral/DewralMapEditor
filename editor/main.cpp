@@ -36,6 +36,7 @@ int main(int argc, char *argv[])
 
     QCoreApplication::setOrganizationName(QStringLiteral("Dewral"));
     QCoreApplication::setApplicationName(QStringLiteral("DewralMapEditor"));
+    QCoreApplication::setApplicationVersion(QStringLiteral(DME_VERSION));
 
     Backend backend(nullptr);
     QObject::connect(&app, &QCoreApplication::aboutToQuit,

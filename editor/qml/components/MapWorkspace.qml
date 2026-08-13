@@ -283,6 +283,15 @@ Item {
                 onTriggered: workspace.paletteNavigator.selectCreature(mapArea.ctx.creatureName)
             }
             DmeMenuItem {
+                text: "Select House"
+                visible: mapArea.ctx.houseId > 0
+                height: visible ? implicitHeight : 0
+                onTriggered: {
+                    mapView.clearSelection();
+                    workspace.paletteNavigator.selectHouse(mapArea.ctx.houseId);
+                }
+            }
+            DmeMenuItem {
                 text: "Go To Destination"
                 visible: mapArea.ctx.teleport === true && mapArea.ctx.hasTeleportDest === true
                 height: visible ? implicitHeight : 0
@@ -699,6 +708,7 @@ Item {
         }
 
         Row {
+            visible: githubStatus.width >= 920
             anchors {
                 left: parent.left
                 leftMargin: 16
@@ -731,6 +741,7 @@ Item {
 
         Row {
             id: floorZoomStatus
+            visible: githubStatus.width >= 680
             anchors.centerIn: parent
             spacing: 14
 
@@ -811,6 +822,23 @@ Item {
             }
             spacing: 7
 
+            WorkTimerStatus {
+                visible: githubStatus.width >= 500
+                width: githubStatus.width < 680 ? 205 : 245
+                height: 30
+                anchors.verticalCenter: parent.verticalCenter
+                foreground: workspace.grayUi ? "#E0E0E0" : "#C9D1D9"
+                accent: workspace.grayUi ? "#C79A3B" : "#3FB950"
+            }
+
+            Rectangle {
+                visible: githubStatus.width >= 500
+                width: 1
+                height: 20
+                color: workspace.grayUi ? "#3A3A3A" : "#242D38"
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: mapGl.fps > 0 ? ("FPS " + mapGl.fps) : "FPS idle"
@@ -828,6 +856,18 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
             }
         }
+    }
+
+    WorkTimerStatus {
+        visible: !workspace.githubUi && Backend.otbmReader.loaded
+        anchors {
+            right: parent.right
+            bottom: parent.bottom
+            margins: 8
+        }
+        z: 80
+        foreground: "#E0E0E0"
+        accent: "#D1B34C"
     }
 
     Rectangle {

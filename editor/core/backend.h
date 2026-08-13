@@ -19,6 +19,8 @@
 #include "uitheme.h"
 #include "creaturestore.h"
 #include "aimapassistant.h"
+#include "updateservice.h"
+#include "worktimerservice.h"
 
 class Backend : public QObject
 {
@@ -38,6 +40,8 @@ class Backend : public QObject
     Q_PROPERTY(CreatureStore *creatureStore READ creatureStore CONSTANT)
     Q_PROPERTY(ItemsXmlReader *itemsXml READ itemsXml CONSTANT)
     Q_PROPERTY(AiMapAssistant *aiMapAssistant READ aiMapAssistant CONSTANT)
+    Q_PROPERTY(UpdateService *updateService READ updateService CONSTANT)
+    Q_PROPERTY(WorkTimerService *workTimer READ workTimer CONSTANT)
 
 public:
     // An explicit parent makes QML use create() instead of constructing a second singleton.
@@ -58,6 +62,8 @@ public:
     CreatureStore *creatureStore() { return &m_creatureStore; }
     ItemsXmlReader *itemsXml() { return &m_itemsXml; }
     AiMapAssistant *aiMapAssistant() { return &m_aiMapAssistant; }
+    UpdateService *updateService() { return &m_updateService; }
+    WorkTimerService *workTimer() { return &m_workTimer; }
 
     Q_INVOKABLE int preloadPaletteSprites() {
         return m_sprReader.preloadItemImageSources(&m_datReader);
@@ -80,6 +86,8 @@ private:
     OtfiReader m_otfiReader;
     UiTheme m_uiTheme;
     AiMapAssistant m_aiMapAssistant;
+    UpdateService m_updateService;
+    WorkTimerService m_workTimer;
 };
 
 #endif

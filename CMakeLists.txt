@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
     "Disable Qt Creator package-manager auto setup" FORCE)
 
-project(DewralMapEditor LANGUAGES CXX)
+project(DewralMapEditor VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -13,7 +13,18 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 COMPONENTS Core Gui Qml Quick OpenGL Network REQUIRED)
+set(DME_BUILD_CHANNEL "stable" CACHE STRING "Application update channel")
+execute_process(
+    COMMAND git rev-parse --short=12 HEAD
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    OUTPUT_VARIABLE DME_GIT_COMMIT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET)
+if(DME_GIT_COMMIT STREQUAL "")
+    set(DME_GIT_COMMIT "unknown")
+endif()
+
+find_package(Qt6 COMPONENTS Core Gui Qml Quick OpenGL Network Widgets Concurrent REQUIRED)
 qt_policy(SET QTP0001 NEW)
 
 add_library(OTFormats STATIC
@@ -75,6 +86,10 @@ add_executable(DewralMapEditor
     editor/core/documentmanager.h
     editor/core/creaturestore.cpp
     editor/core/creaturestore.h
+    editor/core/updateservice.cpp
+    editor/core/updateservice.h
+    editor/core/worktimerservice.cpp
+    editor/core/worktimerservice.h
     editor/map/mapview.cpp
     editor/map/mapview_edit.cpp
     editor/map/mapview_brush_core.cpp
@@ -109,6 +124,8 @@ add_executable(DewralMapEditor
     editor/map/mapglview.h
     editor/map/minimapview.cpp
     editor/map/minimapview.h
+    editor/preview/ingamepreviewcontroller.cpp
+    editor/preview/ingamepreviewcontroller.h
     editor/resources.qrc
 )
 
@@ -126,6 +143,7 @@ qt_add_qml_module(DewralMapEditor
         editor/map/mapview.h
         editor/map/mapglview.h
         editor/map/minimapview.h
+        editor/preview/ingamepreviewcontroller.h
         editor/core/palettefilter.h
         editor/core/documentmanager.h
         editor/core/filetools.h
@@ -133,6 +151,8 @@ qt_add_qml_module(DewralMapEditor
         editor/core/brushstore.h
         editor/core/uitheme.h
         editor/core/creaturestore.h
+        editor/core/updateservice.h
+        editor/core/worktimerservice.h
         libs/otformats/sprreader.h
         libs/otformats/datreader.h
         libs/otformats/otbreader.h
@@ -141,7 +161,12 @@ qt_add_qml_module(DewralMapEditor
         libs/otformats/itemsxmlreader.h
 )
 
-target_include_directories(DewralMapEditor PRIVATE editor/core editor/map)
+target_include_directories(DewralMapEditor PRIVATE editor/core editor/map editor/preview)
+
+target_compile_definitions(DewralMapEditor PRIVATE
+    DME_VERSION="${PROJECT_VERSION}"
+    DME_GIT_COMMIT="${DME_GIT_COMMIT}"
+    DME_BUILD_CHANNEL="${DME_BUILD_CHANNEL}")
 
 target_link_libraries(DewralMapEditor
     PRIVATE
@@ -149,6 +174,7 @@ target_link_libraries(DewralMapEditor
         Qt6::Quick
         Qt6::OpenGL
         Qt6::Network
+        Qt6::Concurrent
 )
 
 include(CTest)
@@ -219,6 +245,32 @@ add_custom_command(TARGET DewralMapEditor POST_BUILD
 )
 
 if(WIN32)
+    add_executable(DMEUpdater WIN32
+        editor/updater/main.cpp
+        editor/windows/DME.rc)
+    target_compile_features(DMEUpdater PRIVATE cxx_std_17)
+    target_link_libraries(DMEUpdater PRIVATE Qt6::Widgets)
+    set_target_properties(DMEUpdater PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${DME_RUNTIME_OUTPUT_DIRECTORY}"
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG "${DME_RUNTIME_OUTPUT_DIRECTORY}"
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE "${DME_RUNTIME_OUTPUT_DIRECTORY}")
+    add_custom_command(TARGET DMEUpdater POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "$<TARGET_FILE:Qt6::Core>"
+                "$<TARGET_FILE:Qt6::Gui>"
+                "$<TARGET_FILE:Qt6::Widgets>"
+                "$<TARGET_FILE_DIR:DMEUpdater>"
+        VERBATIM)
+    if(TARGET Qt6::QWindowsIntegrationPlugin)
+        add_custom_command(TARGET DMEUpdater POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory
+                    "$<TARGET_FILE_DIR:DMEUpdater>/platforms"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                    "$<TARGET_FILE:Qt6::QWindowsIntegrationPlugin>"
+                    "$<TARGET_FILE_DIR:DMEUpdater>/platforms/qwindows.dll"
+            VERBATIM)
+    endif()
+
     get_target_property(_qmake_exe Qt6::qmake IMPORTED_LOCATION)
     get_filename_component(_qt_bin_dir "${_qmake_exe}" DIRECTORY)
     find_program(WINDEPLOYQT_EXE windeployqt HINTS "${_qt_bin_dir}")
@@ -240,7 +292,7 @@ endif()
 
 if(WIN32)
     add_custom_target(package_release
-        DEPENDS DewralMapEditor
+        DEPENDS DewralMapEditor DMEUpdater
         COMMAND "${CMAKE_COMMAND}"
                 "-DDEPLOYED_DIRECTORY=$<TARGET_FILE_DIR:DewralMapEditor>"
                 "-DRELEASE_ROOT=${CMAKE_SOURCE_DIR}/release"
@@ -258,6 +310,13 @@ if(WIN32)
         COMMENT "Creating the source release package"
         VERBATIM)
 
-    add_custom_target(package_all
-        DEPENDS package_release package_source)
+    add_custom_target(package_checksums
+        DEPENDS package_release package_source
+        COMMAND "${CMAKE_COMMAND}"
+                "-DRELEASE_ROOT=${CMAKE_SOURCE_DIR}/release"
+                -P "${CMAKE_SOURCE_DIR}/cmake/CreateChecksums.cmake"
+        COMMENT "Generating release checksums"
+        VERBATIM)
+
+    add_custom_target(package_all DEPENDS package_checksums)
 endif()

@@ -106,7 +106,7 @@ Window {
 
         Text {
             id: githubTitleText
-            visible: root.githubUi
+            visible: root.githubUi && root.width >= 920
             anchors.centerIn: parent
             text: "Dewral Map Editor"
             color: root.grayUi ? "#F0F0F0" : "#E6EDF3"
@@ -212,13 +212,36 @@ Window {
             prefs.githubLayoutV2Initialized = true;
         }
         app.initialize();
+        if (prefs.checkUpdatesAutomatically)
+            Qt.callLater(() => Backend.updateService.checkForUpdates(
+                             prefs.updateChannel, true));
+    }
+
+    Connections {
+        target: Backend.updateService
+        function onInteractionRequested() {
+            if (app.started)
+                updateDialog.open();
+        }
+    }
+
+    Connections {
+        target: Backend.workTimer
+        function onReminderRequested(message) {
+            app.showToast(message)
+        }
+    }
+
+    Connections {
+        target: workspace.mapView
+        function onOperationWarning(message) { app.showToast(message); }
     }
 
     MainMenuBar {
         id: menuBar
         menuLeftInset: root.githubUi ? 52 : 4
         menuVerticalOffset: root.githubUi ? 0 : -4
-        width: root.githubUi ? 450 : implicitWidth
+        width: root.githubUi ? 520 : implicitWidth
         appController: app
         mapView: workspace.mapView
         mapGl: workspace.mapGl
@@ -244,6 +267,11 @@ Window {
         themeDialog: themeDialog
         borderizeConfirm: borderizeMapConfirm
         randomizeConfirm: randomizeMapConfirm
+        updateDialog: updateDialog
+    }
+
+    UpdateDialog {
+        id: updateDialog
     }
 
     Shortcut {
@@ -270,6 +298,15 @@ Window {
         onActivated: prefs.paletteCollapsed = !prefs.paletteCollapsed
     }
 
+    Shortcut {
+        sequence: "Alt+A"
+        enabled: Backend.otbmReader.loaded && workspace.mapView.selectionCount === 1
+        onActivated: {
+            if (workspace.mapView.setContextFromSelection())
+                browseFieldDialog.open();
+        }
+    }
+
     DmeConfirmDialog {
         id: borderizeMapConfirm
         title: "Borderize Map"
@@ -294,8 +331,10 @@ Window {
         width: {
             if (prefs.paletteCollapsed)
                 return 0;
-            if (root.githubUi)
-                return Math.max(260, Math.min(Math.max(prefs.paletteWidth, 260), 480));
+            if (root.githubUi) {
+                const available = Math.max(220, Math.floor(root.width * 0.42));
+                return Math.max(220, Math.min(prefs.paletteWidth, 480, available));
+            }
             return Math.max(160, Math.min(prefs.paletteWidth, root.width - 300));
         }
         visible: !prefs.paletteCollapsed
@@ -337,7 +376,8 @@ Window {
             }
             onPositionChanged: mouse => {
                 if (pressed)
-                    prefs.paletteWidth = Math.max(260, Math.min(480, startWidth + (mapToItem(root.contentItem, mouse.x, 0).x - startX)));
+                    prefs.paletteWidth = Math.max(220, Math.min(480, root.width - 300,
+                        startWidth + (mapToItem(root.contentItem, mouse.x, 0).x - startX)));
             }
         }
     }
@@ -597,6 +637,11 @@ Window {
         id: browseFieldDialog
         function open() {
             browseFieldLoader.active = true;
+            const context = workspace.mapView.contextInfo();
+            browseFieldLoader.item["targetX"] = context.x;
+            browseFieldLoader.item["targetY"] = context.y;
+            browseFieldLoader.item["targetZ"] = context.z;
+            browseFieldLoader.item["refresh"]();
             browseFieldLoader.item["open"]();
         }
     }
@@ -685,7 +730,8 @@ Window {
     Loader {
         id: statsLoader
         active: false
-        sourceComponent: MapStatsDialog {
+        sourceComponent: MapAnalyzerDialog {
+            mapCtrl: workspace.mapView
             onClosed: Qt.callLater(() => statsLoader.active = false)
         }
     }

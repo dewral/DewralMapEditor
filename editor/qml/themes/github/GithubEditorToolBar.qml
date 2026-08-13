@@ -12,7 +12,8 @@ Item {
     required property var mapView
     required property var settings
     property var waypointEntries: []
-    readonly property int leftButtonWidth: 72
+    readonly property bool compact: width < 760
+    readonly property int leftButtonWidth: compact ? 54 : 72
     readonly property int leftButtonHeight: 62
     readonly property int rightButtonHeight: 54
 
@@ -188,7 +189,8 @@ Item {
 
             delegate: ToolbarButton {
                 required property var modelData
-                buttonWidth: toolBar.leftButtonWidth
+                visible: toolBar.width >= 590
+                buttonWidth: toolBar.compact ? 48 : toolBar.leftButtonWidth
                 buttonHeight: toolBar.leftButtonHeight
                 anchors.verticalCenter: parent ? parent.verticalCenter : undefined
                 label: modelData.label
@@ -211,6 +213,7 @@ Item {
 
     Row {
         id: viewTools
+        visible: toolBar.width >= 650
         anchors {
             right: parent.right
             rightMargin: 14

@@ -18,8 +18,10 @@
         <file alias="qml/themes/github/GithubDocumentTabs.qml">qml/themes/github/GithubDocumentTabs.qml</file>
         <file alias="qml/themes/github/GithubActivityRail.qml">qml/themes/github/GithubActivityRail.qml</file>
         <file alias="qml/components/MapWorkspace.qml">qml/components/MapWorkspace.qml</file>
+        <file alias="qml/components/WorkTimerStatus.qml">qml/components/WorkTimerStatus.qml</file>
         <file alias="qml/components/MapOverlay.qml">qml/components/MapOverlay.qml</file>
         <file alias="qml/components/IngamePreviewPanel.qml">qml/components/IngamePreviewPanel.qml</file>
+        <file alias="qml/components/IngamePlayerOverlay.qml">qml/components/IngamePlayerOverlay.qml</file>
         <file alias="qml/components/GithubPaletteCombo.qml">qml/components/GithubPaletteCombo.qml</file>
         <file alias="qml/components/PaletteBrushButton.qml">qml/components/PaletteBrushButton.qml</file>
         <file alias="qml/components/PaletteBrushSizeSelector.qml">qml/components/PaletteBrushSizeSelector.qml</file>
@@ -42,6 +44,7 @@
         <file alias="qml/dialogs/ExportMinimapDialog.qml">qml/dialogs/ExportMinimapDialog.qml</file>
         <file alias="qml/dialogs/GoToPositionDialog.qml">qml/dialogs/GoToPositionDialog.qml</file>
         <file alias="qml/dialogs/MapStatsDialog.qml">qml/dialogs/MapStatsDialog.qml</file>
+        <file alias="qml/dialogs/MapAnalyzerDialog.qml">qml/dialogs/MapAnalyzerDialog.qml</file>
         <file alias="qml/dialogs/MapPropertiesDialog.qml">qml/dialogs/MapPropertiesDialog.qml</file>
         <file alias="qml/dialogs/ItemPropertiesDialog.qml">qml/dialogs/ItemPropertiesDialog.qml</file>
         <file alias="qml/dialogs/SelectionItemDialog.qml">qml/dialogs/SelectionItemDialog.qml</file>
@@ -49,6 +52,7 @@
         <file alias="qml/dialogs/NewMapDialog.qml">qml/dialogs/NewMapDialog.qml</file>
         <file alias="qml/dialogs/BrushEditorDialog.qml">qml/dialogs/BrushEditorDialog.qml</file>
         <file alias="qml/dialogs/AiMapAssistantDialog.qml">qml/dialogs/AiMapAssistantDialog.qml</file>
+        <file alias="qml/dialogs/UpdateDialog.qml">qml/dialogs/UpdateDialog.qml</file>
         <file alias="qml/style/GithubToolTip.qml">qml/style/GithubToolTip.qml</file>
         <file alias="qml/style/GithubIcon.qml">qml/style/GithubIcon.qml</file>
         <file alias="qml/style/GithubWindowButton.qml">qml/style/GithubWindowButton.qml</file>

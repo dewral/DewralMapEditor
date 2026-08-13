@@ -367,6 +367,7 @@ void DocumentManager::setCurrentProfileKey(const QString &profileKey)
     if (!doc || m_profileKeys.value(doc) == profileKey) return;
     m_profileKeys[doc] = profileKey;
     writeSession(false);
+    emit documentMetadataChanged();
 }
 
 void DocumentManager::markCleanShutdown()
@@ -381,4 +382,22 @@ void DocumentManager::markCleanShutdown()
     // destroy the only copy of an unsaved map.
     writeSession(m_recoveries.isEmpty());
     m_shuttingDown = true;
+}
+bool DocumentManager::hasDirtyDocuments() const
+{
+    for (const OtbmReader *document : m_docs) {
+        if (document && document->isDirty())
+            return true;
+    }
+    return false;
+}
+
+QString DocumentManager::currentDocumentId() const
+{
+    return m_documentIds.value(current());
+}
+
+QString DocumentManager::currentProfileKey() const
+{
+    return m_profileKeys.value(current());
 }

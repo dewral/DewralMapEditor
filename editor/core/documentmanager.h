@@ -21,6 +21,9 @@ class DocumentManager : public QObject
     Q_PROPERTY(QVariantList tabs READ tabs NOTIFY tabsChanged)
     Q_PROPERTY(QVariantList recoveries READ recoveries NOTIFY recoveriesChanged)
     Q_PROPERTY(int recoveryCount READ recoveryCount NOTIFY recoveriesChanged)
+    Q_PROPERTY(bool hasDirtyDocuments READ hasDirtyDocuments NOTIFY tabsChanged)
+    Q_PROPERTY(QString currentDocumentId READ currentDocumentId NOTIFY currentChanged)
+    Q_PROPERTY(QString currentProfileKey READ currentProfileKey NOTIFY documentMetadataChanged)
 
 public:
     explicit DocumentManager(QObject *parent = nullptr);
@@ -32,6 +35,9 @@ public:
     QVariantList tabs() const;
     QVariantList recoveries() const { return m_recoveries; }
     int recoveryCount() const { return static_cast<int>(m_recoveries.size()); }
+    bool hasDirtyDocuments() const;
+    QString currentDocumentId() const;
+    QString currentProfileKey() const;
 
     Q_INVOKABLE OtbmReader *newDocument();
 
@@ -52,6 +58,7 @@ signals:
     void recoveriesChanged();
     void autosaveCompleted(const QString &title);
     void autosaveFailed(const QString &title, const QString &error);
+    void documentMetadataChanged();
 
 private:
     void hookDocument(OtbmReader *doc);

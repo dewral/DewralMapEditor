@@ -10,7 +10,11 @@ Set-StrictMode -Version Latest
 $repositoryRoot = [System.IO.Path]::GetFullPath(
     (Join-Path $PSScriptRoot "..")
 )
-$vcpkgRoot = Join-Path $repositoryRoot ".tools\vcpkg"
+$vcpkgRoot = if ([string]::IsNullOrWhiteSpace($env:DME_VCPKG_ROOT)) {
+    Join-Path $repositoryRoot ".tools\vcpkg"
+} else {
+    [System.IO.Path]::GetFullPath($env:DME_VCPKG_ROOT)
+}
 $vcpkgExecutable = Join-Path $vcpkgRoot "vcpkg.exe"
 $vcpkgTag = "2026.03.18"
 $vcpkgBaseline = "c3867e714dd3a51c272826eea77267876517ed99"

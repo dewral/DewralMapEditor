@@ -25,7 +25,8 @@
           "type": "PATH",
           "value": "${sourceDir}/triplets"
         },
-        "VCPKG_TARGET_TRIPLET": "x64-windows-release"
+        "VCPKG_TARGET_TRIPLET": "x64-windows-release",
+        "VCPKG_HOST_TRIPLET": "x64-windows-release"
       }
     }
   ],

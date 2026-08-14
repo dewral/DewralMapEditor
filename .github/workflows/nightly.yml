@@ -17,6 +17,8 @@ jobs:
   windows:
     runs-on: windows-2022
     timeout-minutes: 180
+    env:
+      DME_VCPKG_ROOT: C:\vcpkg-dme
 
     steps:
       - name: Check out the repository
@@ -28,9 +30,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .cache/vcpkg
-          key: vcpkg-windows-${{ hashFiles('vcpkg.json', 'triplets/*.cmake') }}
+          key: vcpkg-windows-release-v2-${{ hashFiles('vcpkg.json', 'triplets/*.cmake') }}
           restore-keys: |
-            vcpkg-windows-
+            vcpkg-windows-release-v2-
 
       - name: Build the development package
         shell: pwsh

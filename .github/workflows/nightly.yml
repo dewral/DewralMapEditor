@@ -16,9 +16,7 @@ concurrency:
 jobs:
   windows:
     runs-on: windows-2022
-    timeout-minutes: 180
-    env:
-      DME_VCPKG_ROOT: C:\vcpkg-dme
+    timeout-minutes: 60
 
     steps:
       - name: Check out the repository
@@ -26,17 +24,32 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Cache vcpkg binary packages
-        uses: actions/cache@v4
+      - name: Install Qt 6.10.2
+        uses: jurplel/install-qt-action@v4
         with:
-          path: .cache/vcpkg
-          key: vcpkg-windows-release-v2-${{ hashFiles('vcpkg.json', 'triplets/*.cmake') }}
-          restore-keys: |
-            vcpkg-windows-release-v2-
+          version: '6.10.2'
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          cache: true
+          cache-key-prefix: dme-qt-6.10.2-msvc2022
 
       - name: Build the development package
         shell: pwsh
-        run: ./scripts/build-release.ps1 -BuildChannel development
+        run: |
+          cmake -S . -B build/github-actions `
+            -G "Visual Studio 17 2022" -A x64 `
+            "-DCMAKE_PREFIX_PATH=$env:QT_ROOT_DIR" `
+            -DDME_BUILD_CHANNEL=development
+          if ($LASTEXITCODE -ne 0) {
+            throw "CMake configuration failed with exit code $LASTEXITCODE."
+          }
+
+          cmake --build build/github-actions --config Release `
+            --target package_all --parallel
+          if ($LASTEXITCODE -ne 0) {
+            throw "Release packaging failed with exit code $LASTEXITCODE."
+          }
 
       - name: Create the update manifest
         shell: pwsh

@@ -13,7 +13,8 @@
         "gui",
         "network",
         "opengl",
-        "png"
+        "png",
+        "widgets"
       ]
     },
     "qtdeclarative",

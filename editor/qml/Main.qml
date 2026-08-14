@@ -821,7 +821,9 @@ Window {
     Loader {
         id: themeLoader
         active: false
-        sourceComponent: ThemeDialog {
+        sourceComponent: PreferencesDialog {
+            settings: prefs
+            mapGl: workspace.mapGl
             onClosed: Qt.callLater(() => themeLoader.active = false)
         }
     }

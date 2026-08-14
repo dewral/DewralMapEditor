@@ -15,6 +15,7 @@ Item {
     required property string searchText
     required property bool githubUi
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
+    readonly property bool listView: root.app.settings.paletteViewMode === "list"
 
     signal contextMenuRequested(int serverId)
 
@@ -83,14 +84,17 @@ Item {
         readonly property int gap: root.githubUi ? 8 : 2
         readonly property int preferredWidth: root.githubUi ? Math.max(72, root.app.iconSizePx + 14)
                                                           : root.app.iconSizePx
-        readonly property int columns: Math.max(1, Math.floor((width + gap) / (preferredWidth + gap)))
+        readonly property int columns: root.listView ? 1
+                                                    : Math.max(1, Math.floor((width + gap) / (preferredWidth + gap)))
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         width: parent.width - (root.githubUi ? 4 : 14)
         clip: true
         cellWidth: root.githubUi ? Math.max(1, Math.floor(width / columns)) : root.app.iconSizePx
-        cellHeight: root.githubUi ? root.app.iconSizePx + 22 : root.app.iconSizePx
+        cellHeight: root.githubUi ? (root.listView ? Math.max(48, root.app.iconSizePx * 0.72)
+                                                  : root.app.iconSizePx + 22)
+                                  : root.app.iconSizePx
         model: root.entries
 
         delegate: Rectangle {
@@ -117,15 +121,20 @@ Item {
                                    : (root.githubUi ? (root.grayUi ? "#424242" : "#202A35") : "#3a3a3a")
 
             Image {
-                anchors.centerIn: parent
-                anchors.verticalCenterOffset: root.githubUi ? -4 : 0
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.horizontalCenter: root.listView ? undefined : parent.horizontalCenter
+                anchors.left: root.listView ? parent.left : undefined
+                anchors.leftMargin: root.listView ? 8 : 0
+                anchors.verticalCenterOffset: root.githubUi && !root.listView ? -4 : 0
                 readonly property int nativeWidth: cell.doodadSource !== ""
                                                    ? Math.max(1, implicitWidth)
                                                    : Math.max(1, cell.modelData.itemWidth * 32)
                 readonly property int nativeHeight: cell.doodadSource !== ""
                                                     ? Math.max(1, implicitHeight)
                                                     : Math.max(1, cell.modelData.itemHeight * 32)
-                readonly property real availableWidth: Math.max(1, parent.width - 12)
+                readonly property real availableWidth: root.listView
+                                                           ? Math.max(1, Math.min(40, parent.height - 8))
+                                                           : Math.max(1, parent.width - 12)
                 readonly property real availableHeight: Math.max(1, parent.height - (root.githubUi ? 24 : 6))
                 readonly property real scaleFactor: Math.min(1, availableWidth / nativeWidth,
                                                              availableHeight / nativeHeight)
@@ -144,6 +153,7 @@ Item {
             }
 
             Text {
+                visible: !root.listView
                 anchors.bottom: parent.bottom
                 anchors.horizontalCenter: root.githubUi ? parent.horizontalCenter : undefined
                 anchors.right: root.githubUi ? undefined : parent.right
@@ -154,6 +164,31 @@ Item {
                 font.pixelSize: root.githubUi ? 11 : 9
                 horizontalAlignment: Text.AlignHCenter
                 elide: Text.ElideRight
+            }
+
+            Column {
+                visible: root.listView
+                anchors {
+                    left: parent.left
+                    leftMargin: Math.min(48, parent.height) + 12
+                    right: parent.right
+                    rightMargin: 10
+                    verticalCenter: parent.verticalCenter
+                }
+                spacing: 2
+                Text {
+                    width: parent.width
+                    text: cell.modelData.name || "Unnamed item"
+                    color: root.grayUi ? "#F0F0F0" : "#F0F6FC"
+                    elide: Text.ElideRight
+                    font { pixelSize: 12; bold: true }
+                }
+                Text {
+                    text: cell.modelData.prefab ? "Prefab"
+                                                : "Server ID " + cell.modelData.serverId
+                    color: root.grayUi ? "#929292" : "#7D8590"
+                    font.pixelSize: 10
+                }
             }
 
             MouseArea {

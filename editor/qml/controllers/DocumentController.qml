@@ -70,9 +70,6 @@ Item {
         palettes.load();
         Backend.docMgr.configureAutosave(settings.autosaveEnabled,
                                          settings.autosaveIntervalMinutes);
-        if (Backend.docMgr.recoveryCount === 0
-                && !settings.showStartup && recentMaps.length > 0)
-            loadEverything(recentMaps[0]);
     }
 
     function recoverPreviousSession() {

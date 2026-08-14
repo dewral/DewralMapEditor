@@ -12,6 +12,7 @@ Item {
     required property string currentKind
     required property bool githubUi
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
+    readonly property bool listView: root.app.settings.paletteViewMode === "list"
 
     signal contextMenuRequested(int serverId)
 
@@ -35,10 +36,12 @@ Item {
         readonly property int githubGridGap: 8
         readonly property int githubPreferredCellWidth: Math.max(72, root.app.iconSizePx + 14)
         readonly property int githubMaxNativeColumns: Math.max(1, Math.floor(width / 76))
-        readonly property int githubColumns: Math.min(githubMaxNativeColumns,
+        readonly property int githubColumns: root.listView ? 1 : Math.min(githubMaxNativeColumns,
                                                        Math.max(1, Math.floor((width + githubGridGap)
                                                                               / (githubPreferredCellWidth + githubGridGap) + 0.4)))
-        readonly property real githubCellHeight: root.app.iconSizePx + 22
+        readonly property real githubCellHeight: root.listView
+                                                     ? Math.max(48, root.app.iconSizePx * 0.72)
+                                                     : root.app.iconSizePx + 22
 
         anchors.left: parent.left
         anchors.top: parent.top
@@ -77,8 +80,11 @@ Item {
             border.width: isBrush ? 2 : 1
 
             Image {
-                anchors.centerIn: parent
-                anchors.verticalCenterOffset: root.githubUi ? -4 : 0
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.horizontalCenter: root.listView ? undefined : parent.horizontalCenter
+                anchors.left: root.listView ? parent.left : undefined
+                anchors.leftMargin: root.listView ? 8 : 0
+                anchors.verticalCenterOffset: root.githubUi && !root.listView ? -4 : 0
 
                 readonly property int nativeW: parent.doodadPreview !== ""
                                                ? Math.max(1, implicitWidth)
@@ -86,7 +92,9 @@ Item {
                 readonly property int nativeH: parent.doodadPreview !== ""
                                                ? Math.max(1, implicitHeight)
                                                : Math.max(1, (typeof itemHeight !== "undefined" ? itemHeight : 1) * 32)
-                readonly property real availableW: Math.max(1, parent.width - (root.githubUi ? 12 : 6))
+                readonly property real availableW: root.listView
+                                                       ? Math.max(1, Math.min(40, parent.height - 8))
+                                                       : Math.max(1, parent.width - (root.githubUi ? 12 : 6))
                 readonly property real availableH: Math.max(1, parent.height - (root.githubUi ? 24 : 6))
                 readonly property real tileScale: (grid.cellWidth - (root.githubUi ? 16 : 6)) / 64
                 readonly property real fitScale: Math.min(root.githubUi ? 1 : tileScale,
@@ -118,6 +126,7 @@ Item {
             }
 
             Text {
+                visible: !root.listView
                 anchors.bottom: parent.bottom
                 anchors.horizontalCenter: root.githubUi ? parent.horizontalCenter : undefined
                 anchors.right: root.githubUi ? undefined : parent.right
@@ -132,6 +141,34 @@ Item {
                     if (typeof spriteId !== "undefined")
                         return spriteId;
                     return "";
+                }
+            }
+
+            Column {
+                visible: root.listView
+                anchors {
+                    left: parent.left
+                    leftMargin: Math.min(48, parent.height) + 12
+                    right: parent.right
+                    rightMargin: 10
+                    verticalCenter: parent.verticalCenter
+                }
+                spacing: 2
+
+                Text {
+                    width: parent.width
+                    text: typeof itemName !== "undefined" && itemName.length > 0
+                          ? itemName : "Unnamed item"
+                    color: root.grayUi ? "#F0F0F0" : "#F0F6FC"
+                    elide: Text.ElideRight
+                    font { pixelSize: 12; bold: true }
+                }
+                Text {
+                    text: typeof serverId !== "undefined" ? "Server ID " + serverId
+                          : typeof itemId !== "undefined" ? "Item ID " + itemId
+                          : typeof spriteId !== "undefined" ? "Sprite ID " + spriteId : ""
+                    color: root.grayUi ? "#929292" : "#7D8590"
+                    font.pixelSize: 10
                 }
             }
 

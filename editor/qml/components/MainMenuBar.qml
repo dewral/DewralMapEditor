@@ -79,6 +79,11 @@ DmeMenuBar {
             onTriggered: menuBar.saveDialog.open()
         }
         MenuSeparator {}
+        Action {
+            text: "Preferences..."
+            onTriggered: menuBar.themeDialog.open()
+        }
+        MenuSeparator {}
 
         Action {
             text: "Close map"
@@ -589,115 +594,6 @@ DmeMenuBar {
             checkable: true
             checked: menuBar.mapView.showZonesAlways
             onTriggered: menuBar.mapView.showZonesAlways = !menuBar.mapView.showZonesAlways
-        }
-        MenuSeparator {}
-
-        DmeMenu {
-            title: "Icon Size"
-            Action {
-                text: "Small"
-                checkable: true
-                checked: menuBar.settings.iconSize === 50
-                onTriggered: menuBar.settings.iconSize = 50
-            }
-            Action {
-                text: "Medium"
-                checkable: true
-                checked: menuBar.settings.iconSize === 66
-                onTriggered: menuBar.settings.iconSize = 66
-            }
-            Action {
-                text: "Large"
-                checkable: true
-                checked: menuBar.settings.iconSize === 88
-                onTriggered: menuBar.settings.iconSize = 88
-            }
-        }
-        MenuSeparator {}
-        Action {
-            text: "Appearance..."
-            onTriggered: menuBar.themeDialog.open()
-        }
-        MenuSeparator {}
-
-        DmeMenu {
-            id: fpsMenu
-            title: "Limit FPS"
-            Instantiator {
-                model: [0, 30, 60, 120, 144, 240]
-                delegate: DmeMenuItem {
-                    required property int modelData
-                    text: modelData === 0 ? "Unlimited" : (modelData + " FPS")
-                    checkable: true
-                    checked: menuBar.mapGl.maxFps === modelData
-                    onTriggered: {
-                        menuBar.mapGl.maxFps = modelData;
-                        menuBar.settings.glMaxFps = modelData;
-                    }
-                }
-                onObjectAdded: (index, object) => fpsMenu.insertItem(index, object)
-                onObjectRemoved: (index, object) => fpsMenu.removeItem(object)
-            }
-        }
-        DmeMenuItem {
-            text: "V-Sync"
-            checkable: true
-            checked: menuBar.settings.vsyncEnabled
-            onTriggered: menuBar.settings.vsyncEnabled = !menuBar.settings.vsyncEnabled
-        }
-
-        DmeMenu {
-            id: undoMenu
-            title: "Undo max"
-            Instantiator {
-                model: [100, 500, 1000, 5000]
-                delegate: DmeMenuItem {
-                    required property int modelData
-                    text: modelData + " steps"
-                    onTriggered: Backend.otbmReader.setUndoLimit(modelData)
-                }
-                onObjectAdded: (index, object) => undoMenu.insertItem(index, object)
-                onObjectRemoved: (index, object) => undoMenu.removeItem(object)
-            }
-        }
-
-        DmeMenu {
-            id: autosaveMenu
-            title: "Autosave"
-            DmeMenuItem {
-                text: "Enabled"
-                checkable: true
-                checked: menuBar.settings.autosaveEnabled
-                onTriggered: {
-                    menuBar.settings.autosaveEnabled = !menuBar.settings.autosaveEnabled;
-                    Backend.docMgr.configureAutosave(
-                        menuBar.settings.autosaveEnabled,
-                        menuBar.settings.autosaveIntervalMinutes);
-                }
-            }
-            MenuSeparator {}
-            Instantiator {
-                model: [1, 3, 5, 10]
-                delegate: DmeMenuItem {
-                    required property int modelData
-                    text: "Every " + modelData
-                          + (modelData === 1 ? " minute" : " minutes")
-                    checkable: true
-                    checked: menuBar.settings.autosaveIntervalMinutes === modelData
-                    onTriggered: {
-                        menuBar.settings.autosaveIntervalMinutes = modelData;
-                        Backend.docMgr.configureAutosave(
-                            menuBar.settings.autosaveEnabled, modelData);
-                    }
-                }
-                onObjectAdded: (index, object) => autosaveMenu.insertItem(index + 2, object)
-                onObjectRemoved: (index, object) => autosaveMenu.removeItem(object)
-            }
-            MenuSeparator {}
-            DmeMenuItem {
-                text: "Save recovery now"
-                onTriggered: Backend.docMgr.autosaveNow()
-            }
         }
     }
 

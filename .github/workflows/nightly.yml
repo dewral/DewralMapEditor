@@ -93,7 +93,20 @@ jobs:
             "release/update-manifest.json",
             "release/SHA256SUMS-nightly.txt"
           )
-          $notes = "Automated development build $env:NIGHTLY_VERSION from commit $($env:GITHUB_SHA.Substring(0, 12)). This release is replaced after every successful push to main."
+          $shortCommit = $env:GITHUB_SHA.Substring(0, 12)
+          $notes = @"
+          ## Latest development build
+
+          This is the newest automatic Windows x64 build of Dewral Map Editor from the **main** branch.
+
+          - **Version:** $env:NIGHTLY_VERSION
+          - **Commit:** $shortCommit
+          - **Channel:** Development / Nightly
+
+          Download **DewralMapEditor-windows-x64.zip** from the Assets section below.
+
+          This rolling pre-release is updated after every successful build and may contain unfinished or experimental changes.
+          "@
           gh release view nightly --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) {
             git tag --force nightly $env:GITHUB_SHA

@@ -117,7 +117,8 @@ void UpdateService::checkForUpdates(const QString &channel, bool silent)
     if (busy())
         return;
 
-    m_requestedChannel = channel == QStringLiteral("development")
+    const bool developmentBuild = currentChannel() == QStringLiteral("development");
+    m_requestedChannel = developmentBuild || channel == QStringLiteral("development")
         ? QStringLiteral("development") : QStringLiteral("stable");
     m_silent = silent;
     m_cancelled = false;

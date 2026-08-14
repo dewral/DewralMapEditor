@@ -28,7 +28,6 @@ execute_process(
         --no-quickcontrols2fluentwinui3styleimpl
         --no-quickcontrols2windowsstyleimpl
         --no-quickeffects
-        --no-quick3dutils
         "${APPLICATION_FILE}"
     RESULT_VARIABLE deploy_result
 )

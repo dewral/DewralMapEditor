@@ -7,11 +7,41 @@ DmeDialog {
     id: root
     property var mapCtrl: null
 
-    title: "Brush Editor"
+    title: "Tileset & Brush Manager"
 
-    property string tab: "ground"
+    property string tab: "tilesets"
     property string curGround: ""
     property string curWall: ""
+    property string curDoodad: ""
+    property int selectedServerId: 0
+    property var selectedServerIds: []
+    property int pickerSelectionAnchor: -1
+    property int pickerCellSize: 52
+
+    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
+    readonly property bool modernUi: Backend.uiTheme.style !== "classic"
+    readonly property color textColor: grayUi ? "#F0F0F0" : (modernUi ? "#F0F6FC" : "#D0D0D0")
+    readonly property color mutedColor: grayUi ? "#A0A0A0" : (modernUi ? "#8B949E" : "#999999")
+    readonly property color panelColor: grayUi ? "#242424" : (modernUi ? "#0D1117" : "#252525")
+    readonly property color cellColor: grayUi ? "#2D2D2D" : (modernUi ? "#161B22" : "#252525")
+    readonly property color borderColor: grayUi ? "#494949" : (modernUi ? "#30363D" : "#3A3A3A")
+    readonly property color accentColor: grayUi ? "#C79A3B" : (modernUi ? "#2EA043" : "#7FDC8F")
+
+    property var tilesetCategoryCodes: ["terrain", "doodad", "item", "raw", "collection", "door"]
+    property var tilesetCategoryLabels: ["Terrain", "Doodads", "Items", "RAW", "Collections", "Doors"]
+    property string tilesetCategory: "terrain"
+    property var tilesetNames: []
+    property var tilesetItems: []
+    property string curTileset: ""
+    property int selectedTilesetItem: 0
+
+    property var doodadPaletteNames: []
+    property var doodadNames: []
+    property int doodadWidth: 2
+    property int doodadHeight: 2
+    property var doodadCellItems: [[], [], [], []]
+    property string pendingDeleteCategory: ""
+    property string pendingDeleteTileset: ""
 
     property var borderSets: ({
             "": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
@@ -53,6 +83,217 @@ DmeDialog {
             return "";
         var d = Backend.otbReader.detailsAt(row);
         return Backend.sprReader.itemImageSource(d.spriteIds, d.itemWidth, d.itemHeight, d.layers);
+    }
+
+    function itemName(id) {
+        var row = Backend.otbReader.rowForServerId(id);
+        if (row < 0)
+            return "Unknown item";
+        var details = Backend.otbReader.detailsAt(row);
+        return details.name || "Unnamed item";
+    }
+
+    function refreshTilesets(preferredName) {
+        var names = Backend.tilesetStore.namesFor(tilesetCategory);
+        tilesetNames = names;
+        var wanted = preferredName === undefined ? curTileset : preferredName;
+        var index = names.indexOf(wanted);
+        if (index < 0 && names.length > 0)
+            index = 0;
+        tilesetCombo.currentIndex = index;
+        loadTileset(index >= 0 ? names[index] : "");
+    }
+
+    function loadTileset(name) {
+        curTileset = name || "";
+        tilesetNameField.text = curTileset;
+        tilesetItems = curTileset === "" ? []
+                                           : Backend.tilesetStore.itemsFor(tilesetCategory, curTileset);
+        selectedTilesetItem = 0;
+    }
+
+    function saveTilesetName() {
+        var name = tilesetNameField.text.trim();
+        if (name === "")
+            return;
+        if (curTileset === "") {
+            if (Backend.tilesetStore.newTileset(tilesetCategory, name))
+                refreshTilesets(name);
+        } else if (Backend.tilesetStore.renameTileset(tilesetCategory, curTileset, name)) {
+            if (tilesetCategory === "doodad")
+                Backend.brushStore.renamePrefabPalette(curTileset, name);
+            refreshTilesets(name);
+        }
+    }
+
+    function addSelectedToTileset() {
+        if (curTileset === "" || selectedServerIds.length === 0)
+            return;
+        if (Backend.tilesetStore.addItems(tilesetCategory, curTileset, selectedServerIds))
+            loadTileset(curTileset);
+    }
+
+    function pickerItemSelected(serverId) {
+        return selectedServerIds.indexOf(serverId) >= 0;
+    }
+
+    function selectPickerItem(serverId, row, modifiers) {
+        if (serverId <= 0)
+            return;
+        var ctrl = (modifiers & Qt.ControlModifier) !== 0;
+        var shift = (modifiers & Qt.ShiftModifier) !== 0;
+        var selection = (ctrl || shift) ? selectedServerIds.slice() : [];
+
+        if (shift && pickerSelectionAnchor >= 0) {
+            if (!ctrl)
+                selection = [];
+            var first = Math.min(pickerSelectionAnchor, row);
+            var last = Math.max(pickerSelectionAnchor, row);
+            for (var i = first; i <= last; ++i) {
+                var rangeId = pf.serverIdAtRow(i);
+                if (rangeId > 0 && selection.indexOf(rangeId) < 0)
+                    selection.push(rangeId);
+            }
+        } else if (ctrl) {
+            var existing = selection.indexOf(serverId);
+            if (existing >= 0)
+                selection.splice(existing, 1);
+            else
+                selection.push(serverId);
+            pickerSelectionAnchor = row;
+        } else {
+            selection = [serverId];
+            pickerSelectionAnchor = row;
+        }
+
+        selectedServerIds = selection;
+        selectedServerId = selection.indexOf(serverId) >= 0
+                           ? serverId : (selection.length > 0 ? selection[selection.length - 1] : 0);
+    }
+
+    function removeSelectedFromTileset() {
+        if (curTileset === "" || selectedTilesetItem <= 0)
+            return;
+        if (Backend.tilesetStore.removeItem(tilesetCategory, curTileset, selectedTilesetItem))
+            loadTileset(curTileset);
+    }
+
+    function refreshDoodads(preferredPalette, preferredName) {
+        var palettes = Backend.tilesetStore.namesFor("doodad");
+        doodadPaletteNames = palettes;
+        var paletteIndex = palettes.indexOf(preferredPalette || doodadPaletteCombo.currentText);
+        if (paletteIndex < 0 && palettes.length > 0)
+            paletteIndex = 0;
+        doodadPaletteCombo.currentIndex = paletteIndex;
+        var palette = paletteIndex >= 0 ? palettes[paletteIndex] : "";
+        var entries = palette === "" ? [] : Backend.brushStore.prefabsForPalette(palette);
+        var names = [];
+        for (var i = 0; i < entries.length; ++i)
+            names.push(entries[i].name);
+        doodadNames = names;
+        var nameIndex = names.indexOf(preferredName || curDoodad);
+        doodadCombo.currentIndex = nameIndex;
+        if (nameIndex >= 0)
+            loadDoodad(names[nameIndex]);
+        else
+            newDoodad();
+    }
+
+    function resizeDoodadGrid(widthValue, heightValue) {
+        var width = Math.max(1, Math.min(12, widthValue));
+        var height = Math.max(1, Math.min(12, heightValue));
+        var oldWidth = doodadWidth;
+        var oldHeight = doodadHeight;
+        var oldCells = doodadCellItems;
+        var next = [];
+        for (var y = 0; y < height; ++y) {
+            for (var x = 0; x < width; ++x) {
+                var oldIndex = y * oldWidth + x;
+                next.push(x < oldWidth && y < oldHeight && oldCells[oldIndex]
+                          ? oldCells[oldIndex].slice() : []);
+            }
+        }
+        doodadWidth = width;
+        doodadHeight = height;
+        doodadCellItems = next;
+        doodadWidthField.value = width;
+        doodadHeightField.value = height;
+    }
+
+    function setDoodadCell(index, serverId, append) {
+        if (index < 0 || index >= doodadWidth * doodadHeight)
+            return;
+        var cells = [];
+        for (var i = 0; i < doodadCellItems.length; ++i)
+            cells.push(doodadCellItems[i] ? doodadCellItems[i].slice() : []);
+        if (serverId <= 0) {
+            cells[index] = [];
+        } else if (append) {
+            if (cells[index].indexOf(serverId) < 0)
+                cells[index].push(serverId);
+        } else {
+            cells[index] = [serverId];
+        }
+        doodadCellItems = cells;
+    }
+
+    function newDoodad() {
+        curDoodad = "";
+        doodadCombo.currentIndex = -1;
+        doodadNameField.text = "";
+        doodadWidth = 2;
+        doodadHeight = 2;
+        doodadWidthField.value = 2;
+        doodadHeightField.value = 2;
+        doodadCellItems = [[], [], [], []];
+    }
+
+    function loadDoodad(name) {
+        var data = Backend.brushStore.prefabEdit(name);
+        curDoodad = name;
+        doodadNameField.text = name;
+        var width = Math.max(1, Number(data.width || 1));
+        var height = Math.max(1, Number(data.height || 1));
+        doodadWidth = width;
+        doodadHeight = height;
+        doodadWidthField.value = width;
+        doodadHeightField.value = height;
+        var cells = [];
+        for (var i = 0; i < width * height; ++i)
+            cells.push([]);
+        var tiles = data.tiles || [];
+        for (var t = 0; t < tiles.length; ++t) {
+            var index = Number(tiles[t].dy) * width + Number(tiles[t].dx);
+            if (index >= 0 && index < cells.length)
+                cells[index] = (tiles[t].items || []).slice();
+        }
+        doodadCellItems = cells;
+    }
+
+    function saveDoodad() {
+        var name = doodadNameField.text.trim();
+        var palette = doodadPaletteCombo.currentText;
+        if (name === "" || palette === "")
+            return;
+        var tiles = [];
+        var originX = Math.floor(doodadWidth / 2);
+        var originY = Math.floor(doodadHeight / 2);
+        for (var y = 0; y < doodadHeight; ++y) {
+            for (var x = 0; x < doodadWidth; ++x) {
+                var items = doodadCellItems[y * doodadWidth + x] || [];
+                if (items.length > 0)
+                    tiles.push({ dx: x - originX, dy: y - originY, dz: 0,
+                                 items: items.slice() });
+            }
+        }
+        if (tiles.length === 0)
+            return;
+        var oldName = curDoodad;
+        if (Backend.brushStore.savePrefab(name, palette, tiles)) {
+            if (oldName !== "" && oldName !== name)
+                Backend.brushStore.deletePrefab(oldName);
+            refreshDoodads(palette, name);
+        }
     }
 
     function loadGround(name) {
@@ -131,6 +372,14 @@ DmeDialog {
         function onBrushesChanged() {
             groundCombo.model = Backend.brushStore.groundBrushNames();
             wallCombo.model = Backend.brushStore.wallBrushNames();
+            root.refreshDoodads(doodadPaletteCombo.currentText, root.curDoodad);
+        }
+    }
+    Connections {
+        target: Backend.tilesetStore
+        function onTilesetsChanged() {
+            root.refreshTilesets(root.curTileset);
+            root.refreshDoodads(doodadPaletteCombo.currentText, root.curDoodad);
         }
     }
     onOpened: {
@@ -138,6 +387,87 @@ DmeDialog {
         wallCombo.model = Backend.brushStore.wallBrushNames();
         newGround();
         newWall();
+        refreshTilesets("");
+        refreshDoodads("", "");
+        selectedServerIds = [];
+        selectedServerId = 0;
+        pickerSelectionAnchor = -1;
+    }
+
+    DmeDialog {
+        id: newDoodadPaletteDialog
+        title: "New Doodad Palette"
+        contentItem: Column {
+            width: 320
+            spacing: 10
+            Text {
+                width: parent.width
+                text: "Create a category for your custom doodads and multi-tile compositions."
+                color: root.mutedColor
+                font.pixelSize: 11
+                wrapMode: Text.WordWrap
+            }
+            DmeTextField {
+                id: newDoodadPaletteName
+                width: parent.width
+                placeholderText: "Palette name"
+                onAccepted: createPaletteButton.clicked()
+            }
+            Text {
+                id: newDoodadPaletteError
+                width: parent.width
+                color: "#F85149"
+                font.pixelSize: 11
+                wrapMode: Text.WordWrap
+            }
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 8
+                DmeButton {
+                    id: createPaletteButton
+                    text: "Create"
+                    width: 90
+                    onClicked: {
+                        var name = newDoodadPaletteName.text.trim();
+                        if (name === "")
+                            return;
+                        if (!Backend.tilesetStore.newTileset("doodad", name)) {
+                            newDoodadPaletteError.text = Backend.tilesetStore.errorString
+                                    || "Could not create this palette.";
+                            return;
+                        }
+                        newDoodadPaletteError.text = "";
+                        newDoodadPaletteDialog.close();
+                        root.refreshDoodads(name, "");
+                    }
+                }
+                DmeButton { text: "Cancel"; width: 90; onClicked: newDoodadPaletteDialog.close() }
+            }
+        }
+        onOpened: {
+            newDoodadPaletteName.text = "";
+            newDoodadPaletteError.text = "";
+        }
+    }
+
+    DmeConfirmDialog {
+        id: deleteTilesetDialog
+        title: "Delete tileset"
+        message: root.pendingDeleteCategory === "doodad"
+                 ? "Delete '" + root.pendingDeleteTileset + "' and all custom doodads stored in this palette?"
+                 : "Delete tileset '" + root.pendingDeleteTileset + "'? The source items are not deleted."
+        onAccepted: {
+            var category = root.pendingDeleteCategory;
+            var name = root.pendingDeleteTileset;
+            if (category === "doodad")
+                Backend.brushStore.deletePrefabsForPalette(name);
+            if (Backend.tilesetStore.deleteTileset(category, name)) {
+                root.curTileset = "";
+                root.refreshTilesets("");
+            }
+            root.pendingDeleteCategory = "";
+            root.pendingDeleteTileset = "";
+        }
     }
 
     PaletteFilter {
@@ -148,12 +478,12 @@ DmeDialog {
 
     contentItem: Item {
         id: body
-        implicitWidth: 660
-        implicitHeight: Math.max(480, editorColumn.implicitHeight)
+        implicitWidth: 1010
+        implicitHeight: 650
 
         Column {
             id: pickerCol
-            width: 216
+            width: 248
             anchors {
                 left: parent.left
                 top: parent.top
@@ -164,47 +494,62 @@ DmeDialog {
             DmeTextField {
                 width: parent.width
                 placeholderText: "Search by name or ID..."
-                onTextChanged: pf.searchText = text
+                onTextChanged: {
+                    pf.searchText = text;
+                    root.pickerSelectionAnchor = -1;
+                }
             }
 
             DmePanel {
+                id: pickerPanel
                 width: parent.width
-                height: pickerCol.height - 30
+                height: Math.max(140, pickerCol.height - 76)
 
                 GridView {
                     id: pickerGrid
                     anchors.fill: parent
                     anchors.margins: 3
                     clip: true
-                    cellWidth: 42
-                    cellHeight: 42
+                    cellWidth: root.pickerCellSize
+                    cellHeight: root.pickerCellSize
                     model: pf
 
                     delegate: Rectangle {
-                        width: 40
-                        height: 40
-                        color: cellMa.containsMouse ? "#303030" : "#252525"
-                        border.color: "#3a3a3a"
-                        border.width: 1
+                        readonly property int sid: typeof serverId !== "undefined" ? serverId : 0
+                        readonly property bool selected: root.pickerItemSelected(sid)
+                        width: root.pickerCellSize - 4
+                        height: root.pickerCellSize - 4
+                        color: cellMa.containsMouse ? Qt.lighter(root.cellColor, 1.18) : root.cellColor
+                        border.color: selected ? root.accentColor : root.borderColor
+                        border.width: selected ? 2 : 1
+                        radius: root.modernUi ? 4 : 0
 
                         Image {
                             anchors.centerIn: parent
-                            width: 32
-                            height: 32
+                            width: Math.max(32, parent.width - 10)
+                            height: Math.max(32, parent.height - 10)
                             fillMode: Image.PreserveAspectFit
                             smooth: false
                             cache: false
                             source: (typeof spriteIds !== "undefined" && spriteIds.length > 0) ? Backend.sprReader.itemImageSource(spriteIds, typeof itemWidth !== "undefined" ? itemWidth : 1, typeof itemHeight !== "undefined" ? itemHeight : 1, typeof layers !== "undefined" ? layers : 1) : ""
                         }
-                        Text {
+                        Rectangle {
                             anchors {
                                 right: parent.right
                                 bottom: parent.bottom
-                                margins: 1
+                                margins: 2
                             }
-                            text: typeof serverId !== "undefined" ? serverId : ""
-                            color: "#888"
-                            font.pixelSize: 8
+                            width: idLabel.implicitWidth + 6
+                            height: idLabel.implicitHeight + 2
+                            radius: 2
+                            color: root.grayUi ? "#CC242424" : "#CC0D1117"
+                            Text {
+                                id: idLabel
+                                anchors.centerIn: parent
+                                text: typeof serverId !== "undefined" ? serverId : ""
+                                color: root.textColor
+                                font.pixelSize: 9
+                            }
                         }
 
                         MouseArea {
@@ -213,7 +558,8 @@ DmeDialog {
                             hoverEnabled: true
                             drag.target: dragGhost
                             onPressed: mouse => {
-                                dragGhost.sid = (typeof serverId !== "undefined") ? serverId : 0;
+                                root.selectPickerItem(parent.sid, index, mouse.modifiers);
+                                dragGhost.sid = parent.sid;
                                 dragGhost.source = parent.children[0].source;
                                 var p = mapToItem(body, mouse.x, mouse.y);
                                 dragGhost.x = p.x - 16;
@@ -224,6 +570,10 @@ DmeDialog {
                                 if (dragGhost.visible)
                                     dragGhost.Drag.drop();
                                 dragGhost.visible = false;
+                            }
+                            onDoubleClicked: {
+                                if (root.tab === "tilesets")
+                                    root.addSelectedToTileset();
                             }
                         }
                     }
@@ -236,6 +586,62 @@ DmeDialog {
                     }
                     anchors.margins: 2
                     flickable: pickerGrid
+                }
+            }
+
+            Row {
+                width: parent.width
+                height: 32
+                spacing: 7
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Size"
+                    color: root.mutedColor
+                    font.pixelSize: 11
+                }
+                Slider {
+                    id: pickerScaleSlider
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 135
+                    from: 40
+                    to: 76
+                    stepSize: 4
+                    value: root.pickerCellSize
+                    snapMode: Slider.SnapAlways
+                    onMoved: root.pickerCellSize = Math.round(value)
+                    background: Rectangle {
+                        x: pickerScaleSlider.leftPadding
+                        y: pickerScaleSlider.topPadding + pickerScaleSlider.availableHeight / 2 - height / 2
+                        width: pickerScaleSlider.availableWidth
+                        height: 4
+                        radius: 2
+                        color: root.borderColor
+                        Rectangle {
+                            width: pickerScaleSlider.visualPosition * parent.width
+                            height: parent.height
+                            radius: 2
+                            color: root.accentColor
+                        }
+                    }
+                    handle: Rectangle {
+                        x: pickerScaleSlider.leftPadding + pickerScaleSlider.visualPosition
+                           * (pickerScaleSlider.availableWidth - width)
+                        y: pickerScaleSlider.topPadding + pickerScaleSlider.availableHeight / 2 - height / 2
+                        width: 14
+                        height: 14
+                        radius: 7
+                        color: root.textColor
+                        border.width: 2
+                        border.color: root.accentColor
+                    }
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.selectedServerIds.length > 1
+                          ? root.selectedServerIds.length + " selected" : root.pickerCellSize + " px"
+                    color: root.selectedServerIds.length > 1 ? root.accentColor : root.mutedColor
+                    font.pixelSize: 10
                 }
             }
         }
@@ -253,16 +659,421 @@ DmeDialog {
             Row {
                 spacing: 6
                 DmeButton {
+                    text: "Tilesets"
+                    width: 100
+                    checked: root.tab === "tilesets"
+                    opacity: root.tab === "tilesets" ? 1.0 : 0.65
+                    onClicked: root.tab = "tilesets"
+                }
+                DmeButton {
                     text: "Ground brush"
                     width: 110
-                    opacity: root.tab === "ground" ? 1.0 : 0.55
+                    checked: root.tab === "ground"
+                    opacity: root.tab === "ground" ? 1.0 : 0.65
                     onClicked: root.tab = "ground"
                 }
                 DmeButton {
                     text: "Wall brush"
                     width: 110
-                    opacity: root.tab === "wall" ? 1.0 : 0.55
+                    checked: root.tab === "wall"
+                    opacity: root.tab === "wall" ? 1.0 : 0.65
                     onClicked: root.tab = "wall"
+                }
+                DmeButton {
+                    text: "Doodad composer"
+                    width: 130
+                    checked: root.tab === "doodad"
+                    opacity: root.tab === "doodad" ? 1.0 : 0.65
+                    onClicked: root.tab = "doodad"
+                }
+            }
+
+            DmeSeparator { width: parent.width }
+
+            Column {
+                visible: root.tab === "tilesets"
+                spacing: 10
+                width: parent.width
+
+                Text {
+                    text: "Tileset Manager"
+                    color: root.textColor
+                    font { pixelSize: 17; bold: true }
+                }
+                Text {
+                    width: parent.width
+                    text: "Organize the categories shown in every palette. Use Ctrl to select individual items and Shift to select a range, then double-click or use Add selected."
+                    color: root.mutedColor
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                }
+
+                Row {
+                    spacing: 8
+                    Text { text: "Palette"; color: root.mutedColor; anchors.verticalCenter: parent.verticalCenter }
+                    DmeComboBox {
+                        id: tilesetCategoryCombo
+                        width: 150
+                        model: root.tilesetCategoryLabels
+                        currentIndex: 0
+                        onActivated: index => {
+                            root.tilesetCategory = root.tilesetCategoryCodes[index];
+                            root.curTileset = "";
+                            root.refreshTilesets("");
+                        }
+                    }
+                    Text { text: "Tileset"; color: root.mutedColor; anchors.verticalCenter: parent.verticalCenter }
+                    DmeComboBox {
+                        id: tilesetCombo
+                        width: 220
+                        model: root.tilesetNames
+                        onActivated: index => root.loadTileset(index >= 0 ? root.tilesetNames[index] : "")
+                    }
+                    DmeButton {
+                        text: "New"
+                        width: 70
+                        onClicked: {
+                            root.curTileset = "";
+                            tilesetCombo.currentIndex = -1;
+                            tilesetNameField.text = "";
+                            root.tilesetItems = [];
+                            tilesetNameField.forceActiveFocus();
+                        }
+                    }
+                }
+
+                Row {
+                    spacing: 8
+                    Text { text: root.curTileset === "" ? "New name" : "Name"; color: root.mutedColor; anchors.verticalCenter: parent.verticalCenter }
+                    DmeTextField {
+                        id: tilesetNameField
+                        width: 260
+                        placeholderText: "Tileset name"
+                        onAccepted: root.saveTilesetName()
+                    }
+                    DmeButton {
+                        text: root.curTileset === "" ? "Create" : "Rename"
+                        width: 90
+                        enabled: tilesetNameField.text.trim() !== ""
+                        onClicked: root.saveTilesetName()
+                    }
+                    DmeButton {
+                        text: "Delete tileset"
+                        width: 110
+                        variant: "danger"
+                        enabled: root.curTileset !== ""
+                        onClicked: {
+                            root.pendingDeleteCategory = root.tilesetCategory;
+                            root.pendingDeleteTileset = root.curTileset;
+                            deleteTilesetDialog.open();
+                        }
+                    }
+                }
+
+                DmePanel {
+                    width: parent.width
+                    height: 430
+
+                    Item {
+                        anchors.fill: parent
+                        anchors.margins: 10
+
+                        Text {
+                            id: emptyTilesetText
+                            anchors.centerIn: parent
+                            visible: root.curTileset === "" || root.tilesetItems.length === 0
+                            text: root.curTileset === "" ? "Create or select a tileset"
+                                                         : "This tileset is empty\nDrop or add items from the picker"
+                            color: root.mutedColor
+                            horizontalAlignment: Text.AlignHCenter
+                        }
+
+                        GridView {
+                            id: tilesetGrid
+                            anchors.fill: parent
+                            anchors.bottomMargin: 42
+                            clip: true
+                            cellWidth: 76
+                            cellHeight: 82
+                            model: root.tilesetItems
+
+                            delegate: Rectangle {
+                                required property var modelData
+                                required property int index
+                                width: 70
+                                height: 76
+                                radius: root.modernUi ? 5 : 0
+                                color: root.selectedTilesetItem === Number(modelData)
+                                       ? (root.grayUi ? "#4A3A1F" : "#163B2C") : root.cellColor
+                                border.width: root.selectedTilesetItem === Number(modelData) ? 2 : 1
+                                border.color: root.selectedTilesetItem === Number(modelData)
+                                              ? root.accentColor : root.borderColor
+                                Image {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    anchors.top: parent.top
+                                    anchors.topMargin: 7
+                                    width: 48
+                                    height: 48
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: false
+                                    cache: true
+                                    source: root.iconSrc(Number(modelData))
+                                }
+                                Text {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    anchors.bottom: parent.bottom
+                                    anchors.bottomMargin: 4
+                                    text: Number(modelData)
+                                    color: root.mutedColor
+                                    font.pixelSize: 10
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: root.selectedTilesetItem = Number(modelData)
+                                    ToolTip.visible: containsMouse
+                                    ToolTip.delay: 500
+                                    ToolTip.text: root.itemName(Number(modelData)) + " (sid " + Number(modelData) + ")"
+                                }
+                            }
+                        }
+
+                        DropArea {
+                            anchors.fill: tilesetGrid
+                            onDropped: drop => {
+                                if (root.curTileset !== "" && drop.source.sid > 0
+                                        && Backend.tilesetStore.addItem(root.tilesetCategory, root.curTileset, drop.source.sid))
+                                    root.loadTileset(root.curTileset);
+                            }
+                        }
+
+                        Row {
+                            anchors.left: parent.left
+                            anchors.bottom: parent.bottom
+                            spacing: 8
+                            DmeButton {
+                                text: root.selectedServerIds.length > 1
+                                      ? "Add selected (" + root.selectedServerIds.length + ")"
+                                      : "Add selected"
+                                width: root.selectedServerIds.length > 1 ? 135 : 110
+                                enabled: root.curTileset !== "" && root.selectedServerIds.length > 0
+                                onClicked: root.addSelectedToTileset()
+                            }
+                            DmeButton {
+                                text: "Remove selected"
+                                width: 130
+                                enabled: root.selectedTilesetItem > 0
+                                onClicked: root.removeSelectedFromTileset()
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: root.curTileset === "" ? "" : root.tilesetItems.length + " items"
+                                color: root.mutedColor
+                            }
+                        }
+                    }
+                }
+            }
+
+            Column {
+                visible: root.tab === "doodad"
+                spacing: 10
+                width: parent.width
+
+                Text {
+                    text: "Doodad Composer"
+                    color: root.textColor
+                    font { pixelSize: 17; bold: true }
+                }
+                Text {
+                    width: parent.width
+                    text: "Build reusable multi-tile doodads. Set the footprint, then drop item pieces into the grid. Dropping several items on one cell creates a stack."
+                    color: root.mutedColor
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                }
+
+                Row {
+                    spacing: 8
+                    Text { text: "Doodad palette"; color: root.mutedColor; anchors.verticalCenter: parent.verticalCenter }
+                    DmeComboBox {
+                        id: doodadPaletteCombo
+                        width: 210
+                        model: root.doodadPaletteNames
+                        onActivated: root.refreshDoodads(currentText, "")
+                    }
+                    DmeButton {
+                        text: "New palette"
+                        width: 100
+                        onClicked: newDoodadPaletteDialog.open()
+                    }
+                    Text { text: "Doodad"; color: root.mutedColor; anchors.verticalCenter: parent.verticalCenter }
+                    DmeComboBox {
+                        id: doodadCombo
+                        width: 190
+                        model: root.doodadNames
+                        onActivated: index => {
+                            if (index >= 0)
+                                root.loadDoodad(root.doodadNames[index]);
+                        }
+                    }
+                    DmeButton { text: "New"; width: 64; onClicked: root.newDoodad() }
+                }
+
+                Row {
+                    spacing: 8
+                    Text { text: "Name"; color: root.mutedColor; anchors.verticalCenter: parent.verticalCenter }
+                    DmeTextField {
+                        id: doodadNameField
+                        width: 220
+                        placeholderText: "Custom doodad name"
+                    }
+                    Text { text: "Width"; color: root.mutedColor; anchors.verticalCenter: parent.verticalCenter }
+                    DmeSpinBox {
+                        id: doodadWidthField
+                        width: 72
+                        from: 1
+                        to: 12
+                        value: 2
+                        onValueModified: root.resizeDoodadGrid(value, root.doodadHeight)
+                    }
+                    Text { text: "Height"; color: root.mutedColor; anchors.verticalCenter: parent.verticalCenter }
+                    DmeSpinBox {
+                        id: doodadHeightField
+                        width: 72
+                        from: 1
+                        to: 12
+                        value: 2
+                        onValueModified: root.resizeDoodadGrid(root.doodadWidth, value)
+                    }
+                    DmeButton {
+                        text: "Clear grid"
+                        width: 90
+                        onClicked: {
+                            var cells = [];
+                            for (var i = 0; i < root.doodadWidth * root.doodadHeight; ++i)
+                                cells.push([]);
+                            root.doodadCellItems = cells;
+                        }
+                    }
+                }
+
+                DmePanel {
+                    width: parent.width
+                    height: 440
+
+                    Flickable {
+                        id: doodadFlick
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        clip: true
+                        contentWidth: Math.max(width, doodadGrid.width)
+                        contentHeight: Math.max(height, doodadGrid.height)
+
+                        Grid {
+                            id: doodadGrid
+                            x: Math.max(0, (doodadFlick.width - width) / 2)
+                            y: Math.max(0, (doodadFlick.height - height) / 2)
+                            columns: root.doodadWidth
+                            spacing: 5
+                            width: root.doodadWidth * 70 + Math.max(0, root.doodadWidth - 1) * spacing
+                            height: root.doodadHeight * 70 + Math.max(0, root.doodadHeight - 1) * spacing
+
+                            Repeater {
+                                model: root.doodadWidth * root.doodadHeight
+                                delegate: Rectangle {
+                                    required property int index
+                                    readonly property var ids: root.doodadCellItems[index] || []
+                                    width: 70
+                                    height: 70
+                                    radius: root.modernUi ? 5 : 0
+                                    clip: true
+                                    color: doodadDrop.containsDrag ? (root.grayUi ? "#5A4721" : "#163B2C")
+                                                                      : root.cellColor
+                                    border.width: doodadDrop.containsDrag ? 2 : 1
+                                    border.color: doodadDrop.containsDrag ? root.accentColor : root.borderColor
+
+                                    Image {
+                                        anchors.centerIn: parent
+                                        width: 56
+                                        height: 56
+                                        fillMode: Image.PreserveAspectFit
+                                        smooth: false
+                                        cache: true
+                                        source: parent.ids.length > 0
+                                                ? root.iconSrc(parent.ids[parent.ids.length - 1]) : ""
+                                    }
+                                    Text {
+                                        anchors.centerIn: parent
+                                        visible: parent.ids.length === 0
+                                        text: (index % root.doodadWidth) + "," + Math.floor(index / root.doodadWidth)
+                                        color: root.mutedColor
+                                        font.pixelSize: 10
+                                    }
+                                    Rectangle {
+                                        visible: parent.ids.length > 1
+                                        anchors.right: parent.right
+                                        anchors.top: parent.top
+                                        anchors.margins: 4
+                                        width: 20
+                                        height: 18
+                                        radius: 9
+                                        color: root.accentColor
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: parent.parent.ids.length
+                                            color: "white"
+                                            font { pixelSize: 10; bold: true }
+                                        }
+                                    }
+                                    DropArea {
+                                        id: doodadDrop
+                                        anchors.fill: parent
+                                        onDropped: drop => root.setDoodadCell(index, drop.source.sid, true)
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        acceptedButtons: Qt.RightButton
+                                        hoverEnabled: true
+                                        onClicked: root.setDoodadCell(index, 0, false)
+                                        ToolTip.visible: containsMouse && parent.ids.length > 0
+                                        ToolTip.delay: 500
+                                        ToolTip.text: parent.ids.map(function(id) {
+                                            return root.itemName(id) + " (" + id + ")";
+                                        }).join("\n") + "\nRight-click to clear"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Row {
+                    spacing: 8
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.doodadWidth + " x " + root.doodadHeight + " tiles ("
+                              + (root.doodadWidth * 32) + " x " + (root.doodadHeight * 32) + " px)"
+                        color: root.mutedColor
+                    }
+                    Item { width: 12; height: 1 }
+                    DmeButton {
+                        text: root.curDoodad === "" ? "Create doodad" : "Save doodad"
+                        width: 120
+                        enabled: doodadNameField.text.trim() !== "" && doodadPaletteCombo.currentIndex >= 0
+                        onClicked: root.saveDoodad()
+                    }
+                    DmeButton {
+                        text: "Delete"
+                        width: 80
+                        variant: "danger"
+                        enabled: root.curDoodad !== ""
+                        onClicked: {
+                            var palette = doodadPaletteCombo.currentText;
+                            Backend.brushStore.deletePrefab(root.curDoodad);
+                            root.refreshDoodads(palette, "");
+                        }
+                    }
                 }
             }
 
@@ -298,7 +1109,7 @@ DmeDialog {
                     spacing: 6
                     Text {
                         text: "Name"
-                        color: "#999"
+                        color: root.mutedColor
                         font.pixelSize: 11
                         anchors.verticalCenter: parent.verticalCenter
                     }
@@ -309,7 +1120,7 @@ DmeDialog {
                     }
                     Text {
                         text: "Z-order"
-                        color: "#999"
+                        color: root.mutedColor
                         font.pixelSize: 11
                         anchors.verticalCenter: parent.verticalCenter
                     }
@@ -324,14 +1135,14 @@ DmeDialog {
 
                 Text {
                     text: "Ground items (drop an item; weight = chance)"
-                    color: "#999"
+                    color: root.mutedColor
                     font.pixelSize: 11
                 }
                 Rectangle {
                     width: parent.width
                     height: 66
-                    color: gDrop.containsDrag ? "#2f4f3f" : "#252525"
-                    border.color: gDrop.containsDrag ? "#7fdc8f" : "#3a3a3a"
+                    color: gDrop.containsDrag ? Qt.darker(root.accentColor, 2.3) : root.cellColor
+                    border.color: gDrop.containsDrag ? root.accentColor : root.borderColor
                     border.width: 1
 
                     DropArea {
@@ -384,7 +1195,7 @@ DmeDialog {
 
                 Text {
                     text: "Borders (drop tiles; right click clears a slot)"
-                    color: "#999"
+                    color: root.mutedColor
                     font.pixelSize: 11
                 }
 
@@ -392,7 +1203,7 @@ DmeDialog {
                     spacing: 6
                     Text {
                         text: "Border target:"
-                        color: "#999"
+                        color: root.mutedColor
                         font.pixelSize: 11
                         anchors.verticalCenter: parent.verticalCenter
                     }
@@ -422,8 +1233,8 @@ DmeDialog {
                         y: 2 * 50
                         width: 44
                         height: 44
-                        color: "#1c1c1c"
-                        border.color: "#3a3a3a"
+                        color: root.panelColor
+                        border.color: root.borderColor
                         border.width: 1
                         Image {
                             anchors.centerIn: parent
@@ -438,7 +1249,7 @@ DmeDialog {
                             anchors.centerIn: parent
                             visible: gItems.count === 0
                             text: "Ground"
-                            color: "#777"
+                            color: root.mutedColor
                             font.pixelSize: 9
                         }
                     }
@@ -524,8 +1335,8 @@ DmeDialog {
                             y: modelData.cy * 50
                             width: 44
                             height: 44
-                            color: slotDrop.containsDrag ? "#2f4f3f" : "#252525"
-                            border.color: slotDrop.containsDrag ? "#7fdc8f" : "#3a3a3a"
+                            color: slotDrop.containsDrag ? Qt.darker(root.accentColor, 2.3) : root.cellColor
+                            border.color: slotDrop.containsDrag ? root.accentColor : root.borderColor
                             border.width: 1
 
                             Image {
@@ -544,7 +1355,7 @@ DmeDialog {
                                     margins: 1
                                 }
                                 text: modelData.lab
-                                color: "#777"
+                                color: root.mutedColor
                                 font.pixelSize: 8
                             }
                             DropArea {
@@ -610,7 +1421,7 @@ DmeDialog {
                     spacing: 6
                     Text {
                         text: "Name"
-                        color: "#999"
+                        color: root.mutedColor
                         font.pixelSize: 11
                         anchors.verticalCenter: parent.verticalCenter
                     }
@@ -623,7 +1434,7 @@ DmeDialog {
 
                 Text {
                     text: "Wall slots by connection (drop; right click clears)"
-                    color: "#999"
+                    color: root.mutedColor
                     font.pixelSize: 11
                 }
                 Grid {
@@ -637,8 +1448,8 @@ DmeDialog {
                             required property int index
                             width: 44
                             height: 52
-                            color: wDrop.containsDrag ? "#2f4f3f" : "#252525"
-                            border.color: wDrop.containsDrag ? "#7fdc8f" : "#3a3a3a"
+                            color: wDrop.containsDrag ? Qt.darker(root.accentColor, 2.3) : root.cellColor
+                            border.color: wDrop.containsDrag ? root.accentColor : root.borderColor
                             border.width: 1
                             Image {
                                 anchors {
@@ -660,7 +1471,7 @@ DmeDialog {
                                     bottomMargin: 1
                                 }
                                 text: modelData
-                                color: "#9a9a9a"
+                                color: root.mutedColor
                                 font.pixelSize: 12
                                 font.bold: true
                             }

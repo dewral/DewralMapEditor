@@ -27,9 +27,13 @@ public:
 
     Q_INVOKABLE QStringList prefabPaletteNames() const;
     Q_INVOKABLE QVariantList prefabsForPalette(const QString &palette) const;
+    Q_INVOKABLE QVariantMap prefabEdit(const QString &name) const;
     Q_INVOKABLE bool savePrefab(const QString &name, const QString &palette,
-                                const QVariantList &tiles);
+                                 const QVariantList &tiles);
     Q_INVOKABLE void deletePrefab(const QString &name);
+    Q_INVOKABLE bool renamePrefabPalette(const QString &oldName,
+                                         const QString &newName);
+    Q_INVOKABLE bool deletePrefabsForPalette(const QString &palette);
     Q_INVOKABLE bool isPrefab(const QString &name) const { return m_prefabs.contains(name); }
     Q_INVOKABLE int prefabLookId(const QString &name) const;
 

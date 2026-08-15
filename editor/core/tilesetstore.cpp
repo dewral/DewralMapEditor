@@ -159,12 +159,41 @@ bool TilesetStore::isCustomOnly(const QString &category, const QString &name) co
 
 bool TilesetStore::newTileset(const QString &category, const QString &name)
 {
-    if (name.isEmpty()) return false;
-    if (m_names.value(category).contains(name)) return false;
+    const QString cleanName = name.trimmed();
+    if (cleanName.isEmpty()) return false;
+    if (m_names.value(category).contains(cleanName)) return false;
     const auto oldNames = m_names;
     const auto oldItems = m_items;
-    m_names[category].append(name);
-    m_items[category][name] = {};
+    m_names[category].append(cleanName);
+    m_items[category][cleanName] = {};
+    if (!saveJson()) {
+        m_names = oldNames;
+        m_items = oldItems;
+        return false;
+    }
+    bump();
+    return true;
+}
+
+bool TilesetStore::renameTileset(const QString &category, const QString &name,
+                                 const QString &newName)
+{
+    const QString cleanName = name.trimmed();
+    const QString cleanNewName = newName.trimmed();
+    if (cleanName.isEmpty() || cleanNewName.isEmpty()) return false;
+    QStringList &names = m_names[category];
+    const int index = names.indexOf(cleanName);
+    if (index < 0) return false;
+    if (cleanName == cleanNewName) return true;
+    if (names.contains(cleanNewName)) {
+        setErrorString(QStringLiteral("A tileset named '%1' already exists.").arg(cleanNewName));
+        return false;
+    }
+
+    const auto oldNames = m_names;
+    const auto oldItems = m_items;
+    names[index] = cleanNewName;
+    m_items[category].insert(cleanNewName, m_items[category].take(cleanName));
     if (!saveJson()) {
         m_names = oldNames;
         m_items = oldItems;
@@ -199,6 +228,31 @@ bool TilesetStore::addItem(const QString &category, const QString &name, int ser
     QVariantList &list = m_items[category][name];
     if (list.contains(serverId)) return true;
     list.append(serverId);
+    if (!saveJson()) {
+        m_names = oldNames;
+        m_items = oldItems;
+        return false;
+    }
+    bump();
+    return true;
+}
+
+bool TilesetStore::addItems(const QString &category, const QString &name,
+                            const QVariantList &serverIds)
+{
+    if (name.isEmpty() || serverIds.isEmpty()) return false;
+    const auto oldNames = m_names;
+    const auto oldItems = m_items;
+    if (!m_names.value(category).contains(name)) m_names[category].append(name);
+    QVariantList &list = m_items[category][name];
+    bool changed = false;
+    for (const QVariant &value : serverIds) {
+        const int serverId = value.toInt();
+        if (serverId <= 0 || list.contains(serverId)) continue;
+        list.append(serverId);
+        changed = true;
+    }
+    if (!changed) return true;
     if (!saveJson()) {
         m_names = oldNames;
         m_items = oldItems;

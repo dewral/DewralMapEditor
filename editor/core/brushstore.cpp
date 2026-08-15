@@ -450,6 +450,47 @@ QVariantList BrushStore::prefabsForPalette(const QString &palette) const
     return result;
 }
 
+QVariantMap BrushStore::prefabEdit(const QString &name) const
+{
+    QVariantMap result;
+    result.insert(QStringLiteral("name"), name);
+    result.insert(QStringLiteral("palette"), m_prefabPalettes.value(name));
+    result.insert(QStringLiteral("width"), 1);
+    result.insert(QStringLiteral("height"), 1);
+    result.insert(QStringLiteral("tiles"), QVariantList{});
+    if (!m_prefabs.contains(name)) return result;
+
+    const QVector<DoodadTile> source = doodadPreviewTiles(name);
+    if (source.isEmpty()) return result;
+
+    int minX = source.front().dx;
+    int maxX = source.front().dx;
+    int minY = source.front().dy;
+    int maxY = source.front().dy;
+    for (const DoodadTile &tile : source) {
+        minX = std::min(minX, tile.dx);
+        maxX = std::max(maxX, tile.dx);
+        minY = std::min(minY, tile.dy);
+        maxY = std::max(maxY, tile.dy);
+    }
+
+    QVariantList tiles;
+    for (const DoodadTile &tile : source) {
+        QVariantMap entry;
+        entry.insert(QStringLiteral("dx"), tile.dx - minX);
+        entry.insert(QStringLiteral("dy"), tile.dy - minY);
+        entry.insert(QStringLiteral("dz"), tile.dz);
+        QVariantList items;
+        for (int id : tile.items) items.append(id);
+        entry.insert(QStringLiteral("items"), items);
+        tiles.append(entry);
+    }
+    result.insert(QStringLiteral("width"), maxX - minX + 1);
+    result.insert(QStringLiteral("height"), maxY - minY + 1);
+    result.insert(QStringLiteral("tiles"), tiles);
+    return result;
+}
+
 int BrushStore::prefabLookId(const QString &name) const
 {
     const DoodadDef *def = doodadDef(name);
@@ -511,6 +552,51 @@ void BrushStore::deletePrefab(const QString &name)
     doodads.remove(name);
     m_rawRoot.insert(QStringLiteral("doodads"), doodads);
     applyRawAndSave();
+}
+
+bool BrushStore::renamePrefabPalette(const QString &oldNameValue,
+                                     const QString &newNameValue)
+{
+    const QString oldName = oldNameValue.trimmed();
+    const QString newName = newNameValue.trimmed();
+    if (oldName.isEmpty() || newName.isEmpty()) return false;
+    if (oldName == newName) return true;
+
+    QJsonObject doodads = m_rawRoot.value(QStringLiteral("doodads")).toObject();
+    bool changed = false;
+    for (auto it = doodads.begin(); it != doodads.end(); ++it) {
+        QJsonObject doodad = it.value().toObject();
+        if (!doodad.value(QStringLiteral("prefab")).toBool()
+            || doodad.value(QStringLiteral("prefab_palette")).toString() != oldName)
+            continue;
+        doodad.insert(QStringLiteral("prefab_palette"), newName);
+        it.value() = doodad;
+        changed = true;
+    }
+    if (!changed) return true;
+    m_rawRoot.insert(QStringLiteral("doodads"), doodads);
+    return applyRawAndSave();
+}
+
+bool BrushStore::deletePrefabsForPalette(const QString &paletteValue)
+{
+    const QString palette = paletteValue.trimmed();
+    if (palette.isEmpty()) return false;
+
+    QJsonObject doodads = m_rawRoot.value(QStringLiteral("doodads")).toObject();
+    bool changed = false;
+    const QStringList names = doodads.keys();
+    for (const QString &name : names) {
+        const QJsonObject doodad = doodads.value(name).toObject();
+        if (doodad.value(QStringLiteral("prefab")).toBool()
+            && doodad.value(QStringLiteral("prefab_palette")).toString() == palette) {
+            doodads.remove(name);
+            changed = true;
+        }
+    }
+    if (!changed) return true;
+    m_rawRoot.insert(QStringLiteral("doodads"), doodads);
+    return applyRawAndSave();
 }
 
 QStringList BrushStore::groundBrushNames() const

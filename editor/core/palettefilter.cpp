@@ -85,6 +85,12 @@ int PaletteFilter::rowForServerId(int serverId) const
     return proxyIdx.isValid() ? proxyIdx.row() : -1;
 }
 
+int PaletteFilter::serverIdAtRow(int row) const
+{
+    if (row < 0 || row >= rowCount()) return 0;
+    return index(row, 0).data(OtbReader::ServerIdRole).toInt();
+}
+
 bool PaletteFilter::filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const
 {
     const QAbstractItemModel *src = sourceModel();

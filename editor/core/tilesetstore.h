@@ -34,9 +34,14 @@ public:
 
     Q_INVOKABLE bool newTileset(const QString &category, const QString &name);
 
+    Q_INVOKABLE bool renameTileset(const QString &category, const QString &name,
+                                   const QString &newName);
+
     Q_INVOKABLE bool deleteTileset(const QString &category, const QString &name);
 
     Q_INVOKABLE bool addItem(const QString &category, const QString &name, int serverId);
+    Q_INVOKABLE bool addItems(const QString &category, const QString &name,
+                              const QVariantList &serverIds);
 
     Q_INVOKABLE bool removeItem(const QString &category, const QString &name, int serverId);
 

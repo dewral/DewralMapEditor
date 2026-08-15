@@ -26,6 +26,7 @@ public:
     Q_INVOKABLE void setOrderedIds(const QVariantList &ids);
 
     Q_INVOKABLE int rowForServerId(int serverId) const;
+    Q_INVOKABLE int serverIdAtRow(int row) const;
 
 signals:
     void modeChanged();

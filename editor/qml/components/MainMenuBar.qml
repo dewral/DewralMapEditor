@@ -413,7 +413,7 @@ DmeMenuBar {
         focus: false
 
         Action {
-            text: "Brush Editor..."
+            text: "Tileset & Brush Manager..."
             enabled: Backend.otbReader.loaded
             onTriggered: menuBar.brushEditorDialog.open()
         }

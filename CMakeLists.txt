@@ -15,7 +15,7 @@ set(CMAKE_AUTOUIC ON)
 
 set(DME_BUILD_CHANNEL "stable" CACHE STRING "Application update channel")
 execute_process(
-    COMMAND git rev-parse --short=12 HEAD
+    COMMAND git -c "safe.directory=${CMAKE_SOURCE_DIR}" rev-parse --short=12 HEAD
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     OUTPUT_VARIABLE DME_GIT_COMMIT
     OUTPUT_STRIP_TRAILING_WHITESPACE

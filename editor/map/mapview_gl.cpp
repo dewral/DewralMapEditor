@@ -22,6 +22,29 @@ namespace {
 constexpr int kOverlayCacheTiles = 16;
 constexpr int kOverlayTextureMarginPixels = 256;
 
+constexpr uint32_t packAmbientLight(uint8_t intensity)
+{
+    const uint32_t channel = intensity;
+    return channel | (channel << 8) | (channel << 16) | (255u << 24);
+}
+
+constexpr bool ambientPackingIsExact()
+{
+    for (uint32_t intensity = 0; intensity <= 255; ++intensity) {
+        const uint32_t pixel = packAmbientLight(static_cast<uint8_t>(intensity));
+        if ((pixel & 0xffu) != intensity
+            || ((pixel >> 8) & 0xffu) != intensity
+            || ((pixel >> 16) & 0xffu) != intensity
+            || ((pixel >> 24) & 0xffu) != 255u) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static_assert(ambientPackingIsExact(),
+              "Every ambient level must map linearly to an opaque grayscale pixel");
+
 int overlayAnchor(double origin)
 {
     const int tile = static_cast<int>(std::floor(origin));
@@ -223,10 +246,7 @@ void MapView::computeLightChunk(int floor, int cx, int cy, std::vector<uint32_t>
     const int base_x = cx * kChunkTiles;
     const int base_y = cy * kChunkTiles;
 
-    const uint32_t ambient = static_cast<uint32_t>(m_lightAmbient)
-                             | (static_cast<uint32_t>(m_lightAmbient) << 8)
-                             | (static_cast<uint32_t>(m_lightAmbient) << 16)
-                             | (255u << 24);
+    const uint32_t ambient = packAmbientLight(static_cast<uint8_t>(m_lightAmbient));
     out.assign(static_cast<size_t>(kChunkTiles) * kChunkTiles, ambient);
 
     if (!m_otbm || !m_otb || !m_dat) return;
@@ -368,9 +388,16 @@ quint32 MapView::glUpdateLightGrid()
     return m_lightVersion;
 }
 
+void MapView::glBuildEditorLightGrid(int floor, int tx, int ty, int tw, int th,
+                                     std::vector<uint32_t> &out)
+{
+    buildLightGrid(floor, tx, ty, tw, th, out);
+}
+
 void MapView::glBuildPreviewLightGrid(int firstFloor, int lastFloor,
                                       int tx, int ty, int tw, int th,
                                       qreal playerX, qreal playerY, int playerZ,
+                                      int ambientLevel,
                                       std::vector<uint32_t> &out) const
 {
     if (tw <= 0 || th <= 0) {
@@ -378,14 +405,8 @@ void MapView::glBuildPreviewLightGrid(int firstFloor, int lastFloor,
         return;
     }
 
-    // In-game Preview has its own world lighting. It must not inherit the
-    // editor's "Full light" setting, otherwise enabling lighting produces a
-    // completely white lightmap and appears to do nothing.
-    constexpr uint8_t previewAmbient = 40;
-    const uint32_t ambient = static_cast<uint32_t>(previewAmbient)
-                           | (static_cast<uint32_t>(previewAmbient) << 8)
-                           | (static_cast<uint32_t>(previewAmbient) << 16)
-                           | (255u << 24);
+    const uint8_t previewAmbient = static_cast<uint8_t>(qBound(0, ambientLevel, 255));
+    const uint32_t ambient = packAmbientLight(previewAmbient);
     const size_t cellCount = static_cast<size_t>(tw) * th;
     out.assign(cellCount, ambient);
     if (!m_otbm || !m_otb || !m_dat) return;

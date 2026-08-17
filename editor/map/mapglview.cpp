@@ -332,6 +332,11 @@ public:
         if (m_rubberActive) { m_rubberRect[0]=rx0; m_rubberRect[1]=ry0; m_rubberRect[2]=rx1; m_rubberRect[3]=ry1; }
 
         const bool lightingEnabled = m_previewWindow ? m_previewLighting : src->torchOn();
+        // OTClient treats ambient intensity as an unsigned byte. The preview
+        // deliberately represents TFS night (40), while the editor uses the
+        // exact 0..255 level selected in View > Light ambient.
+        constexpr int previewAmbient = 40;
+        const int ambientLevel = m_previewWindow ? previewAmbient : src->lightAmbient();
         const int lightTW = static_cast<int>(std::ceil(w / ts)) + 3;
         const int lightTH = static_cast<int>(std::ceil(h / ts)) + 3;
         for (int z = 0; z < 16; ++z) {
@@ -359,7 +364,7 @@ public:
             mixLightKey(static_cast<quint32>(ty));
             mixLightKey(static_cast<quint32>(lightTW));
             mixLightKey(static_cast<quint32>(lightTH));
-            mixLightKey(static_cast<quint32>(src->lightAmbient()));
+            mixLightKey(static_cast<quint32>(ambientLevel));
             if (m_previewWindow) {
                 mixLightKey(static_cast<quint32>(m_botFloor));
                 // Creature lights in OTClient follow the pixel walk offset.
@@ -379,10 +384,15 @@ public:
                 light.ty = ty;
                 light.tw = lightTW;
                 light.th = lightTH;
-                src->glBuildPreviewLightGrid(
-                    m_curFloor, m_botFloor, tx, ty, lightTW, lightTH,
-                    view->previewCenterX(), view->previewCenterY(),
-                    cameraFloor, light.pixels);
+                if (m_previewWindow) {
+                    src->glBuildPreviewLightGrid(
+                        m_curFloor, m_botFloor, tx, ty, lightTW, lightTH,
+                        view->previewCenterX(), view->previewCenterY(),
+                        cameraFloor, ambientLevel, light.pixels);
+                } else {
+                    src->glBuildEditorLightGrid(z, tx, ty, lightTW, lightTH,
+                                                light.pixels);
+                }
                 light.upload = true;
                 light.enabled = true;
                 ++m_lightVer;

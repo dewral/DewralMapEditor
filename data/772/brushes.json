@@ -23025,6 +23025,56 @@
             ],
             "lookid": 1447
         },
+        "grass": {
+            "alternates": [
+                {
+                    "composites": [
+                        {
+                            "chance": 1,
+                            "tiles": [
+                                {
+                                    "dx": -1,
+                                    "dy": -1,
+                                    "dz": 0,
+                                    "items": [
+                                        5113
+                                    ]
+                                },
+                                {
+                                    "dx": 0,
+                                    "dy": -1,
+                                    "dz": 0,
+                                    "items": [
+                                        5118
+                                    ]
+                                },
+                                {
+                                    "dx": -1,
+                                    "dy": 0,
+                                    "dz": 0,
+                                    "items": [
+                                        5122
+                                    ]
+                                },
+                                {
+                                    "dx": 0,
+                                    "dy": 0,
+                                    "dz": 0,
+                                    "items": [
+                                        5121
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "singles": [
+                    ]
+                }
+            ],
+            "lookid": 5113,
+            "prefab": true,
+            "prefab_palette": "Nature"
+        },
         "grass drift": {
             "alternates": [
                 {

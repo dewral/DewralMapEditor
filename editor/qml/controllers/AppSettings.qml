@@ -22,6 +22,11 @@ Settings {
     property bool ingamePreviewLighting: true
     property int ingamePreviewWidthTiles: 15
     property int ingamePreviewHeightTiles: 11
+    property int ingamePreviewLookType: 128
+    property int ingamePreviewLookHead: 78
+    property int ingamePreviewLookBody: 69
+    property int ingamePreviewLookLegs: 58
+    property int ingamePreviewLookFeet: 76
     property int paletteWidth: 390
     property bool paletteCollapsed: false
     property int iconSize: 66

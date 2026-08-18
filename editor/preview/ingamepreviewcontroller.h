@@ -28,6 +28,10 @@ class IngamePreviewController : public QObject
     Q_PROPERTY(int speed READ speed WRITE setSpeed NOTIFY speedChanged)
     Q_PROPERTY(bool noClip READ noClip WRITE setNoClip NOTIFY noClipChanged)
     Q_PROPERTY(int lookType READ lookType WRITE setLookType NOTIFY lookTypeChanged)
+    Q_PROPERTY(int lookHead READ lookHead WRITE setLookHead NOTIFY outfitColorsChanged)
+    Q_PROPERTY(int lookBody READ lookBody WRITE setLookBody NOTIFY outfitColorsChanged)
+    Q_PROPERTY(int lookLegs READ lookLegs WRITE setLookLegs NOTIFY outfitColorsChanged)
+    Q_PROPERTY(int lookFeet READ lookFeet WRITE setLookFeet NOTIFY outfitColorsChanged)
     Q_PROPERTY(QString lastBlockReason READ lastBlockReason NOTIFY lastBlockReasonChanged)
 
 public:
@@ -50,8 +54,16 @@ public:
     bool noClip() const { return m_noClip; }
     void setNoClip(bool enabled);
     int lookType() const { return m_lookType; }
+    int lookHead() const { return m_lookHead; }
+    int lookBody() const { return m_lookBody; }
+    int lookLegs() const { return m_lookLegs; }
+    int lookFeet() const { return m_lookFeet; }
     QString lastBlockReason() const { return m_lastBlockReason; }
     void setLookType(int lookType);
+    void setLookHead(int color);
+    void setLookBody(int color);
+    void setLookLegs(int color);
+    void setLookFeet(int color);
 
     Q_INVOKABLE void setPosition(int x, int y, int z);
     Q_INVOKABLE bool walk(int dx, int dy);
@@ -67,6 +79,7 @@ signals:
     void speedChanged();
     void noClipChanged();
     void lookTypeChanged();
+    void outfitColorsChanged();
     void movementBlocked(int x, int y, int z);
     void lastBlockReasonChanged();
 
@@ -91,6 +104,10 @@ private:
     int m_direction = 2;
     int m_speed = 200;
     int m_lookType = 128;
+    int m_lookHead = 78;
+    int m_lookBody = 69;
+    int m_lookLegs = 58;
+    int m_lookFeet = 76;
     bool m_walking = false;
     bool m_noClip = false;
     QString m_lastBlockReason;

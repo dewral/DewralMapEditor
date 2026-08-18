@@ -27,8 +27,11 @@ Item {
         source: {
             const frame = root.outfitFrame
             return frame.ids !== undefined && frame.ids.length > 0
-                    ? Backend.sprReader.itemImageSource(frame.ids, frame.width,
-                                                        frame.height, 1) : ""
+                    ? Backend.sprReader.outfitImageSource(
+                          frame.ids, frame.maskIds || [], frame.width,
+                          frame.height, controller.lookHead,
+                          controller.lookBody, controller.lookLegs,
+                          controller.lookFeet) : ""
         }
     }
 

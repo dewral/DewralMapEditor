@@ -405,6 +405,85 @@ QString SprReader::itemImageSource(const QVariantList &spriteIds,
     return dataUrl;
 }
 
+QColor SprReader::outfitColor(int colorIndex) const
+{
+    colorIndex = qBound(0, colorIndex, 132);
+    const int column = colorIndex % 19;
+    const int row = colorIndex / 19;
+    if (column == 0) {
+        const int gray = qRound(255.0 * row / 6.0);
+        return QColor(gray, gray, gray);
+    }
+
+    const int hue = (column - 1) * 20;
+    const int saturation = row <= 3 ? 255
+                                    : qRound(255.0 * (7 - row) / 4.0);
+    const int value = row >= 3 ? 255
+                               : qRound(255.0 * (row + 1) / 4.0);
+    return QColor::fromHsv(hue, qBound(0, saturation, 255),
+                           qBound(0, value, 255));
+}
+
+QString SprReader::outfitImageSource(const QVariantList &spriteIds,
+                                     const QVariantList &maskSpriteIds,
+                                     int outfitWidth, int outfitHeight,
+                                     int head, int body, int legs, int feet)
+{
+    const int width = qMax(1, outfitWidth);
+    const int height = qMax(1, outfitHeight);
+    const QString key = QStringLiteral("o:%1:%2:%3:%4:%5:%6:%7:%8")
+        .arg(makeItemCacheKey(spriteIds, width, height, 1),
+             makeItemCacheKey(maskSpriteIds, width, height, 1))
+        .arg(head).arg(body).arg(legs).arg(feet)
+        .arg(width).arg(height);
+    const QString cached = cachedDataUrl(key);
+    if (!cached.isEmpty()) return cached;
+
+    QImage composite = composeItemImage(spriteIds, width, height, 1)
+                           .convertToFormat(QImage::Format_ARGB32);
+    QImage mask = composeItemImage(maskSpriteIds, width, height, 1)
+                      .convertToFormat(QImage::Format_ARGB32);
+    if (!composite.isNull() && !mask.isNull()) {
+        const QColor colors[] = {outfitColor(head), outfitColor(body),
+                                 outfitColor(legs), outfitColor(feet)};
+        const int imageWidth = qMin(composite.width(), mask.width());
+        const int imageHeight = qMin(composite.height(), mask.height());
+        for (int y = 0; y < imageHeight; ++y) {
+            QRgb *baseLine = reinterpret_cast<QRgb *>(composite.scanLine(y));
+            const QRgb *maskLine = reinterpret_cast<const QRgb *>(mask.constScanLine(y));
+            for (int x = 0; x < imageWidth; ++x) {
+                const QRgb maskPixel = maskLine[x];
+                const int red = qRed(maskPixel);
+                const int green = qGreen(maskPixel);
+                const int blue = qBlue(maskPixel);
+
+                // OTCv8's outfit shader uses the mask only to choose a color,
+                // then multiplies that color with the base outfit pixel.
+                // Yellow = head, red = body, green = legs, blue = feet.
+                int part = -1;
+                if (red > 229)
+                    part = green > 229 ? 0 : 1;
+                else if (green > 229)
+                    part = 2;
+                else if (blue > 229)
+                    part = 3;
+
+                if (part < 0) continue;
+                const QRgb basePixel = baseLine[x];
+                const QColor &target = colors[part];
+                baseLine[x] = qRgba(qRed(basePixel) * target.red() / 255,
+                                    qGreen(basePixel) * target.green() / 255,
+                                    qBlue(basePixel) * target.blue() / 255,
+                                    qAlpha(basePixel));
+            }
+        }
+    }
+
+    const QString dataUrl = imageToDataUrl(composite);
+    cacheDataUrl(key, dataUrl);
+    return dataUrl;
+}
+
 QImage SprReader::composeItemImage(const QVariantList &spriteIds,
                                    int itemWidth,
                                    int itemHeight,

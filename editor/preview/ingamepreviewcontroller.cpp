@@ -45,6 +45,38 @@ void IngamePreviewController::setLookType(int lookType)
     emit lookTypeChanged();
 }
 
+void IngamePreviewController::setLookHead(int color)
+{
+    color = qBound(0, color, 132);
+    if (m_lookHead == color) return;
+    m_lookHead = color;
+    emit outfitColorsChanged();
+}
+
+void IngamePreviewController::setLookBody(int color)
+{
+    color = qBound(0, color, 132);
+    if (m_lookBody == color) return;
+    m_lookBody = color;
+    emit outfitColorsChanged();
+}
+
+void IngamePreviewController::setLookLegs(int color)
+{
+    color = qBound(0, color, 132);
+    if (m_lookLegs == color) return;
+    m_lookLegs = color;
+    emit outfitColorsChanged();
+}
+
+void IngamePreviewController::setLookFeet(int color)
+{
+    color = qBound(0, color, 132);
+    if (m_lookFeet == color) return;
+    m_lookFeet = color;
+    emit outfitColorsChanged();
+}
+
 void IngamePreviewController::setPosition(int x, int y, int z)
 {
     stop();

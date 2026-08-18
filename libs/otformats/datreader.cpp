@@ -474,7 +474,9 @@ QVariantMap DatReader::outfitFramePreview(int lookType, int direction,
                           * directions * layers * height * width;
 
     QVariantList ids;
+    QVariantList maskIds;
     ids.reserve(width * height);
+    maskIds.reserve(width * height);
     for (int h = 0; h < height; ++h) {
         for (int w = 0; w < width; ++w) {
             // Base outfit layer, no addons/mount. This is the same ordering
@@ -485,9 +487,18 @@ QVariantMap DatReader::outfitFramePreview(int lookType, int direction,
                                   && index < static_cast<int>(spriteIds.size())
                               ? QVariant(spriteIds[static_cast<size_t>(index)])
                               : QVariant(0u));
+            const int maskIndex = layers > 1
+                ? phase * frameStride
+                    + ((dir * layers + 1) * height + h) * width + w
+                : -1;
+            maskIds.push_back(maskIndex >= 0
+                                      && maskIndex < static_cast<int>(spriteIds.size())
+                                  ? QVariant(spriteIds[static_cast<size_t>(maskIndex)])
+                                  : QVariant(0u));
         }
     }
     out.insert(QStringLiteral("ids"), ids);
+    out.insert(QStringLiteral("maskIds"), maskIds);
     out.insert(QStringLiteral("width"), width);
     out.insert(QStringLiteral("height"), height);
     out.insert(QStringLiteral("frames"), phases);

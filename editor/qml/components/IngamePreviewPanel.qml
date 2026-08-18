@@ -15,6 +15,21 @@ Item {
     readonly property int footerHeight: 30
     readonly property int contentWidth: settings.ingamePreviewWidthTiles * 32
     readonly property int contentHeight: settings.ingamePreviewHeightTiles * 32
+    property int selectedOutfitPart: 0
+
+    function selectedOutfitColor() {
+        if (selectedOutfitPart === 0) return settings.ingamePreviewLookHead;
+        if (selectedOutfitPart === 1) return settings.ingamePreviewLookBody;
+        if (selectedOutfitPart === 2) return settings.ingamePreviewLookLegs;
+        return settings.ingamePreviewLookFeet;
+    }
+
+    function setSelectedOutfitColor(value) {
+        if (selectedOutfitPart === 0) settings.ingamePreviewLookHead = value;
+        else if (selectedOutfitPart === 1) settings.ingamePreviewLookBody = value;
+        else if (selectedOutfitPart === 2) settings.ingamePreviewLookLegs = value;
+        else settings.ingamePreviewLookFeet = value;
+    }
 
     width: contentWidth + 2
     height: headerHeight + contentHeight + footerHeight + 2
@@ -25,6 +40,11 @@ Item {
     IngamePreviewController {
         id: explorer
         source: panel.mapView
+        lookType: panel.settings.ingamePreviewLookType
+        lookHead: panel.settings.ingamePreviewLookHead
+        lookBody: panel.settings.ingamePreviewLookBody
+        lookLegs: panel.settings.ingamePreviewLookLegs
+        lookFeet: panel.settings.ingamePreviewLookFeet
     }
 
     function clampPosition() {
@@ -177,6 +197,16 @@ Item {
             spacing: 4
 
             Button {
+                width: 58; height: 24
+                text: "Outfit"
+                checked: outfitPopup.opened
+                onClicked: {
+                    outfitPopup.opened ? outfitPopup.close() : outfitPopup.open();
+                    panel.forceActiveFocus();
+                }
+            }
+
+            Button {
                 width: 72; height: 24
                 text: panel.settings.ingamePreviewFollowCursor ? "Following" : "Locked"
                 checkable: true
@@ -213,7 +243,7 @@ Item {
         }
 
         MouseArea {
-            anchors { left: parent.left; right: parent.right; top: parent.top; bottom: parent.bottom; rightMargin: 216 }
+            anchors { left: parent.left; right: parent.right; top: parent.top; bottom: parent.bottom; rightMargin: 278 }
             cursorShape: Qt.SizeAllCursor
             property real pressX
             property real pressY
@@ -227,6 +257,116 @@ Item {
                 panel.x += mouse.x - pressX;
                 panel.y += mouse.y - pressY;
                 panel.clampPosition();
+            }
+        }
+    }
+
+    Popup {
+        id: outfitPopup
+        x: panel.width - width - 8
+        y: panel.headerHeight + 5
+        width: 278
+        height: 192
+        padding: 10
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        background: Rectangle {
+            color: panel.grayUi ? "#242424" : "#0F141B"
+            border.width: 1
+            border.color: panel.grayUi ? "#555555" : "#3B4654"
+            radius: 6
+        }
+
+        Column {
+            anchors.fill: parent
+            spacing: 7
+
+            Row {
+                width: parent.width
+                height: 26
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Look type"
+                    color: panel.githubUi ? "#E6EDF3" : "#E8E8E8"
+                    font.pixelSize: 11
+                    font.bold: true
+                }
+                Item { width: parent.width - 174; height: 1 }
+                DmeSpinBox {
+                    width: 100
+                    from: 1
+                    to: Math.max(1, Backend.datReader.outfitCount)
+                    value: panel.settings.ingamePreviewLookType
+                    onValueModified: panel.settings.ingamePreviewLookType = value
+                }
+            }
+
+            Row {
+                width: parent.width
+                height: 34
+                spacing: 5
+                Repeater {
+                    model: ["Head", "Body", "Legs", "Feet"]
+                    delegate: Rectangle {
+                        required property string modelData
+                        required property int index
+                        width: 61
+                        height: 32
+                        radius: 4
+                        color: panel.selectedOutfitPart === index
+                               ? (panel.grayUi ? "#3A3A3A" : "#1B2632")
+                               : "transparent"
+                        border.width: 1
+                        border.color: panel.selectedOutfitPart === index
+                                      ? "#D6A93C"
+                                      : (panel.grayUi ? "#484848" : "#30363D")
+                        Rectangle {
+                            anchors { left: parent.left; leftMargin: 6; verticalCenter: parent.verticalCenter }
+                            width: 14; height: 14; radius: 3
+                            color: Backend.sprReader.outfitColor(
+                                       index === 0 ? panel.settings.ingamePreviewLookHead
+                                         : index === 1 ? panel.settings.ingamePreviewLookBody
+                                         : index === 2 ? panel.settings.ingamePreviewLookLegs
+                                                       : panel.settings.ingamePreviewLookFeet)
+                            border.width: 1
+                            border.color: "#8B949E"
+                        }
+                        Text {
+                            anchors { right: parent.right; rightMargin: 5; verticalCenter: parent.verticalCenter }
+                            text: modelData
+                            color: panel.githubUi ? "#C9D1D9" : "#E0E0E0"
+                            font.pixelSize: 9
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: panel.selectedOutfitPart = index
+                        }
+                    }
+                }
+            }
+
+            Grid {
+                anchors.horizontalCenter: parent.horizontalCenter
+                columns: 19
+                spacing: 2
+                Repeater {
+                    model: 133
+                    delegate: Rectangle {
+                        required property int index
+                        width: 11
+                        height: 11
+                        radius: 2
+                        color: Backend.sprReader.outfitColor(index)
+                        border.width: panel.selectedOutfitColor() === index ? 2 : 1
+                        border.color: panel.selectedOutfitColor() === index
+                                      ? "#FFFFFF" : "#30363D"
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: panel.setSelectedOutfitColor(index)
+                        }
+                    }
+                }
             }
         }
     }

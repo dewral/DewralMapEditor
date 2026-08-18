@@ -97,6 +97,7 @@ class DatReader : public QAbstractListModel
     Q_OBJECT
     QML_ANONYMOUS
     Q_PROPERTY(int itemCount READ itemCount NOTIFY itemCountChanged)
+    Q_PROPERTY(int outfitCount READ outfitCount NOTIFY loadedChanged)
     Q_PROPERTY(bool loaded READ isLoaded NOTIFY loadedChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY errorChanged)
 
@@ -122,6 +123,7 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     int itemCount() const { return static_cast<int>(m_items.size()); }
+    int outfitCount() const { return static_cast<int>(m_outfits.size()); }
     bool isLoaded() const { return m_loaded; }
     QString errorString() const { return m_errorString; }
 

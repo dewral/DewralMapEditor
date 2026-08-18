@@ -2,6 +2,7 @@
 #define SPRREADER_H
 
 #include <QAbstractListModel>
+#include <QColor>
 #include <QImage>
 #include <QReadWriteLock>
 #include <QVector>
@@ -75,6 +76,12 @@ public:
                                         int itemWidth,
                                         int itemHeight,
                                         int layers);
+    Q_INVOKABLE QString outfitImageSource(const QVariantList &spriteIds,
+                                          const QVariantList &maskSpriteIds,
+                                          int outfitWidth, int outfitHeight,
+                                          int head, int body,
+                                          int legs, int feet);
+    Q_INVOKABLE QColor outfitColor(int colorIndex) const;
 
     int preloadItemImageSources(const DatReader *datReader);
     QImage preloadedItemImage(int clientId) const;

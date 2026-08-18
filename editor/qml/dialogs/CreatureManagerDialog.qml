@@ -12,6 +12,13 @@ DmeDialog {
     property string originalName: ""
     property string statusText: ""
     property bool statusError: false
+    property string category: "monster"
+
+    CreatureFilter {
+        id: managerFilter
+        sourceModel: Backend.creatureStore
+        typeFilter: dialog.category
+    }
 
     title: "Monster and NPC Manager"
     width: 700
@@ -21,7 +28,7 @@ DmeDialog {
         originalName = "";
         creatureList.currentIndex = -1;
         nameField.text = "";
-        npcCheck.checked = false;
+        npcCheck.checked = category === "npc";
         lookTypeField.value = 0;
         lookItemField.value = 0;
         headField.value = 0;
@@ -31,10 +38,11 @@ DmeDialog {
     }
 
     function selectRow(row) {
-        const creature = Backend.creatureStore.creatureAt(row);
+        const sourceRow = managerFilter.sourceRow(row);
+        const creature = Backend.creatureStore.creatureAt(sourceRow);
         if (!creature.name)
             return;
-        selectedRow = row;
+        selectedRow = sourceRow;
         creatureList.currentIndex = row;
         originalName = creature.name;
         nameField.text = creature.name;
@@ -63,31 +71,57 @@ DmeDialog {
                            : (Backend.creatureStore.errorString || "Could not save the creature.");
         if (saved) {
             originalName = nameField.text.trim();
-            const row = Backend.creatureStore.rowForName(originalName);
+            category = npcCheck.checked ? "npc" : "monster";
+            const row = managerFilter.rowForCreature(originalName,
+                                                     npcCheck.checked);
             selectRow(row);
         }
+    }
+
+    function selectCategory(value) {
+        category = value;
+        clearEditor();
+        if (creatureList.count > 0)
+            selectRow(0);
     }
 
     onOpened: {
         statusText = "";
         clearEditor();
-        if (Backend.creatureStore.count > 0)
+        if (creatureList.count > 0)
             selectRow(0);
     }
 
     FileDialog {
         id: importDialog
-        title: "Import monsters.xml or a monster/NPC XML file"
-        fileMode: FileDialog.OpenFile
+        title: "Import monster and NPC XML files"
+        fileMode: FileDialog.OpenFiles
         nameFilters: ["XML files (*.xml)", "All files (*)"]
         onAccepted: {
-            const result = Backend.creatureStore.importOtFile(selectedFile);
+            const result = Backend.creatureStore.importOtFiles(selectedFiles);
             dialog.statusError = result.success !== true;
             dialog.statusText = result.success
-                    ? "Imported " + result.imported + " creature(s)"
+                    ? "Imported " + result.imported + " creature(s) from "
+                      + result.selected + " selected file(s)"
                       + (result.failed > 0 ? "; " + result.failed + " file(s) failed." : ".")
                     : (result.error || "Import failed.");
-            if (result.success && Backend.creatureStore.count > 0)
+            if (result.success && creatureList.count > 0)
+                dialog.selectRow(0);
+        }
+    }
+
+    FolderDialog {
+        id: serverFolderDialog
+        title: "Select the TFS/Canary server directory"
+        onAccepted: {
+            const result = Backend.creatureStore.importOtDirectory(selectedFolder);
+            dialog.statusError = result.success !== true;
+            dialog.statusText = result.success
+                    ? "Imported " + result.imported + " creature(s) from "
+                      + result.scanned + " XML file(s)"
+                      + (result.failed > 0 ? "; " + result.failed + " file(s) failed." : ".")
+                    : (result.error || "Server directory import failed.");
+            if (result.success && creatureList.count > 0)
                 dialog.selectRow(0);
         }
     }
@@ -102,6 +136,23 @@ DmeDialog {
                 width: 280
                 spacing: 6
 
+                Row {
+                    spacing: 6
+
+                    DmeButton {
+                        width: 137
+                        text: "Monsters (" + Backend.creatureStore.monsterCount + ")"
+                        variant: dialog.category === "monster" ? "primary" : "default"
+                        onClicked: dialog.selectCategory("monster")
+                    }
+                    DmeButton {
+                        width: 137
+                        text: "NPCs (" + Backend.creatureStore.npcCount + ")"
+                        variant: dialog.category === "npc" ? "primary" : "default"
+                        onClicked: dialog.selectCategory("npc")
+                    }
+                }
+
                 DmePanel {
                     width: parent.width
                     height: 350
@@ -112,7 +163,7 @@ DmeDialog {
                         anchors.margins: 2
                         anchors.rightMargin: 14
                         clip: true
-                        model: Backend.creatureStore
+                        model: managerFilter
                         highlightMoveDuration: 0
 
                         delegate: Rectangle {
@@ -121,9 +172,14 @@ DmeDialog {
                             required property string name
                             required property bool isNpc
                             required property int lookType
+                            required property int lookItem
+                            required property int lookHead
+                            required property int lookBody
+                            required property int lookLegs
+                            required property int lookFeet
 
                             width: creatureList.width
-                            height: 30
+                            height: 42
                             color: creatureList.currentIndex === index
                                    ? "#505050"
                                    : (rowMouse.containsMouse ? "#383838" : "transparent")
@@ -134,15 +190,29 @@ DmeDialog {
                                     leftMargin: 4
                                     verticalCenter: parent.verticalCenter
                                 }
-                                width: 26
-                                height: 26
+                                width: 38
+                                height: 38
                                 smooth: false
                                 fillMode: Image.PreserveAspectFit
                                 source: {
-                                    const preview = Backend.datReader.outfitPreview(creatureRow.lookType);
-                                    return preview.ids !== undefined && preview.ids.length > 0
+                                    if (creatureRow.lookType > 0) {
+                                        const frame = Backend.datReader.outfitFramePreview(
+                                                        creatureRow.lookType, 2, false, 0);
+                                        return frame.ids !== undefined && frame.ids.length > 0
+                                                ? Backend.sprReader.outfitThumbnailSource(
+                                                      frame.ids, frame.maskIds || [],
+                                                      frame.width, frame.height,
+                                                      creatureRow.lookHead,
+                                                      creatureRow.lookBody,
+                                                      creatureRow.lookLegs,
+                                                      creatureRow.lookFeet)
+                                                : "";
+                                    }
+                                    const item = Backend.datReader.itemPreview(
+                                                     creatureRow.lookItem);
+                                    return item.ids !== undefined && item.ids.length > 0
                                             ? Backend.sprReader.itemImageSource(
-                                                  preview.ids, preview.width, preview.height, 1)
+                                                  item.ids, item.width, item.height, 1)
                                             : "";
                                 }
                             }
@@ -150,7 +220,7 @@ DmeDialog {
                             Text {
                                 anchors {
                                     left: parent.left
-                                    leftMargin: 36
+                                    leftMargin: 48
                                     right: parent.right
                                     rightMargin: 6
                                     verticalCenter: parent.verticalCenter
@@ -181,16 +251,17 @@ DmeDialog {
                     }
                 }
 
-                Row {
+                Grid {
+                    columns: 2
                     spacing: 6
                     DmeButton {
                         text: "New"
-                        width: 86
+                        width: 137
                         onClicked: dialog.clearEditor()
                     }
                     DmeButton {
                         text: "Delete"
-                        width: 86
+                        width: 137
                         enabled: dialog.originalName.length > 0
                         variant: "danger"
                         onClicked: {
@@ -200,14 +271,19 @@ DmeDialog {
                             dialog.statusText = removed ? "Creature removed."
                                                         : "Could not remove the creature.";
                             dialog.clearEditor();
-                            if (Backend.creatureStore.count > 0)
+                            if (creatureList.count > 0)
                                 dialog.selectRow(0);
                         }
                     }
                     DmeButton {
-                        text: "Import..."
-                        width: 96
+                        text: "Import XML..."
+                        width: 137
                         onClicked: importDialog.open()
+                    }
+                    DmeButton {
+                        text: "Import server..."
+                        width: 137
+                        onClicked: serverFolderDialog.open()
                     }
                 }
             }

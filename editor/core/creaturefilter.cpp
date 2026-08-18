@@ -37,6 +37,13 @@ int CreatureFilter::rowForCreature(const QString &name, bool isNpc) const
     return proxyIndex.isValid() ? proxyIndex.row() : -1;
 }
 
+int CreatureFilter::sourceRow(int proxyRow) const
+{
+    if (proxyRow < 0 || proxyRow >= rowCount()) return -1;
+    const QModelIndex sourceIndex = mapToSource(index(proxyRow, 0));
+    return sourceIndex.isValid() ? sourceIndex.row() : -1;
+}
+
 bool CreatureFilter::filterAcceptsRow(int sourceRow,
                                       const QModelIndex &sourceParent) const
 {

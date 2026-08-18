@@ -81,6 +81,11 @@ public:
                                           int outfitWidth, int outfitHeight,
                                           int head, int body,
                                           int legs, int feet);
+    Q_INVOKABLE QString outfitThumbnailSource(const QVariantList &spriteIds,
+                                              const QVariantList &maskSpriteIds,
+                                              int outfitWidth, int outfitHeight,
+                                              int head, int body,
+                                              int legs, int feet);
     Q_INVOKABLE QColor outfitColor(int colorIndex) const;
 
     int preloadItemImageSources(const DatReader *datReader);
@@ -104,6 +109,10 @@ private:
     void cacheSprite(uint32_t spriteId, const std::shared_ptr<SpriteData> &sprite);
     QImage composeItemImage(const QVariantList &spriteIds, int itemWidth,
                             int itemHeight, int layers);
+    QImage composeColoredOutfit(const QVariantList &spriteIds,
+                                const QVariantList &maskSpriteIds,
+                                int outfitWidth, int outfitHeight,
+                                int head, int body, int legs, int feet);
     QString cachedDataUrl(const QString &key);
     void cacheDataUrl(QString key, QString value);
 

@@ -24,6 +24,7 @@ public:
     void setTypeFilter(const QString &type);
 
     Q_INVOKABLE int rowForCreature(const QString &name, bool isNpc) const;
+    Q_INVOKABLE int sourceRow(int proxyRow) const;
 
 signals:
     void searchTextChanged();

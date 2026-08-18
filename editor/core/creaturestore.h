@@ -4,6 +4,7 @@
 #include <QAbstractListModel>
 #include <QString>
 #include <QVector>
+#include <QVariantList>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
@@ -12,6 +13,8 @@ class CreatureStore : public QAbstractListModel
     Q_OBJECT
     QML_ANONYMOUS
     Q_PROPERTY(int count READ count NOTIFY countChanged)
+    Q_PROPERTY(int monsterCount READ monsterCount NOTIFY countChanged)
+    Q_PROPERTY(int npcCount READ npcCount NOTIFY countChanged)
     Q_PROPERTY(bool hasData READ hasData NOTIFY countChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY errorStringChanged)
 
@@ -29,6 +32,10 @@ public:
         IsNpcRole,
         LookTypeRole,
         LookItemRole,
+        LookHeadRole,
+        LookBodyRole,
+        LookLegsRole,
+        LookFeetRole,
     };
 
     explicit CreatureStore(QObject *parent = nullptr);
@@ -38,6 +45,8 @@ public:
     Q_INVOKABLE bool loadForDir(const QString &dirName);
 
     int count() const { return static_cast<int>(m_creatures.size()); }
+    int monsterCount() const;
+    int npcCount() const;
     bool hasData() const { return !m_creatures.isEmpty(); }
     QString errorString() const { return m_errorString; }
 
@@ -54,6 +63,8 @@ public:
                                   int lookLegs, int lookFeet);
     Q_INVOKABLE bool removeCreature(const QString &name);
     Q_INVOKABLE QVariantMap importOtFile(const QString &pathOrUrl);
+    Q_INVOKABLE QVariantMap importOtFiles(const QVariantList &pathsOrUrls);
+    Q_INVOKABLE QVariantMap importOtDirectory(const QString &pathOrUrl);
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role) const override;
@@ -66,6 +77,8 @@ signals:
 private:
     bool loadFile(const QString &path);
     bool saveFile();
+    QVariantMap storeImported(QVector<CreatureType> imported,
+                              const QStringList &failures);
     void setErrorString(const QString &error);
 
     QVector<CreatureType> m_creatures;

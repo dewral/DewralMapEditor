@@ -439,6 +439,65 @@ QString SprReader::outfitImageSource(const QVariantList &spriteIds,
     const QString cached = cachedDataUrl(key);
     if (!cached.isEmpty()) return cached;
 
+    const QImage composite = composeColoredOutfit(
+        spriteIds, maskSpriteIds, width, height, head, body, legs, feet);
+
+    const QString dataUrl = imageToDataUrl(composite);
+    cacheDataUrl(key, dataUrl);
+    return dataUrl;
+}
+
+QString SprReader::outfitThumbnailSource(const QVariantList &spriteIds,
+                                         const QVariantList &maskSpriteIds,
+                                         int outfitWidth, int outfitHeight,
+                                         int head, int body, int legs, int feet)
+{
+    const int width = qMax(1, outfitWidth);
+    const int height = qMax(1, outfitHeight);
+    const QString key = QStringLiteral("ot:%1:%2:%3:%4:%5:%6:%7:%8")
+        .arg(makeItemCacheKey(spriteIds, width, height, 1),
+             makeItemCacheKey(maskSpriteIds, width, height, 1))
+        .arg(head).arg(body).arg(legs).arg(feet)
+        .arg(width).arg(height);
+    const QString cached = cachedDataUrl(key);
+    if (!cached.isEmpty()) return cached;
+
+    const QImage outfit = composeColoredOutfit(
+        spriteIds, maskSpriteIds, width, height, head, body, legs, feet);
+    if (outfit.isNull()) return QString();
+
+    QRect visibleBounds;
+    for (int y = 0; y < outfit.height(); ++y) {
+        const QRgb *line = reinterpret_cast<const QRgb *>(outfit.constScanLine(y));
+        for (int x = 0; x < outfit.width(); ++x) {
+            if (qAlpha(line[x]) == 0) continue;
+            const QRect pixel(x, y, 1, 1);
+            visibleBounds = visibleBounds.isNull()
+                ? pixel : visibleBounds.united(pixel);
+        }
+    }
+
+    QImage centered(outfit.size(), QImage::Format_ARGB32);
+    centered.fill(Qt::transparent);
+    QPainter painter(&centered);
+    const QPoint targetCenter(centered.width() / 2, centered.height() / 2);
+    const QPoint sourceCenter = visibleBounds.isNull()
+        ? targetCenter : visibleBounds.center();
+    painter.drawImage(targetCenter - sourceCenter, outfit);
+    painter.end();
+
+    const QString dataUrl = imageToDataUrl(centered);
+    cacheDataUrl(key, dataUrl);
+    return dataUrl;
+}
+
+QImage SprReader::composeColoredOutfit(const QVariantList &spriteIds,
+                                       const QVariantList &maskSpriteIds,
+                                       int outfitWidth, int outfitHeight,
+                                       int head, int body, int legs, int feet)
+{
+    const int width = qMax(1, outfitWidth);
+    const int height = qMax(1, outfitHeight);
     QImage composite = composeItemImage(spriteIds, width, height, 1)
                            .convertToFormat(QImage::Format_ARGB32);
     QImage mask = composeItemImage(maskSpriteIds, width, height, 1)
@@ -479,9 +538,7 @@ QString SprReader::outfitImageSource(const QVariantList &spriteIds,
         }
     }
 
-    const QString dataUrl = imageToDataUrl(composite);
-    cacheDataUrl(key, dataUrl);
-    return dataUrl;
+    return composite;
 }
 
 QImage SprReader::composeItemImage(const QVariantList &spriteIds,

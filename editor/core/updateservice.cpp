@@ -117,9 +117,8 @@ void UpdateService::checkForUpdates(const QString &channel, bool silent)
     if (busy())
         return;
 
-    const bool developmentBuild = currentChannel() == QStringLiteral("development");
-    m_requestedChannel = developmentBuild || channel == QStringLiteral("development")
-        ? QStringLiteral("development") : QStringLiteral("stable");
+    Q_UNUSED(channel);
+    m_requestedChannel = QStringLiteral("stable");
     m_silent = silent;
     m_cancelled = false;
 
@@ -138,9 +137,9 @@ void UpdateService::checkForUpdates(const QString &channel, bool silent)
 
 void UpdateService::requestRelease(const QString &channel)
 {
-    const QString endpoint = channel == QStringLiteral("development")
-        ? QStringLiteral("%1/releases/tags/nightly").arg(QLatin1String(kRepositoryApi))
-        : QStringLiteral("%1/releases/latest").arg(QLatin1String(kRepositoryApi));
+    Q_UNUSED(channel);
+    const QString endpoint = QStringLiteral("%1/releases/tags/1.0")
+                                 .arg(QLatin1String(kRepositoryApi));
     startRequest(QUrl(endpoint), [this](QByteArray payload) { processRelease(payload); });
 }
 
@@ -278,16 +277,13 @@ void UpdateService::applyReleaseData(const QString &version, const QString &comm
 
 bool UpdateService::isNewer(const QString &version, const QString &commit) const
 {
-    if (m_requestedChannel == QStringLiteral("development")) {
-        const QString current = currentCommit();
-        if (!commit.isEmpty() && current != QStringLiteral("unknown"))
-            return !commit.startsWith(current) && !current.startsWith(commit);
-        return !version.isEmpty() && version != currentVersion();
-    }
+    const QString installedCommit = currentCommit();
+    if (!commit.isEmpty() && installedCommit != QStringLiteral("unknown"))
+        return !commit.startsWith(installedCommit) && !installedCommit.startsWith(commit);
 
     const QVersionNumber latest = QVersionNumber::fromString(normalizedVersion(version));
-    const QVersionNumber current = QVersionNumber::fromString(normalizedVersion(currentVersion()));
-    return !latest.isNull() && QVersionNumber::compare(latest, current) > 0;
+    const QVersionNumber installed = QVersionNumber::fromString(normalizedVersion(currentVersion()));
+    return !latest.isNull() && QVersionNumber::compare(latest, installed) > 0;
 }
 
 void UpdateService::downloadAndInstall()

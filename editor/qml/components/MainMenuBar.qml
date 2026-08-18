@@ -610,22 +610,6 @@ DmeMenuBar {
             }
         }
 
-        DmeMenu {
-            title: "Update Channel"
-            DmeMenuItem {
-                text: "Stable"
-                checkable: true
-                checked: menuBar.settings.updateChannel === "stable"
-                onTriggered: menuBar.settings.updateChannel = "stable"
-            }
-            DmeMenuItem {
-                text: "Development (nightly)"
-                checkable: true
-                checked: menuBar.settings.updateChannel === "development"
-                onTriggered: menuBar.settings.updateChannel = "development"
-            }
-        }
-
         DmeMenuItem {
             text: "Check automatically"
             checkable: true

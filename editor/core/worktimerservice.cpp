@@ -409,6 +409,37 @@ bool WorkTimerService::removeSession(const QString &id)
     return false;
 }
 
+bool WorkTimerService::removeTaskTimer(const QString &task)
+{
+    clearError();
+    const QString normalized = task.trimmed();
+    if (normalized.isEmpty()) return false;
+
+    const bool removedActive = active() && taskName() == normalized;
+    if (removedActive) {
+        m_active = {};
+        m_state = QStringLiteral("stopped");
+        m_accumulatedMs = 0;
+        m_sessionOperations = 0;
+        m_sessionTiles = 0;
+        m_pomodoroBreakActive = false;
+    }
+
+    qsizetype removed = 0;
+    for (qsizetype i = m_sessions.size(); i-- > 0;) {
+        if (m_sessions[i].value(QStringLiteral("task")).toString() != normalized) continue;
+        m_sessions.removeAt(i);
+        ++removed;
+    }
+    if (removed == 0 && !removedActive) return false;
+
+    save();
+    emit historyChanged();
+    emit timerChanged();
+    emit statisticsChanged();
+    return true;
+}
+
 QString WorkTimerService::storagePath() const
 {
     return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)

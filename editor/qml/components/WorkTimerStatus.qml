@@ -12,6 +12,8 @@ Item {
     property color foreground: "#C9D1D9"
     property color accent: "#3FB950"
     property var selectedSession: null
+    property string pendingTimerRemoval: ""
+    property bool showTimerDetails: false
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
     readonly property color panelColor: grayTheme ? "#1A1A1A" : "#0F141B"
     readonly property color cardColor: grayTheme ? "#242424" : "#151B23"
@@ -187,8 +189,8 @@ Item {
 
     Popup {
         id: panel
-        width: 500
-        height: 548
+        width: 470
+        height: (root.showTimerDetails || stack.currentIndex === 1) ? 548 : 442
         x: Math.min(0, root.width - width)
         y: -height - 8
         padding: 0
@@ -245,13 +247,26 @@ Item {
                         font.bold: true
                         font.letterSpacing: 0.6
                     }
-                    DmeTextField {
-                        id: taskField
+                    Row {
                         width: parent.width
-                        placeholderText: Backend.workTimer.active
-                                         ? "Enter another timer name..."
-                                         : "What are you working on?"
-                        onAccepted: root.begin()
+                        spacing: 8
+                        DmeTextField {
+                            id: taskField
+                            width: parent.width - createTimerButton.width - parent.spacing
+                            placeholderText: Backend.workTimer.active
+                                             ? "New task name..."
+                                             : "What are you working on?"
+                            onAccepted: root.begin()
+                        }
+                        DmeButton {
+                            id: createTimerButton
+                            width: 86
+                            text: Backend.workTimer.active ? "Switch" : "Start"
+                            variant: "primary"
+                            enabled: taskField.text.trim().length > 0
+                                     && Backend.docMgr.currentDocumentId.length > 0
+                            onClicked: root.begin()
+                        }
                     }
                     Text { text: "TASK TIMERS"; color: root.mutedText; font.pixelSize: 10; font.bold: true; font.letterSpacing: 0.6 }
                     DmePanel {
@@ -272,15 +287,26 @@ Item {
                                 border.width: modelData.active ? 1 : 0
                                 border.color: root.accent
                                 Row {
-                                    anchors { fill: parent; leftMargin: 7; rightMargin: 7 }
+                                    anchors { fill: parent; leftMargin: 7; rightMargin: 4 }
                                     spacing: 7
                                     Text { anchors.verticalCenter: parent.verticalCenter; text: modelData.running ? "Ⅱ" : "▶︎"; color: root.accent; font.pixelSize: 11; font.bold: true }
-                                    Text { anchors.verticalCenter: parent.verticalCenter; width: parent.width - 92; text: modelData.name; color: root.strongText; font.pixelSize: 12; font.bold: modelData.active; elide: Text.ElideRight }
-                                    Text { anchors.verticalCenter: parent.verticalCenter; width: 70; horizontalAlignment: Text.AlignRight; text: modelData.durationText; color: modelData.active ? root.strongText : root.mutedText; font.pixelSize: 11; font.family: "Consolas" }
+                                    Text { anchors.verticalCenter: parent.verticalCenter; width: parent.width - 122; text: modelData.name; color: root.strongText; font.pixelSize: 12; font.bold: modelData.active; elide: Text.ElideRight }
+                                    Text { anchors.verticalCenter: parent.verticalCenter; width: 66; horizontalAlignment: Text.AlignRight; text: modelData.durationText; color: modelData.active ? root.strongText : root.mutedText; font.pixelSize: 11; font.family: "Consolas" }
+                                    DmeButton {
+                                        width: 28
+                                        height: 28
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "×"
+                                        variant: "danger"
+                                        onClicked: {
+                                            root.pendingTimerRemoval = modelData.name
+                                            removeTimerConfirm.open()
+                                        }
+                                    }
                                 }
                                 MouseArea {
                                     id: timerMouse
-                                    anchors.fill: parent
+                                    anchors { left: parent.left; top: parent.top; bottom: parent.bottom; right: parent.right; rightMargin: 38 }
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: Backend.workTimer.switchTask(modelData.name)
@@ -301,33 +327,34 @@ Item {
                     }
                     DmePanel {
                         width: parent.width
-                        height: 118
+                        height: 100
                         Column {
                             anchors { fill: parent; margins: 9 }
-                            spacing: 4
-                            Text { width: parent.width; horizontalAlignment: Text.AlignHCenter; text: Backend.workTimer.taskElapsedText; color: root.strongText; font.pixelSize: 32; font.weight: Font.DemiBold; font.family: "Consolas" }
-                            Text { text: Backend.workTimer.mapName || "No active map"; color: root.mutedText; width: parent.width; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideMiddle }
+                            spacing: 3
+                            Text { width: parent.width; horizontalAlignment: Text.AlignHCenter; text: Backend.workTimer.taskElapsedText; color: root.strongText; font.pixelSize: 28; font.weight: Font.DemiBold; font.family: "Consolas" }
+                            Text { text: (Backend.workTimer.active ? Backend.workTimer.taskName + "  ·  " : "") + (Backend.workTimer.mapName || "No active map"); color: root.mutedText; width: parent.width; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideMiddle }
                             Row {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 spacing: 8
-                                DmeButton { width: 96; visible: !Backend.workTimer.active; text: "Start"; variant: "primary"; enabled: taskField.text.trim().length > 0 && Backend.docMgr.currentDocumentId.length > 0; onClicked: root.begin() }
-                                DmeButton { width: 104; visible: Backend.workTimer.active; text: "New timer"; variant: taskField.text.trim().length > 0 ? "primary" : "default"; enabled: taskField.text.trim().length > 0; onClicked: root.begin() }
                                 DmeButton { width: 82; visible: Backend.workTimer.running; text: "Pause"; variant: "primary"; onClicked: Backend.workTimer.pauseSession() }
                                 DmeButton { width: 82; visible: Backend.workTimer.active && !Backend.workTimer.running; text: "Resume"; variant: "primary"; onClicked: Backend.workTimer.resumeSession() }
                                 DmeButton { width: 104; visible: Backend.workTimer.active; text: "Finish task"; variant: "danger"; onClicked: Backend.workTimer.finishSession(noteField.text) }
+                                DmeButton { width: 82; text: root.showTimerDetails ? "Less" : "Details"; onClicked: root.showTimerDetails = !root.showTimerDetails }
                             }
                         }
                     }
                     Row {
+                        visible: root.showTimerDetails
                         spacing: 8
                         DmeCheckBox { text: "Session checkpoints"; checked: Backend.workTimer.checkpointEnabled; onClicked: Backend.workTimer.checkpointEnabled = !checked }
                         Text { anchors.verticalCenter: parent.verticalCenter; text: "Break reminder"; color: root.mutedText; font.pixelSize: 11 }
                         DmeSpinBox { width: 70; from: 0; to: 480; value: Backend.workTimer.breakReminderMinutes; onValueModified: Backend.workTimer.breakReminderMinutes = value }
                         Text { anchors.verticalCenter: parent.verticalCenter; text: "min"; color: root.mutedText; font.pixelSize: 11 }
                     }
-                    DmeTextField { id: noteField; width: parent.width; visible: Backend.workTimer.active; placeholderText: "Optional session note" }
-                    Text { text: "SESSION SUMMARY"; color: root.mutedText; font.pixelSize: 10; font.bold: true; font.letterSpacing: 0.6 }
+                    DmeTextField { id: noteField; width: parent.width; visible: root.showTimerDetails && Backend.workTimer.active; placeholderText: "Optional session note" }
+                    Text { visible: root.showTimerDetails; text: "SESSION SUMMARY"; color: root.mutedText; font.pixelSize: 10; font.bold: true; font.letterSpacing: 0.6 }
                     DmePanel {
+                        visible: root.showTimerDetails
                         width: parent.width
                         height: 82
                         Grid {
@@ -342,6 +369,7 @@ Item {
                         }
                     }
                     Row {
+                        visible: root.showTimerDetails
                         spacing: 8
                         DmeCheckBox {
                             text: "Idle-Pause"
@@ -430,6 +458,17 @@ Item {
                     }
                 }
             }
+        }
+    }
+
+    DmeConfirmDialog {
+        id: removeTimerConfirm
+        title: "Delete timer"
+        message: "Delete timer \"" + root.pendingTimerRemoval
+                 + "\", including its current run and recorded sessions?"
+        onAccepted: {
+            Backend.workTimer.removeTaskTimer(root.pendingTimerRemoval)
+            root.pendingTimerRemoval = ""
         }
     }
 

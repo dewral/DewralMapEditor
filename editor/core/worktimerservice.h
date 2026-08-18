@@ -88,6 +88,7 @@ public:
     Q_INVOKABLE bool updateSession(const QString &id, const QString &task,
                                    const QString &note, qint64 durationSeconds);
     Q_INVOKABLE bool removeSession(const QString &id);
+    Q_INVOKABLE bool removeTaskTimer(const QString &task);
     Q_INVOKABLE bool exportCsv(const QUrl &fileUrl);
     Q_INVOKABLE bool exportJson(const QUrl &fileUrl);
     Q_INVOKABLE QString formatDuration(qint64 seconds) const;

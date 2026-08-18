@@ -113,15 +113,16 @@ Rectangle {
         mapCtrl.useGroundBrush(displayedServerId);
     }
 
-    function selectCreature(name) {
+    function selectCreature(name, isNpc) {
         if (!name || name.length === 0)
             return;
         revealRequested();
         clearPaletteSearch();
         paletteCol.selectKind("Creature Palette");
-        mapCtrl.creatureBrush = name;
+        paletteCol.creatureFilterType = isNpc ? "npc" : "monster";
+        mapCtrl.selectCreatureBrush(name, isNpc === true);
         Qt.callLater(function () {
-            creatureList.positionCreature(name);
+            creatureList.positionCreature(name, isNpc === true);
         });
     }
 
@@ -192,9 +193,10 @@ Rectangle {
 
         property var kinds: ["Recent", "Favorites", "All Items", "Terrain Palette", "Doodad Palette", "Collection Palette", "Door Palette", "Item Palette", "RAW Palette", "Creature Palette", "House Palette", "My Palettes"]
         property bool creatureMode: currentKind === "Creature Palette"
+        property string creatureFilterType: "all"
         property bool houseMode: currentKind === "House Palette"
         property string currentKind: kindCombo.currentText
-        property int displayedCount: creatureMode ? Backend.creatureStore.count
+        property int displayedCount: creatureMode ? creatureList.count
                                                   : (houseMode ? houseCol.houses.length
                                                                : (currentKind === "Doodad Palette"
                                                                   ? doodadGrid.count : grid.count))
@@ -437,7 +439,8 @@ Rectangle {
                     height: parent.height
                     leftPadding: 38
                     rightPadding: 12
-                    placeholderText: "Search items..."
+                    placeholderText: paletteCol.creatureMode
+                                     ? "Search creatures..." : "Search items..."
                     placeholderTextColor: paletteRoot.grayUi ? "#8A8A8A" : "#768390"
                     color: paletteRoot.grayUi ? "#E8E8E8" : "#E6EDF3"
                     selectionColor: paletteRoot.grayUi ? "#C79A3B" : "#2EA043"
@@ -517,7 +520,7 @@ Rectangle {
                         if (paletteCol.showSub)
                             return paletteCol.subNames;
                         if (paletteCol.creatureMode)
-                            return ["All creatures"];
+                            return ["All creatures", "Monsters", "NPCs"];
                         if (paletteCol.houseMode)
                             return ["All houses"];
                         return ["All categories"];
@@ -527,9 +530,13 @@ Rectangle {
                             return 0;
                         if (paletteCol.currentKind === "RAW Palette")
                             return subCombo.currentIndex + 1;
+                        if (paletteCol.creatureMode)
+                            return paletteCol.creatureFilterType === "monster" ? 1
+                                   : (paletteCol.creatureFilterType === "npc" ? 2 : 0);
                         return paletteCol.showSub ? subCombo.currentIndex : 0;
                     }
-                    enabled: paletteCol.currentKind === "All Items" || paletteCol.showSub
+                    enabled: paletteCol.currentKind === "All Items"
+                             || paletteCol.showSub || paletteCol.creatureMode
                     onActivated: index => {
                         if (paletteCol.currentKind === "RAW Palette" || paletteCol.currentKind === "All Items") {
                             if (index === 0) {
@@ -540,6 +547,9 @@ Rectangle {
                                     subCombo.currentIndex = index - 1;
                                 });
                             }
+                        } else if (paletteCol.creatureMode) {
+                            paletteCol.creatureFilterType = index === 1
+                                    ? "monster" : (index === 2 ? "npc" : "all");
                         } else if (paletteCol.showSub) {
                             subCombo.currentIndex = index;
                         }
@@ -580,19 +590,29 @@ Rectangle {
             }
 
             Text {
-                visible: paletteCol.showSub
-                text: paletteCol.currentKind === "My Palettes" ? "Palette" : "Tileset"
+                visible: paletteCol.showSub || paletteCol.creatureMode
+                text: paletteCol.creatureMode ? "Type"
+                      : (paletteCol.currentKind === "My Palettes" ? "Palette" : "Tileset")
                 color: "#7fdc8f"
                 font.pixelSize: 10
                 font.bold: true
             }
             DmeComboBox {
                 id: subCombo
-                visible: paletteCol.showSub
+                visible: paletteCol.showSub || paletteCol.creatureMode
                 width: parent.width
                 height: 23
-                model: paletteCol.subNames
-                currentIndex: 0
+                model: paletteCol.creatureMode
+                       ? ["All creatures", "Monsters", "NPCs"] : paletteCol.subNames
+                currentIndex: paletteCol.creatureMode
+                              ? (paletteCol.creatureFilterType === "monster" ? 1
+                                 : (paletteCol.creatureFilterType === "npc" ? 2 : 0))
+                              : 0
+                onActivated: index => {
+                    if (paletteCol.creatureMode)
+                        paletteCol.creatureFilterType = index === 1
+                                ? "monster" : (index === 2 ? "npc" : "all");
+                }
                 onModelChanged: {
                     if (currentIndex >= model.length)
                         currentIndex = 0;
@@ -644,6 +664,8 @@ Rectangle {
                 app: paletteRoot.app
                 mapCtrl: paletteRoot.mapCtrl
                 githubUi: paletteRoot.githubUi
+                searchText: paletteFilter.searchText
+                filterMode: paletteCol.creatureFilterType
             }
 
             HousePaletteView {

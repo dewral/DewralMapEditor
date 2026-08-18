@@ -190,9 +190,23 @@ void MapView::paintFootprint(int x, int y)
 
 void MapView::setCreatureBrush(const QString &name)
 {
+    bool isNpc = false;
+    if (!name.isEmpty() && m_creatureStore) {
+        if (const auto *creature = m_creatureStore->byName(name))
+            isNpc = creature->isNpc;
+    }
+    selectCreatureBrush(name, isNpc);
+}
+
+void MapView::selectCreatureBrush(const QString &name, bool isNpc)
+{
     if (!name.isEmpty() && m_pathBuilder.active()) cancelPathBuilder();
-    if (m_brushController.creatureBrush() == name) return;
+    if (m_brushController.creatureBrush() == name
+        && (name.isEmpty() || m_brushController.creatureBrushIsNpc() == isNpc)) {
+        return;
+    }
     m_brushController.creatureBrush() = name;
+    m_brushController.creatureBrushIsNpc() = !name.isEmpty() && isNpc;
     if (!name.isEmpty()) {
 
         applyBrushServerId(0, false);
@@ -201,7 +215,7 @@ void MapView::setCreatureBrush(const QString &name)
         if (m_editController.activeZone() != 0) { m_editController.activeZone() = 0; emit activeZoneChanged(); }
 
         if (m_creatureStore && m_dat) {
-            if (const auto *ct = m_creatureStore->byName(name)) {
+            if (const auto *ct = m_creatureStore->byNameAndType(name, isNpc)) {
                 std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
                 ensureCreatureSprites(*ct);
             }
@@ -335,7 +349,9 @@ void MapView::placeSpawnAt(int x, int y)
 void MapView::placeCreatureBrushAt(int x, int y)
 {
     if (!m_creatureStore) return;
-    const CreatureStore::CreatureType *ct = m_creatureStore->byName(m_brushController.creatureBrush());
+    const CreatureStore::CreatureType *ct = m_creatureStore->byNameAndType(
+        m_brushController.creatureBrush(),
+        m_brushController.creatureBrushIsNpc());
     if (!ct) return;
 
     const quint64 pk = posKey(x, y);

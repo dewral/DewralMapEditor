@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import Tibia 1.0
@@ -9,16 +11,26 @@ Column {
     required property var app
     required property var mapCtrl
     required property bool githubUi
+    required property string searchText
+    required property string filterMode
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
+    readonly property int count: creatureGrid.count
 
     spacing: 4
 
-    function positionCreature(name) {
-        const row = Backend.creatureStore.rowForName(name);
+    function positionCreature(name, isNpc) {
+        const row = creatureFilter.rowForCreature(name, isNpc);
         if (row >= 0) {
             creatureGrid.currentIndex = row;
             creatureGrid.positionViewAtIndex(row, GridView.Center);
         }
+    }
+
+    CreatureFilter {
+        id: creatureFilter
+        sourceModel: Backend.creatureStore
+        searchText: root.searchText
+        typeFilter: root.filterMode
     }
 
     onVisibleChanged: {
@@ -44,7 +56,7 @@ Column {
 
         Text {
             id: spawntimeLabel
-            text: "Spawntime"
+            text: "Spawn time (s)"
             color: "#999"
             font.pixelSize: 11
             width: 80
@@ -94,11 +106,13 @@ Column {
             clip: true
             cellWidth: root.app.iconSizePx
             cellHeight: root.app.iconSizePx + 14
-            model: Backend.creatureStore
+            model: creatureFilter
 
             onCellWidthChanged: positionViewAtBeginning()
 
             delegate: Rectangle {
+                id: creatureDelegate
+
                 required property string name
                 required property bool isNpc
                 required property int lookType
@@ -107,6 +121,7 @@ Column {
                 width: creatureGrid.cellWidth - 2
                 height: creatureGrid.cellHeight - 2
                 property bool isBrush: root.mapCtrl.creatureBrush === name
+                                       && root.mapCtrl.creatureBrushIsNpc === isNpc
                 color: isBrush
                        ? (root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
                        : (root.githubUi
@@ -129,16 +144,16 @@ Column {
                         cache: false
                         fillMode: Image.PreserveAspectFit
                         source: {
-                            const preview = lookType > 0
-                                    ? Backend.datReader.outfitPreview(lookType)
-                                    : Backend.datReader.itemPreview(lookItem);
+                            const preview = creatureDelegate.lookType > 0
+                                    ? Backend.datReader.outfitPreview(creatureDelegate.lookType)
+                                    : Backend.datReader.itemPreview(creatureDelegate.lookItem);
                             return preview.ids !== undefined && preview.ids.length > 0
                                     ? Backend.sprReader.itemImageSource(preview.ids, preview.width,
                                                                       preview.height, 1) : "";
                         }
                     }
                     Text {
-                        text: name
+                        text: creatureDelegate.name
                         color: root.grayUi ? "#999999" : (root.githubUi ? "#A7B1BC" : "#c0c0c0")
                         font.pixelSize: 10
                         width: creatureGrid.cellWidth - 8
@@ -154,17 +169,39 @@ Column {
                     cursorShape: Qt.PointingHandCursor
                     ToolTip.visible: !root.githubUi && containsMouse
                     ToolTip.delay: 550
-                    ToolTip.text: name + (isNpc ? "  (NPC)" : "")
+                    ToolTip.text: creatureDelegate.name
+                                  + (creatureDelegate.isNpc ? "  (NPC)" : "")
 
                     GithubToolTip {
                         targetItem: creatureMouseArea
                         targetHovered: root.githubUi && creatureMouseArea.containsMouse
-                        message: name + (isNpc ? "  (NPC)" : "")
+                        message: creatureDelegate.name
+                                 + (creatureDelegate.isNpc ? "  (NPC)" : "")
                     }
 
-                    onClicked: root.mapCtrl.creatureBrush = isBrush ? "" : name
+                    onClicked: {
+                        if (creatureDelegate.isBrush)
+                            root.mapCtrl.selectCreatureBrush("", false);
+                        else
+                            root.mapCtrl.selectCreatureBrush(
+                                        creatureDelegate.name,
+                                        creatureDelegate.isNpc);
+                    }
                 }
             }
+        }
+
+        Text {
+            anchors.centerIn: parent
+            visible: creatureGrid.count === 0
+            width: parent.width - 30
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.WordWrap
+            text: root.filterMode === "npc"
+                  ? "No NPCs loaded. Import NPC XML files from Tools > Monster and NPC Manager."
+                  : "No creatures match the current filter."
+            color: root.grayUi ? "#929292" : "#8B949E"
+            font.pixelSize: 11
         }
 
         DmeScrollBar {

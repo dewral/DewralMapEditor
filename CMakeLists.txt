@@ -86,6 +86,8 @@ add_executable(DewralMapEditor
     editor/core/documentmanager.h
     editor/core/creaturestore.cpp
     editor/core/creaturestore.h
+    editor/core/creaturefilter.cpp
+    editor/core/creaturefilter.h
     editor/core/updateservice.cpp
     editor/core/updateservice.h
     editor/core/worktimerservice.cpp
@@ -151,6 +153,7 @@ qt_add_qml_module(DewralMapEditor
         editor/core/brushstore.h
         editor/core/uitheme.h
         editor/core/creaturestore.h
+        editor/core/creaturefilter.h
         editor/core/updateservice.h
         editor/core/worktimerservice.h
         libs/otformats/sprreader.h
@@ -220,10 +223,17 @@ if(BUILD_TESTING)
         libs/otformats editor/core)
     target_link_libraries(document_recovery_test PRIVATE OTFormats Qt6::Core)
     add_test(NAME document_recovery COMMAND document_recovery_test)
+    add_executable(creature_store_test EXCLUDE_FROM_ALL
+        tests/creature_store_test.cpp
+        editor/core/creaturestore.cpp)
+    target_include_directories(creature_store_test PRIVATE
+        libs/otformats editor/core)
+    target_link_libraries(creature_store_test PRIVATE Qt6::Core)
+    add_test(NAME creature_store COMMAND creature_store_test)
     if(WIN32)
         set_tests_properties(otbm_compact_storage otbm_editing_storage
                              otbm_background_load atlas_background_build map_path_builder
-                             document_recovery PROPERTIES
+                             document_recovery creature_store PROPERTIES
             ENVIRONMENT_MODIFICATION
                 "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
     endif()

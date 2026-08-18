@@ -9,7 +9,9 @@ DmeDialog {
     property var mapCtrl: null
     property var containerDialog: null
 
-    title: "Item Properties"
+    title: hasCreature
+           ? "Creature & Spawn Properties"
+           : (hasSpawn ? "Spawn Properties" : "Item Properties")
     width: 500
 
     ListModel {
@@ -20,6 +22,7 @@ DmeDialog {
     readonly property bool isWritable: ctx.writable === true
     readonly property bool hasCreature: ctx.creatureName !== undefined && ctx.creatureName !== ""
     readonly property bool hasSpawn: ctx.spawnRadius !== undefined && ctx.spawnRadius > 0
+    readonly property int spawnCreatureCount: ctx.spawnCreatureCount || 0
     readonly property bool isContainer: ctx.groupName === "Container"
                                         || (ctx.childCount !== undefined && ctx.childCount > 0)
 
@@ -40,6 +43,8 @@ DmeDialog {
         teleY.value = ctx.teleportY > 0 ? ctx.teleportY : 0;
         teleZ.value = ctx.teleportZ > 0 ? ctx.teleportZ : 0;
         spawntimeField.value = ctx.creatureSpawntime > 0 ? ctx.creatureSpawntime : 60;
+        areaSpawntimeField.value = ctx.spawnCreatureSpawntime > 0
+                ? ctx.spawnCreatureSpawntime : 60;
         radiusField.value = ctx.spawnRadius > 0 ? ctx.spawnRadius : 1;
         attributeModel.clear();
         const attributes = ctx.customAttributes || [];
@@ -96,6 +101,8 @@ DmeDialog {
 
         if (mapCtrl && hasCreature)
             mapCtrl.setContextCreatureSpawntime(spawntimeField.value);
+        if (mapCtrl && hasSpawn && !hasCreature && spawnCreatureCount > 0)
+            mapCtrl.setContextSpawnCreatureSpawntime(areaSpawntimeField.value);
         if (mapCtrl && hasSpawn)
             mapCtrl.setContextSpawnRadius(radiusField.value);
         propsDialog.close();
@@ -267,7 +274,7 @@ DmeDialog {
 
             Text {
                 visible: propsDialog.hasCreature
-                text: "Spawntime (" + (propsDialog.ctx.creatureName || "") + ")"
+                text: "Spawn time - " + (propsDialog.ctx.creatureName || "")
                 color: "#999"
                 font.pixelSize: 11
             }
@@ -279,6 +286,57 @@ DmeDialog {
                     from: 1
                     to: 86400
                 }
+                Text {
+                    text: "seconds"
+                    color: "#999"
+                    font.pixelSize: 11
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+            Text {
+                visible: propsDialog.hasSpawn && !propsDialog.hasCreature
+                text: propsDialog.spawnCreatureCount > 0
+                      ? "Spawn time for all creatures in this area"
+                      : "Spawn time is stored per creature"
+                color: "#999"
+                font.pixelSize: 11
+            }
+            Row {
+                visible: propsDialog.hasSpawn && !propsDialog.hasCreature
+                         && propsDialog.spawnCreatureCount > 0
+                spacing: 6
+                DmeSpinBox {
+                    id: areaSpawntimeField
+                    width: 100
+                    from: 1
+                    to: 86400
+                }
+                Text {
+                    text: "seconds  (" + propsDialog.spawnCreatureCount
+                          + (propsDialog.spawnCreatureCount === 1
+                             ? " creature)" : " creatures)")
+                    color: "#999"
+                    font.pixelSize: 11
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+            Text {
+                visible: propsDialog.hasSpawn && !propsDialog.hasCreature
+                         && propsDialog.ctx.spawnCreatureSpawntimeMixed === true
+                text: "Creatures currently use different spawn times. Applying will make them equal."
+                color: "#D29922"
+                font.pixelSize: 10
+                wrapMode: Text.WordWrap
+                width: 456
+            }
+            Text {
+                visible: propsDialog.hasSpawn && !propsDialog.hasCreature
+                         && propsDialog.spawnCreatureCount === 0
+                text: "This area is empty. Set the time in the Creatures palette before placing a creature."
+                color: "#777"
+                font.pixelSize: 10
+                wrapMode: Text.WordWrap
+                width: 456
             }
             Text {
                 visible: propsDialog.hasSpawn

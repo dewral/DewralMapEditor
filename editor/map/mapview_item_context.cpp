@@ -219,8 +219,34 @@ QVariantMap MapView::contextInfo() const
     m.insert(QStringLiteral("selectionCount"), m_selectionController.selected().size());
     m.insert(QStringLiteral("creatureName"),
              tile ? tile->creature_name.value() : QString());
+    m.insert(QStringLiteral("creatureIsNpc"), tile && tile->creature_is_npc);
     m.insert(QStringLiteral("creatureSpawntime"), tile ? tile->creature_spawntime : 0);
     m.insert(QStringLiteral("spawnRadius"), tile ? tile->spawn_radius : 0);
+    int spawnCreatureCount = 0;
+    int spawnCreatureSpawntime = 0;
+    bool spawnCreatureSpawntimeMixed = false;
+    if (tile && tile->spawn_radius > 0) {
+        const int radius = tile->spawn_radius;
+        for (int dy = -radius; dy <= radius; ++dy) {
+            for (int dx = -radius; dx <= radius; ++dx) {
+                const OtbmTile *creatureTile = currentFloorTileAt(
+                    m_itemController.contextX() + dx,
+                    m_itemController.contextY() + dy);
+                if (!creatureTile || creatureTile->creature_name.isEmpty()) continue;
+                ++spawnCreatureCount;
+                if (spawnCreatureSpawntime == 0) {
+                    spawnCreatureSpawntime = creatureTile->creature_spawntime;
+                } else if (spawnCreatureSpawntime
+                           != creatureTile->creature_spawntime) {
+                    spawnCreatureSpawntimeMixed = true;
+                }
+            }
+        }
+    }
+    m.insert(QStringLiteral("spawnCreatureCount"), spawnCreatureCount);
+    m.insert(QStringLiteral("spawnCreatureSpawntime"), spawnCreatureSpawntime);
+    m.insert(QStringLiteral("spawnCreatureSpawntimeMixed"),
+             spawnCreatureSpawntimeMixed);
     m.insert(QStringLiteral("houseId"), tile ? static_cast<int>(tile->house_id) : 0);
     return m;
 }

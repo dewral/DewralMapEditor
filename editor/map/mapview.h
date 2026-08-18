@@ -74,6 +74,7 @@ class MapView : public QQuickItem
     Q_PROPERTY(QString doodadBrush READ doodadBrush NOTIFY brushChanged)
 
     Q_PROPERTY(QString creatureBrush READ creatureBrush WRITE setCreatureBrush NOTIFY brushChanged)
+    Q_PROPERTY(bool creatureBrushIsNpc READ creatureBrushIsNpc NOTIFY brushChanged)
     Q_PROPERTY(bool spawnBrush READ spawnBrush WRITE setSpawnBrush NOTIFY brushChanged)
     Q_PROPERTY(int creatureSpawntime READ creatureSpawntime WRITE setCreatureSpawntime NOTIFY brushChanged)
     Q_PROPERTY(int spawnBrushRadius READ spawnBrushRadius WRITE setSpawnBrushRadius NOTIFY brushChanged)
@@ -162,7 +163,9 @@ public:
     }
 
     QString creatureBrush() const { return m_brushController.creatureBrush(); }
+    bool creatureBrushIsNpc() const { return m_brushController.creatureBrushIsNpc(); }
     void setCreatureBrush(const QString &name);
+    Q_INVOKABLE void selectCreatureBrush(const QString &name, bool isNpc);
     bool spawnBrush() const { return m_brushController.spawnBrush(); }
     void setSpawnBrush(bool on);
     int creatureSpawntime() const { return m_brushController.creatureSpawntime(); }
@@ -503,6 +506,8 @@ public:
     Q_INVOKABLE bool setContextItemCount(int count);
 
     Q_INVOKABLE bool setContextCreatureSpawntime(int seconds);
+
+    Q_INVOKABLE bool setContextSpawnCreatureSpawntime(int seconds);
 
     Q_INVOKABLE bool setContextSpawnRadius(int radius);
 

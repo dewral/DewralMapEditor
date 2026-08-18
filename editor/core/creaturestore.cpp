@@ -94,11 +94,34 @@ const CreatureStore::CreatureType *CreatureStore::byName(const QString &name) co
     return nullptr;
 }
 
+const CreatureStore::CreatureType *CreatureStore::byNameAndType(
+    const QString &name, bool isNpc) const
+{
+    for (const CreatureType &creature : m_creatures) {
+        if (creature.isNpc == isNpc
+            && creature.name.compare(name, Qt::CaseInsensitive) == 0) {
+            return &creature;
+        }
+    }
+    return nullptr;
+}
+
 int CreatureStore::rowForName(const QString &name) const
 {
     for (int row = 0; row < m_creatures.size(); ++row)
         if (m_creatures[row].name.compare(name, Qt::CaseInsensitive) == 0)
             return row;
+    return -1;
+}
+
+int CreatureStore::rowForCreature(const QString &name, bool isNpc) const
+{
+    for (int row = 0; row < m_creatures.size(); ++row) {
+        if (m_creatures[row].isNpc == isNpc
+            && m_creatures[row].name.compare(name, Qt::CaseInsensitive) == 0) {
+            return row;
+        }
+    }
     return -1;
 }
 
@@ -307,12 +330,16 @@ QVariantMap CreatureStore::importOtFile(const QString &pathOrUrl)
 
     QVector<CreatureType> imported;
     QStringList failures;
-    if (xml.name().compare(QLatin1String("monsters"),
-                           Qt::CaseInsensitive) == 0) {
+    const bool monsterIndex = xml.name().compare(
+        QLatin1String("monsters"), Qt::CaseInsensitive) == 0;
+    const bool npcIndex = xml.name().compare(
+        QLatin1String("npcs"), Qt::CaseInsensitive) == 0;
+    if (monsterIndex || npcIndex) {
         const QDir directory = QFileInfo(path).dir();
         while (xml.readNextStartElement()) {
-            if (xml.name().compare(QLatin1String("monster"),
-                                   Qt::CaseInsensitive) != 0) {
+            const QStringView expectedTag = npcIndex
+                ? QStringView(u"npc") : QStringView(u"monster");
+            if (xml.name().compare(expectedTag, Qt::CaseInsensitive) != 0) {
                 xml.skipCurrentElement();
                 continue;
             }
@@ -327,6 +354,7 @@ QVariantMap CreatureStore::importOtFile(const QString &pathOrUrl)
             if (readCreatureDefinition(directory.filePath(relative),
                                        creature, &error)) {
                 if (creature.name.isEmpty()) creature.name = listedName;
+                if (npcIndex) creature.isNpc = true;
                 imported.append(creature);
             } else {
                 failures.append(QStringLiteral("%1: %2").arg(relative, error));

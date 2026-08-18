@@ -145,6 +145,7 @@ quint64 MapView::glPointerOverlayVersion() const
     mix(qHash(m_brushController.wallBrush()));
     mix(qHash(m_brushController.doodadBrush()));
     mix(qHash(m_brushController.creatureBrush()));
+    mix(static_cast<quint64>(m_brushController.creatureBrushIsNpc()));
 
     quint64 flags = 0;
     flags |= static_cast<quint64>(m_editController.selectionMode()) << 1;
@@ -998,7 +999,9 @@ void MapView::glCollectGhostInstances(std::vector<float> &out)
         && !m_brushController.creatureBrush().isEmpty()
         && m_creatureStore) {
         const CreatureStore::CreatureType *creature =
-            m_creatureStore->byName(m_brushController.creatureBrush());
+            m_creatureStore->byNameAndType(
+                m_brushController.creatureBrush(),
+                m_brushController.creatureBrushIsNpc());
         const bool isOutfit = creature && creature->lookType > 0;
         const ClientItem *outfit = isOutfit
             ? m_dat->outfitByLookType(static_cast<uint16_t>(creature->lookType))

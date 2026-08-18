@@ -108,6 +108,8 @@ public:
     int doodadVariant() const { return m_doodadVariant; }
     QString &creatureBrush() { return m_creatureBrush; }
     const QString &creatureBrush() const { return m_creatureBrush; }
+    bool &creatureBrushIsNpc() { return m_creatureBrushIsNpc; }
+    bool creatureBrushIsNpc() const { return m_creatureBrushIsNpc; }
     bool &spawnBrush() { return m_spawnBrush; }
     bool spawnBrush() const { return m_spawnBrush; }
     int &creatureSpawntime() { return m_creatureSpawntime; }
@@ -141,6 +143,7 @@ private:
     int m_doorBrushId = 0;
     int m_doodadVariant = -1;
     QString m_creatureBrush;
+    bool m_creatureBrushIsNpc = false;
     bool m_spawnBrush = false;
     int m_creatureSpawntime = 60;
     int m_spawnRadius = 3;

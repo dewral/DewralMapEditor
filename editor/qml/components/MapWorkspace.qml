@@ -280,7 +280,9 @@ Item {
                 text: "Select Creature"
                 visible: mapArea.ctx.creatureName !== ""
                 height: visible ? implicitHeight : 0
-                onTriggered: workspace.paletteNavigator.selectCreature(mapArea.ctx.creatureName)
+                onTriggered: workspace.paletteNavigator.selectCreature(
+                                 mapArea.ctx.creatureName,
+                                 mapArea.ctx.creatureIsNpc === true)
             }
             DmeMenuItem {
                 text: "Select House"
@@ -310,7 +312,11 @@ Item {
                 onTriggered: mapView.switchContextDoor()
             }
             Action {
-                text: "Properties"
+                text: mapArea.ctx.creatureName !== ""
+                      ? "Creature properties - " + mapArea.ctx.creatureSpawntime + " s"
+                      : (mapArea.ctx.spawnRadius > 0
+                         ? "Spawn properties"
+                         : "Properties")
                 enabled: mapArea.ctx.hasItem || mapArea.ctx.creatureName !== "" || mapArea.ctx.spawnRadius > 0
                 onTriggered: workspace.propertiesDialog.open()
             }

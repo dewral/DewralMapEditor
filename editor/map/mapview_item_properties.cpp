@@ -57,7 +57,53 @@ bool MapView::setContextCreatureSpawntime(int seconds)
 
         changed = m_otbm->setCreatureAt(m_itemController.contextX(), m_itemController.contextY(), m_navigationController.floor(),
                                         t->creature_name, seconds, t->creature_is_npc);
+        if (changed) {
+            onTileEdited(m_itemController.contextX(),
+                         m_itemController.contextY(),
+                         m_navigationController.floor());
+            flushEditedChunksLocked();
+        }
     }
+    if (changed) refreshAfterEdit(0);
+    return changed;
+}
+
+bool MapView::setContextSpawnCreatureSpawntime(int seconds)
+{
+    if (!m_otbm) return false;
+    seconds = std::clamp(seconds, 1, 86400);
+    bool changed = false;
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+        const int centerX = m_itemController.contextX();
+        const int centerY = m_itemController.contextY();
+        const int floor = m_navigationController.floor();
+        const OtbmTile *center = currentFloorTileAt(centerX, centerY);
+        if (!center || center->spawn_radius <= 0) return false;
+        const int radius = center->spawn_radius;
+
+        m_otbm->beginUndoGroup();
+        for (int dy = -radius; dy <= radius; ++dy) {
+            for (int dx = -radius; dx <= radius; ++dx) {
+                const int x = centerX + dx;
+                const int y = centerY + dy;
+                const OtbmTile *tile = currentFloorTileAt(x, y);
+                if (!tile || tile->creature_name.isEmpty()
+                    || tile->creature_spawntime == seconds) {
+                    continue;
+                }
+                const QString name = tile->creature_name.value();
+                const bool isNpc = tile->creature_is_npc;
+                if (m_otbm->setCreatureAt(x, y, floor, name, seconds, isNpc)) {
+                    changed = true;
+                    onTileEdited(x, y, floor);
+                }
+            }
+        }
+        m_otbm->endUndoGroup();
+        if (changed) flushEditedChunksLocked();
+    }
+    if (changed) refreshAfterEdit(0);
     return changed;
 }
 

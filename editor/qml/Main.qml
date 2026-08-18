@@ -17,6 +17,8 @@ Window {
     readonly property bool githubUi: Backend.uiTheme.style !== "classic"
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
     readonly property int topBarHeight: githubUi ? 56 : 45
+    readonly property int minimumPaletteWidth: githubUi ? 220 : 160
+    readonly property int maximumPaletteWidth: Math.floor(width * 0.5)
 
     visible: app.started
     width: 1000
@@ -331,11 +333,8 @@ Window {
         width: {
             if (prefs.paletteCollapsed)
                 return 0;
-            if (root.githubUi) {
-                const available = Math.max(220, Math.floor(root.width * 0.42));
-                return Math.max(220, Math.min(prefs.paletteWidth, 480, available));
-            }
-            return Math.max(160, Math.min(prefs.paletteWidth, root.width - 300));
+            return Math.max(root.minimumPaletteWidth,
+                            Math.min(prefs.paletteWidth, root.maximumPaletteWidth));
         }
         visible: !prefs.paletteCollapsed
         app: app
@@ -376,7 +375,8 @@ Window {
             }
             onPositionChanged: mouse => {
                 if (pressed)
-                    prefs.paletteWidth = Math.max(220, Math.min(480, root.width - 300,
+                    prefs.paletteWidth = Math.max(root.minimumPaletteWidth,
+                                                  Math.min(root.maximumPaletteWidth,
                         startWidth + (mapToItem(root.contentItem, mouse.x, 0).x - startX)));
             }
         }

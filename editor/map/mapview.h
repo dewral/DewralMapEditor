@@ -404,8 +404,6 @@ public:
     void lightRect(int &tx, int &ty, int &tw, int &th) const {
         tx = m_lightTX; ty = m_lightTY; tw = m_lightTW; th = m_lightTH;
     }
-    void glBuildEditorLightGrid(int floor, int tx, int ty, int tw, int th,
-                                std::vector<uint32_t> &out);
     void glBuildPreviewLightGrid(int firstFloor, int lastFloor,
                                  int tx, int ty, int tw, int th,
                                  qreal playerX, qreal playerY, int playerZ,
@@ -417,6 +415,8 @@ public:
 
     void glCollectWallOutlineInstances(std::vector<float> &out);
     void glCollectPathingInstances(std::vector<float> &out);
+    void glCollectFloorChangeInstances(std::vector<float> &outDown,
+                                       std::vector<float> &outUp);
 
     void glCollectZoneMarkInstances(std::vector<float> &outHouse,
                                     std::vector<float> &outSelectedHouse,

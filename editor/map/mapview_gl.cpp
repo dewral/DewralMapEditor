@@ -389,12 +389,6 @@ quint32 MapView::glUpdateLightGrid()
     return m_lightVersion;
 }
 
-void MapView::glBuildEditorLightGrid(int floor, int tx, int ty, int tw, int th,
-                                     std::vector<uint32_t> &out)
-{
-    buildLightGrid(floor, tx, ty, tw, th, out);
-}
-
 void MapView::glBuildPreviewLightGrid(int firstFloor, int lastFloor,
                                       int tx, int ty, int tw, int th,
                                       qreal playerX, qreal playerY, int playerZ,
@@ -598,6 +592,59 @@ void MapView::glCollectGridInstances(std::vector<float> &out)
         out.insert(out.end(), { x0 + i * 32.0f, y0, thick, hpx });
     for (int j = 0; j <= th; ++j)
         out.insert(out.end(), { x0, y0 + j * 32.0f, wpx, thick });
+}
+
+void MapView::glCollectFloorChangeInstances(std::vector<float> &outDown,
+                                            std::vector<float> &outUp)
+{
+    outDown.clear();
+    outUp.clear();
+    if (!m_otbm || m_navigationController.tileSize() < 4) return;
+
+    const double tileSize = std::max(1, m_navigationController.tileSize());
+    const int padding = overlayPadding(tileSize);
+    const int minX = overlayAnchor(m_navigationController.originX()) - padding;
+    const int minY = overlayAnchor(m_navigationController.originY()) - padding;
+    const int maxX = minX + static_cast<int>(std::ceil(width() / tileSize))
+                   + kOverlayCacheTiles + padding * 2;
+    const int maxY = minY + static_cast<int>(std::ceil(height() / tileSize))
+                   + kOverlayCacheTiles + padding * 2;
+
+    const auto &tileIndex = m_chunkStore.tiles();
+    auto floorIt = tileIndex.constFind(m_navigationController.floor());
+    if (floorIt == tileIndex.cend()) return;
+
+    const int minChunkX = floorDiv(minX, kChunkTiles);
+    const int minChunkY = floorDiv(minY, kChunkTiles);
+    const int maxChunkX = floorDiv(maxX, kChunkTiles);
+    const int maxChunkY = floorDiv(maxY, kChunkTiles);
+    for (int chunkY = minChunkY; chunkY <= maxChunkY; ++chunkY) {
+        for (int chunkX = minChunkX; chunkX <= maxChunkX; ++chunkX) {
+            auto chunkIt = floorIt->constFind(chunkKey(chunkX, chunkY));
+            if (chunkIt == floorIt->cend()) continue;
+            for (const OtbmTile *tile : chunkIt.value()) {
+                if (!tile || tile->x < minX || tile->x > maxX
+                    || tile->y < minY || tile->y > maxY) {
+                    continue;
+                }
+
+                bool floorDown = false;
+                bool floorUp = false;
+                for (const OtbmMapItem &item : tile->items) {
+                    floorDown = floorDown || item.server_id == 459;
+                    floorUp = floorUp || item.server_id == 460;
+                    if (floorDown && floorUp) break;
+                }
+
+                const std::initializer_list<float> rectangle = {
+                    tile->x * float(kSprite), tile->y * float(kSprite),
+                    float(kSprite), float(kSprite)
+                };
+                if (floorDown) outDown.insert(outDown.end(), rectangle);
+                if (floorUp) outUp.insert(outUp.end(), rectangle);
+            }
+        }
+    }
 }
 
 void MapView::glCollectWallOutlineInstances(std::vector<float> &out)

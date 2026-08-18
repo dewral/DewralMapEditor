@@ -53,6 +53,8 @@ public:
         m_spawnSelVbo.destroy();
         m_wallOutlineVbo.destroy();
         m_pathingVbo.destroy();
+        m_floorDownVbo.destroy();
+        m_floorUpVbo.destroy();
         if (m_tex) glDeleteTextures(1, &m_tex);
         for (auto &light : m_floorLights)
             if (light.texture) glDeleteTextures(1, &light.texture);
@@ -342,8 +344,7 @@ public:
         for (int z = 0; z < 16; ++z) {
             FloorLight &light = m_floorLights[z];
             const bool floorEnabled = lightingEnabled && ts >= 4
-                                   && (m_previewWindow ? z == m_curFloor
-                                                       : z >= m_curFloor && z <= m_botFloor);
+                                   && z == m_curFloor;
             if (!floorEnabled) {
                 if (light.enabled) {
                     light.enabled = false;
@@ -352,9 +353,12 @@ public:
                 continue;
             }
 
-            const int floorOffset = m_previewWindow ? 0 : z - m_curFloor;
-            const int tx = static_cast<int>(std::floor(ox)) - 1 - floorOffset;
-            const int ty = static_cast<int>(std::floor(oy)) - 1 - floorOffset;
+            // The light grid is expressed in the projected coordinate space
+            // shared by every visible floor. Building one composite grid also
+            // lets lower-floor lights pass through holes exactly where their
+            // sprites are rendered.
+            const int tx = static_cast<int>(std::floor(ox)) - 1;
+            const int ty = static_cast<int>(std::floor(oy)) - 1;
             quint64 key = contentVersion;
             const auto mixLightKey = [&key](quint64 value) {
                 key ^= value + 0x9e3779b97f4a7c15ull + (key << 6) + (key >> 2);
@@ -365,8 +369,8 @@ public:
             mixLightKey(static_cast<quint32>(lightTW));
             mixLightKey(static_cast<quint32>(lightTH));
             mixLightKey(static_cast<quint32>(ambientLevel));
+            mixLightKey(static_cast<quint32>(m_botFloor));
             if (m_previewWindow) {
-                mixLightKey(static_cast<quint32>(m_botFloor));
                 // Creature lights in OTClient follow the pixel walk offset.
                 // Quantizing to 1/32 tile gives the same pixel precision while
                 // keeping an exact and stable cache key at rest.
@@ -384,15 +388,12 @@ public:
                 light.ty = ty;
                 light.tw = lightTW;
                 light.th = lightTH;
-                if (m_previewWindow) {
-                    src->glBuildPreviewLightGrid(
-                        m_curFloor, m_botFloor, tx, ty, lightTW, lightTH,
-                        view->previewCenterX(), view->previewCenterY(),
-                        cameraFloor, ambientLevel, light.pixels);
-                } else {
-                    src->glBuildEditorLightGrid(z, tx, ty, lightTW, lightTH,
-                                                light.pixels);
-                }
+                src->glBuildPreviewLightGrid(
+                    m_curFloor, m_botFloor, tx, ty, lightTW, lightTH,
+                    m_previewWindow ? view->previewCenterX() : 0.0,
+                    m_previewWindow ? view->previewCenterY() : 0.0,
+                    m_previewWindow ? cameraFloor : -1,
+                    ambientLevel, light.pixels);
                 light.upload = true;
                 light.enabled = true;
                 ++m_lightVer;
@@ -428,6 +429,10 @@ public:
 
             src->glCollectPathingInstances(m_pathingInst);
             uploadDyn(m_pathingVbo, m_pathingInst, m_pathingCount);
+
+            src->glCollectFloorChangeInstances(m_floorDownInst, m_floorUpInst);
+            uploadDyn(m_floorDownVbo, m_floorDownInst, m_floorDownCount);
+            uploadDyn(m_floorUpVbo, m_floorUpInst, m_floorUpCount);
         }
 
         if (!m_previewWindow && rebuildMetadataOverlays) {
@@ -688,7 +693,7 @@ public:
                 return;
             }
 
-            FloorLight &light = m_floorLights[m_previewWindow ? m_curFloor : z];
+            FloorLight &light = m_floorLights[m_curFloor];
             if (!light.enabled || light.tw <= 0 || light.th <= 0 || light.pixels.empty()) {
                 m_prog->setUniformValue("uLightEnabled", false);
                 return;
@@ -817,6 +822,10 @@ public:
         drawSpawnMarks(m_gridVbo, m_gridCount, QVector4D(0.0f, 0.0f, 0.0f, 0.35f));
         drawSpawnMarks(m_pathingVbo, m_pathingCount,
                        QVector4D(0.95f, 0.18f, 0.16f, 0.24f));
+        drawSpawnMarks(m_floorDownVbo, m_floorDownCount,
+                       QVector4D(1.0f, 0.84f, 0.12f, 0.42f));
+        drawSpawnMarks(m_floorUpVbo, m_floorUpCount,
+                       QVector4D(0.22f, 0.86f, 0.30f, 0.42f));
         drawSpawnMarks(m_wallOutlineVbo, m_wallOutlineCount,
                        QVector4D(1.0f, 0.92f, 0.0f, 1.0f));
         drawSpawnMarks(m_spawnVbo, m_spawnCount, QVector4D(0.72f, 0.35f, 0.86f, 0.45f));
@@ -1215,6 +1224,12 @@ private:
     QOpenGLBuffer m_pathingVbo;
     std::vector<float> m_pathingInst;
     int m_pathingCount = 0;
+    QOpenGLBuffer m_floorDownVbo;
+    std::vector<float> m_floorDownInst;
+    int m_floorDownCount = 0;
+    QOpenGLBuffer m_floorUpVbo;
+    std::vector<float> m_floorUpInst;
+    int m_floorUpCount = 0;
 
     QOpenGLBuffer m_zoneHouseVbo;
     std::vector<float> m_zoneHouseInst;

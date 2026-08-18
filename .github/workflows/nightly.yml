@@ -60,6 +60,8 @@ jobs:
         run: |
           $archive = Get-Item "release/DewralMapEditor-windows-x64.zip"
           $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive.FullName).Hash.ToLowerInvariant()
+          $sourceArchive = Get-Item "release/DewralMapEditor-source.zip"
+          $sourceHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $sourceArchive.FullName).Hash.ToLowerInvariant()
           $cmake = Get-Content "CMakeLists.txt" -Raw
           if ($cmake -notmatch 'project\(DewralMapEditor VERSION ([0-9]+\.[0-9]+\.[0-9]+)') {
             throw "The DME version could not be read from CMakeLists.txt."
@@ -80,7 +82,10 @@ jobs:
             notes = "Current Dewral Map Editor build from commit $($env:COMMIT_SHA.Substring(0, 12))."
           }
           $manifest | ConvertTo-Json | Set-Content -Encoding utf8NoBOM "release/update-manifest.json"
-          "$hash  DewralMapEditor-windows-x64.zip" | Set-Content -Encoding ascii "release/SHA256SUMS.txt"
+          @(
+            "$hash  DewralMapEditor-windows-x64.zip"
+            "$sourceHash  DewralMapEditor-source.zip"
+          ) | Set-Content -Encoding ascii "release/SHA256SUMS.txt"
           "RELEASE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Update the main release
@@ -90,6 +95,7 @@ jobs:
         run: |
           $assets = @(
             "release/DewralMapEditor-windows-x64.zip",
+            "release/DewralMapEditor-source.zip",
             "release/update-manifest.json",
             "release/SHA256SUMS.txt"
           )

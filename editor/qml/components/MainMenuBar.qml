@@ -33,6 +33,7 @@ DmeMenuBar {
     required property var borderizeConfirm
     required property var randomizeConfirm
     required property var updateDialog
+    required property var aboutDialog
     property int menuLeftInset: 4
     property int menuVerticalOffset: -4
 
@@ -632,6 +633,11 @@ DmeMenuBar {
             checked: menuBar.settings.checkUpdatesAutomatically
             onTriggered: menuBar.settings.checkUpdatesAutomatically =
                          !menuBar.settings.checkUpdatesAutomatically
+        }
+        MenuSeparator {}
+        Action {
+            text: "About"
+            onTriggered: menuBar.aboutDialog.open()
         }
     }
 

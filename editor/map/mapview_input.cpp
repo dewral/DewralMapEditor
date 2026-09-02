@@ -471,7 +471,7 @@ void MapView::wheelEvent(QWheelEvent *event)
     }
 
     if (event->modifiers() & Qt::ControlModifier) {
-        setFloor(m_navigationController.floor() - steps);
+        setFloor(m_navigationController.floor() + steps);
     } else if (event->modifiers() & Qt::AltModifier) {
 
         static constexpr int kSizes[] = {0, 1, 2, 4, 6, 8, 11};

@@ -54,6 +54,7 @@
         <file alias="qml/dialogs/BrushEditorDialog.qml">qml/dialogs/BrushEditorDialog.qml</file>
         <file alias="qml/dialogs/AiMapAssistantDialog.qml">qml/dialogs/AiMapAssistantDialog.qml</file>
         <file alias="qml/dialogs/UpdateDialog.qml">qml/dialogs/UpdateDialog.qml</file>
+        <file alias="qml/dialogs/AboutDialog.qml">qml/dialogs/AboutDialog.qml</file>
         <file alias="qml/style/GithubToolTip.qml">qml/style/GithubToolTip.qml</file>
         <file alias="qml/style/GithubIcon.qml">qml/style/GithubIcon.qml</file>
         <file alias="qml/style/GithubWindowButton.qml">qml/style/GithubWindowButton.qml</file>

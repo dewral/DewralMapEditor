@@ -129,6 +129,18 @@ add_executable(DewralMapEditor
     editor/resources.qrc
 )
 
+# The sponsor logo is supplied separately. When present, embed it at the stable
+# qrc URL used by AboutDialog.qml without making a missing optional image break
+# development builds.
+set(DME_SPONSOR_IMAGE "${CMAKE_SOURCE_DIR}/editor/ui/Midhem.png")
+if(EXISTS "${DME_SPONSOR_IMAGE}")
+    set_source_files_properties("${DME_SPONSOR_IMAGE}" PROPERTIES
+        QT_RESOURCE_ALIAS "ui/Midhem.png")
+    qt_add_resources(DewralMapEditor dme_sponsor_assets
+        PREFIX "/"
+        FILES "${DME_SPONSOR_IMAGE}")
+endif()
+
 if(WIN32)
     enable_language(RC)
     target_sources(DewralMapEditor PRIVATE editor/windows/DME.rc)

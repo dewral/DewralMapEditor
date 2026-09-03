@@ -433,11 +433,15 @@ bool OtbReader::isClientGroundForServerId(int serverId) const
     const auto it = m_serverIdToRow.constFind(static_cast<uint16_t>(serverId));
     if (it == m_serverIdToRow.cend()) return false;
     const OtbItem &item = m_items[static_cast<size_t>(it.value())];
+    // The server-side OTB group is authoritative for map placement. Custom
+    // clients can deliberately use a DAT appearance without the ground flag
+    // for an item that is still a ground in items.otb.
+    if (item.group == static_cast<uint8_t>(OtbItemGroup::Ground)) return true;
     if (m_datReader) {
         if (const ClientItem *clientItem = m_datReader->itemByClientId(item.client_id))
             return clientItem->is_ground;
     }
-    return item.group == static_cast<uint8_t>(OtbItemGroup::Ground);
+    return false;
 }
 
 bool OtbReader::isTeleportItem(int serverId) const

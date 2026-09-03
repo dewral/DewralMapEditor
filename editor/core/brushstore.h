@@ -23,6 +23,7 @@ public:
 
     Q_INVOKABLE QStringList groundBrushNames() const;
     Q_INVOKABLE QStringList wallBrushNames() const;
+    Q_INVOKABLE QStringList doodadBrushNames() const;
     int revision() const { return m_revision; }
 
     Q_INVOKABLE QStringList prefabPaletteNames() const;
@@ -41,7 +42,8 @@ public:
 
     Q_INVOKABLE bool saveGroundBrush(const QString &name, int zorder,
                                      const QVariantList &items,
-                                     const QVariantList &borderBlocks);
+                                     const QVariantList &borderBlocks,
+                                     const QVariantList &optionalTiles);
     Q_INVOKABLE void deleteGroundBrush(const QString &name);
 
     Q_INVOKABLE QVariantList wallBrushEdit(const QString &name) const;
@@ -61,14 +63,20 @@ public:
     Q_INVOKABLE bool hasData() const { return !m_grounds.isEmpty(); }
 
     QString groundBrushForServerId(int serverId) const { return m_groundByServerId.value(serverId); }
+    QHash<int, QString> groundBrushAssignments() const { return m_groundByServerId; }
+    Q_INVOKABLE QStringList searchAliasesForServerId(int serverId) const;
     Q_INVOKABLE bool isGroundBrushItem(int serverId) const { return m_groundByServerId.contains(serverId); }
     Q_INVOKABLE bool isGroundBrush(const QString &name) const { return m_grounds.contains(name); }
+    bool groundBrushHasOptional(const QString &name) const;
 
     int pickGroundItem(const QString &name) const;
 
     bool isManagedBorderItem(int serverId) const { return m_borderItemIds.contains(serverId); }
+    bool isOptionalBorderItem(int serverId) const { return m_optionalBorderItemIds.contains(serverId); }
 
-    QVector<int> computeBorderItems(const QString &center, const QStringList &neighbours8) const;
+
+    QVector<int> computeBorderItems(const QString &center, const QStringList &neighbours8,
+                                    bool tileHasOptional) const;
 
     Q_INVOKABLE bool hasWallData() const { return !m_walls.isEmpty(); }
 
@@ -87,6 +95,7 @@ public:
 
     Q_INVOKABLE bool hasDoodadData() const { return !m_doodads.isEmpty(); }
     QString doodadBrushForServerId(int serverId) const { return m_doodadByServerId.value(serverId); }
+    QHash<int, QString> doodadBrushAssignments() const { return m_doodadByServerId; }
     Q_INVOKABLE bool isDoodadBrushItem(int serverId) const { return m_doodadByServerId.contains(serverId); }
     Q_INVOKABLE bool isDoodadBrush(const QString &name) const { return m_doodads.contains(name); }
 
@@ -173,6 +182,8 @@ private:
     QHash<QString, GroundDef> m_grounds;
     QHash<int, QString> m_groundByServerId;
     QSet<int> m_borderItemIds;
+    QSet<int> m_optionalBorderItemIds;
+    QHash<int, QStringList> m_borderBrushAliases;
 
     QHash<QString, WallDef> m_walls;
     QHash<int, QString> m_wallByServerId;

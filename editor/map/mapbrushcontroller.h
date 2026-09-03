@@ -48,6 +48,8 @@ public:
         m_lastY = InvalidCoordinate;
         m_placed.clear();
         m_borderTiles.clear();
+        m_houseDoorIds.clear();
+        m_houseDoorIdsInitialized = false;
     }
 
     void finishStroke()
@@ -58,6 +60,8 @@ public:
         m_lastY = InvalidCoordinate;
         m_placed.clear();
         m_borderTiles.clear();
+        m_houseDoorIds.clear();
+        m_houseDoorIdsInitialized = false;
     }
 
     bool painting() const { return m_painting; }
@@ -120,6 +124,8 @@ public:
     int houseBrush() const { return m_houseBrush; }
     bool &houseExitMode() { return m_houseExitMode; }
     bool houseExitMode() const { return m_houseExitMode; }
+    QSet<int> &houseDoorIds() { return m_houseDoorIds; }
+    bool &houseDoorIdsInitialized() { return m_houseDoorIdsInitialized; }
     bool &automagic() { return m_automagic; }
     bool automagic() const { return m_automagic; }
     bool &optionalBorderBrush() { return m_optionalBorderBrush; }
@@ -151,6 +157,8 @@ private:
     int m_spawnRadius = 3;
     int m_houseBrush = 0;
     bool m_houseExitMode = false;
+    QSet<int> m_houseDoorIds;
+    bool m_houseDoorIdsInitialized = false;
     bool m_automagic = true;
     bool m_optionalBorderBrush = false;
 };

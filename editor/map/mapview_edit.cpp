@@ -251,6 +251,8 @@ MapView::~MapView()
 {
     m_queryCancel.store(true, std::memory_order_relaxed);
     if (m_queryFuture.isRunning()) m_queryFuture.waitForFinished();
+    m_terrainLearningCancel.store(true, std::memory_order_relaxed);
+    if (m_terrainLearningFuture.isRunning()) m_terrainLearningFuture.waitForFinished();
     m_lifetimeToken.reset();
     m_atlasBuildGeneration.fetch_add(1, std::memory_order_acq_rel);
     if (m_mapLoadCancel) m_mapLoadCancel->store(true, std::memory_order_release);
@@ -368,10 +370,10 @@ void MapView::endEditBatch()
 
 int MapView::itemCategory(uint16_t serverId) const
 {
+    if (m_otb && m_otb->isClientGroundForServerId(serverId)) return 0;
     const int cid = m_otb ? m_otb->clientIdForServerId(serverId) : 0;
     const ClientItem *ci = (m_dat && cid > 0) ? m_dat->itemByClientId(static_cast<uint16_t>(cid)) : nullptr;
     if (!ci) return 2;
-    if (ci->is_ground) return 0;
     if (ci->is_on_bottom) return 1;
     return 2;
 }

@@ -114,7 +114,8 @@ void MapView::appendItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out,
         const int w = std::max<int>(1, ci->width);
         const int h = std::max<int>(1, ci->height);
         const int layers = std::max<int>(1, ci->layers);
-        const bool isGround = ci->is_ground;
+        const bool isGround = item.is_ground
+                           || m_otb->isClientGroundForServerId(item.server_id);
 
         const bool isTop = (idx == topIdx) && tile->creature_name.isEmpty();
 
@@ -212,7 +213,8 @@ void MapView::appendTopItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out
                     topQuads.push_back(QuadRef{
                         (tile->x - ww) * kSprite - ox - elev,
                         (tile->y - hh) * kSprite - oy - elev,
-                        as, ci->is_ground });
+                        as, item.is_ground
+                            || m_otb->isClientGroundForServerId(item.server_id) });
                 }
     }
 

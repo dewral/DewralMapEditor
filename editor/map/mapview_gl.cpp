@@ -458,7 +458,10 @@ void MapView::glBuildPreviewLightGrid(int firstFloor, int lastFloor,
                         const ClientItem *client = clientId > 0
                             ? m_dat->itemByClientId(static_cast<uint16_t>(clientId))
                             : nullptr;
-                        if (client && client->is_ground && !client->is_translucent) {
+                        if (client
+                            && (item.is_ground
+                                || m_otb->isClientGroundForServerId(item.server_id))
+                            && !client->is_translucent) {
                             lightStarts[static_cast<size_t>(screenY - ty) * tw
                                         + (screenX - tx)] = floorLightStart;
                             break;
@@ -592,6 +595,41 @@ void MapView::glCollectGridInstances(std::vector<float> &out)
         out.insert(out.end(), { x0 + i * 32.0f, y0, thick, hpx });
     for (int j = 0; j <= th; ++j)
         out.insert(out.end(), { x0, y0 + j * 32.0f, wpx, thick });
+}
+
+bool MapView::glCollectLassoLineVertices(std::vector<float> &out) const
+{
+    out.clear();
+    const QVector<QPoint> &points = m_selectionController.lassoPoints();
+    if (!m_selectionController.lassoing() || points.size() < 2) return false;
+
+    auto appendDashedSegment = [&out](const QPoint &from, const QPoint &to) {
+        const double x0 = (from.x() + 0.5) * kSprite;
+        const double y0 = (from.y() + 0.5) * kSprite;
+        const double x1 = (to.x() + 0.5) * kSprite;
+        const double y1 = (to.y() + 0.5) * kSprite;
+        const double dx = x1 - x0;
+        const double dy = y1 - y0;
+        const double length = std::hypot(dx, dy);
+        if (length < 0.001) return;
+        constexpr double dashLength = 9.0;
+        constexpr double gapLength = 7.0;
+        for (double distance = 0.0; distance < length;
+             distance += dashLength + gapLength) {
+            const double end = std::min(length, distance + dashLength);
+            const double startRatio = distance / length;
+            const double endRatio = end / length;
+            out.push_back(static_cast<float>(x0 + dx * startRatio));
+            out.push_back(static_cast<float>(y0 + dy * startRatio));
+            out.push_back(static_cast<float>(x0 + dx * endRatio));
+            out.push_back(static_cast<float>(y0 + dy * endRatio));
+        }
+    };
+
+    for (qsizetype i = 1; i < points.size(); ++i)
+        appendDashedSegment(points[i - 1], points[i]);
+    appendDashedSegment(points.back(), points.front());
+    return !out.empty();
 }
 
 void MapView::glCollectFloorChangeInstances(std::vector<float> &outDown,
@@ -919,7 +957,8 @@ void MapView::glCollectBrushCursorInstances(std::vector<float> &out,
     if (m_selectionController.moving() || m_selectionController.selecting() || m_editController.selectionMode()
         || m_selectionController.pasting() || m_hoverX < 0) return;
     if (m_brushController.serverId() <= 0 && m_editController.activeZone() == 0 && !m_editController.eraseMode()
-        && !m_brushController.spawnBrush() && m_brushController.creatureBrush().isEmpty() && m_brushController.houseBrush() <= 0) return;
+        && !m_brushController.optionalBorderBrush() && !m_brushController.spawnBrush()
+        && m_brushController.creatureBrush().isEmpty() && m_brushController.houseBrush() <= 0) return;
 
     if (!m_brushController.doodadBrush().isEmpty()) return;
 

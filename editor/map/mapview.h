@@ -33,6 +33,9 @@
 #include "creaturestore.h"
 #include "mapservices.h"
 #include "mappathbuilder.h"
+#include "mapterraingenerator.h"
+#include "mapterrainprofile.h"
+#include "mapdungeongenerator.h"
 
 class QTimer;
 
@@ -66,6 +69,7 @@ class MapView : public QQuickItem
     Q_PROPERTY(bool pasting READ pasting NOTIFY pastingChanged)
 
     Q_PROPERTY(bool automagic READ automagic WRITE setAutomagic NOTIFY automagicChanged)
+    Q_PROPERTY(bool optionalBorderMode READ optionalBorderMode WRITE setOptionalBorderMode NOTIFY optionalBorderModeChanged)
     Q_PROPERTY(QString hoverText READ hoverText NOTIFY hoverChanged)
     Q_PROPERTY(int hoverX READ hoverX NOTIFY hoverChanged)
     Q_PROPERTY(int hoverY READ hoverY NOTIFY hoverChanged)
@@ -103,6 +107,7 @@ class MapView : public QQuickItem
     Q_PROPERTY(bool compensatedSelect READ compensatedSelect WRITE setCompensatedSelect NOTIFY selectionOptionsChanged)
 
     Q_PROPERTY(bool selectionMode READ selectionMode WRITE setSelectionMode NOTIFY selectionModeChanged)
+    Q_PROPERTY(bool lassoMode READ lassoMode WRITE setLassoMode NOTIFY lassoModeChanged)
 
     Q_PROPERTY(int activeZone READ activeZone WRITE setActiveZone NOTIFY activeZoneChanged)
 
@@ -110,6 +115,12 @@ class MapView : public QQuickItem
     Q_PROPERTY(bool pathBuilderActive READ pathBuilderActive NOTIFY pathBuilderChanged)
     Q_PROPERTY(bool pathBuilderDrawing READ pathBuilderDrawing NOTIFY pathBuilderChanged)
     Q_PROPERTY(int pathPreviewCount READ pathPreviewCount NOTIFY pathBuilderChanged)
+    Q_PROPERTY(bool terrainPreviewActive READ terrainPreviewActive NOTIFY terrainGeneratorChanged)
+    Q_PROPERTY(int terrainPreviewCount READ terrainPreviewCount NOTIFY terrainGeneratorChanged)
+    Q_PROPERTY(bool terrainLearningBusy READ terrainLearningBusy NOTIFY terrainLearningChanged)
+    Q_PROPERTY(bool dungeonPreviewActive READ dungeonPreviewActive NOTIFY dungeonGeneratorChanged)
+    Q_PROPERTY(int dungeonPreviewCount READ dungeonPreviewCount NOTIFY dungeonGeneratorChanged)
+    Q_PROPERTY(QString activeGroundBrush READ activeGroundBrush NOTIFY brushChanged)
 
 public:
     explicit MapView(QQuickItem *parent = nullptr);
@@ -133,19 +144,33 @@ public:
     QString doodadBrush() const { return m_brushController.doodadBrush(); }
     bool selectionMode() const { return m_editController.selectionMode(); }
     void setSelectionMode(bool on);
+    bool lassoMode() const { return m_selectionController.lassoMode(); }
+    void setLassoMode(bool on);
     int activeZone() const { return static_cast<int>(m_editController.activeZone()); }
     void setActiveZone(int zone);
     bool eraseMode() const { return m_editController.eraseMode(); }
     bool pathBuilderActive() const { return m_pathBuilder.active(); }
     bool pathBuilderDrawing() const { return m_pathBuilder.drawing(); }
     int pathPreviewCount() const { return m_pathBuilder.placements().size(); }
-
+    bool terrainPreviewActive() const { return !m_terrainPreview.isEmpty(); }
+    int terrainPreviewCount() const { return m_terrainPreview.size(); }
+    bool terrainLearningBusy() const { return m_terrainLearningBusy; }
+    bool dungeonPreviewActive() const { return !m_dungeonPreview.isEmpty(); }
+    int dungeonPreviewCount() const { return m_dungeonPreview.size(); }
     void setEraseMode(bool on);
-    Q_INVOKABLE void toggleSelectionMode() { setSelectionMode(!m_editController.selectionMode()); }
+    Q_INVOKABLE void toggleSelectionMode() {
+        if (m_editController.selectionMode()) {
+            setSelectionMode(false);
+        } else {
+            setLassoMode(false);
+            setSelectionMode(true);
+        }
+    }
 
     void setBrushServerId(int serverId) { applyBrushServerId(serverId, false); }
 
     Q_INVOKABLE void useGroundBrush(int serverId) { applyBrushServerId(serverId, true); }
+    Q_INVOKABLE bool useGroundBrushName(const QString &name);
     Q_INVOKABLE void useDoodadBrush(const QString &name);
 
     Q_INVOKABLE void setBrushStore(BrushStore *bs) { m_brushController.store() = bs; }
@@ -417,6 +442,16 @@ public:
     void glCollectPathingInstances(std::vector<float> &out);
     void glCollectFloorChangeInstances(std::vector<float> &outDown,
                                        std::vector<float> &outUp);
+    void glCollectTerrainPreviewInstances(std::vector<float> &outLand,
+                                          std::vector<float> &outBeach,
+                                          std::vector<float> &outWater,
+                                          std::vector<float> &outMountain);
+    void glCollectTerrainSpritePreviewInstances(std::vector<float> &out);
+    void glCollectDungeonPreviewInstances(std::vector<float> &outRooms,
+                                          std::vector<float> &outCorridors,
+                                          std::vector<float> &outEntrance,
+                                          std::vector<float> &outBoss,
+                                          std::vector<float> &outWalls);
 
     void glCollectZoneMarkInstances(std::vector<float> &outHouse,
                                     std::vector<float> &outSelectedHouse,
@@ -437,7 +472,8 @@ public:
     bool glBrushRect(double &x0, double &y0, double &x1, double &y1) const {
         if (m_selectionController.moving() || m_selectionController.selecting() || m_editController.selectionMode()
             || m_hoverX < 0) return false;
-        if (m_brushController.serverId() <= 0 && m_editController.activeZone() == 0 && !m_editController.eraseMode()) return false;
+        if (m_brushController.serverId() <= 0 && m_editController.activeZone() == 0
+            && !m_editController.eraseMode() && !m_brushController.optionalBorderBrush()) return false;
         const int r = m_brushController.size();
         x0 = static_cast<double>((m_hoverX - r) * kSprite);
         y0 = static_cast<double>((m_hoverY - r) * kSprite);
@@ -537,6 +573,15 @@ public:
     Q_INVOKABLE void clearPathPreview();
     Q_INVOKABLE void cancelPathBuilder();
     Q_INVOKABLE bool commitPathPreview();
+    Q_INVOKABLE QVariantMap generateTerrainPreview(const QVariantMap &options);
+    Q_INVOKABLE QVariantMap applyTerrainPreview();
+    Q_INVOKABLE void clearTerrainPreview();
+    Q_INVOKABLE QStringList terrainProfileNames() const;
+    Q_INVOKABLE QVariantMap terrainProfile(const QString &name) const;
+    Q_INVOKABLE void learnTerrainProfile(const QString &path, const QString &name);
+    Q_INVOKABLE QVariantMap generateDungeonPreview(const QVariantMap &options);
+    Q_INVOKABLE QVariantMap applyDungeonPreview();
+    Q_INVOKABLE void clearDungeonPreview();
 
     Q_INVOKABLE void cutSelection();
 
@@ -550,6 +595,10 @@ public:
         m_brushController.automagic() = on;
         emit automagicChanged();
     }
+    bool glCollectLassoLineVertices(std::vector<float> &out) const;
+    int glLassoOperation() const { return m_selectionController.lassoOperation(); }
+    bool optionalBorderMode() const { return m_brushController.optionalBorderBrush(); }
+    void setOptionalBorderMode(bool on);
 
     void moveSelection(int dx, int dy, int dz = 0);
 
@@ -599,6 +648,7 @@ signals:
     void atlasBuildFinished(bool success, const QString &error);
     void selectionChanged();
     void selectionModeChanged();
+    void lassoModeChanged();
     void selectionOptionsChanged();
     void torchChanged();
     void showAnimationsChanged();
@@ -609,6 +659,7 @@ signals:
     void clipboardChanged();
     void pastingChanged();
     void automagicChanged();
+    void optionalBorderModeChanged();
     void hoverChanged();
     void brushChanged();
     void brushUsed(int serverId);
@@ -617,6 +668,10 @@ signals:
     void placeEffectChanged();
     void brushParamsChanged();
     void pathBuilderChanged();
+    void terrainGeneratorChanged();
+    void terrainLearningChanged();
+    void terrainProfileLearned(const QVariantMap &result);
+    void dungeonGeneratorChanged();
     void mapLoadFinished(bool success, const QString &path, const QString &error);
     void queryBusyChanged();
     void queryProgressChanged();
@@ -683,6 +738,8 @@ private:
 
     void refreshSelectionTint();
     void notifySelectionChanged() {
+        clearTerrainPreview();
+        clearDungeonPreview();
         refreshSelectionTint();
         ++m_dataVersion;
         emit selectionChanged();
@@ -720,9 +777,13 @@ private:
     void queuePointerMove(const QPointF &position, bool hoverOnly);
     void processPointerMove(const QPointF &position, bool hoverOnly);
     const OtbmTile *currentFloorTileAt(int x, int y) const;
+    bool dungeonTileProtected(int x, int y, int z) const;
     QVariantMap itemContextInfo(const OtbmMapItem &item, int index,
                                 int x, int y, int z) const;
     void applyRubberBand();
+    void appendLassoPoint(const QPoint &point);
+    void applyLassoSelection();
+    void cancelLasso();
     void updateHoverText();
     void applyBrushServerId(int serverId, bool asBrush);
     void paintAt(int x, int y);
@@ -730,8 +791,9 @@ private:
     void paintFootprint(int x, int y);
 
     void paintGroundBrushAt(int cx, int cy);
+    void paintOptionalBorderAt(int cx, int cy);
 
-    void recomputeBordersAt(int x, int y);
+    void recomputeBordersAt(int x, int y, bool force = false);
 
     void paintWallBrushAt(int cx, int cy);
 
@@ -782,6 +844,45 @@ private:
     MapNavigationController m_navigationController;
     MapItemController m_itemController;
     MapPathBuilder m_pathBuilder;
+    struct TerrainPreviewTile {
+        int x = 0;
+        int y = 0;
+        MapTerrainGenerator::Terrain terrain = MapTerrainGenerator::Terrain::Land;
+        QString brush;
+        int serverId = 0;
+    };
+    struct TerrainPreviewSprite {
+        int x = 0;
+        int y = 0;
+        int serverId = 0;
+    };
+    QVector<TerrainPreviewTile> m_terrainPreview;
+    QVector<TerrainPreviewSprite> m_terrainPreviewSprites;
+    QSet<quint64> m_terrainPreviewSelection;
+    int m_terrainPreviewFloor = -1;
+    bool m_terrainCavePreview = false;
+    bool m_terrainLearningBusy = false;
+    std::atomic_bool m_terrainLearningCancel{false};
+    QFuture<void> m_terrainLearningFuture;
+    struct DungeonPreviewTile {
+        int x = 0;
+        int y = 0;
+        MapDungeonGenerator::TileKind kind = MapDungeonGenerator::TileKind::Room;
+        QString brush;
+    };
+    QVector<DungeonPreviewTile> m_dungeonPreview;
+    struct DungeonWallPreviewTile { int x = 0; int y = 0; QString brush; };
+    QVector<DungeonWallPreviewTile> m_dungeonWallPreview;
+    struct DungeonDecorationPreview {
+        int x = 0;
+        int y = 0;
+        QString brush;
+        int variant = 0;
+    };
+    QVector<DungeonDecorationPreview> m_dungeonDecorationPreview;
+    QSet<quint64> m_dungeonPreviewSelection;
+    int m_dungeonPreviewFloor = -1;
+    bool m_dungeonProtectExisting = true;
 
     mutable std::recursive_mutex m_dataMutex;
     mutable std::atomic_bool m_queryCancel{false};
@@ -801,11 +902,14 @@ private:
     bool m_floorDirty = true;
 
     bool m_dragDraw = false;
+    bool m_spacePanHeld = false;
     int m_dragStartX = 0, m_dragStartY = 0;
     bool brushCanDrag() const;
     void drawDragRect(int x0, int y0, int x1, int y1);
 
     bool m_dragFillActive = false;
+    QSet<quint64> m_optionalBorderTiles;
+    QHash<quint64, bool> m_optionalBorderOverrides;
 
     void cleanManagedBordersAt(int x, int y);
 

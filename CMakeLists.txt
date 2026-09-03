@@ -108,6 +108,14 @@ add_executable(DewralMapEditor
     editor/map/mapview_path.cpp
     editor/map/mappathbuilder.cpp
     editor/map/mappathbuilder.h
+    editor/map/mapview_terrain.cpp
+    editor/map/mapterraingenerator.cpp
+    editor/map/mapterraingenerator.h
+    editor/map/mapterrainprofile.cpp
+    editor/map/mapterrainprofile.h
+    editor/map/mapview_dungeon.cpp
+    editor/map/mapdungeongenerator.cpp
+    editor/map/mapdungeongenerator.h
     editor/map/mapview.h
     editor/map/mapview_p.h
     editor/map/mapservices.cpp
@@ -202,6 +210,25 @@ if(BUILD_TESTING)
     target_include_directories(map_path_builder_test PRIVATE editor/map)
     target_link_libraries(map_path_builder_test PRIVATE Qt6::Core)
     add_test(NAME map_path_builder COMMAND map_path_builder_test)
+    add_executable(map_terrain_generator_test EXCLUDE_FROM_ALL
+        tests/map_terrain_generator_test.cpp
+        editor/map/mapterraingenerator.cpp)
+    target_include_directories(map_terrain_generator_test PRIVATE editor/map)
+    target_link_libraries(map_terrain_generator_test PRIVATE Qt6::Core)
+    add_test(NAME map_terrain_generator COMMAND map_terrain_generator_test)
+    add_executable(map_terrain_profile_test EXCLUDE_FROM_ALL
+        tests/map_terrain_profile_test.cpp
+        editor/map/mapterrainprofile.cpp)
+    target_include_directories(map_terrain_profile_test PRIVATE
+        editor/map libs/otformats)
+    target_link_libraries(map_terrain_profile_test PRIVATE OTFormats Qt6::Core)
+    add_test(NAME map_terrain_profile COMMAND map_terrain_profile_test)
+    add_executable(map_dungeon_generator_test EXCLUDE_FROM_ALL
+        tests/map_dungeon_generator_test.cpp
+        editor/map/mapdungeongenerator.cpp)
+    target_include_directories(map_dungeon_generator_test PRIVATE editor/map)
+    target_link_libraries(map_dungeon_generator_test PRIVATE Qt6::Core)
+    add_test(NAME map_dungeon_generator COMMAND map_dungeon_generator_test)
     add_executable(otbm_background_load_test EXCLUDE_FROM_ALL
         tests/otbm_background_load_test.cpp)
     target_include_directories(otbm_background_load_test PRIVATE libs/otformats)
@@ -233,6 +260,7 @@ if(BUILD_TESTING)
     if(WIN32)
         set_tests_properties(otbm_compact_storage otbm_editing_storage
                              otbm_background_load atlas_background_build map_path_builder
+                             map_terrain_generator map_terrain_profile map_dungeon_generator
                              document_recovery creature_store PROPERTIES
             ENVIRONMENT_MODIFICATION
                 "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")

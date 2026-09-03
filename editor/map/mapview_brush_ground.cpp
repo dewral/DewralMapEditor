@@ -46,11 +46,58 @@ QString MapView::groundBrushNameAt(int x, int y) const
     return sid > 0 ? m_brushController.store()->groundBrushForServerId(sid) : QString();
 }
 
-void MapView::recomputeBordersAt(int x, int y)
+void MapView::paintOptionalBorderAt(int cx, int cy)
+{
+    BrushStore *store = m_brushController.store();
+    if (!m_otbm || !store) return;
+
+    static const int neighbourX[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
+    static const int neighbourY[8] = { -1, -1, -1, 0, 0, 1, 1, 1 };
+
+    for (int dy = -m_brushController.size(); dy <= m_brushController.size(); ++dy) {
+        for (int dx = -m_brushController.size(); dx <= m_brushController.size(); ++dx) {
+            if (!brushCovers(dx, dy)) continue;
+            const int x = cx + dx;
+            const int y = cy + dy;
+            const quint64 position = posKey(x, y);
+            if (!m_brushController.markPlaced(position)) continue;
+
+            const quint64 key = selKey(x, y, m_navigationController.floor());
+
+            if (!m_brushController.eraseStroke()) {
+                // Match RME's OptionalBorderBrush::canDraw(): the optional flag
+                // belongs to the tile next to a brush with an optional border,
+                // never to the mountain/brush tile itself.
+                if (store->groundBrushHasOptional(groundBrushNameAt(x, y)))
+                    continue;
+
+                bool adjacentOptionalBrush = false;
+                for (int i = 0; i < 8; ++i) {
+                    if (store->groundBrushHasOptional(
+                            groundBrushNameAt(x + neighbourX[i], y + neighbourY[i]))) {
+                        adjacentOptionalBrush = true;
+                        break;
+                    }
+                }
+                if (!adjacentOptionalBrush)
+                    continue;
+
+                m_optionalBorderTiles.insert(key);
+                m_optionalBorderOverrides.insert(key, true);
+            } else {
+                m_optionalBorderTiles.remove(key);
+                m_optionalBorderOverrides.insert(key, false);
+            }
+            recomputeBordersAt(x, y, true);
+        }
+    }
+}
+
+void MapView::recomputeBordersAt(int x, int y, bool force)
 {
     if (!m_brushController.store() || !m_otbm) return;
 
-    if (!m_brushController.automagic()) return;
+    if (!force && !m_brushController.automagic()) return;
 
     const QString center = groundBrushNameAt(x, y);
 
@@ -65,14 +112,33 @@ void MapView::recomputeBordersAt(int x, int y)
     for (const QString &n : neighbours)
         if (n != center) { uniform = false; break; }
 
+    const OtbmTile *tile = currentFloorTileAt(x, y);
+    const quint64 optionalKey = selKey(x, y, m_navigationController.floor());
+    bool tileHasOptional = m_optionalBorderTiles.contains(optionalKey);
+    if (tile) {
+        for (const OtbmMapItem &it : tile->items) {
+            if (m_brushController.store()->isOptionalBorderItem(it.server_id)) {
+                tileHasOptional = true;
+                m_optionalBorderTiles.insert(optionalKey);
+                break;
+            }
+        }
+    }
+    const auto overrideIt = m_optionalBorderOverrides.constFind(optionalKey);
+    if (overrideIt != m_optionalBorderOverrides.cend()) {
+        tileHasOptional = overrideIt.value();
+        if (tileHasOptional) m_optionalBorderTiles.insert(optionalKey);
+        else m_optionalBorderTiles.remove(optionalKey);
+    }
+
     QVector<int> newBorders;
     if (!uniform) {
-        newBorders = m_brushController.store()->computeBorderItems(center, neighbours);
+        newBorders = m_brushController.store()->computeBorderItems(center, neighbours,
+                                                                    tileHasOptional);
 
         std::reverse(newBorders.begin(), newBorders.end());
     }
 
-    const OtbmTile *tile = currentFloorTileAt(x, y);
     std::vector<uint16_t> oldBorders;
     if (tile) {
         for (const OtbmMapItem &it : tile->items)
@@ -84,7 +150,10 @@ void MapView::recomputeBordersAt(int x, int y)
         std::vector<uint16_t> b;
         b.reserve(newBorders.size());
         for (int id : newBorders) b.push_back(static_cast<uint16_t>(id));
-        if (oldBorders == b) return;
+        if (oldBorders == b) {
+            m_optionalBorderOverrides.remove(optionalKey);
+            return;
+        }
     }
 
     std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
@@ -99,5 +168,6 @@ void MapView::recomputeBordersAt(int x, int y)
         ensureItemSprites(static_cast<uint16_t>(id));
         m_otbm->placeItem(x, y, m_navigationController.floor(), static_cast<uint16_t>(id), base + k, false, false);
     }
+    m_optionalBorderOverrides.remove(optionalKey);
     onTileEdited(x, y, m_navigationController.floor());
 }

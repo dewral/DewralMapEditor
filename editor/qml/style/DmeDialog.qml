@@ -4,7 +4,7 @@ import Tibia 1.0
 
 Dialog {
     id: root
-    property bool movable: false
+    property bool movable: true
     property bool floatingPositionInitialized: false
     readonly property bool modernTheme: Backend.uiTheme.style !== "classic"
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"

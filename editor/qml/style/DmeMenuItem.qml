@@ -6,6 +6,7 @@ MenuItem {
     id: control
     readonly property bool modernTheme: Backend.uiTheme.style !== "classic"
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
+                                      || Backend.uiTheme.style === "gray-modern"
     implicitHeight: 24
     padding: 0
     spacing: 0

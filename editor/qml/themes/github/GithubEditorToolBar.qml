@@ -8,6 +8,8 @@ import "../../style"
 Item {
     id: toolBar
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
+                                      || Backend.uiTheme.style === "gray-modern"
+    property bool modernLayout: false
 
     required property var mapView
     required property var settings
@@ -141,10 +143,13 @@ Item {
             iconName: "draw"
             label: "Draw"
             active: !toolBar.mapView.selectionMode && !toolBar.mapView.eraseMode
-            tip: "Draw mode (Space)"
+                    && !toolBar.mapView.optionalBorderMode
+            tip: "Draw mode (Alt switches Draw / Select)"
             onClicked: {
+                toolBar.mapView.lassoMode = false;
                 toolBar.mapView.selectionMode = false;
                 toolBar.mapView.eraseMode = false;
+                toolBar.mapView.optionalBorderMode = false;
             }
         }
 
@@ -153,11 +158,13 @@ Item {
             buttonHeight: toolBar.leftButtonHeight
             iconName: "select"
             label: "Select"
-            active: toolBar.mapView.selectionMode
-            tip: "Selection mode (Space)"
+            active: toolBar.mapView.selectionMode && !toolBar.mapView.lassoMode
+            tip: "Selection mode (Alt switches Draw / Select)"
             onClicked: {
+                toolBar.mapView.lassoMode = false;
                 toolBar.mapView.selectionMode = true;
                 toolBar.mapView.eraseMode = false;
+                toolBar.mapView.optionalBorderMode = false;
             }
         }
 
@@ -170,6 +177,39 @@ Item {
             active: toolBar.mapView.eraseMode
             tip: "Erase items"
             onClicked: toolBar.mapView.eraseMode = !toolBar.mapView.eraseMode
+        }
+
+        ToolbarButton {
+            visible: toolBar.width >= 700
+            buttonWidth: toolBar.leftButtonWidth
+            buttonHeight: toolBar.leftButtonHeight
+            iconName: "select"
+            label: "Lasso"
+            active: toolBar.mapView.selectionMode && toolBar.mapView.lassoMode
+            tip: "Lasso selection — drag; Shift adds; Ctrl subtracts"
+            onClicked: {
+                toolBar.mapView.eraseMode = false;
+                toolBar.mapView.optionalBorderMode = false;
+                toolBar.mapView.lassoMode = true;
+                toolBar.mapView.selectionMode = true;
+            }
+        }
+
+        ToolbarButton {
+            visible: toolBar.width >= 760
+            buttonWidth: toolBar.leftButtonWidth
+            buttonHeight: toolBar.leftButtonHeight
+            iconName: "wall-outlines"
+            label: "Opt Border"
+            active: toolBar.mapView.optionalBorderMode
+            tip: "Optional Border Tool (Ctrl/Erase restores the regular border)"
+            onClicked: {
+                toolBar.mapView.optionalBorderMode = !toolBar.mapView.optionalBorderMode;
+                if (toolBar.mapView.optionalBorderMode) {
+                    toolBar.mapView.selectionMode = false;
+                    toolBar.mapView.eraseMode = false;
+                }
+            }
         }
 
         Rectangle {
@@ -213,7 +253,7 @@ Item {
 
     Row {
         id: viewTools
-        visible: toolBar.width >= 650
+        visible: !toolBar.modernLayout && toolBar.width >= 650
         anchors {
             right: parent.right
             rightMargin: 14

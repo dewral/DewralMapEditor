@@ -14,7 +14,7 @@ Item {
     implicitWidth: controlLoader.item ? controlLoader.item.implicitWidth : 140
     implicitHeight: controlLoader.item ? controlLoader.item.implicitHeight : 23
 
-    Loader { id: controlLoader; anchors.fill: parent; sourceComponent: Backend.uiTheme.style === "classic" ? classicCombo : (Backend.uiTheme.style === "gray-dark" ? grayCombo : githubCombo) }
+    Loader { id: controlLoader; anchors.fill: parent; sourceComponent: Backend.uiTheme.style === "classic" ? classicCombo : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayCombo : githubCombo) }
     Component {
         id: classicCombo
         Classic.ClassicComboBox {

@@ -8,6 +8,7 @@ Dialog {
     property bool floatingPositionInitialized: false
     readonly property bool modernTheme: Backend.uiTheme.style !== "classic"
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
+                                      || Backend.uiTheme.style === "gray-modern"
     modal: true
     dim: modernTheme
     anchors.centerIn: root.movable ? null : Overlay.overlay

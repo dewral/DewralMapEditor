@@ -9,6 +9,7 @@ Column {
     required property var mapCtrl
     required property bool githubUi
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
+                                   || Backend.uiTheme.style === "gray-modern"
 
     spacing: githubUi ? 9 : 3
 

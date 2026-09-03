@@ -10,7 +10,7 @@ Item {
     property url frameSource: Backend.uiTheme.tex + "popupwindow.png"
     Loader {
         anchors.fill: parent
-        sourceComponent: Backend.uiTheme.style === "classic" ? classicBackground : (Backend.uiTheme.style === "gray-dark" ? grayBackground : githubBackground)
+        sourceComponent: Backend.uiTheme.style === "classic" ? classicBackground : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayBackground : githubBackground)
     }
     Component { id: classicBackground; Classic.ClassicDialogBackground { topBorder: root.topBorder; frameSource: root.frameSource } }
     Component { id: githubBackground; Github.GithubDialogBackground {} }

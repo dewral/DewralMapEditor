@@ -12,6 +12,7 @@ Item {
     required property string currentKind
     required property bool githubUi
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
+                                   || Backend.uiTheme.style === "gray-modern"
     readonly property bool listView: root.app.settings.paletteViewMode === "list"
 
     signal contextMenuRequested(int serverId)

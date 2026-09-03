@@ -5,6 +5,7 @@ import Tibia 1.0
 ComboBox {
     id: root
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
+                                      || Backend.uiTheme.style === "gray-modern"
 
     height: 40
     leftPadding: 12

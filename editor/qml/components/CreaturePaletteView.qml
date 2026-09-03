@@ -14,6 +14,7 @@ Column {
     required property string searchText
     required property string filterMode
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
+                                   || Backend.uiTheme.style === "gray-modern"
     readonly property int count: creatureGrid.count
 
     spacing: 4

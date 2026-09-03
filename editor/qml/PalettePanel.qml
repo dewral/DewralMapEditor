@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Tibia 1.0
 import "style"
 import "components"
+import "themes/github"
 
 Rectangle {
     id: paletteRoot
@@ -12,6 +13,8 @@ Rectangle {
     required property var mapCtrl
     readonly property bool githubUi: Backend.uiTheme.style !== "classic"
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
+                                   || Backend.uiTheme.style === "gray-modern"
+    property bool modernLayout: false
     readonly property string currentKind: paletteCol.currentKind
 
     signal collapseRequested
@@ -177,6 +180,21 @@ Rectangle {
         visible: !paletteRoot.githubUi
     }
 
+    GithubActivityRail {
+        id: modernActivityRail
+        visible: paletteRoot.modernLayout
+        anchors {
+            left: parent.left
+            top: parent.top
+            bottom: parent.bottom
+        }
+        width: 76
+        z: 20
+        currentKind: paletteCol.currentKind
+        paletteCollapsed: false
+        onKindRequested: kind => paletteCol.selectKind(kind)
+    }
+
     PaletteFilter {
         id: paletteFilter
         sourceModel: Backend.otbReader
@@ -185,7 +203,7 @@ Rectangle {
     Column {
         id: paletteCol
         anchors.fill: parent
-        anchors.leftMargin: paletteRoot.githubUi ? 16 : 6
+        anchors.leftMargin: paletteRoot.modernLayout ? 88 : (paletteRoot.githubUi ? 16 : 6)
         anchors.rightMargin: paletteRoot.githubUi ? 16 : 6
         anchors.topMargin: paletteRoot.githubUi ? 8 : 6
         anchors.bottomMargin: paletteRoot.githubUi ? 16 : 6
@@ -327,7 +345,8 @@ Rectangle {
             Row {
                 id: githubCategoryRow
                 width: parent.width
-                height: 62
+                height: paletteRoot.modernLayout ? 0 : 62
+                visible: !paletteRoot.modernLayout
                 spacing: 4
                 readonly property int categoryCount: 6
                 property real categoryWidth: Math.floor((width - spacing * (categoryCount - 1)) / categoryCount)

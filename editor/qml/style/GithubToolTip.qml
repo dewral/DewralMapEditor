@@ -8,6 +8,7 @@ import Tibia 1.0
 Item {
     id: root
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
+                                      || Backend.uiTheme.style === "gray-modern"
 
     property Item targetItem
     property bool targetHovered: false

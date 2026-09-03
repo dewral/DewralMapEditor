@@ -12,6 +12,7 @@ Item {
     required property var paletteNavigator
     readonly property bool githubUi: Backend.uiTheme.style !== "classic"
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
+                                   || Backend.uiTheme.style === "gray-modern"
 
     property alias mapView: mapView
     property alias mapGl: mapGl

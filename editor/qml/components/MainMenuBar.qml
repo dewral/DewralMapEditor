@@ -29,6 +29,8 @@ DmeMenuBar {
     required property var statsDialog
     required property var brushEditorDialog
     required property var aiMapAssistantDialog
+    required property var terrainGeneratorDialog
+    required property var dungeonGeneratorDialog
     required property var themeDialog
     required property var borderizeConfirm
     required property var randomizeConfirm
@@ -411,6 +413,18 @@ DmeMenuBar {
     DmeMenu {
         title: "Tools"
         focus: false
+
+        Action {
+            text: "Dungeon Generator..."
+            enabled: Backend.otbmReader.loaded && menuBar.mapView.selectionCount > 0
+            onTriggered: menuBar.dungeonGeneratorDialog.open()
+        }
+        Action {
+            text: "Terrain Generator..."
+            enabled: Backend.otbmReader.loaded && menuBar.mapView.selectionCount > 0
+            onTriggered: menuBar.terrainGeneratorDialog.open()
+        }
+        MenuSeparator {}
 
         Action {
             text: "Tileset & Brush Manager..."

@@ -16,8 +16,10 @@ Window {
     // Both modern themes share one layout. Only their palettes differ.
     readonly property bool githubUi: Backend.uiTheme.style !== "classic"
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
+                                   || Backend.uiTheme.style === "gray-modern"
+    readonly property bool modernGrayUi: Backend.uiTheme.style === "gray-modern"
     readonly property int topBarHeight: githubUi ? 56 : 45
-    readonly property int minimumPaletteWidth: githubUi ? 220 : 160
+    readonly property int minimumPaletteWidth: modernGrayUi ? 330 : (githubUi ? 220 : 160)
     readonly property int maximumPaletteWidth: Math.floor(width * 0.5)
 
     visible: app.started
@@ -266,6 +268,8 @@ Window {
         statsDialog: statsDialog
         brushEditorDialog: brushEditorDialog
         aiMapAssistantDialog: aiMapAssistantDialog
+        terrainGeneratorDialog: terrainGeneratorDialog
+        dungeonGeneratorDialog: dungeonGeneratorDialog
         themeDialog: themeDialog
         borderizeConfirm: borderizeMapConfirm
         randomizeConfirm: randomizeMapConfirm
@@ -339,6 +343,7 @@ Window {
         visible: !prefs.paletteCollapsed
         app: app
         mapCtrl: workspace.mapView
+        modernLayout: root.modernGrayUi
         onCollapseRequested: prefs.paletteCollapsed = true
         onRevealRequested: prefs.paletteCollapsed = false
     }
@@ -485,6 +490,7 @@ Window {
         GithubEditorToolBar {
             mapView: workspace.mapView
             settings: prefs
+            modernLayout: root.modernGrayUi
         }
     }
 
@@ -586,6 +592,21 @@ Window {
         propertiesDialog: propsDialog
         browseFieldDialog: browseFieldDialog
         paletteNavigator: palette
+    }
+
+    ModernMapToolRail {
+        id: modernMapRail
+        visible: root.modernGrayUi && app.started && Backend.otbmReader.loaded
+        width: visible ? 58 : 0
+        height: visible ? Math.min(570, workspace.height - 28) : 0
+        anchors {
+            right: parent.right
+            rightMargin: 16
+            verticalCenter: workspace.verticalCenter
+        }
+        z: 40
+        mapView: workspace.mapView
+        settings: prefs
     }
 
     FolderDialog {
@@ -693,6 +714,36 @@ Window {
         sourceComponent: AiMapAssistantDialog {
             mapCtrl: workspace.mapView
             onClosed: Qt.callLater(() => aiMapAssistantLoader.active = false)
+        }
+    }
+    QtObject {
+        id: terrainGeneratorDialog
+        function open() {
+            terrainGeneratorLoader.active = true;
+            terrainGeneratorLoader.item["open"]();
+        }
+    }
+    Loader {
+        id: terrainGeneratorLoader
+        active: false
+        sourceComponent: TerrainGeneratorDialog {
+            mapCtrl: workspace.mapView
+            onClosed: Qt.callLater(() => terrainGeneratorLoader.active = false)
+        }
+    }
+    QtObject {
+        id: dungeonGeneratorDialog
+        function open() {
+            dungeonGeneratorLoader.active = true;
+            dungeonGeneratorLoader.item["open"]();
+        }
+    }
+    Loader {
+        id: dungeonGeneratorLoader
+        active: false
+        sourceComponent: DungeonGeneratorDialog {
+            mapCtrl: workspace.mapView
+            onClosed: Qt.callLater(() => dungeonGeneratorLoader.active = false)
         }
     }
     Loader {

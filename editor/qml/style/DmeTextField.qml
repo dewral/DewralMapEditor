@@ -17,7 +17,7 @@ Item {
     Loader {
         id: controlLoader
         anchors.fill: parent
-        sourceComponent: Backend.uiTheme.style === "classic" ? classicTextField : (Backend.uiTheme.style === "gray-dark" ? grayTextField : githubTextField)
+        sourceComponent: Backend.uiTheme.style === "classic" ? classicTextField : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayTextField : githubTextField)
     }
     Component {
         id: classicTextField

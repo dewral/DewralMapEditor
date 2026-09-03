@@ -15,6 +15,7 @@ Item {
     property string pendingTimerRemoval: ""
     property bool showTimerDetails: false
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
+                                      || Backend.uiTheme.style === "gray-modern"
     readonly property color panelColor: grayTheme ? "#1A1A1A" : "#0F141B"
     readonly property color cardColor: grayTheme ? "#242424" : "#151B23"
     readonly property color inputColor: grayTheme ? "#202020" : "#0D1117"

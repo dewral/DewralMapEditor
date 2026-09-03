@@ -4,6 +4,7 @@ import Tibia 1.0
 Item {
     id: root
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
+                                      || Backend.uiTheme.style === "gray-modern"
 
     property string controlType: "minimize"
     property bool maximized: false

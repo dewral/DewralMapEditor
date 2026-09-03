@@ -5,6 +5,7 @@ import Tibia 1.0
 Menu {
     id: root
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
+                                      || Backend.uiTheme.style === "gray-modern"
     implicitWidth: Math.max(160, implicitContentWidth + leftPadding + rightPadding)
     padding: 1
     overlap: 0

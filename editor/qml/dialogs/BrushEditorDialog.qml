@@ -44,18 +44,30 @@ DmeDialog {
     property string pendingDeleteTileset: ""
 
     property var borderSets: ({
-            "": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            "inner|": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         })
     property string borderTarget: ""
+    property string borderAlign: "inner"
+    property bool optionalBorderMode: false
+    property var optionalBorderIds: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-    readonly property var borderIds: borderSets[borderTarget] || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    readonly property string borderSlotKey: borderAlign + "|" + borderTarget
+    readonly property var borderIds: optionalBorderMode
+                                      ? optionalBorderIds
+                                      : (borderSets[borderSlotKey] || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     property var wallIds: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
     function setBorderTile(bt, sid) {
+        if (optionalBorderMode) {
+            var optional = optionalBorderIds.slice();
+            optional[bt] = sid;
+            optionalBorderIds = optional;
+            return;
+        }
         var sets = JSON.parse(JSON.stringify(borderSets));
-        if (!sets[borderTarget])
-            sets[borderTarget] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        sets[borderTarget][bt] = sid;
+        if (!sets[borderSlotKey])
+            sets[borderSlotKey] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        sets[borderSlotKey][bt] = sid;
         borderSets = sets;
     }
 
@@ -308,13 +320,17 @@ DmeDialog {
             });
 
         var sets = {
-            "": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            "inner|": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         };
         for (var b = 0; b < d.borders.length; ++b)
-            sets[d.borders[b].to] = d.borders[b].tiles.slice();
+            sets[d.borders[b].align + "|" + d.borders[b].to] = d.borders[b].tiles.slice();
         borderSets = sets;
+        optionalBorderIds = (d.optionalTiles || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).slice();
+        optionalBorderMode = false;
         borderTarget = "";
+        borderAlign = sets["inner|"] ? "inner" : "outer";
         groundNameField.text = name;
+        alignCombo.syncFromApp();
         targetCombo.syncFromApp();
     }
     function newGround() {
@@ -323,15 +339,19 @@ DmeDialog {
         zorderField.value = 3500;
         gItems.clear();
         borderSets = ({
-                "": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+                "inner|": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
             });
+        optionalBorderIds = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        optionalBorderMode = false;
         borderTarget = "";
+        borderAlign = "inner";
+        alignCombo.syncFromApp();
         targetCombo.syncFromApp();
     }
     function saveGround() {
         var name = groundNameField.text.trim();
         if (name === "" || gItems.count === 0)
-            return;
+            return false;
         var items = [];
         for (var i = 0; i < gItems.count; ++i)
             items.push({
@@ -340,13 +360,22 @@ DmeDialog {
             });
 
         var blocks = [];
-        for (var key in borderSets)
+        for (var key in borderSets) {
+            var separator = key.indexOf("|");
+            if (separator < 0)
+                continue;
             blocks.push({
-                to: key,
+                align: key.substring(0, separator),
+                to: key.substring(separator + 1),
                 tiles: borderSets[key]
             });
-        if (Backend.brushStore.saveGroundBrush(name, zorderField.value, items, blocks))
+        }
+        if (Backend.brushStore.saveGroundBrush(name, zorderField.value, items, blocks,
+                                               optionalBorderIds)) {
             loadGround(name);
+            return true;
+        }
+        return false;
     }
 
     function loadWall(name) {
@@ -473,6 +502,7 @@ DmeDialog {
     PaletteFilter {
         id: pf
         sourceModel: Backend.otbReader
+        brushStore: Backend.brushStore
         mode: "all"
     }
 
@@ -574,6 +604,13 @@ DmeDialog {
                             onDoubleClicked: {
                                 if (root.tab === "tilesets")
                                     root.addSelectedToTileset();
+                            }
+                            ToolTip.visible: containsMouse
+                            ToolTip.delay: 450
+                            ToolTip.text: {
+                                var aliases = Backend.brushStore.searchAliasesForServerId(parent.sid);
+                                var base = root.itemName(parent.sid) + " (sid " + parent.sid + ")";
+                                return aliases.length > 0 ? base + "\nBrush: " + aliases.join(", ") : base;
                             }
                         }
                     }
@@ -1202,6 +1239,27 @@ DmeDialog {
                 Row {
                     spacing: 6
                     Text {
+                        text: "Alignment:"
+                        color: root.mutedColor
+                        font.pixelSize: 11
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    DmeComboBox {
+                        id: alignCombo
+                        width: 145
+                        height: 23
+                        model: ["Inside ground", "Outside ground", "Optional border"]
+                        function syncFromApp() {
+                            currentIndex = root.optionalBorderMode ? 2
+                                                                  : (root.borderAlign === "outer" ? 1 : 0);
+                        }
+                        onActivated: {
+                            root.optionalBorderMode = currentIndex === 2;
+                            if (!root.optionalBorderMode)
+                                root.borderAlign = currentIndex === 1 ? "outer" : "inner";
+                        }
+                    }
+                    Text {
                         text: "Border target:"
                         color: root.mutedColor
                         font.pixelSize: 11
@@ -1211,6 +1269,7 @@ DmeDialog {
                         id: targetCombo
                         width: 190
                         height: 23
+                        enabled: !root.optionalBorderMode
                         property var keys: []
                         function syncFromApp() {
                             keys = root.borderTargetKeys();
@@ -1222,6 +1281,12 @@ DmeDialog {
                         }
                         onActivated: root.borderTarget = keys[currentIndex]
                     }
+                }
+                Text {
+                    visible: root.optionalBorderMode
+                    text: "Used by RME's Optional Border Tool on explicitly marked tiles."
+                    color: root.mutedColor
+                    font.pixelSize: 10
                 }
                 Item {
 
@@ -1380,11 +1445,22 @@ DmeDialog {
                         onClicked: root.saveGround()
                     }
                     DmeButton {
-                        text: "Test on map"
+                        text: root.optionalBorderMode ? "Use Optional Border Tool" : "Test on map"
                         width: 120
-                        enabled: gItems.count > 0 && root.curGround !== ""
-                        onClicked: if (root.mapCtrl)
-                            root.mapCtrl.useGroundBrush(gItems.get(0).sid)
+                        enabled: root.optionalBorderMode || (gItems.count > 0 && root.curGround !== "")
+                        onClicked: {
+                            if (!root.mapCtrl)
+                                return;
+                            var brushName = groundNameField.text.trim();
+                            if (!root.saveGround())
+                                return;
+                            if (root.optionalBorderMode) {
+                                root.mapCtrl.optionalBorderMode = true;
+                            } else if (!root.mapCtrl.useGroundBrushName(brushName)) {
+                                return;
+                            }
+                            root.close();
+                        }
                     }
                 }
             }

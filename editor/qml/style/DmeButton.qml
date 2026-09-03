@@ -18,7 +18,7 @@ Item {
         id: controlLoader
         anchors.fill: parent
         sourceComponent: Backend.uiTheme.style === "classic" ? classicButton
-                         : (Backend.uiTheme.style === "gray-dark" ? grayButton : githubButton)
+                         : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayButton : githubButton)
     }
 
     Component {

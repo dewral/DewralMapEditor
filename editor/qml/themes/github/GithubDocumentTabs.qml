@@ -6,6 +6,7 @@ import Tibia 1.0
 Item {
     id: tabs
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
+                                      || Backend.uiTheme.style === "gray-modern"
 
     required property var app
     required property var newMapDialog

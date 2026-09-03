@@ -8,6 +8,7 @@ Column {
     required property var mapCtrl
     required property bool githubUi
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
+                                   || Backend.uiTheme.style === "gray-modern"
 
     property var allHouses: []
     property var towns: []

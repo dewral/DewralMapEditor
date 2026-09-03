@@ -7,6 +7,7 @@ import Tibia 1.0
 Item {
     id: rail
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
+                                      || Backend.uiTheme.style === "gray-modern"
 
     property string currentKind: "Item Palette"
     property bool paletteCollapsed: false
@@ -41,11 +42,10 @@ Item {
 
         Repeater {
             model: [
+                { label: "RAW", symbol: "\u25a3", kind: "RAW Palette" },
                 { label: "Items", symbol: "\u25a3", kind: "Item Palette" },
                 { label: "Terrain", symbol: "\u25b3", kind: "Terrain Palette" },
                 { label: "Doodads", symbol: "\u25a4", kind: "Doodad Palette" },
-                { label: "Collections", symbol: "\u25a6", kind: "Collection Palette" },
-                { label: "Doors", symbol: "\u25af", kind: "Door Palette" },
                 { label: "Creatures", symbol: "\u2663", kind: "Creature Palette" },
                 { label: "Houses", symbol: "\u2302", kind: "House Palette" }
             ]
@@ -55,9 +55,10 @@ Item {
 
                 required property var modelData
                 readonly property bool active: rail.currentKind === modelData.kind
+                                               || (modelData.kind === "RAW Palette" && rail.currentKind === "All Items")
 
                 width: parent ? parent.width : 68
-                height: 78
+                height: 66
 
                 Rectangle {
                     anchors.fill: parent
@@ -74,27 +75,27 @@ Item {
                         verticalCenter: parent.verticalCenter
                     }
                     width: 3
-                    height: 58
+                    height: 48
                     radius: 2
                     color: rail.grayTheme ? "#C79A3B" : "#B8B8B8"
                 }
 
                 Column {
                     anchors.centerIn: parent
-                    spacing: 7
+                    spacing: 4
 
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: entry.modelData.symbol
                         color: entry.active ? "#FFFFFF" : "#8A8A8A"
-                        font.pixelSize: 26
+                        font.pixelSize: 21
                     }
 
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: entry.modelData.label
                         color: entry.active ? "#FFFFFF" : "#8A8A8A"
-                        font.pixelSize: 12
+                        font.pixelSize: 10
                     }
                 }
 

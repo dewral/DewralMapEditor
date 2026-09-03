@@ -6,6 +6,7 @@ MenuBar {
     id: root
     readonly property bool modernTheme: Backend.uiTheme.style !== "classic"
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
+                                      || Backend.uiTheme.style === "gray-modern"
     implicitHeight: modernTheme ? 40 : 26
     leftPadding: 0
     rightPadding: 0

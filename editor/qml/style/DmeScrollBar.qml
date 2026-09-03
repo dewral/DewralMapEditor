@@ -7,6 +7,7 @@ Item {
     property bool dragging: false
     readonly property bool githubTheme: Backend.uiTheme.style !== "classic"
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
+                                      || Backend.uiTheme.style === "gray-modern"
 
     visible: flickable && flickable.contentHeight > flickable.height
     clip: true

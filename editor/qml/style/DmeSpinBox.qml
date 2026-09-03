@@ -27,7 +27,7 @@ Item {
     Loader {
         id: controlLoader
         anchors.fill: parent
-        sourceComponent: Backend.uiTheme.style === "classic" ? classicSpinBox : (Backend.uiTheme.style === "gray-dark" ? graySpinBox : githubSpinBox)
+        sourceComponent: Backend.uiTheme.style === "classic" ? classicSpinBox : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? graySpinBox : githubSpinBox)
     }
     Component {
         id: classicSpinBox

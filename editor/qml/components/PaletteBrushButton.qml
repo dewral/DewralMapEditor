@@ -5,6 +5,7 @@ import Tibia 1.0
 Item {
     id: root
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
+                                      || Backend.uiTheme.style === "gray-modern"
 
     property bool active: false
     property bool round: false

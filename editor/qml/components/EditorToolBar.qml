@@ -150,6 +150,17 @@ Item {
             onClicked: toolBar.mapView.eraseMode = !toolBar.mapView.eraseMode
         }
 
+        TbBtn {
+            label: "Optional Border"
+            tip: "Optional Border Tool (Ctrl/Erase restores the regular border)"
+            active: toolBar.mapView.optionalBorderMode
+            onClicked: {
+                toolBar.mapView.optionalBorderMode = !toolBar.mapView.optionalBorderMode;
+                if (toolBar.mapView.optionalBorderMode)
+                    toolBar.mapView.eraseMode = false;
+            }
+        }
+
         Rectangle {
             width: 1
             height: 18
@@ -158,11 +169,26 @@ Item {
         }
 
         TbBtn {
-            label: toolBar.mapView.selectionMode ? "Selection (Space)" : "Draw (Space)"
+            label: toolBar.mapView.selectionMode && !toolBar.mapView.lassoMode
+                   ? "Selection (Alt)" : "Draw (Alt)"
             active: true
             activeBg: toolBar.mapView.selectionMode ? "#2f3a4a" : "#22432f"
             activeBorder: toolBar.mapView.selectionMode ? "#6aa0dc" : "#7fdc8f"
-            onClicked: toolBar.mapView.toggleSelectionMode()
+            onClicked: {
+                toolBar.mapView.lassoMode = false;
+                toolBar.mapView.toggleSelectionMode();
+            }
+        }
+        TbBtn {
+            label: "Lasso"
+            tip: "Drag to select; Shift adds; Ctrl subtracts"
+            active: toolBar.mapView.selectionMode && toolBar.mapView.lassoMode
+            onClicked: {
+                toolBar.mapView.eraseMode = false;
+                toolBar.mapView.optionalBorderMode = false;
+                toolBar.mapView.lassoMode = true;
+                toolBar.mapView.selectionMode = true;
+            }
         }
         TbBtn {
             label: "In-game preview"
@@ -187,7 +213,8 @@ Item {
             text: toolBar.mapView.pasting
                   ? "PASTE MODE - left click to confirm, Esc/right click to cancel"
                   : (toolBar.mapView.eraseMode ? (toolBar.mapView.activeZone !== 0 ? "ERASE: zone" : "ERASE: items") : "Ctrl+left click = erase")
-            color: toolBar.mapView.pasting ? "#6aa0dc" : (toolBar.mapView.eraseMode ? "#dc8f8f" : "#888")
+            color: toolBar.mapView.pasting ? "#6aa0dc"
+                   : (toolBar.mapView.eraseMode ? "#dc8f8f" : "#888")
             font.pixelSize: 10
             anchors.verticalCenter: parent.verticalCenter
         }

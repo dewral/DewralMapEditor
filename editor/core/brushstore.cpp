@@ -66,6 +66,8 @@ void BrushStore::clear()
     m_grounds.clear();
     m_groundByServerId.clear();
     m_borderItemIds.clear();
+    m_optionalBorderItemIds.clear();
+    m_borderBrushAliases.clear();
     m_walls.clear();
     m_wallByServerId.clear();
     m_wallAlignByServerId.clear();
@@ -139,6 +141,18 @@ void BrushStore::parseRoot(const QJsonObject &root)
         def.lookid = g.value(QStringLiteral("lookid")).toInt();
         def.hateFriends = g.value(QStringLiteral("hate_friends")).toBool();
         def.optional = g.value(QStringLiteral("optional")).toString();
+        def.useSoloOptional = g.value(QStringLiteral("solo_optional")).toBool();
+        if (!def.optional.isEmpty()) {
+            const auto optionalIt = m_borders.constFind(def.optional);
+            if (optionalIt != m_borders.constEnd()) {
+                for (int borderId : *optionalIt) {
+                    if (borderId <= 0) continue;
+                    m_optionalBorderItemIds.insert(borderId);
+                    if (!m_borderBrushAliases[borderId].contains(it.key()))
+                        m_borderBrushAliases[borderId].append(it.key());
+                }
+            }
+        }
 
         const QJsonArray items = g.value(QStringLiteral("items")).toArray();
         for (const QJsonValue &v : items) {
@@ -159,6 +173,13 @@ void BrushStore::parseRoot(const QJsonObject &root)
             bb.to = o.value(QStringLiteral("to")).toString();
             bb.borderKey = o.value(QStringLiteral("border")).toString();
             def.borders.append(bb);
+            const auto borderIt = m_borders.constFind(bb.borderKey);
+            if (borderIt != m_borders.constEnd()) {
+                for (int borderId : *borderIt) {
+                    if (borderId > 0 && !m_borderBrushAliases[borderId].contains(it.key()))
+                        m_borderBrushAliases[borderId].append(it.key());
+                }
+            }
             const bool zilch = bb.to.isEmpty();
             if (bb.outer) { if (zilch) def.hasZilchOuter = true; else def.hasOuter = true; }
             else          { if (zilch) def.hasZilchInner = true; else def.hasInner = true; }
@@ -172,6 +193,8 @@ void BrushStore::parseRoot(const QJsonObject &root)
         }
 
         m_grounds.insert(it.key(), def);
+        if (def.lookid > 0 && !m_groundByServerId.contains(def.lookid))
+            m_groundByServerId.insert(def.lookid, it.key());
     }
 
     const QJsonObject walls = root.value(QStringLiteral("walls")).toObject();
@@ -303,8 +326,15 @@ void BrushStore::parseRoot(const QJsonObject &root)
     };
     parseConnected(root.value(QStringLiteral("carpets")).toObject(),
                    m_carpets, m_carpetByServerId);
+
     parseConnected(root.value(QStringLiteral("tables")).toObject(),
                    m_tables, m_tableByServerId);
+}
+
+bool BrushStore::groundBrushHasOptional(const QString &name) const
+{
+    const GroundDef *def = groundDef(name);
+    return def && def->hasOptional() && borderTiles(def->optional);
 }
 
 bool BrushStore::isDoorOpen(int serverId) const
@@ -613,11 +643,35 @@ QStringList BrushStore::wallBrushNames() const
     return l;
 }
 
-static QString borderKeyFor(const QString &name, const QString &to)
+static QString borderKeyFor(const QString &name, const QString &to,
+                            const QString &align)
 {
     const QString suffix = to.isEmpty() ? QStringLiteral("empty")
                           : (to == QStringLiteral("*") ? QStringLiteral("any") : to);
-    return QStringLiteral("gb_%1__%2").arg(name, suffix);
+    return QStringLiteral("gb_%1__%2_%3").arg(name, align, suffix);
+}
+
+QStringList BrushStore::doodadBrushNames() const
+{
+    QStringList names = m_doodads.keys();
+    names.sort(Qt::CaseInsensitive);
+    return names;
+}
+
+QStringList BrushStore::searchAliasesForServerId(int serverId) const
+{
+    QStringList aliases = m_borderBrushAliases.value(serverId);
+    const auto appendUnique = [&aliases](const QString &name) {
+        if (!name.isEmpty() && !aliases.contains(name, Qt::CaseInsensitive))
+            aliases.append(name);
+    };
+    appendUnique(m_groundByServerId.value(serverId));
+    appendUnique(m_wallByServerId.value(serverId));
+    appendUnique(m_doodadByServerId.value(serverId));
+    appendUnique(m_carpetByServerId.value(serverId));
+    appendUnique(m_tableByServerId.value(serverId));
+    aliases.sort(Qt::CaseInsensitive);
+    return aliases;
 }
 
 QVariantMap BrushStore::groundBrushEdit(const QString &name) const
@@ -626,6 +680,8 @@ QVariantMap BrushStore::groundBrushEdit(const QString &name) const
     out.insert(QStringLiteral("zorder"), 0);
     QVariantList itemsOut;
     QVariantList bordersOut;
+    QVariantList optionalOut;
+    for (int i = 0; i < 13; ++i) optionalOut.append(0);
 
     const QJsonObject g = m_rawRoot.value(QStringLiteral("grounds"))
                               .toObject().value(name).toObject();
@@ -641,6 +697,14 @@ QVariantMap BrushStore::groundBrushEdit(const QString &name) const
         }
 
         const QJsonObject bordersMap = m_rawRoot.value(QStringLiteral("borders")).toObject();
+
+        const QString optionalKey = g.value(QStringLiteral("optional")).toString();
+        const QJsonArray optionalArray = bordersMap.value(optionalKey).toArray();
+        if (!optionalKey.isEmpty()) {
+            optionalOut.clear();
+            for (int i = 0; i < 13; ++i)
+                optionalOut.append(i < optionalArray.size() ? optionalArray.at(i).toInt() : 0);
+        }
 
         QSet<QString> seen;
         for (const QJsonValue &bv : g.value(QStringLiteral("borders")).toArray()) {
@@ -666,12 +730,14 @@ QVariantMap BrushStore::groundBrushEdit(const QString &name) const
     }
     out.insert(QStringLiteral("items"), itemsOut);
     out.insert(QStringLiteral("borders"), bordersOut);
+    out.insert(QStringLiteral("optionalTiles"), optionalOut);
     return out;
 }
 
 bool BrushStore::saveGroundBrush(const QString &name, int zorder,
                                  const QVariantList &items,
-                                 const QVariantList &borderBlocks)
+                                 const QVariantList &borderBlocks,
+                                 const QVariantList &optionalTiles)
 {
     if (name.trimmed().isEmpty() || items.isEmpty()) return false;
 
@@ -699,6 +765,10 @@ bool BrushStore::saveGroundBrush(const QString &name, int zorder,
     for (const QVariant &bv : borderBlocks) {
         const QVariantMap bm = bv.toMap();
         const QString to = bm.value(QStringLiteral("to")).toString();
+        const QString align = bm.value(QStringLiteral("align")).toString()
+                                      == QStringLiteral("inner")
+                                  ? QStringLiteral("inner")
+                                  : QStringLiteral("outer");
         const QVariantList tiles = bm.value(QStringLiteral("tiles")).toList();
 
         bool any = false;
@@ -710,13 +780,21 @@ bool BrushStore::saveGroundBrush(const QString &name, int zorder,
         }
         if (!any) continue;
 
-        const QString bkey = borderKeyFor(name, to);
+        const QString bkey = borderKeyFor(name, to, align);
         borders.insert(bkey, arr);
         QJsonObject b;
-        b.insert(QStringLiteral("align"), QStringLiteral("outer"));
+        b.insert(QStringLiteral("align"), align);
         b.insert(QStringLiteral("to"), to);
         b.insert(QStringLiteral("border"), bkey);
         blocks.append(b);
+    }
+
+    QJsonArray optionalArray;
+    bool hasOptional = false;
+    for (int i = 0; i < 13; ++i) {
+        const int id = i < optionalTiles.size() ? optionalTiles.at(i).toInt() : 0;
+        optionalArray.append(id);
+        if (i > 0 && id > 0) hasOptional = true;
     }
 
     QJsonObject g;
@@ -725,10 +803,16 @@ bool BrushStore::saveGroundBrush(const QString &name, int zorder,
     g.insert(QStringLiteral("items"), itemsArr);
     g.insert(QStringLiteral("borders"), blocks);
 
+    if (hasOptional) {
+        const QString optionalKey = prefix + QStringLiteral("optional");
+        borders.insert(optionalKey, optionalArray);
+        g.insert(QStringLiteral("optional"), optionalKey);
+    }
+
     if (old.contains(QStringLiteral("friends")))
         g.insert(QStringLiteral("friends"), old.value(QStringLiteral("friends")));
-    if (old.contains(QStringLiteral("optional")))
-        g.insert(QStringLiteral("optional"), old.value(QStringLiteral("optional")));
+    if (old.contains(QStringLiteral("solo_optional")))
+        g.insert(QStringLiteral("solo_optional"), old.value(QStringLiteral("solo_optional")));
     if (old.contains(QStringLiteral("hate_friends")))
         g.insert(QStringLiteral("hate_friends"), old.value(QStringLiteral("hate_friends")));
 
@@ -745,7 +829,11 @@ void BrushStore::deleteGroundBrush(const QString &name)
     QJsonObject borders = m_rawRoot.value(QStringLiteral("borders")).toObject();
 
     const QString own = QStringLiteral("gb_") + name;
+    const QString generatedPrefix = own + QStringLiteral("__");
     borders.remove(own);
+    for (const QString &key : borders.keys()) {
+        if (key.startsWith(generatedPrefix)) borders.remove(key);
+    }
     grounds.remove(name);
     m_rawRoot.insert(QStringLiteral("grounds"), grounds);
     m_rawRoot.insert(QStringLiteral("borders"), borders);
@@ -1018,7 +1106,8 @@ QString BrushStore::getBrushTo(const QString &firstName, const QString &secondNa
     return QString();
 }
 
-QVector<int> BrushStore::computeBorderItems(const QString &center, const QStringList &neighbours8) const
+QVector<int> BrushStore::computeBorderItems(const QString &center, const QStringList &neighbours8,
+                                            bool tileHasOptional) const
 {
     QVector<int> result;
     if (neighbours8.size() < 8) return result;
@@ -1034,8 +1123,6 @@ QVector<int> BrushStore::computeBorderItems(const QString &center, const QString
 
     struct Cluster { quint32 alignment; int z; const std::array<int, 13> *border; };
     QVector<Cluster> borderList;
-
-    const bool tileHasOptional = true;
 
     for (int i = 0; i < 8; ++i) {
         if (nb[i].visited) { continue; }

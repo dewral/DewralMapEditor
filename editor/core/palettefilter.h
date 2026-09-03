@@ -7,12 +7,15 @@
 #include <QVariantList>
 #include <QtQml/qqmlregistration.h>
 
+class BrushStore;
+
 class PaletteFilter : public QSortFilterProxyModel
 {
     Q_OBJECT
     QML_NAMED_ELEMENT(PaletteFilter)
     Q_PROPERTY(QString mode READ mode WRITE setMode NOTIFY modeChanged)
     Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY searchTextChanged)
+    Q_PROPERTY(BrushStore *brushStore READ brushStore WRITE setBrushStore NOTIFY brushStoreChanged)
 
 public:
     explicit PaletteFilter(QObject *parent = nullptr);
@@ -21,6 +24,8 @@ public:
     void setMode(const QString &m);
     QString searchText() const { return m_search; }
     void setSearchText(const QString &t);
+    BrushStore *brushStore() const { return m_brushStore; }
+    void setBrushStore(BrushStore *store);
 
     Q_INVOKABLE void setIds(const QVariantList &ids);
     Q_INVOKABLE void setOrderedIds(const QVariantList &ids);
@@ -31,6 +36,7 @@ public:
 signals:
     void modeChanged();
     void searchTextChanged();
+    void brushStoreChanged();
 
 protected:
     bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const override;
@@ -41,6 +47,7 @@ private:
     QString m_search;
     QSet<int> m_ids;
     QHash<int, int> m_order;
+    BrushStore *m_brushStore = nullptr;
 };
 
 #endif

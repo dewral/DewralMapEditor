@@ -1,5 +1,6 @@
 #include "palettefilter.h"
 #include "otbreader.h"
+#include "brushstore.h"
 
 #include <utility>
 #include <limits>
@@ -85,6 +86,22 @@ int PaletteFilter::rowForServerId(int serverId) const
     return proxyIdx.isValid() ? proxyIdx.row() : -1;
 }
 
+void PaletteFilter::setBrushStore(BrushStore *store)
+{
+    if (m_brushStore == store) return;
+    if (m_brushStore) disconnect(m_brushStore, nullptr, this, nullptr);
+    m_brushStore = store;
+    if (m_brushStore) {
+        connect(m_brushStore, &BrushStore::brushesChanged, this, [this] {
+            beginFilterChange();
+            endFilterChange(Direction::Rows);
+        });
+    }
+    beginFilterChange();
+    endFilterChange(Direction::Rows);
+    emit brushStoreChanged();
+}
+
 int PaletteFilter::serverIdAtRow(int row) const
 {
     if (row < 0 || row >= rowCount()) return 0;
@@ -105,7 +122,17 @@ bool PaletteFilter::filterAcceptsRow(int sourceRow, const QModelIndex &sourcePar
     if (!m_search.isEmpty()) {
         const QString name = idx.data(OtbReader::NameRole).toString();
         const QString sid = idx.data(OtbReader::ServerIdRole).toString();
-        if (!name.contains(m_search, Qt::CaseInsensitive) && !sid.startsWith(m_search))
+        const QStringList aliases = m_brushStore
+                ? m_brushStore->searchAliasesForServerId(sid.toInt()) : QStringList{};
+        bool aliasMatches = false;
+        for (const QString &alias : aliases) {
+            if (alias.contains(m_search, Qt::CaseInsensitive)) {
+                aliasMatches = true;
+                break;
+            }
+        }
+        if (!name.contains(m_search, Qt::CaseInsensitive)
+                && !sid.startsWith(m_search) && !aliasMatches)
             return false;
     }
     return true;

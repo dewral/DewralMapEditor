@@ -245,6 +245,7 @@ def convert_grounds(
 
         optional = node.find("./optional")
         optional_id = optional.get("id") if optional is not None else ""
+        solo_optional = (node.get("solo_optional", "0") or "0").lower() in ("1", "true")
         first_item_id = items[0][0]
         result[node.get("name") or ""] = {
             "borders": borders,
@@ -253,6 +254,7 @@ def convert_grounds(
             "items": items,
             "lookid": brush_look_id(node, first_item_id),
             "optional": optional_id or "",
+            "solo_optional": solo_optional,
             "zorder": integer(node.get("z-order"), 1),
         }
     return result

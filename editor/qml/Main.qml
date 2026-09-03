@@ -274,10 +274,15 @@ Window {
         borderizeConfirm: borderizeMapConfirm
         randomizeConfirm: randomizeMapConfirm
         updateDialog: updateDialog
+        aboutDialog: aboutDialog
     }
 
     UpdateDialog {
         id: updateDialog
+    }
+
+    AboutDialog {
+        id: aboutDialog
     }
 
     Shortcut {

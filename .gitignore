@@ -3,6 +3,7 @@
 build*/
 /dist/
 /release/
+/artifacts/
 /vcpkg_installed/
 /.tools/
 /.cache/

@@ -20,6 +20,8 @@ DmeDialog {
 
     title: "Map Analyzer"
     width: 820
+    modal: false
+    dim: false
 
     function runAnalysis() {
         loading = mapCtrl.startMapAnalysis();
@@ -57,7 +59,6 @@ DmeDialog {
             return;
         }
         mapCtrl.centerOnPosition(row.x, row.y, row.z);
-        close();
     }
 
     Connections {
@@ -214,7 +215,6 @@ DmeDialog {
                             dialog.mapCtrl.centerOnPosition(usageRow.modelData.x,
                                                             usageRow.modelData.y,
                                                             usageRow.modelData.z);
-                            dialog.close();
                         }
                     }
                 }
@@ -300,7 +300,6 @@ DmeDialog {
                         dialog.goToProblem(row);
                     else {
                         dialog.mapCtrl.centerOnPosition(row.x, row.y, row.z);
-                        dialog.close();
                     }
                 }
             }

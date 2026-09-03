@@ -17,6 +17,60 @@
 #include <cstring>
 #include <vector>
 
+namespace {
+
+bool pointOnSegment(double px, double py, const QPoint &a, const QPoint &b)
+{
+    const double ax = a.x() + 0.5;
+    const double ay = a.y() + 0.5;
+    const double bx = b.x() + 0.5;
+    const double by = b.y() + 0.5;
+    const double cross = (px - ax) * (by - ay) - (py - ay) * (bx - ax);
+    if (std::abs(cross) > 1e-7) return false;
+    return px >= std::min(ax, bx) - 1e-7 && px <= std::max(ax, bx) + 1e-7
+        && py >= std::min(ay, by) - 1e-7 && py <= std::max(ay, by) + 1e-7;
+}
+
+bool pointInPolygon(double px, double py, const QVector<QPoint> &polygon)
+{
+    bool inside = false;
+    for (qsizetype i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++) {
+        const QPoint &a = polygon[i];
+        const QPoint &b = polygon[j];
+        if (pointOnSegment(px, py, a, b)) return true;
+        const double ay = a.y() + 0.5;
+        const double by = b.y() + 0.5;
+        const double ax = a.x() + 0.5;
+        const double bx = b.x() + 0.5;
+        if ((ay > py) != (by > py)
+            && px < (bx - ax) * (py - ay) / (by - ay) + ax)
+            inside = !inside;
+    }
+    return inside;
+}
+
+QVector<QPoint> rasterLine(const QPoint &from, const QPoint &to)
+{
+    QVector<QPoint> points;
+    int x = from.x();
+    int y = from.y();
+    const int dx = std::abs(to.x() - x);
+    const int sx = x < to.x() ? 1 : -1;
+    const int dy = -std::abs(to.y() - y);
+    const int sy = y < to.y() ? 1 : -1;
+    int error = dx + dy;
+    while (true) {
+        points.push_back(QPoint(x, y));
+        if (x == to.x() && y == to.y()) break;
+        const int twice = error * 2;
+        if (twice >= dy) { error += dy; x += sx; }
+        if (twice <= dx) { error += dx; y += sy; }
+    }
+    return points;
+}
+
+} // namespace
+
 QPoint MapView::tileAtScreen(const QPointF &p) const
 {
     const qreal ts = std::max(1, m_navigationController.tileSize());
@@ -81,6 +135,99 @@ void MapView::applyRubberBand()
     notifySelectionChanged();
 }
 
+void MapView::appendLassoPoint(const QPoint &point)
+{
+    QVector<QPoint> &points = m_selectionController.lassoPoints();
+    if (!points.isEmpty() && points.back() == point) return;
+    if (points.size() >= 2) {
+        const QPoint firstDirection = points.back() - points[points.size() - 2];
+        const QPoint nextDirection = point - points.back();
+        if (firstDirection.x() * nextDirection.y()
+                == firstDirection.y() * nextDirection.x()
+            && firstDirection.x() * nextDirection.x()
+                 + firstDirection.y() * nextDirection.y() >= 0) {
+            points.back() = point;
+            return;
+        }
+    }
+    points.push_back(point);
+}
+
+void MapView::applyLassoSelection()
+{
+    const QVector<QPoint> points = m_selectionController.lassoPoints();
+    QSet<quint64> candidates;
+    if (!m_otbm || points.isEmpty()) return;
+
+    int minX = points.front().x();
+    int maxX = minX;
+    int minY = points.front().y();
+    int maxY = minY;
+    for (const QPoint &point : points) {
+        minX = std::min(minX, point.x());
+        maxX = std::max(maxX, point.x());
+        minY = std::min(minY, point.y());
+        maxY = std::max(maxY, point.y());
+    }
+    constexpr qint64 maximumLassoArea = 1000000;
+    const qint64 area = static_cast<qint64>(maxX - minX + 1)
+                      * static_cast<qint64>(maxY - minY + 1);
+    if (area > maximumLassoArea) {
+        emit operationWarning(QStringLiteral(
+            "Lasso area is too large (maximum 1,000,000 tiles)."));
+        return;
+    }
+
+    int bottomFloor = m_navigationController.floor();
+    if (m_selectionController.floorMode() == 1) bottomFloor = 15;
+    else if (m_selectionController.floorMode() == 2) bottomFloor = renderBottomFloor();
+
+    QSet<quint64> screenTiles;
+    if (points.size() == 1) {
+        screenTiles.insert(posKey(points.front().x(), points.front().y()));
+    } else if (points.size() == 2) {
+        for (const QPoint &point : rasterLine(points[0], points[1]))
+            screenTiles.insert(posKey(point.x(), point.y()));
+    } else {
+        for (int y = minY; y <= maxY; ++y)
+            for (int x = minX; x <= maxX; ++x)
+                if (pointInPolygon(x + 0.5, y + 0.5, points))
+                    screenTiles.insert(posKey(x, y));
+    }
+
+    for (int z = m_navigationController.floor(); z <= bottomFloor; ++z) {
+        const int compensation = m_selectionController.compensated()
+            ? z - m_navigationController.floor() : 0;
+        for (quint64 screenKey : screenTiles) {
+            const int x = static_cast<int>(screenKey >> 32) - compensation;
+            const int y = static_cast<int>(screenKey & 0xffffffffu) - compensation;
+            if (x < 0 || x > 65535 || y < 0 || y > 65535) continue;
+            if (m_otbm->tileAt(x, y, z))
+                candidates.insert(selKey(x, y, z));
+        }
+    }
+
+    m_selectionController.selected() = m_selectionController.lassoBase();
+    if (m_selectionController.lassoOperation() == 2) {
+        for (quint64 key : candidates) m_selectionController.selected().remove(key);
+    } else {
+        m_selectionController.selected().unite(candidates);
+    }
+    m_selectionController.wholeStack() = true;
+    notifySelectionChanged();
+}
+
+void MapView::cancelLasso()
+{
+    if (!m_selectionController.lassoing()
+        && m_selectionController.lassoPoints().isEmpty()) return;
+    m_selectionController.lassoing() = false;
+    m_selectionController.lassoPoints().clear();
+    m_selectionController.lassoBase().clear();
+    emit contentUpdated();
+    update();
+}
+
 void MapView::updateHoverText()
 {
     QString t;
@@ -141,6 +288,19 @@ void MapView::mousePressEvent(QMouseEvent *event)
     m_pointerMovePending = false;
     m_navigationController.lastMouse() = event->position();
 
+    // Space + left mouse is an alternative to middle-mouse panning. Handle
+    // this before editing tools so a temporary pan cannot modify the map.
+    if (event->button() == Qt::LeftButton && m_spacePanHeld) {
+        m_navigationController.panning() = true;
+        setCursor(Qt::ClosedHandCursor);
+        if (m_hoverX != -1) {
+            m_hoverX = m_hoverY = -1;
+            updateHoverText();
+        }
+        event->accept();
+        return;
+    }
+
     if (m_pathBuilder.active()) {
         if (event->button() == Qt::LeftButton) {
             const QPoint tile = tileAtScreen(event->position());
@@ -167,8 +327,32 @@ void MapView::mousePressEvent(QMouseEvent *event)
         return;
     }
 
+    if (m_selectionController.lassoing()) {
+        if (event->button() == Qt::RightButton) cancelLasso();
+        event->accept();
+        return;
+    }
+
+    if (event->button() == Qt::LeftButton && m_editController.selectionMode()
+        && m_selectionController.lassoMode()) {
+        const bool subtract = (event->modifiers() & Qt::ControlModifier) != 0;
+        const bool add = (event->modifiers() & Qt::ShiftModifier) != 0;
+        m_selectionController.lassoOperation() = subtract ? 2 : (add ? 1 : 0);
+        m_selectionController.lassoBase() =
+            (subtract || add) ? m_selectionController.selected() : QSet<quint64>{};
+        m_selectionController.lassoPoints().clear();
+        appendLassoPoint(tileAtScreen(event->position()));
+        m_selectionController.lassoing() = true;
+        setCursor(Qt::CrossCursor);
+        emit contentUpdated();
+        update();
+        event->accept();
+        return;
+    }
+
     if (event->button() == Qt::LeftButton && !m_editController.selectionMode()
         && (m_brushController.serverId() > 0 || m_editController.activeZone() != 0 || m_editController.eraseMode()
+            || m_brushController.optionalBorderBrush()
             || m_brushController.spawnBrush() || !m_brushController.creatureBrush().isEmpty() || m_brushController.houseBrush() > 0)) {
 
         m_brushController.beginStroke(
@@ -248,9 +432,11 @@ void MapView::mousePressEvent(QMouseEvent *event)
         if (m_hoverX != -1) { m_hoverX = m_hoverY = -1; updateHoverText(); }
     } else if (event->button() == Qt::RightButton && !m_editController.selectionMode()
                && (m_brushController.serverId() > 0 || m_editController.activeZone() != 0 || m_editController.eraseMode()
+                   || m_brushController.optionalBorderBrush()
                    || m_brushController.spawnBrush() || !m_brushController.creatureBrush().isEmpty() || m_brushController.houseBrush() > 0)) {
 
-        if (m_editController.activeZone() != 0) setActiveZone(0);
+        if (m_brushController.optionalBorderBrush()) setOptionalBorderMode(false);
+        else if (m_editController.activeZone() != 0) setActiveZone(0);
         else if (m_brushController.spawnBrush()) setSpawnBrush(false);
         else if (!m_brushController.creatureBrush().isEmpty()) setCreatureBrush(QString());
         else if (m_brushController.houseBrush() > 0) { setHouseExitMode(false); setHouseBrush(0); }
@@ -311,7 +497,6 @@ bool MapView::advancePointerFrame()
 
 void MapView::processPointerMove(const QPointF &pos, bool hoverOnly)
 {
-
     if (m_pathBuilder.active() && m_pathBuilder.drawing()) {
         m_navigationController.lastMouse() = pos;
         const QPoint tile = tileAtScreen(pos);
@@ -331,6 +516,18 @@ void MapView::processPointerMove(const QPointF &pos, bool hoverOnly)
         m_navigationController.originY() -= delta.y() / ts;
         m_navigationController.lastMouse() = pos;
         emit contentUpdated(); update();
+        return;
+    }
+
+    if (m_selectionController.lassoing()) {
+        m_navigationController.lastMouse() = pos;
+        const QPoint tile = tileAtScreen(pos);
+        m_hoverX = tile.x();
+        m_hoverY = tile.y();
+        appendLassoPoint(tile);
+        updateHoverText();
+        emit contentUpdated();
+        update();
         return;
     }
 
@@ -376,6 +573,7 @@ void MapView::processPointerMove(const QPointF &pos, bool hoverOnly)
         updateHoverText();
         const bool cursorVisual = m_brushController.serverId() > 0
             || m_editController.activeZone() != 0 || m_editController.eraseMode()
+            || m_brushController.optionalBorderBrush()
             || m_brushController.spawnBrush() || !m_brushController.creatureBrush().isEmpty()
             || m_brushController.houseBrush() > 0 || m_brushController.houseExitMode()
             || !m_brushController.doodadBrush().isEmpty();
@@ -394,7 +592,23 @@ void MapView::mouseReleaseEvent(QMouseEvent *event)
 {
     m_pointerMovePending = false;
     processPointerMove(event->position(), false);
-    if (event->button() == Qt::LeftButton && m_pathBuilder.active()
+    if ((event->button() == Qt::LeftButton || event->button() == Qt::MiddleButton)
+        && m_navigationController.panning()) {
+        m_navigationController.panning() = false;
+        setCursor(m_spacePanHeld ? Qt::OpenHandCursor
+                                : (m_editController.selectionMode() ? Qt::ArrowCursor
+                                   : (m_brushController.serverId() > 0 ? Qt::CrossCursor
+                                                                       : Qt::ArrowCursor)));
+    } else if (event->button() == Qt::LeftButton && m_selectionController.lassoing()) {
+        appendLassoPoint(tileAtScreen(event->position()));
+        applyLassoSelection();
+        m_selectionController.lassoing() = false;
+        m_selectionController.lassoPoints().clear();
+        m_selectionController.lassoBase().clear();
+        setCursor(Qt::CrossCursor);
+        emit contentUpdated();
+        update();
+    } else if (event->button() == Qt::LeftButton && m_pathBuilder.active()
         && m_pathBuilder.drawing()) {
         m_pathBuilder.append(tileAtScreen(event->position()));
         m_pathBuilder.finish();
@@ -425,8 +639,6 @@ void MapView::mouseReleaseEvent(QMouseEvent *event)
     } else if (event->button() == Qt::LeftButton && m_selectionController.selecting()) {
         m_selectionController.selecting() = false;
         emit contentUpdated(); update();
-    } else if (event->button() == Qt::MiddleButton && m_navigationController.panning()) {
-        m_navigationController.panning() = false;
     }
     event->accept();
 }
@@ -442,6 +654,7 @@ void MapView::mouseUngrabEvent()
     m_selectionController.moving() = false;
     m_selectionController.moveChanged() = false;
     m_selectionController.selecting() = false;
+    cancelLasso();
     m_navigationController.panning() = false;
     m_brushController.finishStroke();
     m_pointerMovePending = false;
@@ -507,6 +720,11 @@ void MapView::zoomAt(int steps, qreal px, qreal py)
 
 void MapView::keyPressEvent(QKeyEvent *event)
 {
+    if (event->key() == Qt::Key_Escape && m_selectionController.lassoing()) {
+        cancelLasso();
+        event->accept();
+        return;
+    }
     if (m_pathBuilder.active()) {
         if (event->key() == Qt::Key_Escape) {
             cancelPathBuilder();
@@ -578,6 +796,17 @@ void MapView::keyPressEvent(QKeyEvent *event)
     }
 
     if (event->key() == Qt::Key_Space && !(event->modifiers() & Qt::ControlModifier)) {
+        if (!event->isAutoRepeat()) {
+            m_spacePanHeld = true;
+            if (!m_navigationController.panning())
+                setCursor(Qt::OpenHandCursor);
+        }
+        event->accept();
+        return;
+    }
+
+    if (event->key() == Qt::Key_Alt && !event->isAutoRepeat()) {
+        setEraseMode(false);
         toggleSelectionMode();
         event->accept();
         return;
@@ -623,6 +852,18 @@ void MapView::keyPressEvent(QKeyEvent *event)
 
 void MapView::keyReleaseEvent(QKeyEvent *event)
 {
+    if (event->key() == Qt::Key_Space) {
+        if (!event->isAutoRepeat()) {
+            m_spacePanHeld = false;
+            m_navigationController.panning() = false;
+            setCursor(m_editController.selectionMode() ? Qt::ArrowCursor
+                      : (m_brushController.serverId() > 0 ? Qt::CrossCursor
+                                                          : Qt::ArrowCursor));
+        }
+        event->accept();
+        return;
+    }
+
     const int k = event->key();
     if (!event->isAutoRepeat() && m_navigationController.heldArrows().remove(k)) {
         if (m_navigationController.heldArrows().isEmpty()) {
@@ -649,6 +890,8 @@ void MapView::focusOutEvent(QFocusEvent *event)
 {
 
     m_navigationController.heldArrows().clear();
+    m_spacePanHeld = false;
+    m_navigationController.panning() = false;
     m_pointerMovePending = false;
     QQuickItem::focusOutEvent(event);
 }
@@ -681,6 +924,13 @@ bool MapView::advanceNavigationFrame()
             m_hoverY = hover.y();
             updateHoverText();
         }
+
+        // Arrow-key navigation moves the map below a stationary pointer. Keep
+        // an active lasso attached to that pointer as well; otherwise its last
+        // point remains in the old map position and the outline jumps on the
+        // next mouse event.
+        if (m_selectionController.lassoing())
+            appendLassoPoint(hover);
     }
 
     emit contentUpdated();

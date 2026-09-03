@@ -126,6 +126,11 @@ void MapView::paintFootprint(int x, int y)
         return;
     }
 
+    if (m_brushController.optionalBorderBrush()) {
+        paintOptionalBorderAt(x, y);
+        return;
+    }
+
     if (m_brushController.houseBrush() > 0) {
         placeHouseAt(x, y);
         return;
@@ -209,6 +214,11 @@ void MapView::selectCreatureBrush(const QString &name, bool isNpc)
     m_brushController.creatureBrushIsNpc() = !name.isEmpty() && isNpc;
     if (!name.isEmpty()) {
 
+        if (m_brushController.optionalBorderBrush()) {
+            m_brushController.optionalBorderBrush() = false;
+            emit optionalBorderModeChanged();
+        }
+
         applyBrushServerId(0, false);
         m_brushController.spawnBrush() = false;
         if (m_editController.selectionMode()) { m_editController.selectionMode() = false; emit selectionModeChanged(); }
@@ -234,6 +244,10 @@ void MapView::setSpawnBrush(bool on)
     if (m_brushController.spawnBrush() == on) return;
     m_brushController.spawnBrush() = on;
     if (on) {
+        if (m_brushController.optionalBorderBrush()) {
+            m_brushController.optionalBorderBrush() = false;
+            emit optionalBorderModeChanged();
+        }
         applyBrushServerId(0, false);
         m_brushController.creatureBrush().clear();
         if (m_editController.selectionMode()) { m_editController.selectionMode() = false; emit selectionModeChanged(); }
@@ -254,6 +268,10 @@ void MapView::setHouseBrush(int id)
     m_brushController.houseBrush() = id;
     ++m_metadataOverlayVersion;
     if (id > 0) {
+        if (m_brushController.optionalBorderBrush()) {
+            m_brushController.optionalBorderBrush() = false;
+            emit optionalBorderModeChanged();
+        }
         applyBrushServerId(0, false);
         m_brushController.creatureBrush().clear();
         m_brushController.spawnBrush() = false;
@@ -379,7 +397,8 @@ bool MapView::brushCanDrag() const
 
     if (m_brushController.houseBrush() > 0) return !m_brushController.houseExitMode();
     if (!m_brushController.doodadBrush().isEmpty() || m_brushController.doorBrushId() > 0) return false;
-    if (m_editController.activeZone() != 0 || m_editController.eraseMode()) return true;
+    if (m_editController.activeZone() != 0 || m_editController.eraseMode()
+        || m_brushController.optionalBorderBrush()) return true;
     return m_brushController.serverId() > 0 || !m_brushController.groundBrush().isEmpty() || !m_brushController.wallBrush().isEmpty();
 }
 
@@ -461,6 +480,7 @@ void MapView::paintAt(int x, int y)
 {
 
     if (!m_otbm || (m_brushController.serverId() <= 0 && m_editController.activeZone() == 0 && !m_editController.eraseMode()
+                    && !m_brushController.optionalBorderBrush()
                     && !m_brushController.spawnBrush() && m_brushController.creatureBrush().isEmpty()
                     && m_brushController.houseBrush() <= 0)) return;
     if (x == m_brushController.lastX() && y == m_brushController.lastY()) return;

@@ -4,7 +4,9 @@
 #include "otbmreader.h"
 
 #include <QSet>
+#include <QPoint>
 #include <QString>
+#include <QVector>
 #include <QtGlobal>
 #include <vector>
 
@@ -39,6 +41,16 @@ public:
     bool wholeStack() const { return m_wholeStack; }
     bool &selecting() { return m_selecting; }
     bool selecting() const { return m_selecting; }
+    bool &lassoMode() { return m_lassoMode; }
+    bool lassoMode() const { return m_lassoMode; }
+    bool &lassoing() { return m_lassoing; }
+    bool lassoing() const { return m_lassoing; }
+    QVector<QPoint> &lassoPoints() { return m_lassoPoints; }
+    const QVector<QPoint> &lassoPoints() const { return m_lassoPoints; }
+    QSet<quint64> &lassoBase() { return m_lassoBase; }
+    const QSet<quint64> &lassoBase() const { return m_lassoBase; }
+    int &lassoOperation() { return m_lassoOperation; }
+    int lassoOperation() const { return m_lassoOperation; }
     bool &pasting() { return m_pasting; }
     bool pasting() const { return m_pasting; }
     int &anchorX() { return m_anchorX; }
@@ -71,6 +83,11 @@ private:
     bool m_compensated = true;
     bool m_wholeStack = false;
     bool m_selecting = false;
+    bool m_lassoMode = false;
+    bool m_lassoing = false;
+    QVector<QPoint> m_lassoPoints;
+    QSet<quint64> m_lassoBase;
+    int m_lassoOperation = 0;
     bool m_pasting = false;
     int m_anchorX = 0;
     int m_anchorY = 0;

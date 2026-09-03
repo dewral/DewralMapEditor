@@ -49,8 +49,19 @@ public:
         delete m_cursorProg;
         delete m_blitProg;
         m_cursorVbo.destroy();
+        m_lassoVbo.destroy();
         m_spawnVbo.destroy();
         m_spawnSelVbo.destroy();
+        m_terrainLandVbo.destroy();
+        m_terrainBeachVbo.destroy();
+        m_terrainWaterVbo.destroy();
+        m_terrainMountainVbo.destroy();
+        m_terrainSpriteVbo.destroy();
+        m_dungeonRoomsVbo.destroy();
+        m_dungeonCorridorsVbo.destroy();
+        m_dungeonEntranceVbo.destroy();
+        m_dungeonBossVbo.destroy();
+        m_dungeonWallsVbo.destroy();
         m_wallOutlineVbo.destroy();
         m_pathingVbo.destroy();
         m_floorDownVbo.destroy();
@@ -333,6 +344,17 @@ public:
         m_rubberActive = !m_previewWindow && src->glRubberBandRect(rx0, ry0, rx1, ry1);
         if (m_rubberActive) { m_rubberRect[0]=rx0; m_rubberRect[1]=ry0; m_rubberRect[2]=rx1; m_rubberRect[3]=ry1; }
 
+        m_lassoActive = !m_previewWindow && src->glCollectLassoLineVertices(m_lassoVertices);
+        m_lassoOperation = src->glLassoOperation();
+        m_lassoVertexCount = static_cast<int>(m_lassoVertices.size() / 2);
+        if (m_lassoActive && m_lassoVertexCount > 0) {
+            if (!m_lassoVbo.isCreated()) m_lassoVbo.create();
+            m_lassoVbo.bind();
+            m_lassoVbo.allocate(m_lassoVertices.data(),
+                                static_cast<int>(m_lassoVertices.size() * sizeof(float)));
+            m_lassoVbo.release();
+        }
+
         const bool lightingEnabled = m_previewWindow ? m_previewLighting : src->torchOn();
         // OTClient treats ambient intensity as an unsigned byte. The preview
         // deliberately represents TFS night (40), while the editor uses the
@@ -416,7 +438,8 @@ public:
             || (contentVersion != m_overlayContentVersion
                 && !src->editingStrokeActive());
         const bool rebuildMetadataOverlays =
-            metadataOverlayVersion != m_metadataOverlayVersion || overlayViewChanged;
+            metadataOverlayVersion != m_metadataOverlayVersion || overlayViewChanged
+            || m_atlasGen != m_overlayAtlasGeneration;
 
         if (!m_previewWindow && rebuildGeometryOverlays) {
             m_overlayContentVersion = contentVersion;
@@ -437,6 +460,7 @@ public:
 
         if (!m_previewWindow && rebuildMetadataOverlays) {
             m_metadataOverlayVersion = metadataOverlayVersion;
+            m_overlayAtlasGeneration = m_atlasGen;
             src->glCollectZoneMarkInstances(m_zoneHouseInst, m_zoneSelectedHouseInst,
                                             m_zonePzInst,
                                             m_zoneNoPvpInst, m_zoneNoLogoutInst,
@@ -452,6 +476,29 @@ public:
             src->glCollectSpawnMarkInstances(m_spawnInst, m_spawnSelInst);
             uploadDyn(m_spawnVbo, m_spawnInst, m_spawnCount);
             uploadDyn(m_spawnSelVbo, m_spawnSelInst, m_spawnSelCount);
+
+            src->glCollectTerrainPreviewInstances(
+                m_terrainLandInst, m_terrainBeachInst,
+                m_terrainWaterInst, m_terrainMountainInst);
+            uploadDyn(m_terrainLandVbo, m_terrainLandInst, m_terrainLandCount);
+            uploadDyn(m_terrainBeachVbo, m_terrainBeachInst, m_terrainBeachCount);
+            uploadDyn(m_terrainWaterVbo, m_terrainWaterInst, m_terrainWaterCount);
+            uploadDyn(m_terrainMountainVbo, m_terrainMountainInst,
+                      m_terrainMountainCount);
+            src->glCollectTerrainSpritePreviewInstances(m_terrainSpriteInst);
+            uploadDyn(m_terrainSpriteVbo, m_terrainSpriteInst,
+                      m_terrainSpriteCount);
+
+            src->glCollectDungeonPreviewInstances(
+                m_dungeonRoomsInst, m_dungeonCorridorsInst,
+                m_dungeonEntranceInst, m_dungeonBossInst, m_dungeonWallsInst);
+            uploadDyn(m_dungeonRoomsVbo, m_dungeonRoomsInst, m_dungeonRoomsCount);
+            uploadDyn(m_dungeonCorridorsVbo, m_dungeonCorridorsInst,
+                      m_dungeonCorridorsCount);
+            uploadDyn(m_dungeonEntranceVbo, m_dungeonEntranceInst,
+                      m_dungeonEntranceCount);
+            uploadDyn(m_dungeonBossVbo, m_dungeonBossInst, m_dungeonBossCount);
+            uploadDyn(m_dungeonWallsVbo, m_dungeonWallsInst, m_dungeonWallsCount);
         }
 
         if (overlayViewChanged) {
@@ -774,6 +821,12 @@ public:
 
         m_prog->setUniformValue("uLightEnabled", false);
 
+        if (!m_previewWindow && m_terrainSpriteCount > 0) {
+            m_prog->setUniformValue("uTint", QVector4D(1.0f, 1.0f, 1.0f, 0.82f));
+            drawOverlay(m_terrainSpriteVbo, m_terrainSpriteCount);
+            m_prog->setUniformValue("uTint", QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
+        }
+
         if (m_previewWindow) {
             m_vao.release();
             m_prog->release();
@@ -818,6 +871,25 @@ public:
                        QVector4D(0.95f, 0.82f, 0.30f, 0.24f));
         drawSpawnMarks(m_zonePvpVbo, m_zonePvpCount,
                        QVector4D(0.95f, 0.43f, 0.25f, 0.24f));
+
+        drawSpawnMarks(m_terrainLandVbo, m_terrainLandCount,
+                       QVector4D(0.12f, 0.78f, 0.36f, 0.30f));
+        drawSpawnMarks(m_terrainBeachVbo, m_terrainBeachCount,
+                       QVector4D(0.95f, 0.73f, 0.23f, 0.36f));
+        drawSpawnMarks(m_terrainWaterVbo, m_terrainWaterCount,
+                       QVector4D(0.12f, 0.52f, 0.96f, 0.38f));
+        drawSpawnMarks(m_terrainMountainVbo, m_terrainMountainCount,
+                       QVector4D(0.66f, 0.70f, 0.74f, 0.38f));
+        drawSpawnMarks(m_dungeonRoomsVbo, m_dungeonRoomsCount,
+                       QVector4D(0.18f, 0.58f, 0.96f, 0.34f));
+        drawSpawnMarks(m_dungeonCorridorsVbo, m_dungeonCorridorsCount,
+                       QVector4D(0.96f, 0.72f, 0.18f, 0.38f));
+        drawSpawnMarks(m_dungeonEntranceVbo, m_dungeonEntranceCount,
+                       QVector4D(0.18f, 0.92f, 0.42f, 0.48f));
+        drawSpawnMarks(m_dungeonBossVbo, m_dungeonBossCount,
+                       QVector4D(0.96f, 0.18f, 0.22f, 0.52f));
+        drawSpawnMarks(m_dungeonWallsVbo, m_dungeonWallsCount,
+                       QVector4D(0.72f, 0.34f, 0.96f, 0.44f));
 
         drawSpawnMarks(m_gridVbo, m_gridCount, QVector4D(0.0f, 0.0f, 0.0f, 0.35f));
         drawSpawnMarks(m_pathingVbo, m_pathingCount,
@@ -891,6 +963,27 @@ public:
             glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
             glLineWidth(1.5f);
             glDrawArrays(GL_LINE_LOOP, 0, 4);
+            m_flatVao.release();
+            m_flatProg->release();
+        }
+
+        if (m_lassoActive && m_lassoVertexCount > 0
+            && m_flatProg && m_flatProg->isLinked()) {
+            m_flatProg->bind();
+            m_flatProg->setUniformValue("uMatrix", matrix);
+            m_flatProg->setUniformValue("uRect", QVector4D(0.0f, 0.0f, 1.0f, 1.0f));
+            const QVector4D color = m_lassoOperation == 2
+                ? QVector4D(0.96f, 0.28f, 0.24f, 0.96f)
+                : (m_lassoOperation == 1
+                    ? QVector4D(0.34f, 0.92f, 0.48f, 0.96f)
+                    : QVector4D(0.92f, 0.92f, 0.82f, 0.95f));
+            m_flatProg->setUniformValue("uColor", color);
+            m_flatVao.bind();
+            m_lassoVbo.bind();
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
+            glLineWidth(1.5f);
+            glDrawArrays(GL_LINES, 0, m_lassoVertexCount);
             m_flatVao.release();
             m_flatProg->release();
         }
@@ -1191,6 +1284,7 @@ private:
     quint64 m_pointerOverlayVersion = std::numeric_limits<quint64>::max();
     int m_overlayX = 0, m_overlayY = 0, m_overlayFloor = -1;
     int m_overlayTileSize = -1, m_overlayWidth = -1, m_overlayHeight = -1;
+    int m_overlayAtlasGeneration = -1;
 
     QOpenGLBuffer m_fxVbo;
     std::vector<float> m_fxInst;
@@ -1215,6 +1309,36 @@ private:
     QOpenGLBuffer m_spawnSelVbo;
     std::vector<float> m_spawnSelInst;
     int m_spawnSelCount = 0;
+    QOpenGLBuffer m_terrainLandVbo;
+    std::vector<float> m_terrainLandInst;
+    int m_terrainLandCount = 0;
+    QOpenGLBuffer m_terrainBeachVbo;
+    std::vector<float> m_terrainBeachInst;
+    int m_terrainBeachCount = 0;
+    QOpenGLBuffer m_terrainWaterVbo;
+    std::vector<float> m_terrainWaterInst;
+    int m_terrainWaterCount = 0;
+    QOpenGLBuffer m_terrainMountainVbo;
+    std::vector<float> m_terrainMountainInst;
+    int m_terrainMountainCount = 0;
+    QOpenGLBuffer m_terrainSpriteVbo;
+    std::vector<float> m_terrainSpriteInst;
+    int m_terrainSpriteCount = 0;
+    QOpenGLBuffer m_dungeonRoomsVbo;
+    std::vector<float> m_dungeonRoomsInst;
+    int m_dungeonRoomsCount = 0;
+    QOpenGLBuffer m_dungeonCorridorsVbo;
+    std::vector<float> m_dungeonCorridorsInst;
+    int m_dungeonCorridorsCount = 0;
+    QOpenGLBuffer m_dungeonEntranceVbo;
+    std::vector<float> m_dungeonEntranceInst;
+    int m_dungeonEntranceCount = 0;
+    QOpenGLBuffer m_dungeonBossVbo;
+    std::vector<float> m_dungeonBossInst;
+    int m_dungeonBossCount = 0;
+    QOpenGLBuffer m_dungeonWallsVbo;
+    std::vector<float> m_dungeonWallsInst;
+    int m_dungeonWallsCount = 0;
     QOpenGLBuffer m_gridVbo;
     std::vector<float> m_gridInst;
     int m_gridCount = 0;
@@ -1257,6 +1381,11 @@ private:
     QOpenGLShaderProgram *m_flatProg = nullptr;
     QOpenGLVertexArrayObject m_flatVao;
     QOpenGLBuffer m_borderVbo{QOpenGLBuffer::VertexBuffer};
+    QOpenGLBuffer m_lassoVbo{QOpenGLBuffer::VertexBuffer};
+    std::vector<float> m_lassoVertices;
+    int m_lassoVertexCount = 0;
+    bool m_lassoActive = false;
+    int m_lassoOperation = 0;
     bool m_rubberActive = false;
     double m_rubberRect[4] = {0, 0, 0, 0};
     bool m_brushRectActive = false;

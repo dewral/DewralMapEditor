@@ -122,6 +122,8 @@ public:
     bool houseExitMode() const { return m_houseExitMode; }
     bool &automagic() { return m_automagic; }
     bool automagic() const { return m_automagic; }
+    bool &optionalBorderBrush() { return m_optionalBorderBrush; }
+    bool optionalBorderBrush() const { return m_optionalBorderBrush; }
 
 private:
     int m_size = 0;
@@ -150,6 +152,7 @@ private:
     int m_houseBrush = 0;
     bool m_houseExitMode = false;
     bool m_automagic = true;
+    bool m_optionalBorderBrush = false;
 };
 
 #endif

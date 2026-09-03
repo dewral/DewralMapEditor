@@ -124,6 +124,8 @@ void MapView::setShowLowerFloors(bool on)
 bool MapView::loadMap(const QString &path)
 {
     if (!m_otbm || path.trimmed().isEmpty() || m_otbm->isLoading()) return false;
+    m_optionalBorderTiles.clear();
+    m_optionalBorderOverrides.clear();
 
     OtbmReader *target = m_otbm;
     if (m_mapLoadCancel) m_mapLoadCancel->store(true, std::memory_order_release);
@@ -333,6 +335,8 @@ void MapView::setOtbm(OtbmReader *reader)
     if (m_mapLoadCancel) m_mapLoadCancel->store(true, std::memory_order_release);
     m_mapLoadGeneration.fetch_add(1, std::memory_order_acq_rel);
     m_otbm = reader;
+    m_optionalBorderTiles.clear();
+    m_optionalBorderOverrides.clear();
     if (m_otbm) connect(m_otbm, &OtbmReader::loadedChanged, this, &MapView::onMapLoaded);
     emit readersChanged();
     onMapLoaded();
@@ -366,6 +370,8 @@ void MapView::setFloor(int floor)
 {
     floor = std::clamp(floor, 0, 15);
     if (m_navigationController.floor() == floor) return;
+    clearTerrainPreview();
+    cancelLasso();
     m_navigationController.floor() = floor;
     if (m_selectionController.moving())
         m_selectionController.moveChanged() = m_selectionController.moveChanged() || m_navigationController.floor() != m_selectionController.moveSourceZ();
@@ -474,6 +480,10 @@ void MapView::useDoodadBrush(const QString &name)
     BrushStore *store = m_brushController.store();
     if (!store || !store->isDoodadBrush(name)) return;
     if (m_pathBuilder.active()) cancelPathBuilder();
+    if (m_brushController.optionalBorderBrush()) {
+        m_brushController.optionalBorderBrush() = false;
+        emit optionalBorderModeChanged();
+    }
 
     if (m_editController.selectionMode()) {
         m_editController.selectionMode() = false;
@@ -513,6 +523,35 @@ void MapView::setEraseMode(bool on)
     emit contentUpdated(); update();
 }
 
+void MapView::setOptionalBorderMode(bool on)
+{
+    if (m_brushController.optionalBorderBrush() == on) return;
+    if (on && m_pathBuilder.active()) cancelPathBuilder();
+
+    if (on) {
+        applyBrushServerId(0, false);
+        m_brushController.creatureBrush().clear();
+        m_brushController.spawnBrush() = false;
+        m_brushController.houseBrush() = 0;
+        m_brushController.houseExitMode() = false;
+        if (m_editController.activeZone() != 0) {
+            m_editController.activeZone() = 0;
+            emit activeZoneChanged();
+        }
+        if (m_editController.selectionMode()) {
+            m_editController.selectionMode() = false;
+            emit selectionModeChanged();
+        }
+    }
+
+    m_brushController.optionalBorderBrush() = on;
+    setCursor(on ? Qt::CrossCursor : Qt::ArrowCursor);
+    emit optionalBorderModeChanged();
+    emit brushChanged();
+    emit contentUpdated();
+    update();
+}
+
 void MapView::setActiveZone(int zone)
 {
     const quint32 z = static_cast<quint32>(zone < 0 ? 0 : zone);
@@ -520,6 +559,11 @@ void MapView::setActiveZone(int zone)
     if (m_editController.activeZone() == z) return;
     m_editController.activeZone() = z;
     if (z != 0) {
+
+        if (m_brushController.optionalBorderBrush()) {
+            m_brushController.optionalBorderBrush() = false;
+            emit optionalBorderModeChanged();
+        }
 
         if (m_brushController.serverId() != 0) {
             m_brushController.serverId() = 0;
@@ -541,10 +585,25 @@ void MapView::setActiveZone(int zone)
 void MapView::setSelectionMode(bool on)
 {
     if (on && m_pathBuilder.active()) cancelPathBuilder();
+    if (!on) {
+        cancelLasso();
+        if (m_selectionController.lassoMode()) {
+            m_selectionController.lassoMode() = false;
+            emit lassoModeChanged();
+        }
+    }
     if (m_editController.selectionMode() == on) return;
     m_editController.selectionMode() = on;
+    if (on && m_brushController.optionalBorderBrush()) {
+        m_brushController.optionalBorderBrush() = false;
+        emit optionalBorderModeChanged();
+    }
 
-    setCursor(on ? Qt::ArrowCursor : (m_brushController.serverId() > 0 ? Qt::CrossCursor : Qt::ArrowCursor));
+    setCursor(on && m_selectionController.lassoMode()
+                  ? Qt::CrossCursor
+                  : (on ? Qt::ArrowCursor
+                        : (m_brushController.serverId() > 0
+                               ? Qt::CrossCursor : Qt::ArrowCursor)));
     emit selectionModeChanged();
     emit contentUpdated(); update();
 }
@@ -588,6 +647,10 @@ void MapView::applyBrushServerId(int serverId, bool asBrush)
     if (m_brushController.doodadBrush() != prevDoodad) m_brushController.doodadVariant() = -1;
     setCursor(serverId > 0 ? Qt::CrossCursor : Qt::ArrowCursor);
     if (serverId > 0) {
+        if (m_brushController.optionalBorderBrush()) {
+            m_brushController.optionalBorderBrush() = false;
+            emit optionalBorderModeChanged();
+        }
         std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
         ensureItemSprites(serverId);
 
@@ -599,8 +662,46 @@ void MapView::applyBrushServerId(int serverId, bool asBrush)
     emit contentUpdated(); update();
 }
 
+void MapView::setLassoMode(bool on)
+{
+    if (m_selectionController.lassoMode() == on) return;
+    cancelLasso();
+    m_selectionController.lassoMode() = on;
+    if (on && !m_editController.selectionMode())
+        setSelectionMode(true);
+    setCursor(on ? Qt::CrossCursor
+                 : (m_editController.selectionMode() ? Qt::ArrowCursor
+                                                     : cursor().shape()));
+    emit lassoModeChanged();
+    emit contentUpdated();
+    update();
+}
+
+bool MapView::useGroundBrushName(const QString &name)
+{
+    if (!m_brushController.store() || name.trimmed().isEmpty()) return false;
+
+    const int serverId = m_brushController.store()->pickGroundItem(name);
+    if (serverId <= 0) return false;
+
+    // Select the exact edited brush. Looking it up only by server ID is
+    // ambiguous when custom brushes share a ground item.
+    applyBrushServerId(serverId, true);
+    m_brushController.groundBrush() = name;
+    m_brushController.wallBrush().clear();
+    m_brushController.doodadBrush().clear();
+    m_brushController.carpetBrush().clear();
+    m_brushController.tableBrush().clear();
+    m_brushController.doorBrushId() = 0;
+    emit brushChanged();
+    emit contentUpdated();
+    update();
+    return true;
+}
+
 void MapView::onMapLoaded()
 {
+    clearTerrainPreview();
     const bool reportProgress = m_otbm && m_otbm->isLoading() && m_otbm->isLoaded();
     const bool preparedAsyncIndex = m_asyncFloorIndexReady;
     if (reportProgress && !preparedAsyncIndex)

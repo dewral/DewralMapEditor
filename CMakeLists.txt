@@ -90,6 +90,8 @@ add_executable(DewralMapEditor
     editor/core/creaturefilter.h
     editor/core/updateservice.cpp
     editor/core/updateservice.h
+    editor/core/updateversion.cpp
+    editor/core/updateversion.h
     editor/core/worktimerservice.cpp
     editor/core/worktimerservice.h
     editor/map/mapview.cpp
@@ -269,11 +271,17 @@ if(BUILD_TESTING)
         libs/otformats editor/core)
     target_link_libraries(creature_store_test PRIVATE Qt6::Core)
     add_test(NAME creature_store COMMAND creature_store_test)
+    add_executable(update_version_test EXCLUDE_FROM_ALL
+        tests/update_version_test.cpp
+        editor/core/updateversion.cpp)
+    target_include_directories(update_version_test PRIVATE editor/core)
+    target_link_libraries(update_version_test PRIVATE Qt6::Core)
+    add_test(NAME update_version COMMAND update_version_test)
     if(WIN32)
         set_tests_properties(otbm_compact_storage otbm_editing_storage
                              otbm_background_load atlas_background_build map_path_builder
                              map_terrain_generator map_terrain_profile map_dungeon_generator
-                             document_recovery creature_store PROPERTIES
+                             document_recovery creature_store update_version PROPERTIES
             ENVIRONMENT_MODIFICATION
                 "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
     endif()

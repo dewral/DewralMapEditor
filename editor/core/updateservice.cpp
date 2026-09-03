@@ -1,9 +1,9 @@
 #include "updateservice.h"
 
 #include "documentmanager.h"
+#include "updateversion.h"
 
 #include <QCoreApplication>
-#include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileInfo>
@@ -14,9 +14,7 @@
 #include <QNetworkRequest>
 #include <QProcess>
 #include <QRegularExpression>
-#include <QSettings>
 #include <QStandardPaths>
-#include <QVersionNumber>
 
 #ifndef DME_GIT_COMMIT
 #define DME_GIT_COMMIT "unknown"
@@ -39,14 +37,6 @@ QNetworkRequest githubRequest(const QUrl &url)
     request.setRawHeader("User-Agent", "DewralMapEditor-Updater");
     request.setTransferTimeout(30000);
     return request;
-}
-
-QString normalizedVersion(QString value)
-{
-    value = value.trimmed();
-    if (value.startsWith(QLatin1Char('v'), Qt::CaseInsensitive))
-        value.remove(0, 1);
-    return value;
 }
 
 QString digestValue(QString digest)
@@ -112,27 +102,26 @@ void UpdateService::resetRelease()
     emit downloadProgressChanged();
 }
 
-void UpdateService::checkForUpdates(const QString &channel, bool silent)
+void UpdateService::checkForUpdates()
 {
     if (busy())
         return;
 
-    Q_UNUSED(channel);
-    m_requestedChannel = QStringLiteral("stable");
-    m_silent = silent;
+    m_requestedChannel = currentChannel() == QStringLiteral("development")
+        ? QStringLiteral("development") : QStringLiteral("stable");
     m_cancelled = false;
-
-    if (silent) {
-        QSettings settings;
-        const QString key = QStringLiteral("updates/lastCheckUtc/%1").arg(m_requestedChannel);
-        const QDateTime last = settings.value(key).toDateTime();
-        if (last.isValid() && last.secsTo(QDateTime::currentDateTimeUtc()) < 24 * 60 * 60)
-            return;
-    }
 
     resetRelease();
     setState(QStringLiteral("checking"));
     requestRelease(m_requestedChannel);
+}
+
+void UpdateService::requestCommitComparison()
+{
+    const QString endpoint = QStringLiteral("%1/compare/%2...%3")
+        .arg(QLatin1String(kRepositoryApi), currentCommit(), m_latestCommit);
+    startRequest(QUrl(endpoint),
+                 [this](QByteArray payload) { processCommitComparison(payload); });
 }
 
 void UpdateService::requestRelease(const QString &channel)
@@ -208,6 +197,24 @@ void UpdateService::processRelease(const QByteArray &payload)
                      QUrl(downloadUrl), digest, size);
 }
 
+void UpdateService::processCommitComparison(const QByteArray &payload)
+{
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(payload, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        fail(QStringLiteral("GitHub returned an invalid commit comparison."));
+        return;
+    }
+
+    const QString status = document.object().value(QStringLiteral("status")).toString();
+    if (status != QStringLiteral("ahead") && status != QStringLiteral("behind")
+        && status != QStringLiteral("identical") && status != QStringLiteral("diverged")) {
+        fail(QStringLiteral("GitHub returned an unknown commit comparison."));
+        return;
+    }
+    finishRelease(status == QStringLiteral("ahead"));
+}
+
 void UpdateService::requestManifest(const QUrl &url, const QByteArray &fallbackRelease)
 {
     startRequest(url, [this, fallbackRelease](QByteArray payload) {
@@ -249,41 +256,44 @@ void UpdateService::applyReleaseData(const QString &version, const QString &comm
                                      const QUrl &downloadUrl, const QString &sha256,
                                      qint64 size)
 {
-    m_latestVersion = normalizedVersion(version);
+    m_latestVersion = version.trimmed();
+    if (m_latestVersion.startsWith(QLatin1Char('v'), Qt::CaseInsensitive))
+        m_latestVersion.remove(0, 1);
     m_latestCommit = commit.trimmed();
     m_releaseNotes = notes.trimmed();
     m_releasePageUrl = pageUrl;
     m_downloadUrl = downloadUrl;
     m_expectedSha256 = sha256;
     m_expectedSize = size;
-    m_updateAvailable = isNewer(m_latestVersion, m_latestCommit);
-    QSettings().setValue(QStringLiteral("updates/lastCheckUtc/%1").arg(m_requestedChannel),
-                         QDateTime::currentDateTimeUtc());
     emit updateChanged();
+
+    const UpdateVersion::Decision decision = UpdateVersion::decide(
+        m_requestedChannel, m_latestVersion, m_latestCommit,
+        currentVersion(), currentCommit());
+    if (decision == UpdateVersion::Decision::CompareCommits) {
+        requestCommitComparison();
+        return;
+    }
+    finishRelease(decision == UpdateVersion::Decision::Newer);
+}
+
+void UpdateService::finishRelease(bool updateAvailable)
+{
+    m_updateAvailable = updateAvailable;
 
     constexpr qint64 maximumPackageSize = 1024LL * 1024LL * 1024LL;
     if (m_updateAvailable
         && (!validPackageUrl(m_downloadUrl) || !validSha256(m_expectedSha256)
             || m_expectedSize <= 0 || m_expectedSize > maximumPackageSize)) {
+        m_updateAvailable = false;
+        emit updateChanged();
         fail(QStringLiteral("The release is missing a verified Windows update package."));
         return;
     }
 
+    emit updateChanged();
     setState(m_updateAvailable ? QStringLiteral("available")
                                : QStringLiteral("upToDate"));
-    if (m_updateAvailable || !m_silent)
-        emit interactionRequested();
-}
-
-bool UpdateService::isNewer(const QString &version, const QString &commit) const
-{
-    const QString installedCommit = currentCommit();
-    if (!commit.isEmpty() && installedCommit != QStringLiteral("unknown"))
-        return !commit.startsWith(installedCommit) && !installedCommit.startsWith(commit);
-
-    const QVersionNumber latest = QVersionNumber::fromString(normalizedVersion(version));
-    const QVersionNumber installed = QVersionNumber::fromString(normalizedVersion(currentVersion()));
-    return !latest.isNull() && QVersionNumber::compare(latest, installed) > 0;
 }
 
 void UpdateService::downloadAndInstall()
@@ -462,7 +472,8 @@ void UpdateService::cancel()
         m_downloadFile.close();
     if (!m_downloadFile.fileName().isEmpty())
         QFile::remove(m_downloadFile.fileName());
-    setState(QStringLiteral("idle"));
+    setState(m_updateAvailable ? QStringLiteral("available")
+                               : QStringLiteral("idle"));
 }
 
 void UpdateService::openReleasePage() const
@@ -481,6 +492,4 @@ void UpdateService::setState(const QString &state, const QString &error)
 void UpdateService::fail(const QString &message)
 {
     setState(QStringLiteral("error"), message);
-    if (!m_silent)
-        emit interactionRequested();
 }

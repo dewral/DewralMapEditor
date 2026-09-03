@@ -227,7 +227,7 @@ public:
         m_busy = false;
         m_status->setText(QStringLiteral(
             "DMEUpdater is started automatically by Dewral Map Editor.\n\n"
-            "Open DME and select Help > Check for Updates."));
+            "Open DME to check for updates from the start window."));
         m_progress->setVisible(false);
         m_closeButton->setVisible(true);
     }

@@ -34,7 +34,6 @@ DmeMenuBar {
     required property var themeDialog
     required property var borderizeConfirm
     required property var randomizeConfirm
-    required property var updateDialog
     required property var aboutDialog
     property int menuLeftInset: 4
     property int menuVerticalOffset: -4
@@ -616,23 +615,6 @@ DmeMenuBar {
         title: "Help"
         focus: false
 
-        Action {
-            text: "Check for Updates..."
-            onTriggered: {
-                menuBar.updateDialog.open();
-                Backend.updateService.checkForUpdates(
-                    menuBar.settings.updateChannel, false);
-            }
-        }
-
-        DmeMenuItem {
-            text: "Check automatically"
-            checkable: true
-            checked: menuBar.settings.checkUpdatesAutomatically
-            onTriggered: menuBar.settings.checkUpdatesAutomatically =
-                         !menuBar.settings.checkUpdatesAutomatically
-        }
-        MenuSeparator {}
         Action {
             text: "About"
             onTriggered: menuBar.aboutDialog.open()

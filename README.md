@@ -87,12 +87,18 @@ Each release provides two independent archives:
 
 ## Updates
 
-DME can check for updates from **Help > Check for Updates**. Every successful
-build from the `main` branch updates the single **Dewral Map Editor 1.0** GitHub
-release. DME downloads its portable ZIP, verifies the SHA-256 digest, and hands
-installation to the separate `DMEUpdater.exe`. Modified maps must be saved
-before restarting; user settings, custom client profiles, and recovery files
-are not stored in the application folder and are not replaced.
+DME checks for updates whenever the start window opens. That window shows the
+current status and, when a newer build is available, a **Download & install** button.
+Update channels follow the installed build:
+
+- **Stable builds** download normal published GitHub releases.
+- **Development builds** follow successful nightly builds of the `main` branch.
+
+The nightly package is built and published automatically after each push. DME
+downloads the portable ZIP, verifies its SHA-256 digest, and hands installation
+to the separate `DMEUpdater.exe`. Modified maps must be saved before restarting;
+user settings, custom client profiles, and recovery files are not stored in the
+application folder and are not replaced.
 
 Do not download only `DME.exe`. The executable requires the DLL and QML files
 that are shipped beside it in the ready-to-run archive.

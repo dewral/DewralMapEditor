@@ -18,17 +18,7 @@ Window {
     property string loadingMapPath: ""
     property string loadingProfileKey: ""
 
-    Connections {
-        target: Backend.updateService
-        function onInteractionRequested() {
-            if (!startupScreen.app.started)
-                startupUpdateDialog.open();
-        }
-    }
-
-    UpdateDialog {
-        id: startupUpdateDialog
-    }
+    Component.onCompleted: Backend.updateService.checkForUpdates()
 
     function beginLoadMap(path, profileKey) {
         if (!path || loadingMap)
@@ -151,7 +141,7 @@ Window {
                 Column {
                     anchors.fill: parent
                     anchors.margins: 24
-                    spacing: 14
+                    spacing: 9
 
                     Column {
                         spacing: 4
@@ -305,6 +295,73 @@ Window {
                             }
                             color: "#7a9a7a"
                             font.pixelSize: 10
+                        }
+                    }
+
+                    Column {
+                        width: 232
+                        spacing: 4
+
+                        Rectangle {
+                            width: parent.width
+                            height: 1
+                            color: startupScreen.grayTheme ? "#3A3A3A"
+                                  : (startupScreen.modernTheme ? "#30363D" : "#555555")
+                        }
+
+                        Text {
+                            text: "Updates"
+                            color: "#ddd"
+                            font.pixelSize: 13
+                            font.bold: true
+                        }
+
+                        Row {
+                            width: parent.width
+                            height: 23
+                            spacing: 6
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: updateAction.visible ? parent.width - updateAction.width - parent.spacing
+                                                            : parent.width
+                                text: {
+                                    switch (Backend.updateService.state) {
+                                    case "checking": return "Checking for updates...";
+                                    case "available": return "Version " + Backend.updateService.latestVersion + " available";
+                                    case "downloading": return "Downloading... " + Math.round(Backend.updateService.downloadProgress * 100) + "%";
+                                    case "installing": return "Starting installer...";
+                                    case "error": return "Unable to check for updates";
+                                    case "upToDate": return "DME is up to date";
+                                    default: return "Checking for updates...";
+                                    }
+                                }
+                                color: Backend.updateService.state === "error" ? "#D29922"
+                                     : Backend.updateService.updateAvailable ? "#7FDC8F" : "#888"
+                                font.pixelSize: 10
+                                elide: Text.ElideRight
+                            }
+
+                            DmeButton {
+                                id: updateAction
+                                width: Backend.updateService.state === "available" ? 112 : 58
+                                height: 23
+                                visible: Backend.updateService.state === "available"
+                                      || Backend.updateService.state === "downloading"
+                                      || Backend.updateService.state === "error"
+                                enabled: Backend.updateService.state !== "installing"
+                                variant: Backend.updateService.state === "available" ? "primary" : "default"
+                                text: Backend.updateService.state === "available" ? "Download & install"
+                                    : Backend.updateService.state === "downloading" ? "Cancel" : "Retry"
+                                onClicked: {
+                                    if (Backend.updateService.state === "available")
+                                        Backend.updateService.downloadAndInstall();
+                                    else if (Backend.updateService.state === "downloading")
+                                        Backend.updateService.cancel();
+                                    else
+                                        Backend.updateService.checkForUpdates();
+                                }
+                            }
                         }
                     }
                 }

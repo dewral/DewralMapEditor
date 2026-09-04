@@ -68,7 +68,13 @@ DmeDialog {
                 description: "General application behavior and startup settings."
                 PrefCard {
                     title: "Updates"
-                    DmeCheckBox { text: "Check for updates automatically"; checked: dialog.settings.checkUpdatesAutomatically; onClicked: dialog.settings.checkUpdatesAutomatically = !dialog.settings.checkUpdatesAutomatically }
+                    Text {
+                        width: parent.width
+                        text: "DME checks for updates whenever the start window opens. Update status and installation are available there."
+                        color: "#8B949E"
+                        font.pixelSize: 11
+                        wrapMode: Text.WordWrap
+                    }
                 }
             }
 

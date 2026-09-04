@@ -156,6 +156,10 @@ Item {
                 mapArea.ctx = mapView.contextInfo();
                 contextMenu.popup(x, y);
             }
+            onPropertiesRequested: {
+                mapArea.ctx = mapView.contextInfo();
+                workspace.propertiesDialog.open();
+            }
         }
 
         MapGLView {

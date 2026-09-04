@@ -216,17 +216,6 @@ Window {
             prefs.githubLayoutV2Initialized = true;
         }
         app.initialize();
-        if (prefs.checkUpdatesAutomatically)
-            Qt.callLater(() => Backend.updateService.checkForUpdates(
-                             prefs.updateChannel, true));
-    }
-
-    Connections {
-        target: Backend.updateService
-        function onInteractionRequested() {
-            if (app.started)
-                updateDialog.open();
-        }
     }
 
     Connections {
@@ -273,12 +262,7 @@ Window {
         themeDialog: themeDialog
         borderizeConfirm: borderizeMapConfirm
         randomizeConfirm: randomizeMapConfirm
-        updateDialog: updateDialog
         aboutDialog: aboutDialog
-    }
-
-    UpdateDialog {
-        id: updateDialog
     }
 
     AboutDialog {

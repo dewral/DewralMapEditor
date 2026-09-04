@@ -47,7 +47,7 @@ public:
     qreal downloadProgress() const { return m_downloadProgress; }
     QString errorString() const { return m_errorString; }
 
-    Q_INVOKABLE void checkForUpdates(const QString &channel, bool silent = false);
+    Q_INVOKABLE void checkForUpdates();
     Q_INVOKABLE void downloadAndInstall();
     Q_INVOKABLE void cancel();
     Q_INVOKABLE void openReleasePage() const;
@@ -56,22 +56,23 @@ signals:
     void stateChanged();
     void updateChanged();
     void downloadProgressChanged();
-    void interactionRequested();
 
 private:
     void resetRelease();
     void requestRelease(const QString &channel);
+    void requestCommitComparison();
     void processRelease(const QByteArray &payload);
+    void processCommitComparison(const QByteArray &payload);
     void requestManifest(const QUrl &url, const QByteArray &fallbackRelease);
     void processManifest(const QByteArray &payload, const QByteArray &fallbackRelease);
     void applyReleaseData(const QString &version, const QString &commit,
                           const QString &notes, const QUrl &pageUrl,
                           const QUrl &downloadUrl, const QString &sha256,
                           qint64 size);
+    void finishRelease(bool updateAvailable);
     void startRequest(const QUrl &url, const std::function<void(QByteArray)> &handler);
     void setState(const QString &state, const QString &error = {});
     void fail(const QString &message);
-    bool isNewer(const QString &version, const QString &commit) const;
     bool launchUpdater(const QString &archivePath);
 
     DocumentManager *m_documents = nullptr;
@@ -91,7 +92,6 @@ private:
     qint64 m_expectedSize = -1;
     qreal m_downloadProgress = 0.0;
     bool m_updateAvailable = false;
-    bool m_silent = false;
     bool m_cancelled = false;
 };
 

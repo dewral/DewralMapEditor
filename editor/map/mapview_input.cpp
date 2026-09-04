@@ -468,6 +468,43 @@ void MapView::mousePressEvent(QMouseEvent *event)
     event->accept();
 }
 
+void MapView::mouseDoubleClickEvent(QMouseEvent *event)
+{
+    if (event->button() != Qt::LeftButton
+        || event->modifiers().testAnyFlags(Qt::ShiftModifier
+                                           | Qt::ControlModifier
+                                           | Qt::AltModifier)
+        || m_spacePanHeld
+        || m_pathBuilder.active()
+        || m_selectionController.pasting()
+        || m_selectionController.lassoing()
+        || (!m_editController.selectionMode()
+            && (m_brushController.serverId() > 0
+                || m_editController.activeZone() != 0
+                || m_editController.eraseMode()
+                || m_brushController.optionalBorderBrush()
+                || m_brushController.spawnBrush()
+                || !m_brushController.creatureBrush().isEmpty()
+                || m_brushController.houseBrush() > 0))) {
+        event->ignore();
+        return;
+    }
+
+    const QPoint position = tileAtScreen(event->position());
+    const OtbmTile *tile = currentFloorTileAt(position.x(), position.y());
+    if (!tile || (tile->items.empty() && tile->creature_name.isEmpty()
+                  && tile->spawn_radius <= 0)) {
+        event->ignore();
+        return;
+    }
+
+    m_itemController.setContext(
+        position.x(), position.y(),
+        tile->items.empty() ? -1 : static_cast<int>(tile->items.size()) - 1);
+    emit propertiesRequested();
+    event->accept();
+}
+
 void MapView::mouseMoveEvent(QMouseEvent *event)
 {
     queuePointerMove(event->position(), false);

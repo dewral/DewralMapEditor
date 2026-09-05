@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QQmlEngine>
 #include <QJSEngine>
+#include <QUrl>
 #include <QtQml/qqmlregistration.h>
 
 #include "sprreader.h"
@@ -68,6 +69,10 @@ public:
     Q_INVOKABLE int preloadPaletteSprites() {
         return m_sprReader.preloadItemImageSources(&m_datReader);
     }
+
+    Q_INVOKABLE QUrl spriteExportUrl(int serverId) const;
+    // Returns an empty string on success, otherwise a user-visible error.
+    Q_INVOKABLE QString exportSprite(int serverId, const QUrl &destination) const;
 
 signals:
     void otbmReaderChanged();

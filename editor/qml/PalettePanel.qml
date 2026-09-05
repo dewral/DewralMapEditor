@@ -1,5 +1,7 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs as Dialogs
+import QtCore
 import Tibia 1.0
 import "style"
 import "components"
@@ -721,9 +723,43 @@ Rectangle {
         }
     }
 
+    Dialogs.FileDialog {
+        id: spriteExportDialog
+        property int serverId: 0
+        title: "Export sprite as PNG"
+        fileMode: Dialogs.FileDialog.SaveFile
+        nameFilters: ["PNG images (*.png)"]
+        defaultSuffix: "png"
+        onAccepted: {
+            const error = Backend.exportSprite(serverId, selectedFile);
+            if (error !== "") {
+                spriteExportError.text = error;
+                spriteExportError.open();
+            }
+        }
+    }
+
+    Dialogs.MessageDialog {
+        id: spriteExportError
+        title: "Export sprite failed"
+        buttons: Dialogs.MessageDialog.Ok
+    }
+
     DmeMenu {
         id: palItemMenu
         property int sid: 0
+
+        DmeMenuItem {
+            text: "Export sprite..."
+            enabled: palItemMenu.sid > 0
+            onTriggered: {
+                spriteExportDialog.serverId = palItemMenu.sid;
+                spriteExportDialog.currentFolder = StandardPaths.writableLocation(StandardPaths.DownloadLocation);
+                spriteExportDialog.selectedFile = Backend.spriteExportUrl(palItemMenu.sid);
+                spriteExportDialog.open();
+            }
+        }
+        MenuSeparator {}
 
         CategoryAddMenu {
             category: "terrain"

@@ -6,11 +6,13 @@ Menu {
     id: root
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
+    readonly property bool classicLayout: Backend.uiTheme.style === "classic"
+                                          || Backend.uiTheme.style === "windows-classic"
     implicitWidth: Math.max(160, implicitContentWidth + leftPadding + rightPadding)
     padding: 1
     overlap: 0
     background: Loader {
-        sourceComponent: Backend.uiTheme.style === "classic" ? classicMenuBackground : githubMenuBackground
+        sourceComponent: root.classicLayout ? classicMenuBackground : githubMenuBackground
     }
     Component {
         id: classicMenuBackground

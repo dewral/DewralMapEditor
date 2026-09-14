@@ -8,6 +8,7 @@ Item {
     signal accepted
     signal editingFinished
     signal userTextChanged(string value)
+    readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
     implicitWidth: 140
     implicitHeight: 22
 
@@ -22,7 +23,7 @@ Item {
         anchors.leftMargin: 6
         anchors.verticalCenter: parent.verticalCenter
         text: root.placeholderText
-        color: "#777"
+        color: root.windowsClassic ? "#6d6d6d" : "#777"
         font.pixelSize: 12
         visible: input.text.length === 0
     }
@@ -32,7 +33,9 @@ Item {
         anchors.leftMargin: 6
         anchors.rightMargin: 6
         verticalAlignment: TextInput.AlignVCenter
-        color: "#c0c0c0"
+        color: root.windowsClassic ? "#202020" : "#c0c0c0"
+        selectionColor: root.windowsClassic ? "#0a64ad" : "#507050"
+        selectedTextColor: "#ffffff"
         font.pixelSize: 12
         clip: true
         selectByMouse: true

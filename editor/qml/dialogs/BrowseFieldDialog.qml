@@ -20,6 +20,7 @@ DmeDialog {
     property int targetY: 0
     property int targetZ: -1
     readonly property bool githubUi: Backend.uiTheme.style !== "classic"
+                                     && Backend.uiTheme.style !== "windows-classic"
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     title: "Browse Field"

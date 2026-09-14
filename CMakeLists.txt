@@ -24,7 +24,10 @@ if(DME_GIT_COMMIT STREQUAL "")
     set(DME_GIT_COMMIT "unknown")
 endif()
 
-find_package(Qt6 COMPONENTS Core Gui Qml Quick OpenGL Network Widgets Concurrent REQUIRED)
+find_package(Qt6 6.7 COMPONENTS Core Gui Qml Quick ShaderTools Network Widgets Concurrent REQUIRED)
+if(NOT TARGET Qt6::GuiPrivate)
+    find_package(Qt6 REQUIRED COMPONENTS GuiPrivate)
+endif()
 qt_policy(SET QTP0001 NEW)
 
 add_library(OTFormats STATIC
@@ -105,12 +108,15 @@ add_executable(DewralMapEditor
     editor/map/mapview_selection.cpp
     editor/map/mapview_chunks.cpp
     editor/map/mapview_atlas.cpp
-    editor/map/mapview_gl.cpp
+    editor/map/mapview_render.cpp
     editor/map/mapview_input.cpp
     editor/map/mapview_path.cpp
     editor/map/mappathbuilder.cpp
     editor/map/mappathbuilder.h
     editor/map/mapview_terrain.cpp
+    editor/map/mapview_clusters.cpp
+    editor/map/mapgroundclustergenerator.cpp
+    editor/map/mapgroundclustergenerator.h
     editor/map/mapterraingenerator.cpp
     editor/map/mapterraingenerator.h
     editor/map/mapterrainprofile.cpp
@@ -132,8 +138,10 @@ add_executable(DewralMapEditor
     editor/map/mapitemcontroller.h
     editor/map/mapminimapservice.h
     editor/map/mapspawnindexservice.h
-    editor/map/mapglview.cpp
-    editor/map/mapglview.h
+    editor/map/maprhibackend.cpp
+    editor/map/maprhibackend.h
+    editor/map/maprhiview.cpp
+    editor/map/maprhiview.h
     editor/map/minimapview.cpp
     editor/map/minimapview.h
     editor/preview/ingamepreviewcontroller.cpp
@@ -165,7 +173,7 @@ qt_add_qml_module(DewralMapEditor
         editor/core/backend.h
         editor/core/aimapassistant.h
         editor/map/mapview.h
-        editor/map/mapglview.h
+        editor/map/maprhiview.h
         editor/map/minimapview.h
         editor/preview/ingamepreviewcontroller.h
         editor/core/palettefilter.h
@@ -197,13 +205,51 @@ target_link_libraries(DewralMapEditor
     PRIVATE
         OTFormats
         Qt6::Quick
-        Qt6::OpenGL
+        Qt6::GuiPrivate
         Qt6::Network
         Qt6::Concurrent
 )
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(map_rhi_backend_test EXCLUDE_FROM_ALL
+        tests/map_rhi_backend_test.cpp editor/map/maprhibackend.cpp)
+    target_include_directories(map_rhi_backend_test PRIVATE editor/map)
+    target_link_libraries(map_rhi_backend_test PRIVATE Qt6::GuiPrivate Qt6::Quick)
+    qt_add_shaders(map_rhi_backend_test test_map_shaders
+        PREFIX "/shaders" BASE "editor/map/shaders"
+        GLSL "300es,330" HLSL 50 MSL 12
+        FILES editor/map/shaders/map.vert editor/map/shaders/map.frag)
+    add_test(NAME map_rhi_opengl COMMAND map_rhi_backend_test opengl)
+    if(WIN32)
+        add_test(NAME map_rhi_d3d11 COMMAND map_rhi_backend_test d3d11)
+        set_tests_properties(map_rhi_opengl map_rhi_d3d11 PROPERTIES
+            ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
+            TIMEOUT 60)
+    endif()
+    add_executable(brushstore_advanced_test EXCLUDE_FROM_ALL
+        tests/brushstore_advanced_test.cpp editor/core/brushstore.cpp)
+    target_include_directories(brushstore_advanced_test PRIVATE editor/core libs/otformats)
+    target_link_libraries(brushstore_advanced_test PRIVATE Qt6::Core)
+    add_test(NAME brushstore_advanced COMMAND brushstore_advanced_test)
+    find_program(DME_QML_TEST_RUNNER qmltestrunner HINTS "${Qt6_DIR}/../../../bin")
+    if(DME_QML_TEST_RUNNER)
+        add_test(NAME advanced_brush_qml COMMAND "${DME_QML_TEST_RUNNER}"
+            -platform offscreen -input "${CMAKE_SOURCE_DIR}/tests/qml"
+            -import "${CMAKE_SOURCE_DIR}/tests/qml/imports")
+        set_tests_properties(advanced_brush_qml PROPERTIES
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            ENVIRONMENT "QT_QUICK_CONTROLS_STYLE=Basic"
+            TIMEOUT 30)
+    endif()
+    add_executable(brushstore_border_variants_test EXCLUDE_FROM_ALL
+        tests/brushstore_border_variants_test.cpp
+        editor/core/brushstore.cpp)
+    target_include_directories(brushstore_border_variants_test PRIVATE
+        editor/core libs/otformats)
+    target_link_libraries(brushstore_border_variants_test PRIVATE Qt6::Core)
+    add_test(NAME brushstore_border_variants COMMAND brushstore_border_variants_test)
+
     add_executable(otbm_compact_storage_test EXCLUDE_FROM_ALL
         tests/otbm_compact_storage_test.cpp)
     target_include_directories(otbm_compact_storage_test PRIVATE libs/otformats)
@@ -224,6 +270,12 @@ if(BUILD_TESTING)
     target_include_directories(map_path_builder_test PRIVATE editor/map)
     target_link_libraries(map_path_builder_test PRIVATE Qt6::Core)
     add_test(NAME map_path_builder COMMAND map_path_builder_test)
+    add_executable(map_ground_cluster_generator_test EXCLUDE_FROM_ALL
+        tests/map_ground_cluster_generator_test.cpp
+        editor/map/mapgroundclustergenerator.cpp)
+    target_include_directories(map_ground_cluster_generator_test PRIVATE editor/map)
+    target_link_libraries(map_ground_cluster_generator_test PRIVATE Qt6::Core)
+    add_test(NAME map_ground_cluster_generator COMMAND map_ground_cluster_generator_test)
     add_executable(map_terrain_generator_test EXCLUDE_FROM_ALL
         tests/map_terrain_generator_test.cpp
         editor/map/mapterraingenerator.cpp)
@@ -281,7 +333,9 @@ if(BUILD_TESTING)
         set_tests_properties(otbm_compact_storage otbm_editing_storage
                              otbm_background_load atlas_background_build map_path_builder
                              map_terrain_generator map_terrain_profile map_dungeon_generator
-                             document_recovery creature_store update_version PROPERTIES
+                             map_ground_cluster_generator
+                             document_recovery creature_store update_version
+                             brushstore_advanced brushstore_border_variants PROPERTIES
             ENVIRONMENT_MODIFICATION
                 "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
     endif()
@@ -378,3 +432,11 @@ if(WIN32)
 
     add_custom_target(package_all DEPENDS package_checksums)
 endif()
+
+qt_add_shaders(DewralMapEditor map_shaders
+    PREFIX "/shaders"
+    BASE "editor/map/shaders"
+    GLSL "300es,330"
+    HLSL 50
+    MSL 12
+    FILES editor/map/shaders/map.vert editor/map/shaders/map.frag)

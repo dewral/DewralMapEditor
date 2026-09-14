@@ -36,6 +36,7 @@
 #include "mapterraingenerator.h"
 #include "mapterrainprofile.h"
 #include "mapdungeongenerator.h"
+#include "mapgroundclustergenerator.h"
 
 class QTimer;
 
@@ -70,12 +71,14 @@ class MapView : public QQuickItem
 
     Q_PROPERTY(bool automagic READ automagic WRITE setAutomagic NOTIFY automagicChanged)
     Q_PROPERTY(bool optionalBorderMode READ optionalBorderMode WRITE setOptionalBorderMode NOTIFY optionalBorderModeChanged)
+    Q_PROPERTY(bool pathPreserveGround MEMBER m_pathPreserveGround NOTIFY pathBuilderChanged)
     Q_PROPERTY(QString hoverText READ hoverText NOTIFY hoverChanged)
     Q_PROPERTY(int hoverX READ hoverX NOTIFY hoverChanged)
     Q_PROPERTY(int hoverY READ hoverY NOTIFY hoverChanged)
 
     Q_PROPERTY(int brushServerId READ brushServerId WRITE setBrushServerId NOTIFY brushChanged)
     Q_PROPERTY(QString doodadBrush READ doodadBrush NOTIFY brushChanged)
+    Q_PROPERTY(int doodadRotation READ doodadRotation WRITE setDoodadRotation NOTIFY brushChanged)
 
     Q_PROPERTY(QString creatureBrush READ creatureBrush WRITE setCreatureBrush NOTIFY brushChanged)
     Q_PROPERTY(bool creatureBrushIsNpc READ creatureBrushIsNpc NOTIFY brushChanged)
@@ -117,6 +120,8 @@ class MapView : public QQuickItem
     Q_PROPERTY(int pathPreviewCount READ pathPreviewCount NOTIFY pathBuilderChanged)
     Q_PROPERTY(bool terrainPreviewActive READ terrainPreviewActive NOTIFY terrainGeneratorChanged)
     Q_PROPERTY(int terrainPreviewCount READ terrainPreviewCount NOTIFY terrainGeneratorChanged)
+    Q_PROPERTY(bool groundClusterStampActive READ groundClusterStampActive NOTIFY groundClusterStampChanged)
+    Q_PROPERTY(uint groundClusterStampSeed READ groundClusterStampSeed NOTIFY groundClusterStampChanged)
     Q_PROPERTY(bool terrainLearningBusy READ terrainLearningBusy NOTIFY terrainLearningChanged)
     Q_PROPERTY(bool dungeonPreviewActive READ dungeonPreviewActive NOTIFY dungeonGeneratorChanged)
     Q_PROPERTY(int dungeonPreviewCount READ dungeonPreviewCount NOTIFY dungeonGeneratorChanged)
@@ -142,6 +147,7 @@ public:
     int hoverY() const { return m_hoverY; }
     int brushServerId() const { return m_brushController.serverId(); }
     QString doodadBrush() const { return m_brushController.doodadBrush(); }
+    int doodadRotation() const { return m_brushController.doodadRotation(); }
     bool selectionMode() const { return m_editController.selectionMode(); }
     void setSelectionMode(bool on);
     bool lassoMode() const { return m_selectionController.lassoMode(); }
@@ -152,8 +158,12 @@ public:
     bool pathBuilderActive() const { return m_pathBuilder.active(); }
     bool pathBuilderDrawing() const { return m_pathBuilder.drawing(); }
     int pathPreviewCount() const { return m_pathBuilder.placements().size(); }
-    bool terrainPreviewActive() const { return !m_terrainPreview.isEmpty(); }
+    bool terrainPreviewActive() const {
+        return !m_terrainPreview.isEmpty() || !m_terrainDecorationPreview.isEmpty();
+    }
     int terrainPreviewCount() const { return m_terrainPreview.size(); }
+    bool groundClusterStampActive() const { return m_groundClusterStampActive; }
+    uint groundClusterStampSeed() const { return m_groundClusterStampSeed; }
     bool terrainLearningBusy() const { return m_terrainLearningBusy; }
     bool dungeonPreviewActive() const { return !m_dungeonPreview.isEmpty(); }
     int dungeonPreviewCount() const { return m_dungeonPreview.size(); }
@@ -172,6 +182,8 @@ public:
     Q_INVOKABLE void useGroundBrush(int serverId) { applyBrushServerId(serverId, true); }
     Q_INVOKABLE bool useGroundBrushName(const QString &name);
     Q_INVOKABLE void useDoodadBrush(const QString &name);
+    Q_INVOKABLE void setDoodadRotation(int quarterTurns);
+    Q_INVOKABLE void rotateDoodadBrush();
 
     Q_INVOKABLE void setBrushStore(BrushStore *bs) { m_brushController.store() = bs; }
 
@@ -321,7 +333,7 @@ public:
         emit contentUpdated(); update();
     }
 
-    bool glShowShade() const { return m_showShade; }
+    bool renderShowShade() const { return m_showShade; }
     bool placeEffect() const { return m_placeEffect; }
     void setPlaceEffect(bool on) { if (m_placeEffect != on) { m_placeEffect = on; emit placeEffectChanged(); } }
     int brushSize() const { return m_brushController.size(); }
@@ -350,117 +362,101 @@ public:
     int minimapOriginY() const { return m_minimapService.originY(); }
     quint32 minimapVersion() const { return m_minimapService.version(); }
 
-    const QImage &glAtlasImage() const { return m_atlasService.image(); }
-    int glAtlasGeneration() const { return m_atlasService.generation(); }
-    using AtlasPatch = MapAtlasService::Patch;
-    void glTakeAtlasPatches(QVector<AtlasPatch> &out) {
-        m_atlasService.takePatches(out);
+    int renderAtlasGeneration() const { return m_atlasService.generation(); }
+    MapAtlasService::Upload renderAtlasUpload(quint64 epoch, int count) const {
+        return m_atlasService.uploadSince(epoch, count);
     }
-    void glReleaseAtlasImage(int generation) {
-        m_atlasService.releaseImage(generation);
-    }
-    void glPublishAtlasTexture(quint32 texture, int width, int height, int generation) {
-        m_sharedAtlasTexture.store(texture, std::memory_order_release);
-        m_sharedAtlasWidth.store(width, std::memory_order_relaxed);
-        m_sharedAtlasHeight.store(height, std::memory_order_relaxed);
-        m_sharedAtlasGeneration.store(generation, std::memory_order_release);
-    }
-    quint32 glSharedAtlasTexture() const {
-        return m_sharedAtlasTexture.load(std::memory_order_acquire);
-    }
-    int glSharedAtlasWidth() const { return m_sharedAtlasWidth.load(std::memory_order_relaxed); }
-    int glSharedAtlasHeight() const { return m_sharedAtlasHeight.load(std::memory_order_relaxed); }
-    int glSharedAtlasGeneration() const {
-        return m_sharedAtlasGeneration.load(std::memory_order_acquire);
-    }
-    Q_INVOKABLE double glOriginX() const { return m_navigationController.originX(); }
-    Q_INVOKABLE double glOriginY() const { return m_navigationController.originY(); }
-    double glPointerVisualOffsetX() const;
-    double glPointerVisualOffsetY() const;
+    Q_INVOKABLE double renderOriginX() const { return m_navigationController.originX(); }
+    Q_INVOKABLE double renderOriginY() const { return m_navigationController.originY(); }
+    double renderPointerVisualOffsetX() const;
+    double renderPointerVisualOffsetY() const;
     bool navigationActive() const {
         return !m_navigationController.heldArrows().isEmpty();
     }
     bool advanceNavigationFrame();
     bool pointerMovePending() const { return m_pointerMovePending; }
     bool advancePointerFrame();
-    int glBottomFloor() const { return renderBottomFloor(); }
+    int renderBottomFloor() const {
+        if (!m_showLowerFloors) return m_navigationController.floor();
+        return (m_navigationController.floor() < 8) ? 7 : std::min(15, m_navigationController.floor() + 2);
+    }
 
-    int glQuadCacheVersion() const {
+    int renderQuadCacheVersion() const {
         return m_chunkStore.cacheVersion().load(std::memory_order_relaxed);
     }
-    int glChunkCacheResetVersion() const {
+    int renderChunkCacheResetVersion() const {
         return m_chunkStore.resetVersion().load(std::memory_order_relaxed);
     }
-    void glTakeDirtyChunks(QVector<QPair<int, quint64>> &out);
+    void renderTakeDirtyChunks(QVector<QPair<int, quint64>> &out);
 
-    quint64 glContentVersion() const;
-    quint64 glMetadataOverlayVersion() const;
-    quint64 glPointerOverlayVersion() const;
+    quint64 renderContentVersion() const;
+    quint64 renderMetadataOverlayVersion() const;
+    quint64 renderPointerOverlayVersion() const;
 
-    void glCollectFloorInstances(int z, int cMinX, int cMinY, int cMaxX, int cMaxY,
+    void renderCollectFloorInstances(int z, int cMinX, int cMinY, int cMaxX, int cMaxY,
                                  bool groundOnly, std::vector<float> &out, bool &complete);
 
-    bool glFloorChunksReady(int z, int cMinX, int cMinY, int cMaxX, int cMaxY);
+    bool renderFloorChunksReady(int z, int cMinX, int cMinY, int cMaxX, int cMaxY);
 
     static constexpr quint32 kChunkEmpty   = 0;
     static constexpr quint32 kChunkPending = 0xFFFFFFFFu;
 
-    quint32 glChunkVersion(int z, quint64 chunkKey);
+    quint32 renderChunkVersion(int z, quint64 chunkKey);
 
-    void glRequestChunk(int z, quint64 chunkKey) { requestChunkQuads(z, chunkKey); }
+    void renderRequestChunk(int z, quint64 chunkKey) { requestChunkQuads(z, chunkKey); }
 
-    quint32 glCollectChunkInstances(int z, quint64 chunkKey, bool groundOnly,
+    quint32 renderCollectChunkInstances(int z, quint64 chunkKey, bool groundOnly,
                                     std::vector<float> &out);
 
-    void glCollectEffectInstances(std::vector<float> &out);
+    void renderCollectEffectInstances(std::vector<float> &out);
 
     bool hasActiveEffects() const { return !m_activeEffects.empty(); }
     bool editingStrokeActive() const { return m_brushController.painting(); }
 
-    void glCollectSelectionInstances(std::vector<float> &out);
+    void renderCollectSelectionInstances(std::vector<float> &out);
 
-    void glCollectBrushCursorInstances(std::vector<float> &out,
+    void renderCollectBrushCursorInstances(std::vector<float> &out,
                                        std::vector<float> &outBorder);
 
-    void glCollectSpawnMarkInstances(std::vector<float> &out, std::vector<float> &outSel);
+    void renderCollectSpawnMarkInstances(std::vector<float> &out, std::vector<float> &outSel);
 
-    quint32 glUpdateLightGrid();
+    quint32 renderUpdateLightGrid();
     const std::vector<uint32_t> &lightPixels() const { return m_lightPixels; }
     void lightRect(int &tx, int &ty, int &tw, int &th) const {
         tx = m_lightTX; ty = m_lightTY; tw = m_lightTW; th = m_lightTH;
     }
-    void glBuildPreviewLightGrid(int firstFloor, int lastFloor,
+    void renderBuildPreviewLightGrid(int firstFloor, int lastFloor,
                                  int tx, int ty, int tw, int th,
                                  qreal playerX, qreal playerY, int playerZ,
                                  int ambientLevel,
                                  std::vector<uint32_t> &out) const;
 
-    void glCollectGhostInstances(std::vector<float> &out);
-    void glCollectGridInstances(std::vector<float> &out);
+    void renderCollectGhostInstances(std::vector<float> &out);
+    void renderCollectGridInstances(std::vector<float> &out);
 
-    void glCollectWallOutlineInstances(std::vector<float> &out);
-    void glCollectPathingInstances(std::vector<float> &out);
-    void glCollectFloorChangeInstances(std::vector<float> &outDown,
+    void renderCollectWallOutlineInstances(std::vector<float> &out);
+    void renderCollectPathingInstances(std::vector<float> &out);
+    void renderCollectFloorChangeInstances(std::vector<float> &outDown,
                                        std::vector<float> &outUp);
-    void glCollectTerrainPreviewInstances(std::vector<float> &outLand,
+    void renderCollectTerrainPreviewInstances(std::vector<float> &outLand,
                                           std::vector<float> &outBeach,
                                           std::vector<float> &outWater,
                                           std::vector<float> &outMountain);
-    void glCollectTerrainSpritePreviewInstances(std::vector<float> &out);
-    void glCollectDungeonPreviewInstances(std::vector<float> &outRooms,
+    void renderCollectTerrainSpritePreviewInstances(std::vector<float> &out);
+    void renderCollectDungeonPreviewInstances(std::vector<float> &outRooms,
                                           std::vector<float> &outCorridors,
                                           std::vector<float> &outEntrance,
                                           std::vector<float> &outBoss,
                                           std::vector<float> &outWalls);
 
-    void glCollectZoneMarkInstances(std::vector<float> &outHouse,
+    void renderCollectZoneMarkInstances(std::vector<float> &outHouse,
                                     std::vector<float> &outSelectedHouse,
                                     std::vector<float> &outPz,
                                     std::vector<float> &outNoPvp,
                                     std::vector<float> &outNoLogout,
                                     std::vector<float> &outPvp);
 
-    bool glRubberBandRect(double &x0, double &y0, double &x1, double &y1) const {
+    bool renderRubberBandRect(double &x0, double &y0, double &x1, double &y1) const {
         if (!m_selectionController.selecting()) return false;
         x0 = std::min(m_selectionController.anchorX(), m_selectionController.rubberX()) * kSprite;
         y0 = std::min(m_selectionController.anchorY(), m_selectionController.rubberY()) * kSprite;
@@ -469,7 +465,7 @@ public:
         return true;
     }
 
-    bool glBrushRect(double &x0, double &y0, double &x1, double &y1) const {
+    bool renderBrushRect(double &x0, double &y0, double &x1, double &y1) const {
         if (m_selectionController.moving() || m_selectionController.selecting() || m_editController.selectionMode()
             || m_hoverX < 0) return false;
         if (m_brushController.serverId() <= 0 && m_editController.activeZone() == 0
@@ -564,6 +560,7 @@ public:
     void placeItemOnFloor(int x, int y, int z, const OtbmMapItem &item);
 
     Q_INVOKABLE void copySelection();
+    Q_INVOKABLE QVariantMap brushSelectionSnapshot(bool includeGround = false);
     Q_INVOKABLE QVariantMap saveSelectionAsPrefab(const QString &name,
                                                   const QString &palette);
     Q_INVOKABLE QVariantMap startPathBuilder(const QString &straightPrefab,
@@ -574,6 +571,10 @@ public:
     Q_INVOKABLE void cancelPathBuilder();
     Q_INVOKABLE bool commitPathPreview();
     Q_INVOKABLE QVariantMap generateTerrainPreview(const QVariantMap &options);
+    Q_INVOKABLE QVariantMap createGroundClusterStamp(const QVariantMap &options);
+    Q_INVOKABLE QVariantMap saveGroundClusterStampAsPrefab(const QString &name,
+                                                           const QString &palette);
+    Q_INVOKABLE void cancelGroundClusterStamp();
     Q_INVOKABLE QVariantMap applyTerrainPreview();
     Q_INVOKABLE void clearTerrainPreview();
     Q_INVOKABLE QStringList terrainProfileNames() const;
@@ -595,8 +596,8 @@ public:
         m_brushController.automagic() = on;
         emit automagicChanged();
     }
-    bool glCollectLassoLineVertices(std::vector<float> &out) const;
-    int glLassoOperation() const { return m_selectionController.lassoOperation(); }
+    bool renderCollectLassoLineVertices(std::vector<float> &out) const;
+    int renderLassoOperation() const { return m_selectionController.lassoOperation(); }
     bool optionalBorderMode() const { return m_brushController.optionalBorderBrush(); }
     void setOptionalBorderMode(bool on);
 
@@ -669,6 +670,7 @@ signals:
     void brushParamsChanged();
     void pathBuilderChanged();
     void terrainGeneratorChanged();
+    void groundClusterStampChanged();
     void terrainLearningChanged();
     void terrainProfileLearned(const QVariantMap &result);
     void dungeonGeneratorChanged();
@@ -752,11 +754,6 @@ private:
     }
     void clearChunkQuadCache();
 
-    int renderBottomFloor() const {
-        if (!m_showLowerFloors) return m_navigationController.floor();
-        return (m_navigationController.floor() < 8) ? 7 : std::min(15, m_navigationController.floor() + 2);
-    }
-
     static quint64 chunkKey(int cx, int cy) {
         return (static_cast<quint64>(static_cast<uint32_t>(cx)) << 32)
              | static_cast<uint32_t>(cy);
@@ -794,6 +791,7 @@ private:
 
     void paintGroundBrushAt(int cx, int cy);
     void paintOptionalBorderAt(int cx, int cy);
+    bool m_pathPreserveGround = true;
 
     void recomputeBordersAt(int x, int y, bool force = false);
 
@@ -830,9 +828,13 @@ private:
 
     int itemCategory(uint16_t serverId) const;
     int rotatedPathItemId(int serverId, int quarterTurns) const;
+    QVector<BrushStore::DoodadTile> rotatedDoodadTiles(
+        QVector<BrushStore::DoodadTile> tiles, int quarterTurns) const;
     QVector<BrushStore::DoodadTile> pathPlacementTiles(
         const MapPathBuilder::Placement &placement) const;
     void refreshPathPreview();
+    void refreshGroundClusterStampPreview();
+    void commitGroundClusterStampAt(int x, int y);
 
     OtbmReader *m_otbm = nullptr;
     OtbReader *m_otb = nullptr;
@@ -860,9 +862,34 @@ private:
     };
     QVector<TerrainPreviewTile> m_terrainPreview;
     QVector<TerrainPreviewSprite> m_terrainPreviewSprites;
+    struct TerrainDecorationPreview {
+        int x = 0;
+        int y = 0;
+        QString brush;
+        int variant = 0;
+    };
+    QVector<TerrainDecorationPreview> m_terrainDecorationPreview;
     QSet<quint64> m_terrainPreviewSelection;
     int m_terrainPreviewFloor = -1;
     bool m_terrainCavePreview = false;
+    struct GroundClusterStampTile {
+        int dx = 0;
+        int dy = 0;
+        QString brush;
+        int serverId = 0;
+    };
+    struct GroundClusterStampDecoration {
+        int dx = 0;
+        int dy = 0;
+        QString brush;
+        int variant = 0;
+    };
+    QVector<GroundClusterStampTile> m_groundClusterStampTiles;
+    QVector<GroundClusterStampDecoration> m_groundClusterStampDecorations;
+    QVector<TerrainPreviewSprite> m_groundClusterStampPreviewSprites;
+    QVariantMap m_groundClusterStampOptions;
+    uint m_groundClusterStampSeed = 1;
+    bool m_groundClusterStampActive = false;
     bool m_terrainLearningBusy = false;
     std::atomic_bool m_terrainLearningCancel{false};
     QFuture<void> m_terrainLearningFuture;
@@ -994,10 +1021,6 @@ private:
     QSet<uint32_t> m_pendingAtlasSpriteIds;
     std::set<std::pair<int, quint64>> m_atlasDirtyChunks;
     bool m_atlasBuilding = false;
-    std::atomic<quint32> m_sharedAtlasTexture{0};
-    std::atomic<int> m_sharedAtlasWidth{1};
-    std::atomic<int> m_sharedAtlasHeight{1};
-    std::atomic<int> m_sharedAtlasGeneration{-1};
     int m_dataVersion = 0;
     quint32 m_metadataOverlayVersion = 0;
     quint32 m_pathBuilderVersion = 0;

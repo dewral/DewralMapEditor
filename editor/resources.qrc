@@ -53,9 +53,11 @@
         <file alias="qml/dialogs/PreferencesDialog.qml">qml/dialogs/PreferencesDialog.qml</file>
         <file alias="qml/dialogs/NewMapDialog.qml">qml/dialogs/NewMapDialog.qml</file>
         <file alias="qml/dialogs/BrushEditorDialog.qml">qml/dialogs/BrushEditorDialog.qml</file>
+        <file alias="qml/dialogs/AdvancedBrushEditor.qml">qml/dialogs/AdvancedBrushEditor.qml</file>
         <file alias="qml/dialogs/AiMapAssistantDialog.qml">qml/dialogs/AiMapAssistantDialog.qml</file>
         <file alias="qml/dialogs/TerrainGeneratorDialog.qml">qml/dialogs/TerrainGeneratorDialog.qml</file>
         <file alias="qml/dialogs/DungeonGeneratorDialog.qml">qml/dialogs/DungeonGeneratorDialog.qml</file>
+        <file alias="qml/dialogs/GroundClusterGeneratorDialog.qml">qml/dialogs/GroundClusterGeneratorDialog.qml</file>
         <file alias="qml/dialogs/UpdateDialog.qml">qml/dialogs/UpdateDialog.qml</file>
         <file alias="qml/dialogs/AboutDialog.qml">qml/dialogs/AboutDialog.qml</file>
         <file alias="qml/style/GithubToolTip.qml">qml/style/GithubToolTip.qml</file>

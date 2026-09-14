@@ -78,9 +78,10 @@ void MapView::paintDoodadBrushAt(int cx, int cy)
         if (m_brushController.placed().contains(pk)) continue;
         m_brushController.placed().insert(pk);
 
-        const QVector<BrushStore::DoodadTile> tiles =
+        QVector<BrushStore::DoodadTile> tiles =
             m_brushController.doodadVariant() >= 0 ? m_brushController.store()->doodadVariantTiles(name, m_brushController.doodadVariant())
                                  : m_brushController.store()->pickDoodad(name);
+        tiles = rotatedDoodadTiles(std::move(tiles), m_brushController.doodadRotation());
         for (const BrushStore::DoodadTile &t : tiles) {
             const int tx = p.first + t.dx, ty = p.second + t.dy;
             const int tz = m_navigationController.floor() + t.dz;

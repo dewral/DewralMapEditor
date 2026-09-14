@@ -13,7 +13,8 @@ Rectangle {
     required property var app
 
     required property var mapCtrl
-    readonly property bool githubUi: Backend.uiTheme.style !== "classic"
+    readonly property bool windowsClassicUi: Backend.uiTheme.style === "windows-classic"
+    readonly property bool githubUi: Backend.uiTheme.style !== "classic" && !windowsClassicUi
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
     property bool modernLayout: false
@@ -614,7 +615,7 @@ Rectangle {
                 visible: paletteCol.showSub || paletteCol.creatureMode
                 text: paletteCol.creatureMode ? "Type"
                       : (paletteCol.currentKind === "My Palettes" ? "Palette" : "Tileset")
-                color: "#7fdc8f"
+                color: paletteRoot.windowsClassicUi ? "#202020" : "#7fdc8f"
                 font.pixelSize: 10
                 font.bold: true
             }
@@ -650,7 +651,7 @@ Rectangle {
 
             Text {
                 text: (paletteCol.showSub && paletteCol.currentSubName !== "" ? paletteCol.currentSubName : paletteCol.currentKind) + "  (" + paletteCol.displayedCount + ")"
-                color: "#ddd"
+                color: paletteRoot.windowsClassicUi ? "#202020" : "#ddd"
                 font.pixelSize: 12
                 font.bold: true
                 elide: Text.ElideRight

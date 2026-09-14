@@ -61,7 +61,7 @@ int overlayPadding(double tileSize)
 
 } // namespace
 
-quint32 MapView::glChunkVersion(int z, quint64 key)
+quint32 MapView::renderChunkVersion(int z, quint64 key)
 {
 
     auto &tileIndex = m_chunkStore.tiles();
@@ -76,7 +76,7 @@ quint32 MapView::glChunkVersion(int z, quint64 key)
     return kChunkPending;
 }
 
-quint32 MapView::glCollectChunkInstances(int z, quint64 key, bool groundOnly,
+quint32 MapView::renderCollectChunkInstances(int z, quint64 key, bool groundOnly,
                                          std::vector<float> &out)
 {
     out.clear();
@@ -109,18 +109,18 @@ quint32 MapView::glCollectChunkInstances(int z, quint64 key, bool groundOnly,
     return ver;
 }
 
-quint64 MapView::glContentVersion() const
+quint64 MapView::renderContentVersion() const
 {
 
     return static_cast<quint64>(static_cast<uint32_t>(m_dataVersion));
 }
 
-quint64 MapView::glMetadataOverlayVersion() const
+quint64 MapView::renderMetadataOverlayVersion() const
 {
     return static_cast<quint64>(m_metadataOverlayVersion);
 }
 
-quint64 MapView::glPointerOverlayVersion() const
+quint64 MapView::renderPointerOverlayVersion() const
 {
     quint64 key = 1469598103934665603ull;
     const auto mix = [&key](quint64 value) {
@@ -138,6 +138,7 @@ quint64 MapView::glPointerOverlayVersion() const
     mix(static_cast<quint32>(m_brushController.serverId()));
     mix(static_cast<quint32>(m_brushController.size()));
     mix(static_cast<quint32>(m_brushController.doodadVariant()));
+    mix(static_cast<quint32>(m_brushController.doodadRotation()));
     mix(static_cast<quint32>(m_brushController.houseBrush()));
     mix(static_cast<quint32>(m_editController.activeZone()));
     mix(qHash(m_brushController.shape()));
@@ -157,7 +158,9 @@ quint64 MapView::glPointerOverlayVersion() const
     flags |= static_cast<quint64>(m_selectionController.moveChanged()) << 7;
     flags |= static_cast<quint64>(m_selectionController.selecting()) << 8;
     flags |= static_cast<quint64>(m_dragDraw) << 9;
+    flags |= static_cast<quint64>(m_groundClusterStampActive) << 10;
     mix(flags);
+    mix(static_cast<quint64>(m_groundClusterStampPreviewSprites.size()));
     mix(static_cast<quint64>(m_selectionController.clipboard().size()));
     mix(static_cast<quint64>(m_selectionController.selected().size()));
     mix(static_cast<quint32>(m_selectionController.moveSourceX()));
@@ -178,7 +181,7 @@ quint64 MapView::glPointerOverlayVersion() const
     return key;
 }
 
-void MapView::glCollectEffectInstances(std::vector<float> &out)
+void MapView::renderCollectEffectInstances(std::vector<float> &out)
 {
     out.clear();
     const auto &atlasSlots = m_atlasService.atlasSlots();
@@ -215,7 +218,7 @@ void MapView::glCollectEffectInstances(std::vector<float> &out)
     m_activeEffects.swap(keep);
 }
 
-void MapView::glCollectSelectionInstances(std::vector<float> &out)
+void MapView::renderCollectSelectionInstances(std::vector<float> &out)
 {
     out.clear();
     const auto &atlasSlots = m_atlasService.atlasSlots();
@@ -363,7 +366,7 @@ void MapView::buildLightGrid(int floor, int tx, int ty, int tw, int th,
         }
 }
 
-quint32 MapView::glUpdateLightGrid()
+quint32 MapView::renderUpdateLightGrid()
 {
 
     if (!m_torchOn || !m_otbm || !m_otb || !m_dat || m_navigationController.tileSize() < 4) {
@@ -389,7 +392,7 @@ quint32 MapView::glUpdateLightGrid()
     return m_lightVersion;
 }
 
-void MapView::glBuildPreviewLightGrid(int firstFloor, int lastFloor,
+void MapView::renderBuildPreviewLightGrid(int firstFloor, int lastFloor,
                                       int tx, int ty, int tw, int th,
                                       qreal playerX, qreal playerY, int playerZ,
                                       int ambientLevel,
@@ -533,7 +536,7 @@ void MapView::glBuildPreviewLightGrid(int firstFloor, int lastFloor,
     }
 }
 
-void MapView::glCollectSpawnMarkInstances(std::vector<float> &out, std::vector<float> &outSel)
+void MapView::renderCollectSpawnMarkInstances(std::vector<float> &out, std::vector<float> &outSel)
 {
     out.clear();
     outSel.clear();
@@ -570,7 +573,7 @@ void MapView::glCollectSpawnMarkInstances(std::vector<float> &out, std::vector<f
     }
 }
 
-void MapView::glCollectGridInstances(std::vector<float> &out)
+void MapView::renderCollectGridInstances(std::vector<float> &out)
 {
     out.clear();
 
@@ -597,7 +600,7 @@ void MapView::glCollectGridInstances(std::vector<float> &out)
         out.insert(out.end(), { x0, y0 + j * 32.0f, wpx, thick });
 }
 
-bool MapView::glCollectLassoLineVertices(std::vector<float> &out) const
+bool MapView::renderCollectLassoLineVertices(std::vector<float> &out) const
 {
     out.clear();
     const QVector<QPoint> &points = m_selectionController.lassoPoints();
@@ -632,7 +635,7 @@ bool MapView::glCollectLassoLineVertices(std::vector<float> &out) const
     return !out.empty();
 }
 
-void MapView::glCollectFloorChangeInstances(std::vector<float> &outDown,
+void MapView::renderCollectFloorChangeInstances(std::vector<float> &outDown,
                                             std::vector<float> &outUp)
 {
     outDown.clear();
@@ -685,7 +688,7 @@ void MapView::glCollectFloorChangeInstances(std::vector<float> &outDown,
     }
 }
 
-void MapView::glCollectWallOutlineInstances(std::vector<float> &out)
+void MapView::renderCollectWallOutlineInstances(std::vector<float> &out)
 {
     out.clear();
 
@@ -830,7 +833,7 @@ void MapView::glCollectWallOutlineInstances(std::vector<float> &out)
     }
 }
 
-void MapView::glCollectPathingInstances(std::vector<float> &out)
+void MapView::renderCollectPathingInstances(std::vector<float> &out)
 {
     out.clear();
     if (!m_showPathing || !m_otbm || !m_otb || m_navigationController.tileSize() < 4) return;
@@ -875,7 +878,7 @@ void MapView::glCollectPathingInstances(std::vector<float> &out)
     }
 }
 
-void MapView::glCollectZoneMarkInstances(std::vector<float> &outHouse,
+void MapView::renderCollectZoneMarkInstances(std::vector<float> &outHouse,
                                          std::vector<float> &outSelectedHouse,
                                          std::vector<float> &outPz,
                                          std::vector<float> &outNoPvp,
@@ -948,7 +951,7 @@ void MapView::glCollectZoneMarkInstances(std::vector<float> &outHouse,
         }
 }
 
-void MapView::glCollectBrushCursorInstances(std::vector<float> &out,
+void MapView::renderCollectBrushCursorInstances(std::vector<float> &out,
                                             std::vector<float> &outBorder)
 {
     out.clear();
@@ -1006,12 +1009,42 @@ void MapView::glCollectBrushCursorInstances(std::vector<float> &out,
         }
 }
 
-void MapView::glCollectGhostInstances(std::vector<float> &out)
+void MapView::renderCollectGhostInstances(std::vector<float> &out)
 {
     out.clear();
     const auto &atlasSlots = m_atlasService.atlasSlots();
     if (m_hoverX < 0 || atlasSlots.empty() || !m_otb || !m_dat)
         return;
+
+    if (m_groundClusterStampActive) {
+        for (const TerrainPreviewSprite &preview : m_groundClusterStampPreviewSprites) {
+            const int tx = m_hoverX + preview.x;
+            const int ty = m_hoverY + preview.y;
+            const int clientId = m_otb->clientIdForServerId(preview.serverId);
+            const ClientItem *item = clientId > 0
+                ? m_dat->itemByClientId(static_cast<uint16_t>(clientId)) : nullptr;
+            if (!item || item->sprite_ids.empty()) continue;
+            const int width = std::max<int>(1, item->width);
+            const int height = std::max<int>(1, item->height);
+            const int layers = std::max<int>(1, item->layers);
+            for (int layer = 0; layer < layers; ++layer)
+                for (int yy = 0; yy < height; ++yy)
+                    for (int xx = 0; xx < width; ++xx) {
+                        const uint32_t spriteId = cellSpriteId(
+                            item, xx, yy, layer, width, height, tx, ty,
+                            m_navigationController.floor());
+                        const int atlasSlot = spriteId > 0
+                            ? atlasSlotForSprite(spriteId) : -1;
+                        if (atlasSlot < 0) continue;
+                        const QRect &slot = atlasSlots[static_cast<size_t>(atlasSlot)];
+                        out.push_back(static_cast<float>((tx - xx) * kSprite));
+                        out.push_back(static_cast<float>((ty - yy) * kSprite));
+                        out.push_back(static_cast<float>(slot.x()));
+                        out.push_back(static_cast<float>(slot.y()));
+                    }
+        }
+        return;
+    }
 
     if (m_pathBuilder.active() && !m_pathBuilder.placements().isEmpty()) {
         for (const MapPathBuilder::Placement &placement : m_pathBuilder.placements()) {
@@ -1123,10 +1156,11 @@ void MapView::glCollectGhostInstances(std::vector<float> &out)
     if (!m_selectionController.pasting() && !m_selectionController.moving() && !m_editController.selectionMode() && !m_brushController.doodadBrush().isEmpty()
         && m_brushController.store()) {
 
-        const QVector<BrushStore::DoodadTile> tiles =
+        QVector<BrushStore::DoodadTile> tiles =
             m_brushController.doodadVariant() >= 0
                 ? m_brushController.store()->doodadVariantTiles(m_brushController.doodadBrush(), m_brushController.doodadVariant())
                 : m_brushController.store()->doodadPreviewTiles(m_brushController.doodadBrush());
+        tiles = rotatedDoodadTiles(std::move(tiles), m_brushController.doodadRotation());
         for (const BrushStore::DoodadTile &dt : tiles) {
             if (dt.dz != 0) continue;
             const int tx = m_hoverX + dt.dx, ty = m_hoverY + dt.dy;
@@ -1227,7 +1261,7 @@ void MapView::glCollectGhostInstances(std::vector<float> &out)
     }
 }
 
-bool MapView::glFloorChunksReady(int z, int cMinX, int cMinY, int cMaxX, int cMaxY)
+bool MapView::renderFloorChunksReady(int z, int cMinX, int cMinY, int cMaxX, int cMaxY)
 {
     auto &tileIndex = m_chunkStore.tiles();
     if (!m_otb || !m_dat || tileIndex.isEmpty()) return true;
@@ -1251,7 +1285,7 @@ bool MapView::glFloorChunksReady(int z, int cMinX, int cMinY, int cMaxX, int cMa
     return missing.empty();
 }
 
-void MapView::glCollectFloorInstances(int z, int cMinX, int cMinY, int cMaxX, int cMaxY,
+void MapView::renderCollectFloorInstances(int z, int cMinX, int cMinY, int cMaxX, int cMaxY,
                                       bool groundOnly, std::vector<float> &out, bool &complete)
 {
     out.clear();

@@ -9,6 +9,7 @@ import "style"
 Window {
     id: startupScreen
     readonly property bool modernTheme: Backend.uiTheme.style !== "classic"
+                                        && Backend.uiTheme.style !== "windows-classic"
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
 
     required property var app
@@ -158,7 +159,7 @@ Window {
                         }
                     }
                     Text {
-                        text: "Tibia 7.72 - 10.98+ | OpenGL"
+                        text: "Tibia 7.72 - 10.98+ | QRhi"
                         color: "#888"
                         font.pixelSize: 12
                     }

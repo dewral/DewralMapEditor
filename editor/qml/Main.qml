@@ -14,7 +14,8 @@ import "themes/github"
 Window {
     id: root
     // Both modern themes share one layout. Only their palettes differ.
-    readonly property bool githubUi: Backend.uiTheme.style !== "classic"
+    readonly property bool windowsClassicUi: Backend.uiTheme.style === "windows-classic"
+    readonly property bool githubUi: Backend.uiTheme.style !== "classic" && !windowsClassicUi
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
     readonly property bool modernGrayUi: Backend.uiTheme.style === "gray-modern"
@@ -100,8 +101,8 @@ Window {
             anchors.verticalCenter: parent.verticalCenter
             anchors.verticalCenterOffset: -5
             text: root.title
-            color: "#c0c0c0"
-            font.bold: true
+            color: root.windowsClassicUi ? "#202020" : "#c0c0c0"
+            font.bold: !root.windowsClassicUi
             font.pixelSize: 15
             elide: Text.ElideMiddle
 
@@ -237,7 +238,7 @@ Window {
         width: root.githubUi ? 520 : implicitWidth
         appController: app
         mapView: workspace.mapView
-        mapGl: workspace.mapGl
+        mapRenderer: workspace.mapRenderer
         settings: prefs
         titleBarItem: titleBar
         startupWindow: startupScreen
@@ -259,6 +260,7 @@ Window {
         aiMapAssistantDialog: aiMapAssistantDialog
         terrainGeneratorDialog: terrainGeneratorDialog
         dungeonGeneratorDialog: dungeonGeneratorDialog
+        groundClusterGeneratorDialog: groundClusterGeneratorDialog
         themeDialog: themeDialog
         borderizeConfirm: borderizeMapConfirm
         randomizeConfirm: randomizeMapConfirm
@@ -389,14 +391,14 @@ Window {
 
         Rectangle {
             anchors.fill: parent
-            color: toggleArea.containsMouse ? "#3a3a3a" : "#242424"
-            border.color: "#4a4a4a"
+            color: root.windowsClassicUi ? (toggleArea.containsMouse ? "#e5f1fb" : "#f0f0f0") : (toggleArea.containsMouse ? "#3a3a3a" : "#242424")
+            border.color: root.windowsClassicUi ? "#7a7a7a" : "#4a4a4a"
             border.width: 1
         }
         Text {
             anchors.centerIn: parent
             text: prefs.paletteCollapsed ? ">" : "<"
-            color: "#ccc"
+            color: root.windowsClassicUi ? "#202020" : "#ccc"
             font.pixelSize: 10
         }
         MouseArea {
@@ -531,7 +533,7 @@ Window {
             Text {
                 width: appCloseConfirm.width - 24
                 text: appCloseConfirm.message
-                color: root.grayUi ? "#E0E0E0" : (root.githubUi ? "#C9D1D9" : "#c0c0c0")
+                color: root.windowsClassicUi ? "#202020" : (root.grayUi ? "#E0E0E0" : (root.githubUi ? "#C9D1D9" : "#c0c0c0"))
                 font.pixelSize: 12
                 wrapMode: Text.WordWrap
             }
@@ -727,6 +729,21 @@ Window {
             dungeonGeneratorLoader.item["open"]();
         }
     }
+    QtObject {
+        id: groundClusterGeneratorDialog
+        function open() {
+            groundClusterGeneratorLoader.active = true;
+            groundClusterGeneratorLoader.item["open"]();
+        }
+    }
+    Loader {
+        id: groundClusterGeneratorLoader
+        active: false
+        sourceComponent: GroundClusterGeneratorDialog {
+            mapCtrl: workspace.mapView
+            onClosed: Qt.callLater(() => groundClusterGeneratorLoader.active = false)
+        }
+    }
     Loader {
         id: dungeonGeneratorLoader
         active: false
@@ -863,7 +880,7 @@ Window {
         active: false
         sourceComponent: PreferencesDialog {
             settings: prefs
-            mapGl: workspace.mapGl
+            mapRenderer: workspace.mapRenderer
             onClosed: Qt.callLater(() => themeLoader.active = false)
         }
     }

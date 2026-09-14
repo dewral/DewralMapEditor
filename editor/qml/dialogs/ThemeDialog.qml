@@ -44,11 +44,13 @@ DmeDialog {
 
         Text {
             width: parent.width - 24
-            text: Backend.uiTheme.style === "classic"
+            text: Backend.uiTheme.style === "windows-classic"
+                  ? "Compact Windows-inspired layout with light beveled controls and native-looking menus."
+                  : (Backend.uiTheme.style === "classic"
                   ? "Original Tibia-inspired layout and textured controls."
                   : (Backend.uiTheme.style === "gray-dark"
                      ? "The same modern layout as GitHub Dark, with neutral gray surfaces and a turquoise accent."
-                     : "Modern GitHub/Codex-inspired layout. Uses separate QML components while keeping the same editor actions.")
+                     : "Modern GitHub/Codex-inspired layout. Uses separate QML components while keeping the same editor actions."))
             color: Backend.uiTheme.style === "gray-dark" ? "#929292" : (Backend.uiTheme.style === "github-dark" ? "#8A8A8A" : "#8b949e")
             font.pixelSize: 10
             wrapMode: Text.WordWrap

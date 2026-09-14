@@ -15,6 +15,7 @@ DmeDialog {
     property bool truncated: false
     readonly property bool propertyMode: searchMode === "properties"
     readonly property bool githubUi: Backend.uiTheme.style !== "classic"
+                                     && Backend.uiTheme.style !== "windows-classic"
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     title: "Search for Item"

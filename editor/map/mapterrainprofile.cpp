@@ -82,6 +82,7 @@ QVariantMap MapTerrainProfile::analyze(const OtbmReader &map,
     qint64 doodadTotal = 0;
     qint64 sameNeighbours = 0;
     qint64 comparedNeighbours = 0;
+    QHash<QString, qint64> transitionCounts;
 
     for (const OtbmTile &tile : map.tiles()) {
         const QString ground = groundBrush(tile, groundBrushes);
@@ -103,6 +104,10 @@ QVariantMap MapTerrainProfile::analyze(const OtbmReader &map,
             if (neighbour.isEmpty()) continue;
             ++comparedNeighbours;
             if (neighbour == ground) ++sameNeighbours;
+            QString first = ground;
+            QString second = neighbour;
+            if (first > second) std::swap(first, second);
+            ++transitionCounts[first + QLatin1Char('\x1f') + second];
         }
     }
 
@@ -135,6 +140,37 @@ QVariantMap MapTerrainProfile::analyze(const OtbmReader &map,
     const double continuity = comparedNeighbours > 0
         ? sameNeighbours * 100.0 / comparedNeighbours : 80.0;
 
+    QVariantList transitions;
+    QList<QPair<QString, qint64>> rankedTransitions;
+    rankedTransitions.reserve(transitionCounts.size());
+    for (auto it = transitionCounts.cbegin(); it != transitionCounts.cend(); ++it)
+        rankedTransitions.push_back({it.key(), it.value()});
+    std::sort(rankedTransitions.begin(), rankedTransitions.end(), [](const auto &a, const auto &b) {
+        return a.second != b.second ? a.second > b.second : a.first < b.first;
+    });
+    for (const auto &[key, count] : rankedTransitions) {
+        const QStringList pair = key.split(QLatin1Char('\x1f'));
+        if (pair.size() != 2) continue;
+        transitions.push_back(QVariantMap{
+            {QStringLiteral("first"), pair[0]},
+            {QStringLiteral("second"), pair[1]},
+            {QStringLiteral("count"), count},
+            {QStringLiteral("share"), comparedNeighbours > 0
+                 ? count * 100.0 / comparedNeighbours : 0.0}
+        });
+    }
+
+    QVariantMap metrics;
+    metrics.insert(QStringLiteral("landShare"),
+                   std::max(0.0, 100.0 - waterShare - beachShare - mountainShare));
+    metrics.insert(QStringLiteral("waterShare"), waterShare);
+    metrics.insert(QStringLiteral("beachShare"), beachShare);
+    metrics.insert(QStringLiteral("mountainShare"), mountainShare);
+    metrics.insert(QStringLiteral("continuity"), continuity);
+    metrics.insert(QStringLiteral("transitionRate"), 100.0 - continuity);
+    metrics.insert(QStringLiteral("doodadDensity"), groundTotal > 0
+        ? doodadTotal * 100.0 / groundTotal : 0.0);
+
     QVariantMap parameters;
     parameters.insert(QStringLiteral("landmassSize"),
                       std::clamp(static_cast<int>((continuity - 45.0) / 3.0), 2, 24));
@@ -163,7 +199,7 @@ QVariantMap MapTerrainProfile::analyze(const OtbmReader &map,
     brushes.insert(QStringLiteral("mountain"), mountain);
 
     QVariantMap profile;
-    profile.insert(QStringLiteral("version"), 1);
+    profile.insert(QStringLiteral("version"), 2);
     profile.insert(QStringLiteral("name"), name.trimmed());
     profile.insert(QStringLiteral("source"), QFileInfo(sourcePath).absoluteFilePath());
     profile.insert(QStringLiteral("tileCount"), groundTotal);
@@ -173,6 +209,8 @@ QVariantMap MapTerrainProfile::analyze(const OtbmReader &map,
     profile.insert(QStringLiteral("parameters"), parameters);
     profile.insert(QStringLiteral("groundDistribution"), rankedList(groundCounts, groundTotal));
     profile.insert(QStringLiteral("doodadDistribution"), rankedList(doodadCounts, doodadTotal));
+    profile.insert(QStringLiteral("metrics"), metrics);
+    profile.insert(QStringLiteral("groundTransitions"), transitions);
     return profile;
 }
 

@@ -154,6 +154,8 @@ MapDungeonGenerator::Result MapDungeonGenerator::generate(
     settings.maxRoomDegree = std::clamp(settings.maxRoomDegree, 2, 8);
     settings.caveDensity = std::clamp(settings.caveDensity, 30, 70);
     settings.caveSmoothSteps = std::clamp(settings.caveSmoothSteps, 0, 8);
+    settings.caveMinRegionSize = std::clamp(settings.caveMinRegionSize, 1, 1000);
+    settings.caveWallThreshold = std::clamp(settings.caveWallThreshold, 0, 1000);
 
     int minX = selection.front().x(), maxX = minX;
     int minY = selection.front().y(), maxY = minY;
@@ -198,12 +200,35 @@ MapDungeonGenerator::Result MapDungeonGenerator::generate(
             floorTiles = std::move(next);
         }
 
-        // Cellular automata can leave isolated islands. Retaining the largest
-        // 4-way component guarantees a playable cave without hidden fragments.
+        // Remove small enclosed rock islands, but preserve the selection rim
+        // and rock connected to holes or excluded areas.
+        QSet<quint64> rockRemaining = allowed;
+        rockRemaining.subtract(floorTiles);
+        while (settings.caveWallThreshold > 0 && !rockRemaining.isEmpty()) {
+            QVector<quint64> region{*rockRemaining.cbegin()};
+            rockRemaining.remove(region.front());
+            bool touchesBoundary = false;
+            for (qsizetype index = 0; index < region.size(); ++index) {
+                const QPoint point = keyPoint(region[index]);
+                touchesBoundary |= hasSelectionBorder(point);
+                for (const QPoint offset : {QPoint(1, 0), QPoint(-1, 0),
+                                             QPoint(0, 1), QPoint(0, -1)}) {
+                    const quint64 key = pointKey(point.x() + offset.x(), point.y() + offset.y());
+                    if (rockRemaining.remove(key)) region.push_back(key);
+                }
+            }
+            if (!touchesBoundary && region.size() < settings.caveWallThreshold)
+                for (quint64 key : region) floorTiles.insert(key);
+        }
+
+        // Cellular automata leave disconnected chambers. Keep meaningful
+        // regions and join them through the shortest available rock path,
+        // preserving the variety that would be lost by retaining only one.
         QSet<quint64> unvisited = floorTiles;
-        QSet<quint64> largest;
+        QVector<QSet<quint64>> components;
         static constexpr int orthoDx[4] = {1, -1, 0, 0};
         static constexpr int orthoDy[4] = {0, 0, 1, -1};
+        const int minimumRegionSize = settings.caveMinRegionSize;
         while (!unvisited.isEmpty()) {
             QSet<quint64> component;
             QQueue<quint64> queue;
@@ -222,7 +247,77 @@ MapDungeonGenerator::Result MapDungeonGenerator::generate(
                     }
                 }
             }
-            if (component.size() > largest.size()) largest = std::move(component);
+            if (component.size() >= minimumRegionSize)
+                components.push_back(std::move(component));
+        }
+        if (components.isEmpty()) return result;
+        auto smallestKey = [](const QSet<quint64> &component) {
+            quint64 key = std::numeric_limits<quint64>::max();
+            for (quint64 value : component) key = std::min(key, value);
+            return key;
+        };
+        std::sort(components.begin(), components.end(), [&](const auto &left, const auto &right) {
+            return left.size() != right.size()
+                ? left.size() > right.size()
+                : smallestKey(left) < smallestKey(right);
+        });
+
+        QSet<quint64> largest = components.front();
+        const int tunnelBefore = (settings.corridorWidth - 1) / 2;
+        const int tunnelAfter = settings.corridorWidth / 2;
+        auto carveTunnelPoint = [&](quint64 key) {
+            const QPoint center = keyPoint(key);
+            for (int dy = -tunnelBefore; dy <= tunnelAfter; ++dy)
+                for (int dx = -tunnelBefore; dx <= tunnelAfter; ++dx) {
+                    const QPoint point(center.x() + dx, center.y() + dy);
+                    const quint64 pointValue = pointKey(point.x(), point.y());
+                    if (allowed.contains(pointValue) && !hasSelectionBorder(point))
+                        largest.insert(pointValue);
+                }
+        };
+
+        for (int componentIndex = 1; componentIndex < components.size(); ++componentIndex) {
+            const QSet<quint64> &component = components[componentIndex];
+            QVector<quint64> starts(component.cbegin(), component.cend());
+            std::sort(starts.begin(), starts.end());
+            QQueue<quint64> frontier;
+            QHash<quint64, quint64> parents;
+            parents.reserve(allowed.size() / 4);
+            for (quint64 key : starts) {
+                frontier.enqueue(key);
+                parents.insert(key, key);
+            }
+
+            quint64 meeting = 0;
+            bool found = false;
+            while (!frontier.isEmpty() && !found) {
+                const quint64 currentKey = frontier.dequeue();
+                const QPoint current = keyPoint(currentKey);
+                for (int direction = 0; direction < 4; ++direction) {
+                    const QPoint next(current.x() + orthoDx[direction],
+                                      current.y() + orthoDy[direction]);
+                    const quint64 nextKey = pointKey(next.x(), next.y());
+                    if (largest.contains(nextKey)) {
+                        meeting = currentKey;
+                        found = true;
+                        break;
+                    }
+                    if (!allowed.contains(nextKey) || hasSelectionBorder(next)
+                        || parents.contains(nextKey)) continue;
+                    parents.insert(nextKey, currentKey);
+                    frontier.enqueue(nextKey);
+                }
+            }
+            if (!found) continue;
+
+            quint64 cursor = meeting;
+            while (true) {
+                carveTunnelPoint(cursor);
+                const quint64 parent = parents.value(cursor, cursor);
+                if (parent == cursor) break;
+                cursor = parent;
+            }
+            largest.unite(component);
         }
         if (largest.size() < 16) return result;
 

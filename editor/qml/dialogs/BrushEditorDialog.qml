@@ -6,6 +6,11 @@ import "../style"
 DmeDialog {
     id: root
     property var mapCtrl: null
+    AdvancedBrushEditor {
+        id: advancedEditor
+        editorHost: root
+        mapCtrl: root.mapCtrl
+    }
 
     title: "Tileset & Brush Manager"
 
@@ -19,13 +24,14 @@ DmeDialog {
     property int pickerCellSize: 52
 
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
-    readonly property bool modernUi: Backend.uiTheme.style !== "classic"
-    readonly property color textColor: grayUi ? "#F0F0F0" : (modernUi ? "#F0F6FC" : "#D0D0D0")
-    readonly property color mutedColor: grayUi ? "#A0A0A0" : (modernUi ? "#8B949E" : "#999999")
-    readonly property color panelColor: grayUi ? "#242424" : (modernUi ? "#0D1117" : "#252525")
-    readonly property color cellColor: grayUi ? "#2D2D2D" : (modernUi ? "#161B22" : "#252525")
-    readonly property color borderColor: grayUi ? "#494949" : (modernUi ? "#30363D" : "#3A3A3A")
-    readonly property color accentColor: grayUi ? "#C79A3B" : (modernUi ? "#2EA043" : "#7FDC8F")
+    readonly property bool windowsClassicUi: Backend.uiTheme.style === "windows-classic"
+    readonly property bool modernUi: Backend.uiTheme.style !== "classic" && !windowsClassicUi
+    readonly property color textColor: windowsClassicUi ? "#202020" : (grayUi ? "#F0F0F0" : (modernUi ? "#F0F6FC" : "#D0D0D0"))
+    readonly property color mutedColor: windowsClassicUi ? "#606060" : (grayUi ? "#A0A0A0" : (modernUi ? "#8B949E" : "#999999"))
+    readonly property color panelColor: windowsClassicUi ? "#f0f0f0" : (grayUi ? "#242424" : (modernUi ? "#0D1117" : "#252525"))
+    readonly property color cellColor: windowsClassicUi ? "#ffffff" : (grayUi ? "#2D2D2D" : (modernUi ? "#161B22" : "#252525"))
+    readonly property color borderColor: windowsClassicUi ? "#ababab" : (grayUi ? "#494949" : (modernUi ? "#30363D" : "#3A3A3A"))
+    readonly property color accentColor: windowsClassicUi ? "#0a64ad" : (grayUi ? "#C79A3B" : (modernUi ? "#2EA043" : "#7FDC8F"))
 
     property var tilesetCategoryCodes: ["terrain", "doodad", "item", "raw", "collection", "door"]
     property var tilesetCategoryLabels: ["Terrain", "Doodads", "Items", "RAW", "Collections", "Doors"]
@@ -44,31 +50,79 @@ DmeDialog {
     property string pendingDeleteTileset: ""
 
     property var borderSets: ({
-            "inner|": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            "inner|": [[], [], [], [], [], [], [], [], [], [], [], [], []]
         })
     property string borderTarget: ""
     property string borderAlign: "inner"
     property bool optionalBorderMode: false
-    property var optionalBorderIds: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    property var optionalBorderIds: [[], [], [], [], [], [], [], [], [], [], [], [], []]
+    property int selectedBorderType: 1
 
     readonly property string borderSlotKey: borderAlign + "|" + borderTarget
-    readonly property var borderIds: optionalBorderMode
+    readonly property var borderSlots: optionalBorderMode
                                       ? optionalBorderIds
-                                      : (borderSets[borderSlotKey] || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+                                      : (borderSets[borderSlotKey] || [[], [], [], [], [], [], [], [], [], [], [], [], []])
+    readonly property var borderVariants: borderSlots[selectedBorderType] || []
     property var wallIds: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-    function setBorderTile(bt, sid) {
+    function emptyBorderSlots() {
+        return [[], [], [], [], [], [], [], [], [], [], [], [], []];
+    }
+
+    function borderPrimaryId(bt) {
+        var variants = borderSlots[bt] || [];
+        return variants.length > 0 ? Number(variants[0].id) : 0;
+    }
+
+    function addBorderVariant(bt, sid) {
+        if (sid <= 0)
+            return;
+        var slots = JSON.parse(JSON.stringify(borderSlots));
+        while (slots.length < 13)
+            slots.push([]);
+        var variants = slots[bt] || [];
+        for (var i = 0; i < variants.length; ++i) {
+            if (Number(variants[i].id) === Number(sid)) {
+                selectedBorderType = bt;
+                return;
+            }
+        }
+        variants.push({ id: Number(sid), chance: 100 });
+        slots[bt] = variants;
+        selectedBorderType = bt;
+        setCurrentBorderSlots(slots);
+    }
+
+    function removeBorderVariant(bt, index) {
+        var slots = JSON.parse(JSON.stringify(borderSlots));
+        if (!slots[bt] || index < 0 || index >= slots[bt].length)
+            return;
+        slots[bt].splice(index, 1);
+        setCurrentBorderSlots(slots);
+    }
+
+    function setBorderVariantChance(bt, index, chance) {
+        var slots = JSON.parse(JSON.stringify(borderSlots));
+        if (!slots[bt] || index < 0 || index >= slots[bt].length)
+            return;
+        slots[bt][index].chance = Math.max(1, Number(chance));
+        setCurrentBorderSlots(slots);
+    }
+
+    function setCurrentBorderSlots(slots) {
         if (optionalBorderMode) {
-            var optional = optionalBorderIds.slice();
-            optional[bt] = sid;
-            optionalBorderIds = optional;
+            optionalBorderIds = slots;
             return;
         }
         var sets = JSON.parse(JSON.stringify(borderSets));
-        if (!sets[borderSlotKey])
-            sets[borderSlotKey] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        sets[borderSlotKey][bt] = sid;
+        sets[borderSlotKey] = slots;
         borderSets = sets;
+    }
+
+    function clearBorderSlot(bt) {
+        var slots = JSON.parse(JSON.stringify(borderSlots));
+        slots[bt] = [];
+        setCurrentBorderSlots(slots);
     }
 
     function borderTargetKeys() {
@@ -320,13 +374,14 @@ DmeDialog {
             });
 
         var sets = {
-            "inner|": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            "inner|": emptyBorderSlots()
         };
         for (var b = 0; b < d.borders.length; ++b)
             sets[d.borders[b].align + "|" + d.borders[b].to] = d.borders[b].tiles.slice();
         borderSets = sets;
-        optionalBorderIds = (d.optionalTiles || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).slice();
+        optionalBorderIds = (d.optionalTiles || emptyBorderSlots()).slice();
         optionalBorderMode = false;
+        selectedBorderType = 1;
         borderTarget = "";
         borderAlign = sets["inner|"] ? "inner" : "outer";
         groundNameField.text = name;
@@ -339,10 +394,11 @@ DmeDialog {
         zorderField.value = 3500;
         gItems.clear();
         borderSets = ({
-                "inner|": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+                "inner|": emptyBorderSlots()
             });
-        optionalBorderIds = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        optionalBorderIds = emptyBorderSlots();
         optionalBorderMode = false;
+        selectedBorderType = 1;
         borderTarget = "";
         borderAlign = "inner";
         alignCombo.syncFromApp();
@@ -714,7 +770,7 @@ DmeDialog {
                     width: 110
                     checked: root.tab === "wall"
                     opacity: root.tab === "wall" ? 1.0 : 0.65
-                    onClicked: root.tab = "wall"
+                    onClicked: { advancedEditor.kind = "walls"; advancedEditor.open() }
                 }
                 DmeButton {
                     text: "Doodad composer"
@@ -722,6 +778,11 @@ DmeDialog {
                     checked: root.tab === "doodad"
                     opacity: root.tab === "doodad" ? 1.0 : 0.65
                     onClicked: root.tab = "doodad"
+                }
+                DmeButton {
+                    text: "Advanced / Learn"
+                    width: 145
+                    onClicked: { advancedEditor.kind = root.tab === "doodad" ? "doodads" : "carpets"; advancedEditor.open() }
                 }
             }
 
@@ -1288,8 +1349,11 @@ DmeDialog {
                     color: root.mutedColor
                     font.pixelSize: 10
                 }
-                Item {
+                Row {
+                    spacing: 14
+                    height: 5 * 50 - 6
 
+                    Item {
                     width: 5 * 50 - 6
                     height: 5 * 50 - 6
 
@@ -1401,8 +1465,9 @@ DmeDialog {
                             width: 44
                             height: 44
                             color: slotDrop.containsDrag ? Qt.darker(root.accentColor, 2.3) : root.cellColor
-                            border.color: slotDrop.containsDrag ? root.accentColor : root.borderColor
-                            border.width: 1
+                            border.color: slotDrop.containsDrag || root.selectedBorderType === modelData.bt
+                                          ? root.accentColor : root.borderColor
+                            border.width: root.selectedBorderType === modelData.bt ? 2 : 1
 
                             Image {
                                 anchors.centerIn: parent
@@ -1411,7 +1476,7 @@ DmeDialog {
                                 smooth: false
                                 cache: false
                                 fillMode: Image.PreserveAspectFit
-                                source: root.iconSrc(root.borderIds[modelData.bt])
+                                source: root.iconSrc(root.borderPrimaryId(modelData.bt))
                             }
                             Text {
                                 anchors {
@@ -1423,15 +1488,144 @@ DmeDialog {
                                 color: root.mutedColor
                                 font.pixelSize: 8
                             }
+                            Rectangle {
+                                anchors { right: parent.right; top: parent.top; margins: 2 }
+                                visible: (root.borderSlots[modelData.bt] || []).length > 1
+                                width: 16
+                                height: 14
+                                radius: 7
+                                color: root.accentColor
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: (root.borderSlots[modelData.bt] || []).length
+                                    color: "white"
+                                    font.pixelSize: 8
+                                    font.bold: true
+                                }
+                            }
                             DropArea {
                                 id: slotDrop
                                 anchors.fill: parent
-                                onDropped: drop => root.setBorderTile(modelData.bt, drop.source.sid)
+                                onDropped: drop => root.addBorderVariant(modelData.bt, drop.source.sid)
                             }
                             MouseArea {
                                 anchors.fill: parent
-                                acceptedButtons: Qt.RightButton
-                                onClicked: root.setBorderTile(modelData.bt, 0)
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                onClicked: mouse => {
+                                    root.selectedBorderType = modelData.bt;
+                                    if (mouse.button === Qt.RightButton)
+                                        root.clearBorderSlot(modelData.bt);
+                                }
+                            }
+                        }
+                    }
+                    }
+
+                    Column {
+                        width: 330
+                        height: parent.height
+                        spacing: 6
+
+                        Text {
+                            text: "Variants for selected slot"
+                            color: root.textColor
+                            font.pixelSize: 12
+                            font.bold: true
+                        }
+                        Text {
+                            width: parent.width
+                            text: "Drop several items onto a border slot or add the current picker selection. Weight controls how often each variant is used."
+                            color: root.mutedColor
+                            font.pixelSize: 10
+                            wrapMode: Text.WordWrap
+                        }
+                        Rectangle {
+                            width: parent.width
+                            height: 142
+                            color: root.cellColor
+                            border.color: root.borderColor
+                            border.width: 1
+
+                            Text {
+                                anchors.centerIn: parent
+                                visible: root.borderVariants.length === 0
+                                text: "No variants in this slot"
+                                color: root.mutedColor
+                                font.pixelSize: 10
+                            }
+                            ListView {
+                                anchors.fill: parent
+                                anchors.margins: 5
+                                spacing: 4
+                                clip: true
+                                model: root.borderVariants
+                                delegate: Row {
+                                    required property var modelData
+                                    required property int index
+                                    spacing: 6
+                                    height: 38
+                                    Image {
+                                        width: 32
+                                        height: 32
+                                        smooth: false
+                                        cache: false
+                                        fillMode: Image.PreserveAspectFit
+                                        source: root.iconSrc(Number(modelData.id))
+                                    }
+                                    Text {
+                                        width: 76
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "ID " + Number(modelData.id)
+                                        color: root.textColor
+                                        font.pixelSize: 10
+                                    }
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "Weight"
+                                        color: root.mutedColor
+                                        font.pixelSize: 10
+                                    }
+                                    DmeSpinBox {
+                                        width: 66
+                                        height: 24
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        from: 1
+                                        to: 10000
+                                        value: Number(modelData.chance || 100)
+                                        onValueModified: root.setBorderVariantChance(
+                                                             root.selectedBorderType, index, value)
+                                    }
+                                    DmeButton {
+                                        width: 26
+                                        height: 24
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "×"
+                                        variant: "danger"
+                                        onClicked: root.removeBorderVariant(
+                                                       root.selectedBorderType, index)
+                                    }
+                                }
+                            }
+                        }
+                        Row {
+                            spacing: 6
+                            DmeButton {
+                                text: root.selectedServerIds.length > 1
+                                      ? "Add selected (" + root.selectedServerIds.length + ")"
+                                      : "Add selected item"
+                                width: 148
+                                enabled: root.selectedServerIds.length > 0
+                                onClicked: {
+                                    for (var i = 0; i < root.selectedServerIds.length; ++i)
+                                        root.addBorderVariant(root.selectedBorderType,
+                                                              root.selectedServerIds[i]);
+                                }
+                            }
+                            DmeButton {
+                                text: "Clear slot"
+                                width: 90
+                                enabled: root.borderVariants.length > 0
+                                onClicked: root.clearBorderSlot(root.selectedBorderType)
                             }
                         }
                     }

@@ -9,6 +9,7 @@ DmeDialog {
     required property var mapCtrl
     property var brushNames: []
     property var profileNames: []
+    property var activeStyleProfile: ({})
     property string resultText: ""
     property bool resultError: false
     readonly property bool caveMode: generatorType.currentIndex === 1
@@ -108,7 +109,9 @@ DmeDialog {
             passageWidth: passageWidth.value,
             chamberCount: chamberCount.value,
             chamberSize: chamberSize.value,
-            winding: winding.value
+            winding: winding.value,
+            styleProfile: activeStyleProfile,
+            candidateCount: candidateCount.value
         };
         const result = mapCtrl.generateTerrainPreview(options);
         resultError = result.success !== true;
@@ -122,11 +125,20 @@ DmeDialog {
                        + "The passage is connected to one selection edge; "
                        + "tiles outside it are left untouched.";
         } else {
+            const styleText = result.evaluatedCandidates > 1
+                    ? " Best of " + result.evaluatedCandidates
+                      + " candidates (style difference "
+                      + Number(result.styleScore).toFixed(1) + ")."
+                    : "";
             resultText = result.count + " tile(s) will change. "
                        + "Land " + result.landCount + ", beach " + result.beachCount
                        + ", water " + result.waterCount + ", mountains "
                        + result.mountainCount + ". Water level: "
-                       + result.resolvedWaterLevel + "% water coverage";
+                       + result.resolvedWaterLevel + "% water coverage."
+                       + (result.decorationCount > 0
+                          ? " Learned decoration placements: " + result.decorationCount + "."
+                          : "")
+                       + styleText;
         }
     }
 
@@ -140,6 +152,7 @@ DmeDialog {
         if (!profile || !profile.parameters)
             return;
         const p = profile.parameters;
+        activeStyleProfile = profile;
         const b = profile.brushes || {};
         setBrush(landBrush, b.land);
         setBrush(beachBrush, b.beach);
@@ -170,6 +183,7 @@ DmeDialog {
         resultError = false;
         brushNames = Backend.brushStore.groundBrushNames();
         profileNames = mapCtrl.terrainProfileNames();
+        activeStyleProfile = ({});
         landBrush.currentIndex = preferredBrush(["grass", "land"], 0);
         beachBrush.currentIndex = preferredBrush(["sand", "beach"], 0);
         waterBrush.currentIndex = preferredBrush(["sea", "water"], 0);
@@ -240,7 +254,7 @@ DmeDialog {
 
         Rectangle {
             width: parent.width
-            height: visible ? 86 : 0
+            height: visible ? 119 : 0
             visible: !dialog.caveMode
             radius: 4
             color: "#0d1117"
@@ -270,6 +284,19 @@ DmeDialog {
                     spacing: 7
                     Text { text: "Profile name"; color: "#c9d1d9"; width: 105; height: 26; verticalAlignment: Text.AlignVCenter }
                     DmeTextField { id: profileName; width: 487; placeholderText: "e.g. Canary continent style" }
+                }
+                Row {
+                    spacing: 7
+                    Text { text: "Style candidates"; color: "#c9d1d9"; width: 105; height: 26; verticalAlignment: Text.AlignVCenter }
+                    DmeSpinBox { id: candidateCount; width: 100; from: 1; to: 48; value: 24 }
+                    Text {
+                        text: dialog.activeStyleProfile.metrics
+                              ? "Generates several layouts and keeps the closest match."
+                              : "Load a learned profile to enable style matching."
+                        color: "#8b949e"
+                        height: 26
+                        verticalAlignment: Text.AlignVCenter
+                    }
                 }
             }
         }
@@ -408,7 +435,8 @@ DmeDialog {
                     dialog.resultError = result.success !== true;
                     dialog.resultText = dialog.resultError
                             ? (result.error || "Could not apply terrain.")
-                            : "Applied terrain to " + result.count + " tile(s).";
+                            : "Applied terrain to " + result.count + " tile(s) and "
+                              + result.decorationCount + " learned decoration group(s).";
                 }
             }
             DmeButton { text: "Close"; width: 90; onClicked: dialog.close() }

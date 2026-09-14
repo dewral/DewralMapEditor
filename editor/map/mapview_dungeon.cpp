@@ -108,12 +108,21 @@ QVariantMap MapView::generateDungeonPreview(const QVariantMap &options)
                       QStringLiteral("Unknown accent ground brush: %1").arg(accentGround));
         return result;
     }
-    const QString wallBrush = options.value(QStringLiteral("wall")).toString();
-    if (wallBrush.isEmpty() || !m_brushController.store()->isWallBrush(wallBrush)) {
+    const bool organic = options.value(QStringLiteral("layout")).toString() == QLatin1String("organic");
+    const QString wallBrush = organic ? QString() : options.value(QStringLiteral("wall")).toString();
+    if (!organic && (wallBrush.isEmpty() || !m_brushController.store()->isWallBrush(wallBrush))) {
         result.insert(QStringLiteral("error"), QStringLiteral("Unknown wall brush: %1").arg(wallBrush));
         return result;
     }
-    const QString roomDoodad = options.value(QStringLiteral("roomDoodad")).toString();
+    const QStringList caveDecorations = options.value(QStringLiteral("caveDecorations")).toStringList();
+    for (const QString &name : caveDecorations) {
+        if (!m_brushController.store()->isDoodadBrush(name)) {
+            result.insert(QStringLiteral("error"), QStringLiteral("Unknown cave decoration: %1").arg(name));
+            return result;
+        }
+    }
+    const QString roomDoodad = organic && !caveDecorations.isEmpty()
+        ? kAutomaticDoodad : options.value(QStringLiteral("roomDoodad")).toString();
     const QString corridorDoodad = options.value(QStringLiteral("corridorDoodad")).toString();
     const QString bossDoodad = options.value(QStringLiteral("bossDoodad")).toString();
     for (const QString &doodad : {roomDoodad, corridorDoodad, bossDoodad}) {
@@ -166,6 +175,8 @@ QVariantMap MapView::generateDungeonPreview(const QVariantMap &options)
     settings.maxRoomDegree = options.value(QStringLiteral("maxRoomDegree"), 4).toInt();
     settings.caveDensity = options.value(QStringLiteral("caveDensity"), 52).toInt();
     settings.caveSmoothSteps = options.value(QStringLiteral("caveSmoothSteps"), 4).toInt();
+    settings.caveMinRegionSize = options.value(QStringLiteral("caveMinRegionSize"), 24).toInt();
+    settings.caveWallThreshold = options.value(QStringLiteral("caveWallThreshold"), 32).toInt();
     if (options.value(QStringLiteral("layout"), QStringLiteral("rooms")).toString()
         == QLatin1String("organic"))
         settings.layout = MapDungeonGenerator::Layout::OrganicCave;
@@ -235,6 +246,7 @@ QVariantMap MapView::generateDungeonPreview(const QVariantMap &options)
             {QStringLiteral("altar"), QStringLiteral("statue"), QStringLiteral("pillar"),
              QStringLiteral("tomb")});
     }
+    if (organic && !caveDecorations.isEmpty()) roomDoodads = caveDecorations;
     const MapDungeonGenerator::Result generated = MapDungeonGenerator::generate(points, settings);
     if (generated.rooms.size() < 2 || generated.tiles.isEmpty()) {
         result.insert(QStringLiteral("error"),
@@ -286,7 +298,7 @@ QVariantMap MapView::generateDungeonPreview(const QVariantMap &options)
         // The corridor and room floors already form a continuous union. Its
         // outer boundary is the wall perimeter; excluding a square around a
         // doorway created large holes for wide corridors.
-        if (boundary)
+        if (boundary && !wallBrush.isEmpty())
             m_dungeonWallPreview.push_back({tile.x, tile.y, wallBrush});
     }
 
@@ -506,7 +518,7 @@ void MapView::clearDungeonPreview()
     update();
 }
 
-void MapView::glCollectDungeonPreviewInstances(std::vector<float> &outRooms,
+void MapView::renderCollectDungeonPreviewInstances(std::vector<float> &outRooms,
                                                 std::vector<float> &outCorridors,
                                                 std::vector<float> &outEntrance,
                                                 std::vector<float> &outBoss,

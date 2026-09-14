@@ -86,8 +86,9 @@ int main(int argc, char **argv)
                  && pixel.alpha() == 255,
                  "Decoded atlas pixel differs from the SPR data")) return 1;
 
-    const int uploadedGeneration = atlas.generation();
-    atlas.releaseImage(uploadedGeneration);
+    const auto firstUpload = atlas.uploadSince(0, 0);
+    if (!require(firstUpload.image.size() == atlas.image().size(),
+                 "New renderer did not receive a complete atlas")) return 1;
     MapAtlasService incremental = atlas;
     SprReader incrementalDecoder;
     if (!require(incrementalDecoder.loadFile(path),
@@ -96,11 +97,10 @@ int main(int argc, char **argv)
                  "Incremental sprite unexpectedly resized the atlas")) return 1;
     atlas.adoptBuilt(std::move(incremental));
 
-    QVector<MapAtlasService::Patch> patches;
-    atlas.takePatches(patches);
-    if (!require(patches.size() == 1,
-                 "Incremental atlas patch was lost during adoption")) return 1;
-    const QColor patchPixel = patches.front().image.pixelColor(0, 0);
+    const auto adopted = atlas.uploadSince(firstUpload.epoch, firstUpload.spriteCount);
+    if (!require(!adopted.image.isNull() && adopted.epoch != firstUpload.epoch,
+                 "Atlas adoption did not invalidate existing renderer snapshots")) return 1;
+    const QColor patchPixel = adopted.image.pixelColor(32, 0);
     if (!require(patchPixel.red() == 70 && patchPixel.green() == 80
                  && patchPixel.blue() == 90 && patchPixel.alpha() == 255,
                  "Incremental atlas patch differs from the SPR data")) return 1;
@@ -110,7 +110,7 @@ int main(int argc, char **argv)
     if (!require(fastDecoder.loadFile(path),
                  "Fast incremental SPR decoder rejected test data")) return 1;
     fastAtlas.addSprites(&fastDecoder, QSet<uint32_t>{1});
-    fastAtlas.releaseImage(fastAtlas.generation());
+    const auto fastInitial = fastAtlas.uploadSince(0, 0);
     const auto secondSprite = fastDecoder.loadSpriteUncached(2);
     if (!require(secondSprite && !secondSprite->image.isNull(),
                  "Could not decode fast incremental sprite")) return 1;
@@ -118,9 +118,21 @@ int main(int argc, char **argv)
     decoded.push_back({2, secondSprite->image});
     if (!require(fastAtlas.addDecodedSprites(std::move(decoded)),
                  "Fast incremental sprite could not be appended")) return 1;
-    patches.clear();
-    fastAtlas.takePatches(patches);
-    if (!require(patches.size() == 1 && fastAtlas.slotForSprite(2) == 1,
-                 "Fast incremental atlas did not produce a GPU patch")) return 1;
+    const auto updateA = fastAtlas.uploadSince(fastInitial.epoch, fastInitial.spriteCount);
+    const auto updateB = fastAtlas.uploadSince(fastInitial.epoch, fastInitial.spriteCount);
+    if (!require(updateA.image.height() == 32 && fastAtlas.slotForSprite(2) == 1,
+                 "Fast incremental atlas did not produce a row upload")) return 1;
+    if (!require(updateA.image == updateB.image && updateA.image.pixelColor(32, 0) == patchPixel,
+                 "One renderer consumed another window's atlas update")) return 1;
+    if (!require(fastAtlas.uploadSince(updateA.epoch, updateA.spriteCount).image.isNull(),
+                 "Unchanged atlas generated a redundant upload")) return 1;
+    const auto lateWindow = fastAtlas.uploadSince(0, 0);
+    if (!require(lateWindow.image.size() == fastAtlas.image().size()
+                 && lateWindow.image.pixelColor(32, 0) == patchPixel,
+                 "Late preview or recreated device could not recover the atlas")) return 1;
+    fastAtlas.reset();
+    const auto empty = fastAtlas.uploadSince(updateA.epoch, updateA.spriteCount);
+    if (!require(empty.size == QSize(1, 1) && empty.image.pixelColor(0, 0).alpha() == 0,
+                 "Atlas reset retained stale sprite pixels")) return 1;
     return 0;
 }

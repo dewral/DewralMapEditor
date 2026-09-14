@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <limits>
 #include <QFileInfo>
 #include <QPointer>
@@ -15,6 +16,100 @@ constexpr int kMaximumTerrainSelection = 1000000;
 int terrainIndex(MapTerrainGenerator::Terrain terrain)
 {
     return static_cast<int>(terrain);
+}
+
+quint64 terrainPointKey(int x, int y)
+{
+    return (static_cast<quint64>(static_cast<quint32>(x)) << 32)
+         | static_cast<quint32>(y);
+}
+
+quint32 terrainHash(int x, int y, quint32 seed)
+{
+    quint32 value = seed ^ static_cast<quint32>(x) * 0x9e3779b9u
+                         ^ static_cast<quint32>(y) * 0x85ebca6bu;
+    value ^= value >> 16;
+    value *= 0x7feb352du;
+    value ^= value >> 15;
+    return value * 0x846ca68bu;
+}
+
+double terrainStyleScore(const MapTerrainGenerator::Result &candidate,
+                         const QVariantMap &profile)
+{
+    const QVariantMap metrics = profile.value(QStringLiteral("metrics")).toMap();
+    if (candidate.tiles.isEmpty() || metrics.isEmpty())
+        return std::numeric_limits<double>::infinity();
+
+    std::array<int, 4> counts{};
+    std::array<qint64, 16> transitionCounts{};
+    QHash<quint64, int> terrainAt;
+    terrainAt.reserve(candidate.tiles.size());
+    for (const auto &tile : candidate.tiles) {
+        const int kind = terrainIndex(tile.terrain);
+        ++counts[static_cast<size_t>(kind)];
+        terrainAt.insert(terrainPointKey(tile.x, tile.y), kind);
+    }
+
+    qint64 same = 0;
+    qint64 compared = 0;
+    static constexpr int dx[2] = {1, 0};
+    static constexpr int dy[2] = {0, 1};
+    for (const auto &tile : candidate.tiles) {
+        const int kind = terrainIndex(tile.terrain);
+        for (int direction = 0; direction < 2; ++direction) {
+            const auto neighbour = terrainAt.constFind(
+                terrainPointKey(tile.x + dx[direction], tile.y + dy[direction]));
+            if (neighbour == terrainAt.cend()) continue;
+            ++compared;
+            if (*neighbour == kind) ++same;
+            const int first = std::min(kind, *neighbour);
+            const int second = std::max(kind, *neighbour);
+            ++transitionCounts[static_cast<size_t>(first * 4 + second)];
+        }
+    }
+    const double continuity = compared > 0 ? same * 100.0 / compared : 100.0;
+    const double count = candidate.tiles.size();
+    const std::array<const char *, 4> shareNames{
+        "landShare", "beachShare", "waterShare", "mountainShare"
+    };
+    double score = 0.0;
+    for (int kind = 0; kind < 4; ++kind) {
+        const double actual = counts[static_cast<size_t>(kind)] * 100.0 / count;
+        const double wanted = metrics.value(QLatin1String(shareNames[kind]), actual).toDouble();
+        score += std::abs(actual - wanted) * 1.35;
+    }
+    score += std::abs(continuity
+                      - metrics.value(QStringLiteral("continuity"), continuity).toDouble());
+
+    const QVariantMap learnedBrushes = profile.value(QStringLiteral("brushes")).toMap();
+    QHash<QString, int> semanticKinds;
+    semanticKinds.insert(learnedBrushes.value(QStringLiteral("land")).toString(), 0);
+    semanticKinds.insert(learnedBrushes.value(QStringLiteral("beach")).toString(), 1);
+    semanticKinds.insert(learnedBrushes.value(QStringLiteral("water")).toString(), 2);
+    semanticKinds.insert(learnedBrushes.value(QStringLiteral("mountain")).toString(), 3);
+    std::array<double, 16> learnedTransitions{};
+    for (const QVariant &transitionValue : profile.value(
+             QStringLiteral("groundTransitions")).toList()) {
+        const QVariantMap transition = transitionValue.toMap();
+        const int firstKind = semanticKinds.value(
+            transition.value(QStringLiteral("first")).toString(), 0);
+        const int secondKind = semanticKinds.value(
+            transition.value(QStringLiteral("second")).toString(), 0);
+        const int first = std::min(firstKind, secondKind);
+        const int second = std::max(firstKind, secondKind);
+        learnedTransitions[static_cast<size_t>(first * 4 + second)] +=
+            transition.value(QStringLiteral("share")).toDouble();
+    }
+    if (compared > 0) {
+        for (int first = 0; first < 4; ++first)
+            for (int second = first; second < 4; ++second) {
+                const size_t index = static_cast<size_t>(first * 4 + second);
+                const double actual = transitionCounts[index] * 100.0 / compared;
+                score += std::abs(actual - learnedTransitions[index]) * 0.65;
+            }
+    }
+    return score;
 }
 
 } // namespace
@@ -43,6 +138,7 @@ QVariantMap MapView::generateTerrainPreview(const QVariantMap &options)
 
     const bool caveMode = options.value(QStringLiteral("generatorType"))
                               .toString() == QLatin1String("cave");
+    const QVariantMap styleProfile = options.value(QStringLiteral("styleProfile")).toMap();
     const std::array<QString, 4> brushes{
         options.value(QStringLiteral("land")).toString(),
         options.value(QStringLiteral("beach")).toString(),
@@ -93,6 +189,8 @@ QVariantMap MapView::generateTerrainPreview(const QVariantMap &options)
     }
 
     MapTerrainGenerator::Result generated;
+    int evaluatedCandidates = 1;
+    double learnedStyleScore = -1.0;
     if (caveMode) {
         MapTerrainGenerator::CaveSettings settings;
         settings.seed = options.value(QStringLiteral("seed"), 1).toUInt();
@@ -122,7 +220,28 @@ QVariantMap MapView::generateTerrainPreview(const QVariantMap &options)
         settings.warpStrength = options.value(QStringLiteral("warpStrength"), 28).toInt();
         settings.edgeFalloff = options.value(QStringLiteral("edgeFalloff"), 72).toInt();
         settings.islandCount = options.value(QStringLiteral("islandCount"), 5).toInt();
-        generated = MapTerrainGenerator::generate(points, settings);
+        const bool hasLearnedMetrics = !styleProfile.value(QStringLiteral("metrics")).toMap().isEmpty();
+        const int requestedCandidates = std::clamp(
+            options.value(QStringLiteral("candidateCount"), 24).toInt(), 1, 48);
+        const int areaCandidateLimit = std::max<int>(1, 2000000 / points.size());
+        evaluatedCandidates = hasLearnedMetrics
+            ? std::min(requestedCandidates, areaCandidateLimit)
+            : 1;
+        double bestScore = std::numeric_limits<double>::infinity();
+        const quint32 baseSeed = settings.seed == 0 ? 1u : settings.seed;
+        for (int candidateIndex = 0; candidateIndex < evaluatedCandidates; ++candidateIndex) {
+            settings.seed = baseSeed + static_cast<quint32>(candidateIndex) * 0x9e3779b9u;
+            MapTerrainGenerator::Result candidate = MapTerrainGenerator::generate(points, settings);
+            const double score = hasLearnedMetrics
+                ? terrainStyleScore(candidate, styleProfile)
+                : 0.0;
+            if (candidateIndex == 0 || score < bestScore) {
+                bestScore = score;
+                generated = std::move(candidate);
+            }
+        }
+        if (hasLearnedMetrics)
+            learnedStyleScore = bestScore;
     }
 
     std::array<int, 4> counts{};
@@ -189,6 +308,99 @@ QVariantMap MapView::generateTerrainPreview(const QVariantMap &options)
                     m_terrainPreviewSprites.push_back({x, y, serverId});
                 }
             }
+        } else if (!styleProfile.isEmpty()) {
+            struct LearnedDoodad { QString name; qint64 weight = 0; };
+            QVector<LearnedDoodad> learnedDoodads;
+            qint64 totalWeight = 0;
+            for (const QVariant &entryValue : styleProfile.value(
+                     QStringLiteral("doodadDistribution")).toList()) {
+                const QVariantMap entry = entryValue.toMap();
+                const QString name = entry.value(QStringLiteral("name")).toString();
+                const qint64 weight = std::max<qint64>(1, entry.value(
+                    QStringLiteral("count"), 1).toLongLong());
+                if (m_brushController.store()->doodadVariantCount(name) <= 0) continue;
+                learnedDoodads.push_back({name, weight});
+                totalWeight += weight;
+            }
+            const double density = std::clamp(
+                styleProfile.value(QStringLiteral("metrics")).toMap()
+                    .value(QStringLiteral("doodadDensity"), 0.0).toDouble(),
+                0.0, 18.0);
+            if (!learnedDoodads.isEmpty() && density > 0.0) {
+                QHash<quint64, int> generatedTerrain;
+                generatedTerrain.reserve(generated.tiles.size());
+                for (const auto &tile : generated.tiles)
+                    generatedTerrain.insert(terrainPointKey(tile.x, tile.y),
+                                             terrainIndex(tile.terrain));
+                QSet<quint64> occupied;
+                QVector<const MapTerrainGenerator::Tile *> placementOrder;
+                placementOrder.reserve(generated.tiles.size());
+                for (const auto &tile : generated.tiles)
+                    if (tile.terrain == MapTerrainGenerator::Terrain::Land
+                        || tile.terrain == MapTerrainGenerator::Terrain::Mountain)
+                        placementOrder.push_back(&tile);
+                const quint32 decorationSeed = options.value(QStringLiteral("seed"), 1).toUInt()
+                                               ^ 0x68bc21ebu;
+                std::sort(placementOrder.begin(), placementOrder.end(), [&](const auto *left,
+                                                                            const auto *right) {
+                    const quint32 leftHash = terrainHash(left->x, left->y, decorationSeed);
+                    const quint32 rightHash = terrainHash(right->x, right->y, decorationSeed);
+                    return leftHash != rightHash ? leftHash < rightHash
+                                                : terrainPointKey(left->x, left->y)
+                                                  < terrainPointKey(right->x, right->y);
+                });
+                const int target = std::min<int>(5000, qRound(generated.tiles.size()
+                                                               * density / 100.0));
+                for (const auto *tile : placementOrder) {
+                    if (m_terrainDecorationPreview.size() >= target) break;
+                    const quint32 hash = terrainHash(tile->x, tile->y, decorationSeed);
+                    qint64 roll = totalWeight > 0 ? hash % totalWeight : 0;
+                    const LearnedDoodad *chosen = &learnedDoodads.front();
+                    for (const LearnedDoodad &candidate : learnedDoodads) {
+                        if (roll < candidate.weight) { chosen = &candidate; break; }
+                        roll -= candidate.weight;
+                    }
+                    const int variants = m_brushController.store()->doodadVariantCount(chosen->name);
+                    const int variant = variants > 0
+                        ? static_cast<int>((hash >> 8) % static_cast<quint32>(variants)) : 0;
+                    const QVector<BrushStore::DoodadTile> parts =
+                        m_brushController.store()->doodadVariantTiles(chosen->name, variant);
+                    if (parts.isEmpty()) continue;
+                    bool fits = true;
+                    for (const auto &part : parts) {
+                        const quint64 key = terrainPointKey(tile->x + part.dx,
+                                                            tile->y + part.dy);
+                        const int terrain = generatedTerrain.value(key, -1);
+                        if (part.dz != 0 || occupied.contains(key)
+                            || (terrain != terrainIndex(MapTerrainGenerator::Terrain::Land)
+                                && terrain != terrainIndex(MapTerrainGenerator::Terrain::Mountain))) {
+                            fits = false;
+                            break;
+                        }
+                    }
+                    if (!fits) continue;
+                    bool nearDecoration = false;
+                    for (int dy = -1; dy <= 1 && !nearDecoration; ++dy)
+                        for (int dx = -1; dx <= 1; ++dx)
+                            if (occupied.contains(terrainPointKey(tile->x + dx, tile->y + dy))) {
+                                nearDecoration = true;
+                                break;
+                            }
+                    if (nearDecoration) continue;
+                    m_terrainDecorationPreview.push_back(
+                        {tile->x, tile->y, chosen->name, variant});
+                    for (const auto &part : parts) {
+                        occupied.insert(terrainPointKey(tile->x + part.dx,
+                                                        tile->y + part.dy));
+                        for (int serverId : part.items) {
+                            if (serverId <= 0) continue;
+                            ensureItemSprites(static_cast<uint16_t>(serverId));
+                            m_terrainPreviewSprites.push_back(
+                                {tile->x + part.dx, tile->y + part.dy, serverId});
+                        }
+                    }
+                }
+            }
         }
         m_groundNameCacheOn = false;
         m_groundNameCache.clear();
@@ -218,6 +430,9 @@ QVariantMap MapView::generateTerrainPreview(const QVariantMap &options)
     result.insert(QStringLiteral("waterCount"), counts[2]);
     result.insert(QStringLiteral("mountainCount"), counts[3]);
     result.insert(QStringLiteral("resolvedWaterLevel"), generated.resolvedWaterLevel);
+    result.insert(QStringLiteral("evaluatedCandidates"), evaluatedCandidates);
+    result.insert(QStringLiteral("styleScore"), learnedStyleScore);
+    result.insert(QStringLiteral("decorationCount"), m_terrainDecorationPreview.size());
     return result;
 }
 
@@ -225,7 +440,8 @@ QVariantMap MapView::applyTerrainPreview()
 {
     QVariantMap result;
     result.insert(QStringLiteral("success"), false);
-    if (!m_otbm || !m_brushController.store() || m_terrainPreview.isEmpty()) {
+    if (!m_otbm || !m_brushController.store()
+        || (m_terrainPreview.isEmpty() && m_terrainDecorationPreview.isEmpty())) {
         result.insert(QStringLiteral("error"), QStringLiteral("Generate a terrain preview first."));
         return result;
     }
@@ -271,6 +487,18 @@ QVariantMap MapView::applyTerrainPreview()
     for (quint64 key : borderTiles)
         recomputeBordersAt(selX(key), selY(key));
 
+    int decorated = 0;
+    for (const TerrainDecorationPreview &detail : m_terrainDecorationPreview) {
+        const QVector<BrushStore::DoodadTile> tiles =
+            m_brushController.store()->doodadVariantTiles(detail.brush, detail.variant);
+        if (tiles.isEmpty()) continue;
+        for (const BrushStore::DoodadTile &part : tiles)
+            for (int id : part.items)
+                placeItemOnFloor(detail.x + part.dx, detail.y + part.dy,
+                                 m_terrainPreviewFloor + part.dz, id);
+        ++decorated;
+    }
+
     m_otbm->endUndoGroup();
     m_placeEffect = savedEffect;
     m_brushController.automagic() = savedAuto;
@@ -281,14 +509,17 @@ QVariantMap MapView::applyTerrainPreview()
 
     result.insert(QStringLiteral("success"), true);
     result.insert(QStringLiteral("count"), applied);
+    result.insert(QStringLiteral("decorationCount"), decorated);
     return result;
 }
 
 void MapView::clearTerrainPreview()
 {
-    if (m_terrainPreview.isEmpty() && m_terrainPreviewSelection.isEmpty()) return;
+    if (m_terrainPreview.isEmpty() && m_terrainPreviewSelection.isEmpty()
+        && m_terrainDecorationPreview.isEmpty()) return;
     m_terrainPreview.clear();
     m_terrainPreviewSprites.clear();
+    m_terrainDecorationPreview.clear();
     m_terrainPreviewSelection.clear();
     m_terrainPreviewFloor = -1;
     m_terrainCavePreview = false;
@@ -363,7 +594,7 @@ void MapView::learnTerrainProfile(const QString &path, const QString &name)
         });
 }
 
-void MapView::glCollectTerrainPreviewInstances(std::vector<float> &outLand,
+void MapView::renderCollectTerrainPreviewInstances(std::vector<float> &outLand,
                                                 std::vector<float> &outBeach,
                                                 std::vector<float> &outWater,
                                                 std::vector<float> &outMountain)
@@ -387,11 +618,10 @@ void MapView::glCollectTerrainPreviewInstances(std::vector<float> &outLand,
     }
 }
 
-void MapView::glCollectTerrainSpritePreviewInstances(std::vector<float> &out)
+void MapView::renderCollectTerrainSpritePreviewInstances(std::vector<float> &out)
 {
     out.clear();
-    if (!m_terrainCavePreview
-        || m_terrainPreviewFloor != m_navigationController.floor()) return;
+    if (m_terrainPreviewFloor != m_navigationController.floor()) return;
     const auto &atlasSlots = m_atlasService.atlasSlots();
     if (atlasSlots.empty() || !m_otb || !m_dat) return;
 

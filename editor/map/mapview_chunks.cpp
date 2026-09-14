@@ -295,7 +295,7 @@ void MapView::storeChunkQuads(int z, quint64 key, std::vector<QuadRef> &&q, bool
     m_chunkStore.cacheVersion().fetch_add(1, std::memory_order_relaxed);
 }
 
-void MapView::glTakeDirtyChunks(QVector<QPair<int, quint64>> &out)
+void MapView::renderTakeDirtyChunks(QVector<QPair<int, quint64>> &out)
 {
     std::lock_guard<std::mutex> lk(m_chunkStore.cacheMutex());
     out.clear();

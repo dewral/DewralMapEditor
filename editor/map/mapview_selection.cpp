@@ -85,6 +85,41 @@ void MapView::copySelection()
     emit clipboardChanged();
 }
 
+QVariantMap MapView::brushSelectionSnapshot(bool includeGround)
+{
+    const auto &selection = m_selectionController.selected();
+    if (!m_otbm || selection.isEmpty())
+        return {{"error", "Select some map tiles first."}};
+    if (selection.size() > 4096)
+        return {{"error", "Select at most 4096 tiles for brush learning."}};
+    int minX = 65535, minY = 65535, minZ = 15;
+    for (quint64 key : selection) {
+        minX = std::min(minX, selX(key));
+        minY = std::min(minY, selY(key));
+        minZ = std::min(minZ, selZ(key));
+    }
+    auto keys = selection.values();
+    std::sort(keys.begin(), keys.end());
+    QVariantList tiles;
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    for (quint64 key : keys) {
+        const auto *tile = m_otbm->tileAt(selX(key), selY(key), selZ(key));
+        if (!tile) continue;
+        QVariantList ids;
+        for (const auto &item : tile->items) {
+            if (!item.server_id) continue;
+            if (!includeGround && ((m_otb && m_otb->isClientGroundForServerId(item.server_id))
+                || (m_brushController.store()
+                    && m_brushController.store()->isGroundBrushItem(item.server_id)))) continue;
+            ids.append(int(item.server_id));
+        }
+        if (!ids.isEmpty()) tiles.append(QVariantMap{{"dx", selX(key) - minX},
+            {"dy", selY(key) - minY}, {"dz", selZ(key) - minZ}, {"items", ids}});
+    }
+    if (tiles.isEmpty()) return {{"error", "No items remain (try Include ground)."}};
+    return {{"tiles", tiles}};
+}
+
 QVariantMap MapView::saveSelectionAsPrefab(const QString &name,
                                            const QString &palette)
 {

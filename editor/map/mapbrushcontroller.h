@@ -110,6 +110,8 @@ public:
     int doorBrushId() const { return m_doorBrushId; }
     int &doodadVariant() { return m_doodadVariant; }
     int doodadVariant() const { return m_doodadVariant; }
+    int &doodadRotation() { return m_doodadRotation; }
+    int doodadRotation() const { return m_doodadRotation; }
     QString &creatureBrush() { return m_creatureBrush; }
     const QString &creatureBrush() const { return m_creatureBrush; }
     bool &creatureBrushIsNpc() { return m_creatureBrushIsNpc; }
@@ -150,6 +152,7 @@ private:
     QString m_tableBrush;
     int m_doorBrushId = 0;
     int m_doodadVariant = -1;
+    int m_doodadRotation = 0;
     QString m_creatureBrush;
     bool m_creatureBrushIsNpc = false;
     bool m_spawnBrush = false;

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import Tibia 1.0
 import "../style"
 
@@ -8,16 +9,81 @@ DmeDialog {
     property var brushNames: []
     property var wallBrushNames: []
     property var doodadNames: []
+    property var caveDecorations: []
     property string groundIdText: "No ground IDs"
     property string wallIdText: "No wall IDs"
     property string resultText: ""
     property bool resultError: false
 
-    title: "Dungeon Generator"
-    width: 510
+    readonly property bool caveMode: layout.currentIndex === 1
+    title: caveMode ? "Cave Generator" : "Dungeon Generator"
+    width: 560
+    height: Math.min(820, Math.max(240, Overlay.overlay ? Overlay.overlay.height - 40 : 820))
     movable: true
     modal: false
     dim: false
+
+
+    function brushIcon(name, kind) {
+        if (!name || name === "None" || name === "Automatic") return "";
+        const data = kind === "ground" ? Backend.brushStore.groundBrushEdit(name)
+                                     : Backend.brushStore.advancedBrushEdit(kind, name);
+        let id = Number(data.lookid || 0);
+        if (!id && data.items && kind === "ground" && data.items.length)
+            id = Number(data.items[0].id);
+        const clientId = Backend.otbReader.clientIdForServerId(id);
+        return clientId > 0 ? "image://paletteitem/" + clientId : "";
+    }
+
+    component BrushPicker: Row {
+        id: picker
+        property alias model: choice.model
+        property alias currentIndex: choice.currentIndex
+        property string kind: "ground"
+        signal activated()
+        width: 330
+        height: 40
+        spacing: 8
+        Rectangle {
+            width: 40; height: 40
+            color: "#161b22"; border.color: "#484f58"; radius: 3
+            Image {
+                anchors.fill: parent; anchors.margins: 3
+                source: dialog.brushIcon(choice.currentText, picker.kind)
+                fillMode: Image.PreserveAspectFit; smooth: false
+            }
+        }
+        ComboBox {
+            id: choice
+            width: picker.width - 48
+            palette.text: "#eeeeee"
+            palette.buttonText: "#eeeeee"
+            palette.base: "#252525"
+            palette.button: "#252525"
+            anchors.verticalCenter: parent.verticalCenter
+            onActivated: picker.activated()
+            delegate: ItemDelegate {
+                required property int index
+                required property var modelData
+                width: choice.width; height: 44
+                highlighted: choice.highlightedIndex === index
+                contentItem: Row {
+                    spacing: 8
+                    Image {
+                        width: 36; height: 36; smooth: false
+                        fillMode: Image.PreserveAspectFit
+                        source: dialog.brushIcon(String(modelData), picker.kind)
+                    }
+                    Text {
+                        text: String(modelData); color: "#eeeeee"
+                        width: choice.width - 65; height: 36
+                        verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
+                    }
+                }
+                background: Rectangle { color: parent.highlighted ? "#484238" : "#252525" }
+            }
+        }
+    }
 
     function selectedBrush() {
         return groundBrush.currentIndex >= 0 && groundBrush.currentIndex < brushNames.length
@@ -32,7 +98,7 @@ DmeDialog {
                 ? String(brushNames[combo.currentIndex - 1]) : "";
     }
     function selectedDoodad(combo) {
-        if (combo.currentIndex === 0) return "__automatic__";
+        if (combo.currentIndex === 0) return caveMode ? "" : "__automatic__";
         return combo.currentIndex > 1 && combo.currentIndex <= doodadNames.length + 1
                 ? String(doodadNames[combo.currentIndex - 2]) : "";
     }
@@ -81,7 +147,7 @@ DmeDialog {
     }
     function generatePreview() {
         const result = mapCtrl.generateDungeonPreview({
-            ground: selectedBrush(), wall: selectedWallBrush(),
+            ground: selectedBrush(), wall: caveMode ? "" : selectedWallBrush(),
             theme: ["custom", "catacombs", "lava", "ice", "desert", "sewers"][theme.currentIndex],
             layout: layout.currentIndex === 1 ? "organic" : "rooms",
             accentGround: selectedOptionalGround(accentGround),
@@ -95,11 +161,14 @@ DmeDialog {
             maxRoomDegree: maxRoomDegree.value,
             caveDensity: caveDensity.value,
             caveSmoothSteps: caveSmoothSteps.value,
+            caveMinRegionSize: caveMinRegionSize.value,
+            caveWallThreshold: caveWallThreshold.value,
             protectExisting: protectExisting.checked,
             style: ["tomb", "cave", "mixed"][style.currentIndex],
             roomDoodad: selectedDoodad(roomDoodad),
-            corridorDoodad: selectedDoodad(corridorDoodad),
-            bossDoodad: selectedDoodad(bossDoodad),
+            caveDecorations: caveMode ? caveDecorations : [],
+            corridorDoodad: caveMode ? "" : selectedDoodad(corridorDoodad),
+            bossDoodad: caveMode ? "" : selectedDoodad(bossDoodad),
             detailDensity: detailDensity.value
         });
         resultError = result.success !== true;
@@ -139,71 +208,111 @@ DmeDialog {
     }
     onClosed: mapCtrl.clearDungeonPreview()
 
-    contentItem: Column {
+    contentItem: ScrollView {
+        id: generatorScroll
+        objectName: "generatorScroll"
+        contentWidth: availableWidth
+        contentHeight: generatorForm.implicitHeight
+        clip: true
+        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+        Column {
+        id: generatorForm
+        width: generatorScroll.availableWidth - 16
         spacing: 10
         Text {
             width: parent.width
-            text: "Generate connected rooms and corridors inside the current selection. "
+            text: dialog.caveMode ? "Paint mountain ground, select the area, then choose cave floor and decorations. Existing rock forms the cave boundary; no wall brush is added." : "Generate connected rooms and corridors inside the current selection. "
                 + "Green marks the entrance and red marks the boss room. Preview is non-destructive."
             color: "#a8b3c1"; font.pixelSize: 12; wrapMode: Text.WordWrap
         }
         Grid {
             columns: 2; columnSpacing: 10; rowSpacing: 7
-            Text { text: "Theme preset"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
+            Text { visible: !dialog.caveMode; text: "Theme preset"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
             DmeComboBox {
+                visible: !dialog.caveMode
                 id: theme; width: 330
                 model: ["Custom", "Ancient Catacombs", "Lava / Inferno Vault", "Ice / Glacier Cavern", "Desert Tomb", "Subterranean Sewers"]
                 currentIndex: 0
                 onActivated: dialog.applyTheme()
             }
             Text { text: "Layout"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
-            DmeComboBox { id: layout; width: 330; model: ["Rooms and corridors", "Organic cave"]; currentIndex: 0 }
-            Text { text: "Ground brush"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
-            DmeComboBox { id: groundBrush; width: 330; model: dialog.brushNames; onCurrentIndexChanged: dialog.refreshBrushIds() }
+            DmeComboBox { id: layout; objectName: "generatorLayout"; width: 330; model: ["Rooms and corridors", "Organic cave"]; currentIndex: 0 }
+            Text { text: dialog.caveMode ? "Cave floor" : "Ground brush"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
+            BrushPicker { id: groundBrush; width: 330; model: dialog.brushNames; onCurrentIndexChanged: dialog.refreshBrushIds() }
             Text { text: "Accent ground"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
-            DmeComboBox { id: accentGround; width: 330; model: ["None"].concat(dialog.brushNames) }
+            BrushPicker { id: accentGround; width: 330; model: ["None"].concat(dialog.brushNames) }
             Text { text: "Accent coverage (%)"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
             DmeSpinBox { id: accentCoverage; width: 330; from: 0; to: 40; value: 10 }
-            Text { text: "Wall brush"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
-            DmeComboBox { id: wallBrush; width: 330; model: dialog.wallBrushNames; onCurrentIndexChanged: dialog.refreshBrushIds() }
-            Text { text: "Dungeon style"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
-            DmeComboBox { id: style; width: 330; model: ["Tomb", "Cave", "Mixed"]; currentIndex: 0 }
+            Text { visible: !dialog.caveMode; text: "Wall brush"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
+            BrushPicker { visible: !dialog.caveMode; id: wallBrush; kind: "walls"; width: 330; model: dialog.wallBrushNames; onCurrentIndexChanged: dialog.refreshBrushIds() }
+            Text { visible: !dialog.caveMode; text: "Dungeon style"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
+            DmeComboBox { visible: !dialog.caveMode; id: style; width: 330; model: ["Tomb", "Cave", "Mixed"]; currentIndex: 0 }
             Text { text: "Seed"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
             Row {
                 spacing: 6
                 DmeSpinBox { id: seed; width: 234; from: 1; to: 2147483647; value: 619317075 }
                 DmeButton { text: "New seed"; width: 90; onClicked: seed.value = 1 + Math.floor(Math.random() * 2147483646) }
             }
-            Text { text: "Rooms"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
-            DmeSpinBox { id: roomCount; width: 330; from: 2; to: 100; value: 24; enabled: layout.currentIndex === 0 }
-            Text { text: "Minimum room W / H"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
-            Row { spacing: 8; DmeSpinBox { id: minWidth; width: 161; from: 3; to: 64; value: 6 } DmeSpinBox { id: minHeight; width: 161; from: 3; to: 64; value: 6 } }
-            Text { text: "Maximum room W / H"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
-            Row { spacing: 8; DmeSpinBox { id: maxWidth; width: 161; from: 3; to: 96; value: 14 } DmeSpinBox { id: maxHeight; width: 161; from: 3; to: 96; value: 12 } }
-            Text { text: "Room spacing"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
-            DmeSpinBox { id: spacing; width: 330; from: 0; to: 20; value: 2 }
+            Text { visible: !dialog.caveMode; text: "Rooms"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
+            DmeSpinBox { visible: !dialog.caveMode; id: roomCount; width: 330; from: 2; to: 100; value: 24; enabled: layout.currentIndex === 0 }
+            Text { visible: !dialog.caveMode; text: "Minimum room W / H"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
+            Row { visible: !dialog.caveMode; spacing: 8; DmeSpinBox { id: minWidth; width: 161; from: 3; to: 64; value: 6 } DmeSpinBox { id: minHeight; width: 161; from: 3; to: 64; value: 6 } }
+            Text { visible: !dialog.caveMode; text: "Maximum room W / H"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
+            Row { visible: !dialog.caveMode; spacing: 8; DmeSpinBox { id: maxWidth; width: 161; from: 3; to: 96; value: 14 } DmeSpinBox { id: maxHeight; width: 161; from: 3; to: 96; value: 12 } }
+            Text { visible: !dialog.caveMode; text: "Room spacing"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
+            DmeSpinBox { visible: !dialog.caveMode; id: spacing; width: 330; from: 0; to: 20; value: 2 }
             Text { text: "Corridor width"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
             DmeSpinBox { id: corridorWidth; width: 330; from: 1; to: 8; value: 2 }
-            Text { text: "Extra loops (%)"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
-            DmeSpinBox { id: loopPercent; width: 330; from: 0; to: 100; value: 30 }
-            Text { text: "Corridor winding (%)"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
-            DmeSpinBox { id: corridorWinding; width: 330; from: 0; to: 100; value: 10 }
-            Text { text: "Maximum room links"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
-            DmeSpinBox { id: maxRoomDegree; width: 330; from: 2; to: 8; value: 4 }
+            Text { visible: !dialog.caveMode; text: "Extra loops (%)"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
+            DmeSpinBox { visible: !dialog.caveMode; id: loopPercent; width: 330; from: 0; to: 100; value: 30 }
+            Text { visible: !dialog.caveMode; text: "Corridor winding (%)"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
+            DmeSpinBox { visible: !dialog.caveMode; id: corridorWinding; width: 330; from: 0; to: 100; value: 10 }
+            Text { visible: !dialog.caveMode; text: "Maximum room links"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
+            DmeSpinBox { visible: !dialog.caveMode; id: maxRoomDegree; width: 330; from: 2; to: 8; value: 4 }
             Text { text: "Cave density (%)"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter; visible: layout.currentIndex === 1 }
             DmeSpinBox { id: caveDensity; width: 330; from: 30; to: 70; value: 52; visible: layout.currentIndex === 1 }
             Text { text: "Cave smoothing"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter; visible: layout.currentIndex === 1 }
             DmeSpinBox { id: caveSmoothSteps; width: 330; from: 0; to: 8; value: 4; visible: layout.currentIndex === 1 }
-            Text { text: "Room decorations"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
-            DmeComboBox { id: roomDoodad; width: 330; model: ["Automatic", "None"].concat(dialog.doodadNames) }
-            Text { text: "Corridor decorations"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
-            DmeComboBox { id: corridorDoodad; width: 330; model: ["Automatic", "None"].concat(dialog.doodadNames) }
-            Text { text: "Boss room feature"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
-            DmeComboBox { id: bossDoodad; width: 330; model: ["Automatic", "None"].concat(dialog.doodadNames) }
+            Text { text: "Min. cave region"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter; visible: layout.currentIndex === 1 }
+            DmeSpinBox { id: caveMinRegionSize; width: 330; from: 1; to: 1000; value: 24; visible: layout.currentIndex === 1 }
+            Text { text: "Rock island cutoff"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter; visible: layout.currentIndex === 1 }
+            DmeSpinBox { id: caveWallThreshold; width: 330; from: 0; to: 1000; value: 32; visible: layout.currentIndex === 1 }
+            Text { text: dialog.caveMode ? "Cave decorations" : "Room decorations"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
+            BrushPicker { id: roomDoodad; kind: "doodads"; width: 330; model: [dialog.caveMode ? "None" : "Automatic", "None"].concat(dialog.doodadNames) }
+            Text { visible: !dialog.caveMode; text: "Corridor decorations"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
+            BrushPicker { visible: !dialog.caveMode; id: corridorDoodad; kind: "doodads"; width: 330; model: ["Automatic", "None"].concat(dialog.doodadNames) }
+            Text { visible: !dialog.caveMode; text: "Boss room feature"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
+            BrushPicker { visible: !dialog.caveMode; id: bossDoodad; kind: "doodads"; width: 330; model: ["Automatic", "None"].concat(dialog.doodadNames) }
             Text { text: "Detail density (%)"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
             DmeSpinBox { id: detailDensity; width: 330; from: 0; to: 30; value: 6 }
             Text { text: "Map protection"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
             DmeCheckBox { id: protectExisting; width: 330; text: "Protect houses, spawns, creatures, zones, doors and containers"; checked: true }
+        }
+        DmeButton {
+            visible: dialog.caveMode
+            text: "Add selected decoration to cave"
+            enabled: dialog.selectedDoodad(roomDoodad).length > 0
+            onClicked: {
+                const name = dialog.selectedDoodad(roomDoodad);
+                if (dialog.caveDecorations.indexOf(name) < 0)
+                    dialog.caveDecorations = dialog.caveDecorations.concat([name]);
+            }
+        }
+        Flow {
+            visible: dialog.caveMode
+            width: parent.width; spacing: 6
+            Repeater {
+                model: dialog.caveDecorations
+                delegate: Row {
+                    required property string modelData
+                    spacing: 4
+                    Image { width: 32; height: 32; smooth: false; fillMode: Image.PreserveAspectFit; source: dialog.brushIcon(modelData, "doodads") }
+                    DmeButton {
+                        text: modelData + "  ×"
+                        onClicked: dialog.caveDecorations = dialog.caveDecorations.filter(name => name !== modelData)
+                    }
+                }
+            }
         }
         Rectangle {
             width: parent.width; height: brushInfo.height + 20; radius: 5
@@ -212,8 +321,8 @@ DmeDialog {
                 id: brushInfo; x: 10; y: 10; width: parent.width - 20; spacing: 5
                 Text { text: "GROUND  ·  " + dialog.selectedBrush(); color: "#58a6ff"; font.bold: true; font.pixelSize: 11 }
                 Text { width: parent.width; text: dialog.groundIdText; color: "#b1bac4"; font.pixelSize: 11; wrapMode: Text.WrapAnywhere }
-                Text { text: "WALL  ·  " + dialog.selectedWallBrush(); color: "#bc8cff"; font.bold: true; font.pixelSize: 11 }
-                Text { width: parent.width; text: dialog.wallIdText; color: "#b1bac4"; font.pixelSize: 11; wrapMode: Text.WrapAnywhere }
+                Text { visible: !dialog.caveMode; text: "WALL  ·  " + dialog.selectedWallBrush(); color: "#bc8cff"; font.bold: true; font.pixelSize: 11 }
+                Text { visible: !dialog.caveMode; width: parent.width; text: dialog.wallIdText; color: "#b1bac4"; font.pixelSize: 11; wrapMode: Text.WrapAnywhere }
             }
         }
         Text {
@@ -222,9 +331,9 @@ DmeDialog {
         }
         Row {
             spacing: 7; anchors.horizontalCenter: parent.horizontalCenter
-            DmeButton { text: "Generate preview"; width: 135; variant: "primary"; enabled: dialog.brushNames.length > 0 && dialog.wallBrushNames.length > 0; onClicked: dialog.generatePreview() }
+            DmeButton { text: "Generate preview"; width: 135; variant: "primary"; enabled: dialog.brushNames.length > 0 && (dialog.caveMode || dialog.wallBrushNames.length > 0); onClicked: dialog.generatePreview() }
             DmeButton {
-                text: "Retry"; width: 72; enabled: dialog.brushNames.length > 0 && dialog.wallBrushNames.length > 0
+                text: "Retry"; width: 72; enabled: dialog.brushNames.length > 0 && (dialog.caveMode || dialog.wallBrushNames.length > 0)
                 onClicked: {
                     seed.value = 1 + Math.floor(Math.random() * 2147483646);
                     dialog.generatePreview();
@@ -241,6 +350,7 @@ DmeDialog {
                 }
             }
             DmeButton { text: "Close"; width: 90; onClicked: dialog.close() }
+        }
         }
     }
 }

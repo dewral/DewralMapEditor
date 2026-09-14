@@ -13,6 +13,164 @@
 #include <QSet>
 #include <algorithm>
 #include <random>
+#include <cmath>
+
+namespace {
+bool editableBrushKind(const QString &kind)
+{
+    return kind == "walls" || kind == "carpets" || kind == "doodads";
+}
+bool jsonInteger(const QJsonValue &v, int low, int high)
+{
+    const double n = v.toDouble(-1e20);
+    return std::isfinite(n) && n >= low && n <= high && std::floor(n) == n;
+}
+bool validWeightedItems(const QJsonValue &value, bool &active)
+{
+    if (!value.isArray()) return false;
+    qint64 total = 0;
+    for (const auto &entry : value.toArray()) {
+        const auto pair = entry.toArray();
+        if (pair.size() != 2 || !jsonInteger(pair[0], 1, 65535)
+            || !jsonInteger(pair[1], 0, 1000000)) return false;
+        total += pair[1].toInt();
+    }
+    active |= total > 0;
+    return total <= 100000000;
+}
+}
+
+QStringList BrushStore::advancedBrushNames(const QString &kind) const
+{
+    if (!editableBrushKind(kind)) return {};
+    auto names = m_rawRoot.value(kind).toObject().keys();
+    names.sort(Qt::CaseInsensitive);
+    return names;
+}
+
+QVariantMap BrushStore::advancedBrushEdit(const QString &kind, const QString &name) const
+{
+    if (!editableBrushKind(kind)) return {};
+    return m_rawRoot.value(kind).toObject().value(name).toObject().toVariantMap();
+}
+
+QVariantMap BrushStore::saveAdvancedBrush(const QString &kind, const QString &name,
+                                         const QString &originalName, const QVariantMap &draft)
+{
+    auto fail = [](const QString &error) { return QVariantMap{{"success", false}, {"error", error}}; };
+    if (!editableBrushKind(kind) || name.trimmed().isEmpty()) return fail("Enter a brush name.");
+    auto collection = m_rawRoot.value(kind).toObject();
+    const QString target = name.trimmed();
+    if (target != originalName && collection.contains(target))
+        return fail("That name already exists. Load it before editing.");
+    if (!originalName.isEmpty() && !collection.contains(originalName))
+        return fail("The original brush no longer exists. Reload it first.");
+    // Renaming connected brushes can invalidate door/material references. Save a copy instead.
+    if (!originalName.isEmpty() && target != originalName)
+        return fail("Use New to create a copy; renaming may break palette or door references.");
+    QJsonObject object = collection.value(originalName).toObject();
+    const auto patch = QJsonObject::fromVariantMap(draft);
+    for (auto it = patch.begin(); it != patch.end(); ++it) object.insert(it.key(), it.value());
+    if (!jsonInteger(object.value("lookid"), 1, 65535)) return fail("Preview ID must be 1–65535.");
+    bool active = false;
+    if (kind != "doodads") {
+        if (!object.value("items").isObject()) return fail("Missing slot data.");
+        const QStringList carpetSlots{"n","e","s","w","cnw","cne","cse","csw","dnw","dne","dse","dsw","center"};
+        const auto alignItems = object.value("items").toObject();
+        for (auto it = alignItems.begin(); it != alignItems.end(); ++it) {
+            bool ok = false;
+            const int index = it.key().toInt(&ok);
+            if (kind == "walls" ? (!ok || index < 0 || index > 16) : !carpetSlots.contains(it.key()))
+                return fail("Unknown alignment: " + it.key());
+            if (!validWeightedItems(it.value(), active)) return fail("Invalid ID or weight in slot " + it.key());
+        }
+    } else {
+        if (!object.value("alternates").isArray()) return fail("Missing doodad alternates.");
+        for (const auto &altValue : object.value("alternates").toArray()) {
+            if (!altValue.isObject()) return fail("Invalid alternate.");
+            const auto alt = altValue.toObject();
+            if (alt.contains("singles") && !validWeightedItems(alt.value("singles"), active))
+                return fail("Invalid single-item ID or weight.");
+            if (alt.contains("composites") && !alt.value("composites").isArray()) return fail("Invalid composites.");
+            qint64 total = 0;
+            for (const auto &value : alt.value("composites").toArray()) {
+                const auto composite = value.toObject();
+                if (!jsonInteger(composite.value("chance"), 0, 1000000)) return fail("Invalid composite weight.");
+                total += composite.value("chance").toInt();
+                const auto tiles = composite.value("tiles").toArray();
+                if (tiles.isEmpty() || tiles.size() > 4096) return fail("A composite needs 1–4096 tiles.");
+                QSet<QString> positions;
+                for (const auto &tileValue : tiles) {
+                    const auto tile = tileValue.toObject();
+                    if (!jsonInteger(tile.value("dx"), -65535, 65535)
+                        || !jsonInteger(tile.value("dy"), -65535, 65535)
+                        || !jsonInteger(tile.value("dz"), -15, 15)) return fail("Invalid tile offset.");
+                    const QString pos = QString("%1,%2,%3").arg(tile.value("dx").toInt()).arg(tile.value("dy").toInt()).arg(tile.value("dz").toInt());
+                    if (positions.contains(pos)) return fail("Duplicate tile position in composite.");
+                    positions.insert(pos);
+                    const auto ids = tile.value("items").toArray();
+                    if (ids.isEmpty()) return fail("Each composite tile needs an item.");
+                    for (const auto &id : ids) if (!jsonInteger(id, 1, 65535)) return fail("Invalid composite item ID.");
+                }
+                active |= composite.value("chance").toInt() > 0;
+            }
+            if (total > 100000000) return fail("Composite weight total is too large.");
+        }
+    }
+    if (!active) return fail("Add at least one variant with a positive weight.");
+    const auto backup = m_rawRoot;
+    collection.insert(target, object);
+    m_rawRoot.insert(kind, collection);
+    if (!applyRawAndSave()) {
+        m_rawRoot = backup;
+        return fail("Could not write brushes.json. Your draft has been kept.");
+    }
+    return {{"success", true}};
+}
+
+QVariantMap BrushStore::learnBrushSelection(const QString &kind, const QVariantList &tiles) const
+{
+    if (!editableBrushKind(kind) || tiles.isEmpty() || tiles.size() > 4096)
+        return {{"error", "Invalid or empty selection."}};
+    QMap<int,int> counts;
+    for (const auto &tile : tiles)
+        for (const auto &id : tile.toMap().value("items").toList())
+            if (id.toInt() > 0 && id.toInt() <= 65535) ++counts[id.toInt()];
+    if (counts.isEmpty()) return {{"error", "No item IDs found."}};
+    QVariantMap draft{{"lookid", counts.firstKey()}};
+    if (kind == "doodads") {
+        const QVariantMap composite{{"chance", 100}, {"tiles", tiles}};
+        const QVariantMap alt{{"singles", QVariantList{}}, {"composites", QVariantList{composite}}};
+        draft.insert("alternates", QVariantList{alt});
+        return {{"draft", draft}, {"unassigned", QVariantList{}}, {"itemCount", counts.size()}};
+    }
+    // Learn only unambiguous alignments from loaded definitions, never guess from appearance.
+    QHash<int,QSet<QString>> alignments;
+    const auto collection = m_rawRoot.value(kind).toObject();
+    for (auto brush = collection.begin(); brush != collection.end(); ++brush) {
+        const auto alignItems = brush.value().toObject().value("items").toObject();
+        for (auto slot = alignItems.begin(); slot != alignItems.end(); ++slot)
+            for (const auto &entry : slot.value().toArray()) {
+                const auto pair = entry.toArray();
+                if (!pair.isEmpty()) alignments[pair[0].toInt()].insert(slot.key());
+            }
+    }
+    QVariantMap alignItems;
+    QVariantList unassigned;
+    for (auto it = counts.begin(); it != counts.end(); ++it) {
+        const QVariantList pair{it.key(), it.value()};
+        if (alignments.value(it.key()).size() != 1) {
+            unassigned.append(QVariant::fromValue(pair));
+            continue;
+        }
+        const auto slot = *alignments.value(it.key()).begin();
+        auto entries = alignItems.value(slot).toList();
+        entries.append(QVariant::fromValue(pair));
+        alignItems.insert(slot, entries);
+    }
+    draft.insert("items", alignItems);
+    return {{"draft", draft}, {"unassigned", unassigned}, {"itemCount", counts.size()}};
+}
 
 static const quint32 kBorderTypes[256] = {
 0u,5u,1u,1u,6u,1541u,1u,1u,
@@ -82,10 +240,24 @@ void BrushStore::clear()
     m_tableByServerId.clear();
 }
 
-const std::array<int, 13> *BrushStore::borderTiles(const QString &key) const
+const BrushStore::BorderDef *BrushStore::borderTiles(const QString &key) const
 {
     auto it = m_borders.find(key);
     return it == m_borders.end() ? nullptr : &(*it);
+}
+
+int BrushStore::pickWeightedItem(const WeightedNode &node) const
+{
+    if (node.items.isEmpty()) return 0;
+    if (node.totalChance <= 0) return node.items.front().first;
+
+    static thread_local std::mt19937 rng(std::random_device{}());
+    int roll = std::uniform_int_distribution<int>(1, node.totalChance)(rng);
+    for (const auto &entry : node.items) {
+        roll -= std::max(1, entry.second);
+        if (roll <= 0) return entry.first;
+    }
+    return node.items.front().first;
 }
 
 const BrushStore::GroundDef *BrushStore::groundDef(const QString &name) const
@@ -105,7 +277,9 @@ bool BrushStore::loadForDir(const QString &dirName)
     clear();
     m_rawRoot = QJsonObject();
 
-    m_path = QDir(dmeDataDir()).filePath(QStringLiteral("%1/brushes.json").arg(dirName));
+    m_path = QDir::isAbsolutePath(dirName)
+                 ? QDir(dirName).filePath(QStringLiteral("brushes.json"))
+                 : QDir(dmeDataDir()).filePath(QStringLiteral("%1/brushes.json").arg(dirName));
     if (!QFile::exists(m_path)) { emit brushesChanged(); return false; }
 
     QFile f(m_path);
@@ -125,12 +299,37 @@ void BrushStore::parseRoot(const QJsonObject &root)
     const QJsonObject borders = root.value(QStringLiteral("borders")).toObject();
     for (auto it = borders.begin(); it != borders.end(); ++it) {
         const QJsonArray arr = it.value().toArray();
-        std::array<int, 13> tiles{};
+        BorderDef border;
         for (int i = 0; i < 13 && i < arr.size(); ++i) {
-            tiles[i] = arr.at(i).toInt();
-            if (i > 0 && tiles[i] > 0) m_borderItemIds.insert(tiles[i]);
+            WeightedNode &node = border.align[i];
+            const QJsonValue slot = arr.at(i);
+            if (slot.isDouble()) {
+                const int id = slot.toInt();
+                if (id > 0) {
+                    node.items.append({ id, 100 });
+                    node.totalChance = 100;
+                }
+            } else if (slot.isObject()) {
+                const QJsonArray variants = slot.toObject()
+                                                .value(QStringLiteral("variants"))
+                                                .toArray();
+                for (const QJsonValue &variantValue : variants) {
+                    const QJsonArray pair = variantValue.toArray();
+                    if (pair.isEmpty()) continue;
+                    const int id = pair.at(0).toInt();
+                    const int chance = pair.size() > 1
+                                           ? std::max(1, pair.at(1).toInt()) : 100;
+                    if (id <= 0) continue;
+                    node.items.append({ id, chance });
+                    node.totalChance += chance;
+                }
+            }
+            if (i > 0) {
+                for (const auto &variant : node.items)
+                    m_borderItemIds.insert(variant.first);
+            }
         }
-        m_borders.insert(it.key(), tiles);
+        m_borders.insert(it.key(), border);
     }
 
     const QJsonObject grounds = root.value(QStringLiteral("grounds")).toObject();
@@ -145,11 +344,14 @@ void BrushStore::parseRoot(const QJsonObject &root)
         if (!def.optional.isEmpty()) {
             const auto optionalIt = m_borders.constFind(def.optional);
             if (optionalIt != m_borders.constEnd()) {
-                for (int borderId : *optionalIt) {
-                    if (borderId <= 0) continue;
-                    m_optionalBorderItemIds.insert(borderId);
-                    if (!m_borderBrushAliases[borderId].contains(it.key()))
-                        m_borderBrushAliases[borderId].append(it.key());
+                for (const WeightedNode &node : optionalIt->align) {
+                    for (const auto &variant : node.items) {
+                        const int borderId = variant.first;
+                        if (borderId <= 0) continue;
+                        m_optionalBorderItemIds.insert(borderId);
+                        if (!m_borderBrushAliases[borderId].contains(it.key()))
+                            m_borderBrushAliases[borderId].append(it.key());
+                    }
                 }
             }
         }
@@ -175,9 +377,12 @@ void BrushStore::parseRoot(const QJsonObject &root)
             def.borders.append(bb);
             const auto borderIt = m_borders.constFind(bb.borderKey);
             if (borderIt != m_borders.constEnd()) {
-                for (int borderId : *borderIt) {
-                    if (borderId > 0 && !m_borderBrushAliases[borderId].contains(it.key()))
-                        m_borderBrushAliases[borderId].append(it.key());
+                for (const WeightedNode &node : borderIt->align) {
+                    for (const auto &variant : node.items) {
+                        const int borderId = variant.first;
+                        if (borderId > 0 && !m_borderBrushAliases[borderId].contains(it.key()))
+                            m_borderBrushAliases[borderId].append(it.key());
+                    }
                 }
             }
             const bool zilch = bb.to.isEmpty();
@@ -681,7 +886,36 @@ QVariantMap BrushStore::groundBrushEdit(const QString &name) const
     QVariantList itemsOut;
     QVariantList bordersOut;
     QVariantList optionalOut;
-    for (int i = 0; i < 13; ++i) optionalOut.append(0);
+    for (int i = 0; i < 13; ++i)
+        optionalOut.append(QVariant::fromValue(QVariantList()));
+
+    const auto editVariants = [](const QJsonValue &slot) {
+        QVariantList variantsOut;
+        if (slot.isDouble()) {
+            const int id = slot.toInt();
+            if (id > 0) {
+                QVariantMap variant;
+                variant.insert(QStringLiteral("id"), id);
+                variant.insert(QStringLiteral("chance"), 100);
+                variantsOut.append(variant);
+            }
+        } else if (slot.isObject()) {
+            const QJsonArray variants = slot.toObject()
+                                            .value(QStringLiteral("variants"))
+                                            .toArray();
+            for (const QJsonValue &variantValue : variants) {
+                const QJsonArray pair = variantValue.toArray();
+                if (pair.isEmpty() || pair.at(0).toInt() <= 0) continue;
+                QVariantMap variant;
+                variant.insert(QStringLiteral("id"), pair.at(0).toInt());
+                variant.insert(QStringLiteral("chance"), pair.size() > 1
+                                                           ? std::max(1, pair.at(1).toInt())
+                                                           : 100);
+                variantsOut.append(variant);
+            }
+        }
+        return variantsOut;
+    };
 
     const QJsonObject g = m_rawRoot.value(QStringLiteral("grounds"))
                               .toObject().value(name).toObject();
@@ -702,8 +936,12 @@ QVariantMap BrushStore::groundBrushEdit(const QString &name) const
         const QJsonArray optionalArray = bordersMap.value(optionalKey).toArray();
         if (!optionalKey.isEmpty()) {
             optionalOut.clear();
-            for (int i = 0; i < 13; ++i)
-                optionalOut.append(i < optionalArray.size() ? optionalArray.at(i).toInt() : 0);
+            for (int i = 0; i < 13; ++i) {
+                const QVariantList variants = i < optionalArray.size()
+                                                  ? editVariants(optionalArray.at(i))
+                                                  : QVariantList();
+                optionalOut.append(QVariant::fromValue(variants));
+            }
         }
 
         QSet<QString> seen;
@@ -719,8 +957,12 @@ QVariantMap BrushStore::groundBrushEdit(const QString &name) const
             const QString bkey = bo.value(QStringLiteral("border")).toString();
             const QJsonArray arr = bordersMap.value(bkey).toArray();
             QVariantList tiles;
-            for (int i = 0; i < 13; ++i)
-                tiles.append(i < arr.size() ? arr.at(i).toInt() : 0);
+            for (int i = 0; i < 13; ++i) {
+                const QVariantList variants = i < arr.size()
+                                                  ? editVariants(arr.at(i))
+                                                  : QVariantList();
+                tiles.append(QVariant::fromValue(variants));
+            }
             QVariantMap block;
             block.insert(QStringLiteral("to"), to);
             block.insert(QStringLiteral("align"), align);
@@ -761,6 +1003,26 @@ bool BrushStore::saveGroundBrush(const QString &name, int zorder,
     for (const QString &k : borders.keys())
         if (k.startsWith(prefix)) borders.remove(k);
 
+    const auto saveVariants = [](const QVariant &slotValue) -> QJsonValue {
+        const QVariantList variants = slotValue.toList();
+        QJsonArray stored;
+        for (const QVariant &variantValue : variants) {
+            const QVariantMap variant = variantValue.toMap();
+            const int id = variant.value(QStringLiteral("id")).toInt();
+            if (id <= 0) continue;
+            stored.append(QJsonArray{
+                id, std::max(1, variant.value(QStringLiteral("chance"), 100).toInt())
+            });
+        }
+        if (stored.isEmpty()) return 0;
+        // Keep the original compact representation whenever a slot has one
+        // variant. Existing brush packs and older DME builds can still read it.
+        if (stored.size() == 1) return stored.first().toArray().first();
+        QJsonObject object;
+        object.insert(QStringLiteral("variants"), stored);
+        return object;
+    };
+
     QJsonArray blocks;
     for (const QVariant &bv : borderBlocks) {
         const QVariantMap bm = bv.toMap();
@@ -774,9 +1036,10 @@ bool BrushStore::saveGroundBrush(const QString &name, int zorder,
         bool any = false;
         QJsonArray arr;
         for (int i = 0; i < 13; ++i) {
-            const int id = i < tiles.size() ? tiles.at(i).toInt() : 0;
-            arr.append(id);
-            if (i > 0 && id > 0) any = true;
+            const QJsonValue stored = i < tiles.size() ? saveVariants(tiles.at(i))
+                                                        : QJsonValue(0);
+            arr.append(stored);
+            if (i > 0 && !(stored.isDouble() && stored.toInt() == 0)) any = true;
         }
         if (!any) continue;
 
@@ -792,9 +1055,10 @@ bool BrushStore::saveGroundBrush(const QString &name, int zorder,
     QJsonArray optionalArray;
     bool hasOptional = false;
     for (int i = 0; i < 13; ++i) {
-        const int id = i < optionalTiles.size() ? optionalTiles.at(i).toInt() : 0;
-        optionalArray.append(id);
-        if (i > 0 && id > 0) hasOptional = true;
+        const QJsonValue stored = i < optionalTiles.size()
+                                      ? saveVariants(optionalTiles.at(i)) : QJsonValue(0);
+        optionalArray.append(stored);
+        if (i > 0 && !(stored.isDouble() && stored.toInt() == 0)) hasOptional = true;
     }
 
     QJsonObject g;
@@ -1011,7 +1275,7 @@ int BrushStore::pickWallFromNode(const WallDef::Node &node) const
     static thread_local std::mt19937 rng(std::random_device{}());
     const int r = std::uniform_int_distribution<int>(1, node.total)(rng);
     for (const auto &pr : node.items)
-        if (r < pr.second) return pr.first;
+        if (r <= pr.second) return pr.first;
     return node.items.front().first;
 }
 
@@ -1121,7 +1385,7 @@ QVector<int> BrushStore::computeBorderItems(const QString &center, const QString
         nb[i] = { false, d ? neighbours8.at(i) : QString(), d };
     }
 
-    struct Cluster { quint32 alignment; int z; const std::array<int, 13> *border; };
+    struct Cluster { quint32 alignment; int z; const BorderDef *border; };
     QVector<Cluster> borderList;
 
     for (int i = 0; i < 8; ++i) {
@@ -1156,7 +1420,7 @@ QVector<int> BrushStore::computeBorderItems(const QString &center, const QString
                         if (!onlyMountain) {
                             const QString key = getBrushTo(center, otherName);
                             if (!key.isEmpty()) {
-                                const std::array<int, 13> *bt = borderTiles(key);
+                                const BorderDef *bt = borderTiles(key);
                                 bool found = false;
                                 for (Cluster &c : borderList) {
                                     if (c.border == bt) {
@@ -1219,24 +1483,33 @@ QVector<int> BrushStore::computeBorderItems(const QString &center, const QString
             static_cast<int>((packed & 0x00FF0000) >> 16),
             static_cast<int>((packed & 0xFF000000) >> 24),
         };
-        const std::array<int, 13> &t = *c.border;
+        const BorderDef &t = *c.border;
         for (int d = 0; d < 4; ++d) {
             const int dir = directions[d];
             if (dir == BT_NONE) break;
-            if (t[dir]) {
-                result.push_back(t[dir]);
+            const int selected = pickWeightedItem(t.align[dir]);
+            if (selected > 0) {
+                result.push_back(selected);
             } else if (dir == BT_DNW) {
-                if (t[BT_W]) result.push_back(t[BT_W]);
-                if (t[BT_N]) result.push_back(t[BT_N]);
+                const int west = pickWeightedItem(t.align[BT_W]);
+                const int north = pickWeightedItem(t.align[BT_N]);
+                if (west > 0) result.push_back(west);
+                if (north > 0) result.push_back(north);
             } else if (dir == BT_DNE) {
-                if (t[BT_E]) result.push_back(t[BT_E]);
-                if (t[BT_N]) result.push_back(t[BT_N]);
+                const int east = pickWeightedItem(t.align[BT_E]);
+                const int north = pickWeightedItem(t.align[BT_N]);
+                if (east > 0) result.push_back(east);
+                if (north > 0) result.push_back(north);
             } else if (dir == BT_DSW) {
-                if (t[BT_S]) result.push_back(t[BT_S]);
-                if (t[BT_W]) result.push_back(t[BT_W]);
+                const int south = pickWeightedItem(t.align[BT_S]);
+                const int west = pickWeightedItem(t.align[BT_W]);
+                if (south > 0) result.push_back(south);
+                if (west > 0) result.push_back(west);
             } else if (dir == BT_DSE) {
-                if (t[BT_S]) result.push_back(t[BT_S]);
-                if (t[BT_E]) result.push_back(t[BT_E]);
+                const int south = pickWeightedItem(t.align[BT_S]);
+                const int east = pickWeightedItem(t.align[BT_E]);
+                if (south > 0) result.push_back(south);
+                if (east > 0) result.push_back(east);
             }
         }
     }

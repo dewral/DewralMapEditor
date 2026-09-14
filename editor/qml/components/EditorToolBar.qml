@@ -6,6 +6,7 @@ import "../themes/classic/controls" as Classic
 
 Item {
     id: toolBar
+    readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
     required property var mapView
     required property var settings
     height: Backend.otbmReader.loaded ? 40 : 0
@@ -79,7 +80,7 @@ Item {
             Text {
                 visible: btn.label !== ""
                 text: btn.label
-                color: btn.active ? "#eaffea" : "#c0c0c0"
+                color: toolBar.windowsClassic ? "#202020" : (btn.active ? "#eaffea" : "#c0c0c0")
                 font.pixelSize: 12
                 font.bold: btn.active
                 anchors.verticalCenter: parent.verticalCenter
@@ -164,7 +165,7 @@ Item {
         Rectangle {
             width: 1
             height: 18
-            color: "#555"
+            color: toolBar.windowsClassic ? "#a0a0a0" : "#555"
             anchors.verticalCenter: parent.verticalCenter
         }
 
@@ -264,7 +265,7 @@ Item {
         Rectangle {
             width: 1
             height: 18
-            color: "#555"
+            color: toolBar.windowsClassic ? "#a0a0a0" : "#555"
             anchors.verticalCenter: parent.verticalCenter
         }
 
@@ -277,13 +278,13 @@ Item {
         Rectangle {
             width: 1
             height: 18
-            color: "#555"
+            color: toolBar.windowsClassic ? "#a0a0a0" : "#555"
             anchors.verticalCenter: parent.verticalCenter
         }
 
         Text {
             text: "Floor"
-            color: "#999"
+            color: toolBar.windowsClassic ? "#202020" : "#999"
             font.pixelSize: 11
             anchors.verticalCenter: parent.verticalCenter
         }

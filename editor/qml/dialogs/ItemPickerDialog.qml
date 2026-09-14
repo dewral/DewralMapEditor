@@ -9,6 +9,7 @@ DmeDialog {
 
     property int initialServerId: 0
     readonly property bool githubUi: Backend.uiTheme.style !== "classic"
+                                     && Backend.uiTheme.style !== "windows-classic"
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     signal itemSelected(int serverId)

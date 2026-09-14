@@ -16,7 +16,7 @@ Item {
     Loader {
         id: controlLoader
         anchors.fill: parent
-        sourceComponent: Backend.uiTheme.style === "classic" ? classicCheckBox : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayCheckBox : githubCheckBox)
+        sourceComponent: (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicCheckBox : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayCheckBox : githubCheckBox)
     }
     Component {
         id: classicCheckBox

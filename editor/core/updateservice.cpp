@@ -16,14 +16,6 @@
 #include <QRegularExpression>
 #include <QStandardPaths>
 
-#ifndef DME_GIT_COMMIT
-#define DME_GIT_COMMIT "unknown"
-#endif
-
-#ifndef DME_BUILD_CHANNEL
-#define DME_BUILD_CHANNEL "stable"
-#endif
-
 namespace {
 constexpr auto kRepositoryApi = "https://api.github.com/repos/dewral/DewralMapEditor";
 constexpr auto kWindowsArchive = "DewralMapEditor-windows-x64.zip";
@@ -70,16 +62,6 @@ QString UpdateService::currentVersion() const
     return QCoreApplication::applicationVersion();
 }
 
-QString UpdateService::currentCommit() const
-{
-    return QStringLiteral(DME_GIT_COMMIT);
-}
-
-QString UpdateService::currentChannel() const
-{
-    return QStringLiteral(DME_BUILD_CHANNEL);
-}
-
 bool UpdateService::busy() const
 {
     return m_state == QStringLiteral("checking")
@@ -90,7 +72,6 @@ bool UpdateService::busy() const
 void UpdateService::resetRelease()
 {
     m_latestVersion.clear();
-    m_latestCommit.clear();
     m_releaseNotes.clear();
     m_releasePageUrl.clear();
     m_downloadUrl.clear();
@@ -107,26 +88,15 @@ void UpdateService::checkForUpdates()
     if (busy())
         return;
 
-    m_requestedChannel = currentChannel() == QStringLiteral("development")
-        ? QStringLiteral("development") : QStringLiteral("stable");
     m_cancelled = false;
 
     resetRelease();
     setState(QStringLiteral("checking"));
-    requestRelease(m_requestedChannel);
+    requestRelease();
 }
 
-void UpdateService::requestCommitComparison()
+void UpdateService::requestRelease()
 {
-    const QString endpoint = QStringLiteral("%1/compare/%2...%3")
-        .arg(QLatin1String(kRepositoryApi), currentCommit(), m_latestCommit);
-    startRequest(QUrl(endpoint),
-                 [this](QByteArray payload) { processCommitComparison(payload); });
-}
-
-void UpdateService::requestRelease(const QString &channel)
-{
-    Q_UNUSED(channel);
     const QString endpoint = QStringLiteral("%1/releases/tags/1.0")
                                  .arg(QLatin1String(kRepositoryApi));
     startRequest(QUrl(endpoint), [this](QByteArray payload) { processRelease(payload); });
@@ -191,28 +161,9 @@ void UpdateService::processRelease(const QByteArray &payload)
     }
 
     applyReleaseData(release.value(QStringLiteral("tag_name")).toString(),
-                     release.value(QStringLiteral("target_commitish")).toString(),
                      release.value(QStringLiteral("body")).toString(),
                      QUrl(release.value(QStringLiteral("html_url")).toString()),
                      QUrl(downloadUrl), digest, size);
-}
-
-void UpdateService::processCommitComparison(const QByteArray &payload)
-{
-    QJsonParseError parseError;
-    const QJsonDocument document = QJsonDocument::fromJson(payload, &parseError);
-    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-        fail(QStringLiteral("GitHub returned an invalid commit comparison."));
-        return;
-    }
-
-    const QString status = document.object().value(QStringLiteral("status")).toString();
-    if (status != QStringLiteral("ahead") && status != QStringLiteral("behind")
-        && status != QStringLiteral("identical") && status != QStringLiteral("diverged")) {
-        fail(QStringLiteral("GitHub returned an unknown commit comparison."));
-        return;
-    }
-    finishRelease(status == QStringLiteral("ahead"));
 }
 
 void UpdateService::requestManifest(const QUrl &url, const QByteArray &fallbackRelease)
@@ -241,7 +192,6 @@ void UpdateService::processManifest(const QByteArray &payload,
         return;
     }
     applyReleaseData(manifest.value(QStringLiteral("version")).toString(),
-                     manifest.value(QStringLiteral("commit")).toString(),
                      manifest.value(QStringLiteral("notes")).toString(
                          release.value(QStringLiteral("body")).toString()),
                      QUrl(manifest.value(QStringLiteral("releasePageUrl")).toString(
@@ -251,15 +201,14 @@ void UpdateService::processManifest(const QByteArray &payload,
                      manifest.value(QStringLiteral("size")).toInteger(-1));
 }
 
-void UpdateService::applyReleaseData(const QString &version, const QString &commit,
-                                     const QString &notes, const QUrl &pageUrl,
+void UpdateService::applyReleaseData(const QString &version, const QString &notes,
+                                     const QUrl &pageUrl,
                                      const QUrl &downloadUrl, const QString &sha256,
                                      qint64 size)
 {
     m_latestVersion = version.trimmed();
     if (m_latestVersion.startsWith(QLatin1Char('v'), Qt::CaseInsensitive))
         m_latestVersion.remove(0, 1);
-    m_latestCommit = commit.trimmed();
     m_releaseNotes = notes.trimmed();
     m_releasePageUrl = pageUrl;
     m_downloadUrl = downloadUrl;
@@ -268,12 +217,7 @@ void UpdateService::applyReleaseData(const QString &version, const QString &comm
     emit updateChanged();
 
     const UpdateVersion::Decision decision = UpdateVersion::decide(
-        m_requestedChannel, m_latestVersion, m_latestCommit,
-        currentVersion(), currentCommit());
-    if (decision == UpdateVersion::Decision::CompareCommits) {
-        requestCommitComparison();
-        return;
-    }
+        m_latestVersion, currentVersion());
     finishRelease(decision == UpdateVersion::Decision::Newer);
 }
 

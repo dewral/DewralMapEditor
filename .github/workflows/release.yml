@@ -1,4 +1,4 @@
-name: Windows release build
+name: Windows stable release
 
 on:
   workflow_dispatch:
@@ -36,8 +36,7 @@ jobs:
         run: |
           cmake -S . -B build/github-actions `
             -G "Visual Studio 17 2022" -A x64 `
-            "-DCMAKE_PREFIX_PATH=$env:QT_ROOT_DIR" `
-            -DDME_BUILD_CHANNEL=stable
+            "-DCMAKE_PREFIX_PATH=$env:QT_ROOT_DIR"
           if ($LASTEXITCODE -ne 0) {
             throw "CMake configuration failed with exit code $LASTEXITCODE."
           }
@@ -52,8 +51,6 @@ jobs:
         shell: pwsh
         env:
           REPOSITORY: ${{ github.repository }}
-          COMMIT_SHA: ${{ github.sha }}
-          RUN_NUMBER: ${{ github.run_number }}
         run: |
           $archive = Get-Item "release/DewralMapEditor-windows-x64.zip"
           $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive.FullName).Hash.ToLowerInvariant()
@@ -68,15 +65,13 @@ jobs:
           $releaseUrl = "https://github.com/$env:REPOSITORY/releases/tag/1.0"
           $manifest = [ordered]@{
             schemaVersion = 1
-            channel = "stable"
             version = $version
-            commit = $env:COMMIT_SHA
             publishedAt = (Get-Date).ToUniversalTime().ToString("o")
             downloadUrl = $downloadUrl
             releasePageUrl = $releaseUrl
             sha256 = $hash
             size = $archive.Length
-            notes = "Current Dewral Map Editor build from commit $($env:COMMIT_SHA.Substring(0, 12))."
+            notes = "Dewral Map Editor $version stable release."
           }
           $manifest | ConvertTo-Json | Set-Content -Encoding utf8NoBOM "release/update-manifest.json"
           @(
@@ -96,14 +91,12 @@ jobs:
             "release/update-manifest.json",
             "release/SHA256SUMS.txt"
           )
-          $shortCommit = $env:GITHUB_SHA.Substring(0, 12)
           $notes = @"
           ## Dewral Map Editor 1.0
 
-          Current Windows x64 build of Dewral Map Editor from the **main** branch.
+          Stable Windows x64 release of Dewral Map Editor.
 
           - **Version:** $env:RELEASE_VERSION
-          - **Commit:** $shortCommit
 
           Download **DewralMapEditor-windows-x64.zip** from the Assets section below.
           "@

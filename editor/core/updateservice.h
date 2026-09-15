@@ -19,11 +19,8 @@ class UpdateService final : public QObject
     Q_OBJECT
     QML_ANONYMOUS
     Q_PROPERTY(QString currentVersion READ currentVersion CONSTANT)
-    Q_PROPERTY(QString currentCommit READ currentCommit CONSTANT)
-    Q_PROPERTY(QString currentChannel READ currentChannel CONSTANT)
     Q_PROPERTY(QString state READ state NOTIFY stateChanged)
     Q_PROPERTY(QString latestVersion READ latestVersion NOTIFY updateChanged)
-    Q_PROPERTY(QString latestCommit READ latestCommit NOTIFY updateChanged)
     Q_PROPERTY(QString releaseNotes READ releaseNotes NOTIFY updateChanged)
     Q_PROPERTY(QUrl releasePageUrl READ releasePageUrl NOTIFY updateChanged)
     Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY updateChanged)
@@ -35,11 +32,8 @@ public:
     explicit UpdateService(DocumentManager *documents, QObject *parent = nullptr);
 
     QString currentVersion() const;
-    QString currentCommit() const;
-    QString currentChannel() const;
     QString state() const { return m_state; }
     QString latestVersion() const { return m_latestVersion; }
-    QString latestCommit() const { return m_latestCommit; }
     QString releaseNotes() const { return m_releaseNotes; }
     QUrl releasePageUrl() const { return m_releasePageUrl; }
     bool updateAvailable() const { return m_updateAvailable; }
@@ -59,14 +53,11 @@ signals:
 
 private:
     void resetRelease();
-    void requestRelease(const QString &channel);
-    void requestCommitComparison();
+    void requestRelease();
     void processRelease(const QByteArray &payload);
-    void processCommitComparison(const QByteArray &payload);
     void requestManifest(const QUrl &url, const QByteArray &fallbackRelease);
     void processManifest(const QByteArray &payload, const QByteArray &fallbackRelease);
-    void applyReleaseData(const QString &version, const QString &commit,
-                          const QString &notes, const QUrl &pageUrl,
+    void applyReleaseData(const QString &version, const QString &notes, const QUrl &pageUrl,
                           const QUrl &downloadUrl, const QString &sha256,
                           qint64 size);
     void finishRelease(bool updateAvailable);
@@ -80,11 +71,9 @@ private:
     QPointer<QNetworkReply> m_reply;
     QFile m_downloadFile;
     QCryptographicHash m_downloadHash{QCryptographicHash::Sha256};
-    QString m_requestedChannel = QStringLiteral("stable");
     QString m_state = QStringLiteral("idle");
     QString m_errorString;
     QString m_latestVersion;
-    QString m_latestCommit;
     QString m_releaseNotes;
     QUrl m_releasePageUrl;
     QUrl m_downloadUrl;

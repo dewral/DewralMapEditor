@@ -264,6 +264,11 @@ if(BUILD_TESTING)
         tests/tile_position_index_test.cpp)
     target_include_directories(tile_position_index_test PRIVATE libs/otformats)
     add_test(NAME tile_position_index COMMAND tile_position_index_test)
+    add_executable(map_selection_rotation_test EXCLUDE_FROM_ALL tests/map_selection_rotation_test.cpp)
+    target_include_directories(map_selection_rotation_test PRIVATE editor/map)
+    target_link_libraries(map_selection_rotation_test PRIVATE Qt6::Core)
+    add_test(NAME map_selection_rotation COMMAND map_selection_rotation_test)
+
     add_executable(map_path_builder_test EXCLUDE_FROM_ALL
         tests/map_path_builder_test.cpp
         editor/map/mappathbuilder.cpp)
@@ -333,7 +338,7 @@ if(BUILD_TESTING)
         set_tests_properties(otbm_compact_storage otbm_editing_storage
                              otbm_background_load atlas_background_build map_path_builder
                              map_terrain_generator map_terrain_profile map_dungeon_generator
-                             map_ground_cluster_generator
+                             map_ground_cluster_generator map_selection_rotation
                              document_recovery creature_store update_version
                              brushstore_advanced brushstore_border_variants PROPERTIES
             ENVIRONMENT_MODIFICATION

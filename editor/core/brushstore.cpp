@@ -213,6 +213,56 @@ enum {
     BT_DNW = 9, BT_DNE = 10, BT_DSE = 11, BT_DSW = 12,
 };
 
+int BrushStore::rotatedSelectionBorderItem(int serverId, int quarterTurns) const
+{
+    const int turns = ((quarterTurns % 4) + 4) % 4;
+    if (turns == 0 || !m_borderItemIds.contains(serverId)) return serverId;
+    static constexpr int clockwise[13] = {0, 2, 3, 4, 1, 6, 8, 5, 7, 10, 11, 12, 9};
+    int result = 0;
+    for (const BorderDef &border : m_borders) {
+        for (int slot = 1; slot < 13; ++slot) {
+            const auto &variants = border.align[slot].items;
+            for (qsizetype i = 0; i < variants.size(); ++i) {
+                if (variants[i].first != serverId) continue;
+                int targetSlot = slot;
+                for (int turn = 0; turn < turns; ++turn) targetSlot = clockwise[targetSlot];
+                const auto &targets = border.align[targetSlot].items;
+                if (targets.isEmpty()) return serverId;
+                const int candidate = targets[std::min(i, targets.size() - 1)].first;
+                if (result != 0 && result != candidate) return serverId;
+                result = candidate;
+            }
+        }
+    }
+    return result > 0 ? result : serverId;
+}
+
+int BrushStore::rotatedSelectionWallItem(int serverId, int quarterTurns) const
+{
+    const int turns = ((quarterTurns % 4) + 4) % 4;
+    if (turns == 0 || !m_wallByServerId.contains(serverId)) return serverId;
+    static constexpr int half[16] = {0,9,6,3,0,9,6,3,0,9,6,3,0,9,6,3};
+    int result = 0;
+    for (const WallDef &wall : m_walls) {
+        for (int slot = 0; slot < 16; ++slot) {
+            const auto &variants = wall.align[slot].items;
+            for (qsizetype i = 0; i < variants.size(); ++i) {
+                if (variants[i].first != serverId) continue;
+                int mask = slot;
+                for (int turn = 0; turn < turns; ++turn)
+                    mask = ((mask & 1) ? 4 : 0) | ((mask & 4) ? 8 : 0)
+                        | ((mask & 8) ? 2 : 0) | ((mask & 2) ? 1 : 0);
+                const auto &targets = wall.align[wall.align[mask].items.isEmpty() ? half[mask] : mask].items;
+                if (targets.isEmpty()) return serverId;
+                const int candidate = targets[std::min(i, targets.size() - 1)].first;
+                if (result != 0 && result != candidate) return serverId;
+                result = candidate;
+            }
+        }
+    }
+    return result > 0 ? result : serverId;
+}
+
 BrushStore::BrushStore(QObject *parent)
     : QObject(parent)
 {

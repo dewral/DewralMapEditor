@@ -77,6 +77,8 @@ public:
     int pickGroundItem(const QString &name) const;
 
     bool isManagedBorderItem(int serverId) const { return m_borderItemIds.contains(serverId); }
+    int rotatedSelectionBorderItem(int serverId, int quarterTurns) const;
+    int rotatedSelectionWallItem(int serverId, int quarterTurns) const;
     bool isOptionalBorderItem(int serverId) const { return m_optionalBorderItemIds.contains(serverId); }
 
 

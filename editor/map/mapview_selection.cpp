@@ -1,6 +1,7 @@
 
 #include "mapview.h"
 #include "mapview_p.h"
+#include "mapselectionrotation.h"
 
 #include <QPainter>
 #include <QMouseEvent>
@@ -213,10 +214,27 @@ void MapView::cutSelection()
 
 void MapView::moveSelection(int dx, int dy, int dz)
 {
-    if (!m_otbm || m_selectionController.selected().isEmpty() || (dx == 0 && dy == 0 && dz == 0)) return;
+    transformSelection(dx, dy, dz, 0);
+}
+
+void MapView::rotateSelection(int quarterTurns)
+{
+    transformSelection(0, 0, 0, ((quarterTurns % 4) + 4) % 4);
+}
+
+void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
+{
+    if (!m_otbm || m_selectionController.selected().isEmpty()
+        || (dx == 0 && dy == 0 && dz == 0 && quarterTurns == 0)) return;
+    std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
+    int minX = 65535, minY = 65535, maxX = 0, maxY = 0;
+    for (quint64 key : m_selectionController.selected()) {
+        minX = std::min(minX, selX(key)); maxX = std::max(maxX, selX(key));
+        minY = std::min(minY, selY(key)); maxY = std::max(maxY, selY(key));
+    }
 
     struct Snap {
-        int x, y, z;
+        int x, y, z, nx, ny;
         std::vector<OtbmMapItem> items;
         QString creature; int spawntime = 60; bool npc = false;
         int spawnRadius = 0;
@@ -227,6 +245,12 @@ void MapView::moveSelection(int dx, int dy, int dz)
         const OtbmTile *t = m_otbm->tileAt(x, y, z);
         if (!t) continue;
         Snap s; s.x = x; s.y = y; s.z = z;
+        s.nx = x + dx; s.ny = y + dy;
+        if (quarterTurns != 0) {
+            const QPoint target = rotatedSelectionPosition(QPoint(x, y),
+                QRect(QPoint(minX, minY), QPoint(maxX, maxY)), quarterTurns);
+            s.nx = target.x(); s.ny = target.y();
+        }
         if (m_selectionController.wholeStack()) {
             s.items.assign(t->items.begin(), t->items.end());
             s.creature = t->creature_name;
@@ -248,15 +272,24 @@ void MapView::moveSelection(int dx, int dy, int dz)
     }
     if (snap.empty()) return;
     for (const Snap &s : snap) {
-        const int targetX = s.x + dx;
-        const int targetY = s.y + dy;
+        const int targetX = s.nx;
+        const int targetY = s.ny;
         const int targetZ = s.z + dz;
         if (targetX < 0 || targetX > 65535
             || targetY < 0 || targetY > 65535
             || targetZ < 0 || targetZ > 15) return;
     }
 
-    std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
+    QSet<quint64> newSel;
+    if (quarterTurns != 0) {
+        const QRect bounds(QPoint(minX, minY), QPoint(maxX, maxY));
+        for (quint64 key : m_selectionController.selected()) {
+            const QPoint target = rotatedSelectionPosition(QPoint(selX(key), selY(key)), bounds, quarterTurns);
+            if (target.x() < 0 || target.x() > 65535 || target.y() < 0 || target.y() > 65535) return;
+            newSel.insert(selKey(target.x(), target.y(), selZ(key)));
+        }
+    }
+
     beginEditBatch();
     const bool savedBulk = m_brushController.bulkEdit();
     const bool savedFx = m_placeEffect;
@@ -271,12 +304,26 @@ void MapView::moveSelection(int dx, int dy, int dz)
         if (s.spawnRadius > 0) { m_otbm->clearSpawnAt(s.x, s.y, s.z); movedSpawn = true; }
         onTileEdited(s.x, s.y, s.z);
     }
-    QSet<quint64> newSel;
     for (const Snap &s : snap) {
-        const int nx = s.x + dx, ny = s.y + dy;
+        const int nx = s.nx, ny = s.ny;
         const int nz = s.z + dz;
 
-        for (const OtbmMapItem &it : s.items) placeItemOnFloor(nx, ny, nz, it);
+        for (OtbmMapItem it : s.items) {
+            if (quarterTurns != 0) {
+                const auto *store = m_brushController.store();
+                int rotated = it.server_id;
+                if (store && store->isManagedBorderItem(it.server_id))
+                    rotated = store->rotatedSelectionBorderItem(it.server_id, quarterTurns);
+                else if (store && store->isWallBrushItem(it.server_id))
+                    rotated = store->rotatedSelectionWallItem(it.server_id, quarterTurns);
+                if (rotated == it.server_id)
+                    rotated = rotatedPathItemId(it.server_id, quarterTurns);
+                if (rotated > 0 && rotated <= 65535
+                    && (!m_otb || m_otb->rowForServerId(rotated) >= 0))
+                    it.server_id = static_cast<uint16_t>(rotated);
+            }
+            placeItemOnFloor(nx, ny, nz, it);
+        }
         if (!s.creature.isEmpty()) {
             m_otbm->setCreatureAt(nx, ny, nz, s.creature, s.spawntime, s.npc);
             onTileEdited(nx, ny, nz);
@@ -288,6 +335,41 @@ void MapView::moveSelection(int dx, int dy, int dz)
         newSel.insert(selKey(nx, ny, nz));
     }
     if (movedSpawn) invalidateSpawnIndex();
+
+    if (quarterTurns != 0 && m_brushController.store()) {
+        auto *store = m_brushController.store();
+        for (const Snap &s : snap) {
+            const int z = s.z + dz;
+            for (const OtbmMapItem &original : s.items) {
+                const QString brush = store->wallBrushForServerId(original.server_id);
+                if (brush.isEmpty()) continue;
+                const auto hasWall = [&](int x, int y) {
+                    const auto *tile = m_otbm->tileAt(x, y, z);
+                    if (!tile) return false;
+                    for (const auto &item : tile->items)
+                        if (store->wallBrushForServerId(item.server_id) == brush) return true;
+                    return false;
+                };
+                int target = store->computeWallItem(brush, hasWall(s.nx, s.ny - 1),
+                    hasWall(s.nx - 1, s.ny), hasWall(s.nx + 1, s.ny), hasWall(s.nx, s.ny + 1));
+                if (target <= 0 || target > 65535 || (m_otb && m_otb->rowForServerId(target) < 0)) continue;
+                const auto *tile = m_otbm->tileAt(s.nx, s.ny, z);
+                if (!tile) continue;
+                for (size_t i = 0; i < tile->items.size(); ++i) {
+                    const int current = tile->items[i].server_id;
+                    if (store->wallBrushForServerId(current) != brush) continue;
+                    int replacement = target;
+                    if (store->isDoorItem(current)) {
+                        replacement = store->doorBrushItem(target, current);
+                        if (replacement <= 0) continue;
+                    }
+                    ensureItemSprites(replacement);
+                    if (m_otbm->setItemServerIdAt(s.nx, s.ny, z, static_cast<int>(i),
+                        static_cast<uint16_t>(replacement))) onTileEdited(s.nx, s.ny, z);
+                }
+            }
+        }
+    }
 
     m_otbm->endUndoGroup();
     m_brushController.setBulkEdit(savedBulk);

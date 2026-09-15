@@ -205,6 +205,22 @@ Item {
                 enabled: mapView.selectionCount > 0
                 onTriggered: prefabDialog.openForSelection()
             }
+            DmeMenu {
+                title: "Rotate Selection"
+                enabled: mapView.selectionCount > 0
+                Action {
+                    text: "90° clockwise"
+                    onTriggered: mapView.rotateSelection(1)
+                }
+                Action {
+                    text: "180°"
+                    onTriggered: mapView.rotateSelection(2)
+                }
+                Action {
+                    text: "90° counterclockwise"
+                    onTriggered: mapView.rotateSelection(3)
+                }
+            }
             Action {
                 text: "Generate Path from Prefabs..."
                 enabled: Backend.otbmReader.loaded

@@ -560,6 +560,7 @@ public:
     void placeItemOnFloor(int x, int y, int z, const OtbmMapItem &item);
 
     Q_INVOKABLE void copySelection();
+    Q_INVOKABLE void rotateSelection(int quarterTurns = 1);
     Q_INVOKABLE QVariantMap brushSelectionSnapshot(bool includeGround = false);
     Q_INVOKABLE QVariantMap saveSelectionAsPrefab(const QString &name,
                                                   const QString &palette);
@@ -602,6 +603,7 @@ public:
     void setOptionalBorderMode(bool on);
 
     void moveSelection(int dx, int dy, int dz = 0);
+    void transformSelection(int dx, int dy, int dz, int quarterTurns);
 
     Q_INVOKABLE void borderizeSelection();
 

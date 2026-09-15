@@ -16,6 +16,7 @@
 
 #ifdef Q_OS_WIN
 #include <windows.h>
+#include <tlhelp32.h>
 #endif
 
 #include <algorithm>
@@ -91,6 +92,54 @@ fs::path packageRoot(const fs::path &staging)
             return entry.path();
     }
     return {};
+}
+
+bool applicationInstanceRunning(const fs::path &executable)
+{
+#ifdef Q_OS_WIN
+    const HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE)
+        return false;
+
+    PROCESSENTRY32W entry{};
+    entry.dwSize = sizeof(entry);
+    bool running = false;
+    if (Process32FirstW(snapshot, &entry)) {
+        do {
+            HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE,
+                                         entry.th32ProcessID);
+            if (!process)
+                continue;
+
+            std::wstring path(32768, L'\0');
+            DWORD pathSize = static_cast<DWORD>(path.size());
+            if (QueryFullProcessImageNameW(process, 0, path.data(), &pathSize)) {
+                path.resize(pathSize);
+                running = _wcsicmp(fs::path(path).lexically_normal().c_str(),
+                                   executable.lexically_normal().c_str()) == 0;
+            }
+            CloseHandle(process);
+            if (running)
+                break;
+        } while (Process32NextW(snapshot, &entry));
+    }
+    CloseHandle(snapshot);
+    return running;
+#else
+    Q_UNUSED(executable)
+    return false;
+#endif
+}
+
+bool waitForApplicationInstances(const fs::path &executable)
+{
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::minutes(5);
+    while (applicationInstanceRunning(executable)) {
+        if (std::chrono::steady_clock::now() >= deadline)
+            return false;
+        QThread::msleep(250);
+    }
+    return true;
 }
 
 void copyFileOverwrite(const fs::path &source, const fs::path &destination,
@@ -323,9 +372,12 @@ private:
         logFile.open((fs::temp_directory_path() / L"DMEUpdater.log"), std::ios::trunc);
         log(L"DME updater started.");
 
-        postStatus(QStringLiteral("Waiting for DME to close..."), 5);
-        if (!waitForApplication(pid)) {
-            fail(QStringLiteral("DME did not close in time. The update was cancelled."));
+        const fs::path target = targetPath.toStdWString();
+        const fs::path targetExecutable = target / executable.toStdWString();
+        postStatus(QStringLiteral("Waiting for all DME windows to close..."), 5);
+        if (!waitForApplication(pid) || !waitForApplicationInstances(targetExecutable)) {
+            fail(QStringLiteral(
+                "Close every DME window before installing the update, then try again."));
             return;
         }
 
@@ -335,7 +387,6 @@ private:
         const fs::path staging = work / L"staging";
         const fs::path backup = work / L"backup";
         const fs::path archive = archivePath.toStdWString();
-        const fs::path target = targetPath.toStdWString();
         std::error_code error;
         fs::create_directories(staging, error);
         if (error) {

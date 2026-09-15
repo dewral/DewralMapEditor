@@ -12,6 +12,7 @@ Item {
     property var previousTabItem: null
     property var pasteHandler: null
     signal valueModified(int value)
+    readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
     implicitWidth: 96
     implicitHeight: 22
 
@@ -38,7 +39,9 @@ Item {
         anchors.leftMargin: 6
         anchors.rightMargin: 14
         verticalAlignment: TextInput.AlignVCenter
-        color: "#c0c0c0"
+        color: root.windowsClassic ? "#202020" : "#c0c0c0"
+        selectionColor: root.windowsClassic ? "#0a64ad" : "#507050"
+        selectedTextColor: "#ffffff"
         font.pixelSize: 12
         readOnly: !root.editable
         selectByMouse: true

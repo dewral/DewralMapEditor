@@ -14,6 +14,7 @@ DmeDialog {
     property var selectedItem: null
     property var titles: []
     readonly property bool githubUi: Backend.uiTheme.style !== "classic"
+                                     && Backend.uiTheme.style !== "windows-classic"
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     title: titles.length > 0 ? titles[titles.length - 1] : "Container"

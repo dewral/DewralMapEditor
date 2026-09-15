@@ -25,8 +25,8 @@ Item {
         if (!mapCtrl)
             return;
 
-        const originX = mapCtrl.glOriginX();
-        const originY = mapCtrl.glOriginY();
+        const originX = mapCtrl.renderOriginX();
+        const originY = mapCtrl.renderOriginY();
         currentOriginX = originX;
         currentOriginY = originY;
 

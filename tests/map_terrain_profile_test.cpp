@@ -25,5 +25,10 @@ int main()
     if (brushes.value(QStringLiteral("land")).toString() != QStringLiteral("grass")) return 5;
     if (brushes.value(QStringLiteral("water")).toString() != QStringLiteral("sea water")) return 6;
     if (brushes.value(QStringLiteral("beach")).toString() != QStringLiteral("sand beach")) return 7;
+    if (result.value(QStringLiteral("version")).toInt() != 2) return 8;
+    const QVariantMap metrics = result.value(QStringLiteral("metrics")).toMap();
+    if (metrics.value(QStringLiteral("continuity")).toDouble() <= 0.0) return 9;
+    if (metrics.value(QStringLiteral("waterShare")).toDouble() <= 0.0) return 10;
+    if (result.value(QStringLiteral("groundTransitions")).toList().isEmpty()) return 11;
     return 0;
 }

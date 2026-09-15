@@ -11,13 +11,13 @@ Item {
     required property var browseFieldDialog
     required property var paletteNavigator
     readonly property bool githubUi: Backend.uiTheme.style !== "classic"
+                                     && Backend.uiTheme.style !== "windows-classic"
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
 
     property alias mapView: mapView
-    property alias mapGl: mapGl
+    property alias mapRenderer: mapRenderer
     property alias context: mapArea.ctx
-
     function positionText(format) {
         var x = mapArea.ctx.x;
         var y = mapArea.ctx.y;
@@ -162,17 +162,16 @@ Item {
             }
         }
 
-        MapGLView {
-            id: mapGl
+        MapRhiView {
+            id: mapRenderer
             anchors.fill: parent
             source: mapView
-            vsyncEnabled: workspace.settings.vsyncEnabled
             Component.onCompleted: {
-                if (!workspace.settings.glMaxFpsConfigured) {
-                    workspace.settings.glMaxFps = 60;
-                    workspace.settings.glMaxFpsConfigured = true;
+                if (!workspace.settings.renderMaxFpsConfigured) {
+                    workspace.settings.renderMaxFps = 60;
+                    workspace.settings.renderMaxFpsConfigured = true;
                 }
-                maxFps = workspace.settings.glMaxFps;
+                maxFps = workspace.settings.renderMaxFps;
             }
         }
 
@@ -205,6 +204,22 @@ Item {
                 text: "Add Prefab..."
                 enabled: mapView.selectionCount > 0
                 onTriggered: prefabDialog.openForSelection()
+            }
+            DmeMenu {
+                title: "Rotate Selection"
+                enabled: mapView.selectionCount > 0
+                Action {
+                    text: "90° clockwise"
+                    onTriggered: mapView.rotateSelection(1)
+                }
+                Action {
+                    text: "180°"
+                    onTriggered: mapView.rotateSelection(2)
+                }
+                Action {
+                    text: "90° counterclockwise"
+                    onTriggered: mapView.rotateSelection(3)
+                }
             }
             Action {
                 text: "Generate Path from Prefabs..."
@@ -469,6 +484,7 @@ Item {
                 }
                 const ending = endPrefab.currentIndex > 0
                              ? prefabNames[endPrefab.currentIndex - 1] : "";
+                mapView.pathPreserveGround = preservePathGround.checked;
                 const result = mapView.startPathBuilder(straightPrefab.currentText,
                                                         cornerPrefab.currentText,
                                                         ending,
@@ -492,6 +508,12 @@ Item {
                     wrapMode: Text.WordWrap
                 }
                 Text { text: "Doodad category"; color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"; font.pixelSize: 11 }
+                DmeCheckBox {
+                    id: preservePathGround
+                    text: "Preserve existing ground (borders and objects only)"
+                    checked: true
+                    width: parent.width
+                }
                 DmeComboBox {
                     id: pathPalette
                     width: parent.width
@@ -651,8 +673,8 @@ Item {
                 anchors.centerIn: parent
                 // This counter measures map renders, not lightweight UI composition.
                 // Demand-driven rendering makes a low idle value expected.
-                text: mapGl.fps > 0 ? ("FPS: " + mapGl.fps + "   OpenGL")
-                                    : "FPS: idle   OpenGL"
+                text: mapRenderer.fps > 0 ? ("FPS: " + mapRenderer.fps + "   QRhi")
+                                    : "FPS: idle   QRhi"
                 color: "#7fdc8f"
                 font.pixelSize: 11
                 font.bold: true
@@ -852,7 +874,7 @@ Item {
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: mapGl.fps > 0 ? ("FPS " + mapGl.fps) : "FPS idle"
+                text: mapRenderer.fps > 0 ? ("FPS " + mapRenderer.fps) : "FPS idle"
                 color: workspace.grayUi ? "#C79A3B" : "#3FB950"
                 font {
                     pixelSize: 12

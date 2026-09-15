@@ -9,7 +9,7 @@
 
 #include "backend.h"
 #include "mapview.h"
-#include "mapglview.h"
+#include "maprhiview.h"
 #include "minimapview.h"
 #include "palettefilter.h"
 #include "paletteimageprovider.h"
@@ -25,11 +25,20 @@ int main(int argc, char *argv[])
         startupSettings.value(QStringLiteral("vsyncEnabled"), true).toBool();
 
     QSurfaceFormat format = QSurfaceFormat::defaultFormat();
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
+    format.setRenderableType(QSurfaceFormat::OpenGLES);
+    format.setVersion(3, 0);
+#else
+    format.setVersion(3, 3);
+    format.setProfile(QSurfaceFormat::CoreProfile);
+#endif
     format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
     format.setSwapInterval(vsyncEnabled ? 1 : 0);
     QSurfaceFormat::setDefaultFormat(format);
 
-    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+    // QRhi chooses the platform backend. QSG_RHI_BACKEND can override it.
+    // VSync applies to the swapchain and takes effect at application startup.
+    if (!vsyncEnabled) qputenv("QSG_NO_VSYNC", QByteArrayLiteral("1"));
 
     QGuiApplication app(argc, argv);
     app.setWindowIcon(QIcon(QStringLiteral(":/ui/github/app-icon.png")));

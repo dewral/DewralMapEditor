@@ -51,6 +51,8 @@ items.otb
 !/data/[0-9]*/**
 
 # ---- Local test maps / scratch data ----
+/aqtinstall.log
+/recovery/
 *.otbm
 *-house.xml
 *-spawn.xml

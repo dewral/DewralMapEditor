@@ -1,0 +1,2 @@
+module Tibia
+singleton Backend 1.0 Backend.qml

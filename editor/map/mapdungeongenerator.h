@@ -27,6 +27,8 @@ public:
         int maxRoomDegree = 4;
         int caveDensity = 52;
         int caveSmoothSteps = 4;
+        int caveMinRegionSize = 24;
+        int caveWallThreshold = 32;
         Style style = Style::Mixed;
         Layout layout = Layout::Rooms;
     };

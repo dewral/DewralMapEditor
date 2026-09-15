@@ -1,7 +1,7 @@
 # Dewral Map Editor
 
 Dewral Map Editor (DME) is a desktop OpenTibia map editor for OTBM maps. It
-uses a Qt 6/QML interface and a custom OpenGL renderer designed for large,
+uses a Qt 6/QML interface and a custom QRhi renderer designed for large,
 multi-floor Tibia maps.
 
 > **Development note:** This project was developed primarily with assistance
@@ -18,7 +18,7 @@ multi-floor Tibia maps.
 - Opens and saves OTBM maps for Tibia 7.60 through 10.98+ client profiles.
 - Supports custom client profiles and remembers a separate asset directory for
   each profile.
-- Uses an instanced OpenGL renderer with chunk caching, smooth pan and zoom,
+- Uses an instanced QRhi renderer with chunk caching, smooth pan and zoom,
   multiple visible floors, lighting preview, and optional item animations.
 - Provides terrain, doodad, item, creature, house, and custom palettes.
 - Includes ground brushes, automatic borders, wall brushes, doodad variants,
@@ -172,7 +172,9 @@ cmake --build --preset windows-release
 
 ### Build with an existing Qt installation
 
-Developers who already have a compatible Qt 6 SDK may use it directly:
+Developers who already have a compatible Qt 6 SDK may use it directly.
+The renderer requires Qt 6.7 or later, including Shader Tools (`qsb`) and
+GuiPrivate development headers. Qt 6.10.2 is the currently validated SDK:
 
 ```powershell
 cmake -S . -B build/local-release -G Ninja `
@@ -192,10 +194,15 @@ resolution and installs:
 
 - `qtbase`
 - `qtdeclarative`
+- `qtshadertools`
 - `qtsvg`
 
 The `qtbase` feature set is limited to the GUI, network, OpenGL, and PNG
-components used by DME. The pinned port set provides Qt 6.10.2.
+components used by DME (including the optional QRhi OpenGL backend). The pinned
+port set provides Qt 6.10.2. Build and deploy with the same Qt SDK because QRhi
+does not guarantee compatibility across Qt minor versions.
+
+See [QRhi rendering](docs/qrhi-rendering.md) for backend selection and tests.
 
 The official Windows preset uses the release-only `x64-windows-release`
 triplet to avoid compiling and storing an unused Debug copy of Qt. It targets
@@ -256,6 +263,63 @@ Optionally set `OPENAI_MODEL`; the default is `gpt-5.6-luna`. In DME, select up
 to 1024 tiles on the current floor and choose **Edit > AI Map Assistant**. The
 assistant creates a validated plan first and changes the map only after
 **Apply** is pressed. The complete change is one undo step.
+
+## Learned terrain generation
+
+The terrain generator can learn a reusable style profile from an existing OTBM
+map. Open **Tools > Terrain Generator**, choose **Learn OTBM**, and save the JSON
+profile. The saved profile records terrain proportions, neighbouring-ground
+transitions, continuity, and weighted doodad usage. World generation then tests
+several deterministic candidates, selects the closest match, and previews both
+terrain and learned decorations before applying them as one undo step.
+
+The **Organic Cave** mode removes tiny isolated regions and connects meaningful
+chambers with walkable tunnels. Candidate search is automatically limited for
+very large selections to keep preview generation responsive.
+
+In **Dungeon Generator > Organic cave**, **Min. cave region** controls the
+minimum retained floor-region size in tiles. **Rock island cutoff** fills
+enclosed rock regions smaller than the given size (0 disables cleanup), while
+preserving rock connected to the selection boundary. **Corridor width** also
+controls tunnels connecting cave chambers, including even widths.
+
+## Ground cluster generator
+
+Open **Tools > Ground Cluster Generator** to use a random cluster brush like the
+layered RME workflow. No map selection is required. A single irregular cluster
+follows the cursor while the generator window remains open. Its radius is drawn
+from the configured minimum/maximum range. Left click places the visible cluster
+and immediately creates a new size and shape; right click stops the preview.
+Changing the seed, ground weights, radius, irregularity, or doodad density
+updates the cursor preview. Borders adapt to the ground below the cursor and
+every placement is one undoable operation. Optional doodads stay inside the
+generated cluster. Ground values are normalized to 100% and allocated inside
+each blob as connected patches, so a 50/50 mix produces approximately half of
+each ground in the same cluster. DME places managed border items along internal
+transitions and uses each brush's standard border on the outside edge. It does
+not add ground tiles outside the generated shape.
+
+The same window can generate a reusable prefab pack. Choose the ground mix,
+enter a category and base name, and select the number of variants. DME rolls a
+different organic shape for every variant and saves its ground tiles, internal
+transitions, normal outer borders, and optional doodads as one prefab. Saved
+variants appear in their Doodads palette category, where they can be attached to
+the cursor, rotated in 90-degree steps with **Z**, and pasted repeatedly.
+
+Organic caves carve the selected cave floor into a prepared mountain-ground
+area without a wall brush. Uncarved ground remains in place and DME recomputes
+ground borders when applying. The generator dialog shows brush thumbnails in
+the selectors and their dropdowns. Add several cave decorations to the explicit
+decoration list to use only those brushes; remove an entry with its × button.
+
+## Reusable roads
+
+For reusable roads, save selected segments using **Add Prefab**, then open
+**Generate Path from Prefabs** and choose straight/corner/end segments. The new
+**Preserve existing ground** option defaults on and excludes prefab ground
+items from both the preview and placement. Turn it off to paste a complete
+road including its ground. The placed road can be selected, copied, or saved
+as another prefab. Placement is grouped into one Undo operation.
 
 ## Project structure
 

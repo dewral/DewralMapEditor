@@ -12,7 +12,6 @@ execute_process(
         --qmldir "${QML_SOURCE_DIRECTORY}"
         --no-translations
         --no-opengl-sw
-        --no-system-d3d-compiler
         --no-system-dxc-compiler
         --verbose 0
         --skip-plugin-types generic,qmltooling,networkinformation
@@ -39,7 +38,6 @@ endif()
 # windeployqt does not remove files left by an older, broader deployment and
 # qmlimportscanner deploys every available Controls style. DME uses Basic.
 set(obsolete_runtime_paths
-    "D3Dcompiler_47.dll"
     "DME_ui_preview.exe"
     "opengl32sw.dll"
     "Qt6Quick3DUtils.dll"

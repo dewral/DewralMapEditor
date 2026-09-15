@@ -58,7 +58,7 @@ DmeDialog {
                 width: 78
                 from: 0
                 to: 65535
-                value: Math.round(gotoPosDialog.mapCtrl.glOriginX())
+                value: Math.round(gotoPosDialog.mapCtrl.renderOriginX())
                 nextTabItem: yField2
                 previousTabItem: zField2
                 pasteHandler: function() { return gotoPosDialog.pastePosition(); }
@@ -68,7 +68,7 @@ DmeDialog {
                 width: 78
                 from: 0
                 to: 65535
-                value: Math.round(gotoPosDialog.mapCtrl.glOriginY())
+                value: Math.round(gotoPosDialog.mapCtrl.renderOriginY())
                 nextTabItem: zField2
                 previousTabItem: xField2
                 pasteHandler: function() { return gotoPosDialog.pastePosition(); }

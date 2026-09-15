@@ -78,7 +78,7 @@ QPoint MapView::tileAtScreen(const QPointF &p) const
                   static_cast<int>(std::floor(m_navigationController.originY() + p.y() / ts)));
 }
 
-double MapView::glPointerVisualOffsetX() const
+double MapView::renderPointerVisualOffsetX() const
 {
     if (m_navigationController.heldArrows().isEmpty() || m_hoverX < 0)
         return 0.0;
@@ -88,7 +88,7 @@ double MapView::glPointerVisualOffsetX() const
     return (exactX - (static_cast<qreal>(m_hoverX) + 0.5)) * kSprite;
 }
 
-double MapView::glPointerVisualOffsetY() const
+double MapView::renderPointerVisualOffsetY() const
 {
     if (m_navigationController.heldArrows().isEmpty() || m_hoverY < 0)
         return 0.0;
@@ -301,6 +301,19 @@ void MapView::mousePressEvent(QMouseEvent *event)
         return;
     }
 
+    if (m_groundClusterStampActive
+        && (event->button() == Qt::LeftButton || event->button() == Qt::RightButton)) {
+        const QPoint tile = tileAtScreen(event->position());
+        m_hoverX = tile.x();
+        m_hoverY = tile.y();
+        if (event->button() == Qt::LeftButton)
+            commitGroundClusterStampAt(tile.x(), tile.y());
+        else if (event->button() == Qt::RightButton)
+            cancelGroundClusterStamp();
+        event->accept();
+        return;
+    }
+
     if (m_pathBuilder.active()) {
         if (event->button() == Qt::LeftButton) {
             const QPoint tile = tileAtScreen(event->position());
@@ -477,6 +490,7 @@ void MapView::mouseDoubleClickEvent(QMouseEvent *event)
         || m_spacePanHeld
         || m_pathBuilder.active()
         || m_selectionController.pasting()
+        || m_groundClusterStampActive
         || m_selectionController.lassoing()
         || (!m_editController.selectionMode()
             && (m_brushController.serverId() > 0
@@ -607,13 +621,15 @@ void MapView::processPointerMove(const QPointF &pos, bool hoverOnly)
     if (h.x() != m_hoverX || h.y() != m_hoverY) {
         m_hoverX = h.x();
         m_hoverY = h.y();
+        if (m_groundClusterStampActive) refreshGroundClusterStampPreview();
         updateHoverText();
         const bool cursorVisual = m_brushController.serverId() > 0
             || m_editController.activeZone() != 0 || m_editController.eraseMode()
             || m_brushController.optionalBorderBrush()
             || m_brushController.spawnBrush() || !m_brushController.creatureBrush().isEmpty()
             || m_brushController.houseBrush() > 0 || m_brushController.houseExitMode()
-            || !m_brushController.doodadBrush().isEmpty();
+            || !m_brushController.doodadBrush().isEmpty()
+            || m_groundClusterStampActive;
         const bool redraw = hoverOnly
             ? (m_selectionController.pasting()
                || (!m_editController.selectionMode() && cursorVisual))
@@ -855,6 +871,20 @@ void MapView::keyPressEvent(QKeyEvent *event)
             m_brushController.doodadVariant() = (m_brushController.doodadVariant() + 1) % cnt;
             emit contentUpdated(); update();
         }
+        event->accept();
+        return;
+    }
+
+    if (event->key() == Qt::Key_Z && event->modifiers() == Qt::NoModifier
+        && !m_selectionController.selected().isEmpty() && !m_selectionController.pasting()) {
+        rotateSelection();
+        event->accept();
+        return;
+    }
+
+    if (event->key() == Qt::Key_Z && event->modifiers() == Qt::NoModifier
+        && !m_brushController.doodadBrush().isEmpty()) {
+        rotateDoodadBrush();
         event->accept();
         return;
     }

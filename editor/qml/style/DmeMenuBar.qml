@@ -4,7 +4,8 @@ import Tibia 1.0
 
 MenuBar {
     id: root
-    readonly property bool modernTheme: Backend.uiTheme.style !== "classic"
+    readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
+    readonly property bool modernTheme: Backend.uiTheme.style !== "classic" && !windowsClassic
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
     implicitHeight: modernTheme ? 40 : 26
@@ -20,13 +21,15 @@ MenuBar {
         contentItem: Text {
             id: label
             text: menuItem.text
-            color: root.modernTheme ? (menuItem.highlighted ? "#FFFFFF" : (root.grayTheme ? "#E0E0E0" : "#C9D1D9")) : "#dcdcdc"
+            color: root.windowsClassic ? "#202020" : (root.modernTheme ? (menuItem.highlighted ? "#FFFFFF" : (root.grayTheme ? "#E0E0E0" : "#C9D1D9")) : "#dcdcdc")
             font.pixelSize: root.modernTheme ? 13 : 12
             horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
         }
         background: Rectangle {
             radius: root.modernTheme ? 4 : 0
-            color: menuItem.highlighted ? (root.modernTheme ? (root.grayTheme ? "#292929" : "#161B22") : "#1fffffff") : "transparent"
+            color: menuItem.highlighted ? (root.windowsClassic ? "#cce8ff" : (root.modernTheme ? (root.grayTheme ? "#292929" : "#161B22") : "#1fffffff")) : "transparent"
+            border.width: root.windowsClassic && menuItem.highlighted ? 1 : 0
+            border.color: "#99c9ef"
         }
     }
 }

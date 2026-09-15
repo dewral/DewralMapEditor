@@ -16,6 +16,7 @@ DmeDialog {
     property bool loading: false
     property int problemPositionIndex: 0
     readonly property bool githubUi: Backend.uiTheme.style !== "classic"
+                                     && Backend.uiTheme.style !== "windows-classic"
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     title: "Map Analyzer"

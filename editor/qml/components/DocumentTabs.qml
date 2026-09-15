@@ -3,6 +3,7 @@ import Tibia 1.0
 
 Item {
     id: tabs
+    readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
     required property var app
 
     Row {
@@ -39,7 +40,7 @@ Item {
                         verticalCenter: parent.verticalCenter
                     }
                     text: tabDelegate.modelData.title + (tabDelegate.modelData.dirty ? " *" : "")
-                    color: tabDelegate.active ? "#eaffea" : "#c0c0c0"
+                    color: tabs.windowsClassic ? "#202020" : (tabDelegate.active ? "#eaffea" : "#c0c0c0")
                     font.pixelSize: 11
                     font.bold: tabDelegate.active
                 }
@@ -55,7 +56,7 @@ Item {
                         verticalCenter: parent.verticalCenter
                     }
                     text: "X"
-                    color: closeArea.containsMouse ? "#ff8f8f" : "#888"
+                    color: closeArea.containsMouse ? (tabs.windowsClassic ? "#c42b1c" : "#ff8f8f") : (tabs.windowsClassic ? "#444" : "#888")
                     font.pixelSize: 12
                     font.bold: true
                     MouseArea {

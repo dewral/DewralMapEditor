@@ -6,6 +6,7 @@ Item {
     property var flickable
     property bool dragging: false
     readonly property bool githubTheme: Backend.uiTheme.style !== "classic"
+                                        && Backend.uiTheme.style !== "windows-classic"
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
 

@@ -42,6 +42,7 @@ signals:
 private:
 
     QImage flatTexture(const QString &file) const;
+    QImage windowsClassicTexture(const QString &file) const;
 
     mutable QMutex m_mutex;
     QColor m_tint;

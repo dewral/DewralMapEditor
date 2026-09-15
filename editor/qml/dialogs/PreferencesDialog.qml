@@ -7,7 +7,7 @@ import "../style"
 DmeDialog {
     id: dialog
     required property var settings
-    required property var mapGl
+    required property var mapRenderer
 
     title: "Preferences"
     width: Math.min(820, Overlay.overlay ? Overlay.overlay.width - 32 : 820)
@@ -113,9 +113,9 @@ DmeDialog {
                     title: "Rendering"
                     PrefRow {
                         label: "Frame rate limit"
-                        DmeComboBox { width: 190; model: ["Unlimited", "30 FPS", "60 FPS", "120 FPS", "144 FPS", "240 FPS"]; property var values: [0,30,60,120,144,240]; currentIndex: Math.max(0, values.indexOf(dialog.settings.glMaxFps)); onActivated: { dialog.settings.glMaxFps = values[currentIndex]; dialog.mapGl.maxFps = values[currentIndex]; } }
+                        DmeComboBox { width: 190; model: ["Unlimited", "30 FPS", "60 FPS", "120 FPS", "144 FPS", "240 FPS"]; property var values: [0,30,60,120,144,240]; currentIndex: Math.max(0, values.indexOf(dialog.settings.renderMaxFps)); onActivated: { dialog.settings.renderMaxFps = values[currentIndex]; dialog.mapRenderer.maxFps = values[currentIndex]; } }
                     }
-                    DmeCheckBox { text: "Vertical synchronization (V-Sync)"; checked: dialog.settings.vsyncEnabled; onClicked: dialog.settings.vsyncEnabled = !dialog.settings.vsyncEnabled }
+                    DmeCheckBox { text: "Vertical synchronization (V-Sync, restart required)"; checked: dialog.settings.vsyncEnabled; onClicked: dialog.settings.vsyncEnabled = !dialog.settings.vsyncEnabled }
                 }
             }
 

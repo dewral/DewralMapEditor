@@ -17,7 +17,7 @@ Item {
     Loader {
         id: controlLoader
         anchors.fill: parent
-        sourceComponent: Backend.uiTheme.style === "classic" ? classicButton
+        sourceComponent: (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicButton
                          : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayButton : githubButton)
     }
 

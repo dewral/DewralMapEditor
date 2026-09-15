@@ -9,7 +9,7 @@ DmeMenuBar {
     id: menuBar
     required property var appController
     required property var mapView
-    required property var mapGl
+    required property var mapRenderer
     required property var settings
     required property var titleBarItem
     required property var startupWindow
@@ -31,6 +31,7 @@ DmeMenuBar {
     required property var aiMapAssistantDialog
     required property var terrainGeneratorDialog
     required property var dungeonGeneratorDialog
+    required property var groundClusterGeneratorDialog
     required property var themeDialog
     required property var borderizeConfirm
     required property var randomizeConfirm
@@ -424,7 +425,13 @@ DmeMenuBar {
             enabled: Backend.otbmReader.loaded && menuBar.mapView.selectionCount > 0
             onTriggered: menuBar.terrainGeneratorDialog.open()
         }
+        Action {
+            text: "Ground Prefab Generator..."
+            enabled: Backend.otbmReader.loaded
+            onTriggered: menuBar.groundClusterGeneratorDialog.open()
+        }
         MenuSeparator {}
+
 
         Action {
             text: "Tileset & Brush Manager..."

@@ -7,6 +7,7 @@
 #include <QLabel>
 #include <QMetaObject>
 #include <QProcess>
+#include <QProcessEnvironment>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QThread>
@@ -45,17 +46,23 @@ QString powershellQuote(QString value)
 bool runPowerShell(const QString &script)
 {
     QProcess process;
+    auto environment = QProcessEnvironment::systemEnvironment();
+    environment.remove(QStringLiteral("PSModulePath"));
+    process.setProcessEnvironment(environment);
     process.setProgram(QStringLiteral("powershell.exe"));
     process.setArguments({QStringLiteral("-NoLogo"), QStringLiteral("-NoProfile"),
                           QStringLiteral("-NonInteractive"),
                           QStringLiteral("-ExecutionPolicy"), QStringLiteral("Bypass"),
-                          QStringLiteral("-Command"), script});
+                          QStringLiteral("-Command"),
+                          QStringLiteral("$ErrorActionPreference='Stop'; ") + script});
     process.start();
     if (!process.waitForStarted(10000)) {
         log(L"Could not start PowerShell.");
         return false;
     }
     process.waitForFinished(-1);
+    log(QString::fromLocal8Bit(process.readAllStandardError()).toStdWString());
+    log(QString::fromLocal8Bit(process.readAllStandardOutput()).toStdWString());
     log(L"PowerShell exit code: " + std::to_wstring(process.exitCode()));
     return process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0;
 }
@@ -84,6 +91,27 @@ fs::path packageRoot(const fs::path &staging)
             return entry.path();
     }
     return {};
+}
+
+void copyFileOverwrite(const fs::path &source, const fs::path &destination,
+                       std::error_code &error)
+{
+#ifdef Q_OS_WIN
+    if (CopyFileW(source.c_str(), destination.c_str(), FALSE))
+        error.clear();
+    else
+        error = std::error_code(static_cast<int>(GetLastError()), std::system_category());
+#else
+    fs::copy_file(source, destination, fs::copy_options::overwrite_existing, error);
+#endif
+}
+
+void copyFileOverwrite(const fs::path &source, const fs::path &destination)
+{
+    std::error_code error;
+    copyFileOverwrite(source, destination, error);
+    if (error)
+        throw fs::filesystem_error("cannot replace update file", source, destination, error);
 }
 
 bool installFiles(const fs::path &source, const fs::path &target,
@@ -116,12 +144,12 @@ bool installFiles(const fs::path &source, const fs::path &target,
             if (fs::exists(destination)) {
                 const fs::path saved = backup / relative;
                 fs::create_directories(saved.parent_path());
-                fs::copy_file(destination, saved, fs::copy_options::overwrite_existing);
+                copyFileOverwrite(destination, saved);
                 overwritten.push_back(relative);
             } else {
                 created.push_back(relative);
             }
-            fs::copy_file(entry.path(), destination, fs::copy_options::overwrite_existing);
+            copyFileOverwrite(entry.path(), destination);
             ++copied;
             const int value = fileCount > 0
                 ? 55 + static_cast<int>((copied * 35) / fileCount) : 90;
@@ -131,15 +159,16 @@ bool installFiles(const fs::path &source, const fs::path &target,
             }
         }
         return true;
-    } catch (...) {
+    } catch (const std::exception &exception) {
+        const QString detail = QString::fromLocal8Bit(exception.what());
+        log(L"Installation error: " + detail.toStdWString());
         log(L"Installation failed; restoring backup.");
         std::error_code ignored;
         for (auto it = created.rbegin(); it != created.rend(); ++it)
             fs::remove(target / *it, ignored);
         for (auto it = overwritten.rbegin(); it != overwritten.rend(); ++it) {
             fs::create_directories((target / *it).parent_path(), ignored);
-            fs::copy_file(backup / *it, target / *it,
-                          fs::copy_options::overwrite_existing, ignored);
+            copyFileOverwrite(backup / *it, target / *it, ignored);
         }
         return false;
     }

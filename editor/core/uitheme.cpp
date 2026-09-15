@@ -55,7 +55,8 @@ UiTheme::UiTheme(QObject *parent)
         m_style = QStringLiteral("github-dark");
     if (m_style != QLatin1String("github-dark") &&
         m_style != QLatin1String("gray-dark") &&
-        m_style != QLatin1String("gray-modern"))
+        m_style != QLatin1String("gray-modern") &&
+        m_style != QLatin1String("windows-classic"))
         m_style = QStringLiteral("classic");
 }
 
@@ -69,7 +70,8 @@ void UiTheme::setStyle(const QString &s)
 {
     const QString v = (s == QLatin1String("github-dark") ||
                        s == QLatin1String("gray-dark") ||
-                       s == QLatin1String("gray-modern"))
+                       s == QLatin1String("gray-modern") ||
+                       s == QLatin1String("windows-classic"))
                           ? s : QStringLiteral("classic");
     {
         QMutexLocker lock(&m_mutex);
@@ -96,11 +98,110 @@ QVariantList UiTheme::styles() const
     QVariantMap grayModern;
     grayModern.insert(QStringLiteral("name"), QStringLiteral("Gray Modern UI"));
     grayModern.insert(QStringLiteral("id"), QStringLiteral("gray-modern"));
+    QVariantMap windowsClassic;
+    windowsClassic.insert(QStringLiteral("name"), QStringLiteral("Window Classic Theme"));
+    windowsClassic.insert(QStringLiteral("id"), QStringLiteral("windows-classic"));
     out.push_back(classic);
     out.push_back(dark);
     out.push_back(gray);
     out.push_back(grayModern);
+    out.push_back(windowsClassic);
     return out;
+}
+
+QImage UiTheme::windowsClassicTexture(const QString &file) const
+{
+    const QString f = file.toLower();
+    const QColor face("#f0f0f0");
+    const QColor light("#ffffff");
+    const QColor mid("#ababab");
+    const QColor dark("#696969");
+    const QColor input("#ffffff");
+    const QColor selection("#0a64ad");
+
+    auto bevel = [&](int w, int h, const QColor &fill, bool sunken = false) {
+        QImage img(w, h, QImage::Format_ARGB32);
+        img.fill(fill);
+        QPainter p(&img);
+        p.setPen(sunken ? dark : light);
+        p.drawLine(0, 0, w - 1, 0);
+        p.drawLine(0, 0, 0, h - 1);
+        p.setPen(sunken ? light : dark);
+        p.drawLine(0, h - 1, w - 1, h - 1);
+        p.drawLine(w - 1, 0, w - 1, h - 1);
+        if (w > 3 && h > 3) {
+            p.setPen(sunken ? QColor("#7a7a7a") : mid);
+            p.drawLine(1, 1, w - 2, 1);
+            p.drawLine(1, 1, 1, h - 2);
+        }
+        return img;
+    };
+
+    if (f.startsWith(QLatin1String("popupwindow"))) {
+        const bool tall = f.contains(QLatin1String("tall"));
+        const int top = tall ? 45 : 27;
+        QImage img = bevel(48, top + 40, face);
+        QPainter p(&img);
+        p.fillRect(2, 2, img.width() - 4, top - 2, QColor("#e7eef7"));
+        p.setPen(QColor("#9ba7b5"));
+        p.drawLine(2, top, img.width() - 3, top);
+        return img;
+    }
+    if (f == QLatin1String("texture.png") || f.contains(QLatin1String("panel")))
+        return bevel(24, 24, face);
+    if (f.contains(QLatin1String("textedit")))
+        return bevel(24, 24, input, true);
+    if (f.startsWith(QLatin1String("separator"))) {
+        QImage img(2, 2, QImage::Format_ARGB32);
+        img.fill(mid);
+        QPainter p(&img);
+        p.setPen(light);
+        p.drawPoint(1, 1);
+        return img;
+    }
+    if (f.startsWith(QLatin1String("spinbox_")) || f.startsWith(QLatin1String("scrollbar_arrow_"))) {
+        const bool up = f.contains(QLatin1String("up"));
+        const bool down = f.contains(QLatin1String("down"));
+        const bool pressed = f.contains(QLatin1String("pressed")) || f.contains(QLatin1String("hover"));
+        QImage img = bevel(12, 12, pressed ? QColor("#e2e2e2") : face, pressed);
+        QPainter p(&img);
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor("#202020"));
+        if (up) p.drawPolygon(QPolygon({ {3, 7}, {8, 7}, {5, 4} }));
+        else if (down) p.drawPolygon(QPolygon({ {3, 4}, {8, 4}, {5, 7} }));
+        return img;
+    }
+    if (f == QLatin1String("scrollbar_track.png"))
+        return bevel(12, 16, QColor("#e4e4e4"), true);
+    if (f == QLatin1String("scrollbar_thumb.png"))
+        return bevel(12, 24, face);
+    if (f.contains(QLatin1String("checkbox"))) {
+        QImage img = bevel(13, 13, input, true);
+        if (f.contains(QLatin1String("on"))) {
+            QPainter p(&img);
+            QPen pen(QColor("#111111"));
+            pen.setWidth(2);
+            p.setPen(pen);
+            p.drawLine(3, 6, 5, 9);
+            p.drawLine(5, 9, 10, 3);
+        }
+        return img;
+    }
+
+    const bool active = f.contains(QLatin1String("active")) ||
+                        f.contains(QLatin1String("checked"));
+    const bool pressed = active || f.contains(QLatin1String("pressed"));
+    QColor fill = face;
+    if (active && f.startsWith(QLatin1String("tab")))
+        fill = input;
+    else if (f.contains(QLatin1String("hover")))
+        fill = QColor("#e5f1fb");
+    QImage img = bevel(24, 24, fill, pressed && !f.startsWith(QLatin1String("tab")));
+    if (active && f.startsWith(QLatin1String("tab"))) {
+        QPainter p(&img);
+        p.fillRect(1, 0, img.width() - 2, 2, selection);
+    }
+    return img;
 }
 
 QImage UiTheme::flatTexture(const QString &file) const
@@ -219,13 +320,16 @@ QImage UiTheme::texture(const QString &file) const
         style = m_style;
     }
 
-    QImage img = (style == QLatin1String("github-dark"))
+    QImage img = style == QLatin1String("github-dark")
                      ? flatTexture(file)
-                     : QImage(QStringLiteral(":/ui/") + file);
+                     : (style == QLatin1String("windows-classic")
+                            ? windowsClassicTexture(file)
+                            : QImage(QStringLiteral(":/ui/") + file));
     if (img.isNull()) {
         return img;
     }
-    if (style == QLatin1String("github-dark")) {
+    if (style == QLatin1String("github-dark") ||
+        style == QLatin1String("windows-classic")) {
         return img;
     }
     if (t == QColor(Qt::white)) {

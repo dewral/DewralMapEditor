@@ -8,13 +8,10 @@ namespace UpdateVersion {
 enum class Decision
 {
     Current,
-    Newer,
-    CompareCommits
+    Newer
 };
 
-Decision decide(const QString &channel,
-                const QString &latestVersion, const QString &latestCommit,
-                const QString &currentVersion, const QString &currentCommit);
+Decision decide(const QString &latestVersion, const QString &currentVersion);
 
 }
 

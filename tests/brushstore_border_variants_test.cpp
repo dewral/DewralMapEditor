@@ -2,6 +2,7 @@
 
 #include <QCoreApplication>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -60,6 +61,43 @@ int main(int argc, char **argv)
 
     BrushStore store;
     if (!store.loadForDir(dir.path())) return 4;
+    BrushStore mountainStore;
+    const QString profile = QFileInfo(QString::fromUtf8(__FILE__)).absolutePath()
+        + QStringLiteral("/../data/1098");
+    if (!mountainStore.loadForDir(profile)) return 14;
+    if (mountainStore.rotatedSelectionBorderItem(4456, 1) != 4457
+        || mountainStore.rotatedSelectionBorderItem(4456, 2) != 4458
+        || mountainStore.rotatedSelectionBorderItem(4460, 2) != 4462
+        || mountainStore.rotatedSelectionBorderItem(4464, 2) != 4466
+        || mountainStore.rotatedSelectionBorderItem(4456, -1) != 4459) return 15;
+    for (int id = 4456; id <= 4467; ++id) {
+        int rotated = id;
+        for (int turn = 0; turn < 4; ++turn)
+            rotated = mountainStore.rotatedSelectionBorderItem(rotated, 1);
+        if (rotated != id) return 16;
+    }
+    BrushStore legacyMountainStore;
+    if (!legacyMountainStore.loadForDir(QFileInfo(QString::fromUtf8(__FILE__)).absolutePath()
+        + QStringLiteral("/../data/772"))) return 17;
+    for (int id = 4456; id <= 4467; ++id)
+        for (int turns = 0; turns < 4; ++turns)
+            if (legacyMountainStore.rotatedSelectionBorderItem(id, turns)
+                != mountainStore.rotatedSelectionBorderItem(id, turns)) return 18;
+    if (legacyMountainStore.rotatedSelectionWallItem(1037, -1) != 1036
+        || legacyMountainStore.rotatedSelectionWallItem(1040, -1) != 1039
+        || legacyMountainStore.rotatedSelectionWallItem(1040, 1) != 1041
+        || legacyMountainStore.rotatedSelectionWallItem(1596, -1) != 1600) return 19;
+    for (int id : {1036, 1037, 1596, 1600}) {
+        int rotated = id;
+        for (int turn = 0; turn < 4; ++turn)
+            rotated = legacyMountainStore.rotatedSelectionWallItem(rotated, 1);
+        if (rotated != id) return 20;
+    }
+    if (legacyMountainStore.computeWallItem(QStringLiteral("framework wall"), true, true, false, false) != 1040
+        || legacyMountainStore.computeWallItem(QStringLiteral("framework wall"), false, true, false, true) != 1039
+        || legacyMountainStore.computeWallItem(QStringLiteral("wooden railing"), true, false, false, true) != 1596
+        || legacyMountainStore.computeWallItem(QStringLiteral("wooden railing"), false, true, true, false) != 1600)
+        return 21;
 
     const QVariantMap original = store.groundBrushEdit(QStringLiteral("grass"));
     const QVariantList originalBlocks = original.value(QStringLiteral("borders")).toList();

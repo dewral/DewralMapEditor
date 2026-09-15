@@ -876,6 +876,13 @@ void MapView::keyPressEvent(QKeyEvent *event)
     }
 
     if (event->key() == Qt::Key_Z && event->modifiers() == Qt::NoModifier
+        && !m_selectionController.selected().isEmpty() && !m_selectionController.pasting()) {
+        rotateSelection();
+        event->accept();
+        return;
+    }
+
+    if (event->key() == Qt::Key_Z && event->modifiers() == Qt::NoModifier
         && !m_brushController.doodadBrush().isEmpty()) {
         rotateDoodadBrush();
         event->accept();

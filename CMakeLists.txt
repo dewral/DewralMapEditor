@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
     "Disable Qt Creator package-manager auto setup" FORCE)
 
-project(DewralMapEditor VERSION 1.0.0 LANGUAGES CXX)
+project(DewralMapEditor VERSION 1.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

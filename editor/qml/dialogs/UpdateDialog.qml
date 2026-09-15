@@ -48,8 +48,6 @@ DmeDialog {
             Text { text: "Installed"; color: dialog.secondaryText; font.pixelSize: 11 }
             Text {
                 text: Backend.updateService.currentVersion
-                      + (Backend.updateService.currentCommit !== "unknown"
-                         ? " (" + Backend.updateService.currentCommit + ")" : "")
                 color: dialog.primaryText
                 font.pixelSize: 11
             }
@@ -62,8 +60,6 @@ DmeDialog {
             Text {
                 visible: Backend.updateService.latestVersion.length > 0
                 text: Backend.updateService.latestVersion
-                      + (Backend.updateService.latestCommit.length > 0
-                         ? " (" + Backend.updateService.latestCommit.substring(0, 12) + ")" : "")
                 color: dialog.primaryText
                 font.pixelSize: 11
             }

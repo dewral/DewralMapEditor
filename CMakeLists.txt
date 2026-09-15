@@ -13,17 +13,6 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-set(DME_BUILD_CHANNEL "stable" CACHE STRING "Application update channel")
-execute_process(
-    COMMAND git -c "safe.directory=${CMAKE_SOURCE_DIR}" rev-parse --short=12 HEAD
-    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    OUTPUT_VARIABLE DME_GIT_COMMIT
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    ERROR_QUIET)
-if(DME_GIT_COMMIT STREQUAL "")
-    set(DME_GIT_COMMIT "unknown")
-endif()
-
 find_package(Qt6 COMPONENTS Core Gui Qml Quick OpenGL Network Widgets Concurrent REQUIRED)
 qt_policy(SET QTP0001 NEW)
 
@@ -143,7 +132,7 @@ add_executable(DewralMapEditor
 
 # The sponsor logo is supplied separately. When present, embed it at the stable
 # qrc URL used by AboutDialog.qml without making a missing optional image break
-# development builds.
+# local builds.
 set(DME_SPONSOR_IMAGE "${CMAKE_SOURCE_DIR}/editor/ui/Midhem.png")
 if(EXISTS "${DME_SPONSOR_IMAGE}")
     set_source_files_properties("${DME_SPONSOR_IMAGE}" PROPERTIES
@@ -189,9 +178,7 @@ qt_add_qml_module(DewralMapEditor
 target_include_directories(DewralMapEditor PRIVATE editor/core editor/map editor/preview)
 
 target_compile_definitions(DewralMapEditor PRIVATE
-    DME_VERSION="${PROJECT_VERSION}"
-    DME_GIT_COMMIT="${DME_GIT_COMMIT}"
-    DME_BUILD_CHANNEL="${DME_BUILD_CHANNEL}")
+    DME_VERSION="${PROJECT_VERSION}")
 
 target_link_libraries(DewralMapEditor
     PRIVATE

@@ -13,6 +13,21 @@ file(REMOVE "${package_archive}")
 file(MAKE_DIRECTORY "${RELEASE_ROOT}")
 file(COPY "${DEPLOYED_DIRECTORY}/" DESTINATION "${package_directory}")
 
+# The deployment directory is also used for local development and can contain
+# old diagnostic executables. Only the application and its updater belong in
+# the portable release.
+file(GLOB packaged_executables
+    LIST_DIRECTORIES FALSE
+    "${package_directory}/*.exe"
+)
+foreach(packaged_executable IN LISTS packaged_executables)
+    get_filename_component(executable_name "${packaged_executable}" NAME)
+    if(NOT executable_name STREQUAL "DME.exe"
+       AND NOT executable_name STREQUAL "DMEUpdater.exe")
+        file(REMOVE "${packaged_executable}")
+    endif()
+endforeach()
+
 foreach(release_document IN ITEMS LICENSE NOTICE README.md)
     set(release_document_path "${SOURCE_ROOT}/${release_document}")
     if(NOT EXISTS "${release_document_path}")

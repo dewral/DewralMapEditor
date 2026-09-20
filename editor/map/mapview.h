@@ -576,8 +576,9 @@ public:
     Q_INVOKABLE bool startMapAnalysis();
     Q_INVOKABLE void cancelMapQuery();
     Q_INVOKABLE QVariantList mapOverlayData(bool includeTooltips,
-                                           bool includeWaypoints,
-                                           bool includeHouses = false) const;
+                                       bool includeWaypoints,
+                                       bool includeHouses = false,
+                                       bool includeLightSources = false) const;
     Q_INVOKABLE QVariantList contextItemPath() const;
     Q_INVOKABLE QVariantList contextContainerItems(const QVariantList &path) const;
     Q_INVOKABLE bool addContextContainerItem(const QVariantList &path, int serverId);

@@ -19,7 +19,8 @@ Item {
     readonly property real canvasMargin: 64
 
     clip: true
-    visible: settings.showClientBox || settings.showTooltips || settings.showWaypoints || settings.showHouses
+    visible: settings.showClientBox || settings.showTooltips || settings.showWaypoints
+             || settings.showHouses || settings.showLightSources
 
     function refreshData(force) {
         if (!mapCtrl)
@@ -35,13 +36,15 @@ Item {
                 + Math.ceil(width / currentTileSize) + ":"
                 + Math.ceil(height / currentTileSize) + ":"
                 + currentTileSize + ":" + settings.showTooltips + ":"
-                + settings.showWaypoints + ":" + settings.showHouses;
+                + settings.showWaypoints + ":" + settings.showHouses + ":"
+                + settings.showLightSources;
         if (!force && key === dataKey)
             return;
 
         dataKey = key;
         entries = mapCtrl.mapOverlayData(settings.showTooltips,
-                                         settings.showWaypoints, settings.showHouses);
+                                         settings.showWaypoints, settings.showHouses,
+                                         settings.showLightSources);
         paintedOriginX = originX;
         paintedOriginY = originY;
         worldCanvas.requestPaint();
@@ -81,6 +84,38 @@ Item {
         ctx.strokeText("EXIT", centerX, centerY);
         ctx.fillStyle = "#ffd966";
         ctx.fillText("EXIT", centerX, centerY);
+    }
+
+    function drawLightSource(ctx, tileX, tileY, intensity, red, green, blue) {
+        const tileSize = currentTileSize;
+        const x = (tileX * tileSize) + canvasMargin;
+        const y = (tileY * tileSize) + canvasMargin;
+        const inset = Math.max(1, Math.round(tileSize * 0.12));
+        const outerSize = Math.max(2, tileSize - inset * 2);
+        const badgeSize = Math.max(9, Math.min(18, Math.round(tileSize * 0.46)));
+        const badgeX = x + tileSize - badgeSize + 2;
+        const badgeY = y + tileSize - badgeSize + 2;
+
+        ctx.lineWidth = Math.max(1, Math.round(tileSize / 16));
+        ctx.strokeStyle = "white";
+        ctx.strokeRect(x + inset + 0.5, y + inset + 0.5,
+                       outerSize - 1, outerSize - 1);
+
+        ctx.fillStyle = Qt.rgba(red / 255, green / 255, blue / 255, 1.0);
+        ctx.fillRect(badgeX, badgeY, badgeSize, badgeSize);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "black";
+        ctx.strokeRect(badgeX + 0.5, badgeY + 0.5, badgeSize - 1, badgeSize - 1);
+        ctx.font = "bold " + Math.max(7, Math.min(11, Math.round(badgeSize * 0.62))) + "px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "white";
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 2;
+        ctx.strokeText(String(intensity), badgeX + badgeSize / 2,
+                       badgeY + badgeSize / 2 + 0.5);
+        ctx.fillText(String(intensity), badgeX + badgeSize / 2,
+                     badgeY + badgeSize / 2 + 0.5);
     }
 
     function drawTooltip(ctx, text, anchorX, anchorY, waypoint) {
@@ -148,7 +183,8 @@ Item {
            + (overlay.paintedOriginX - overlay.currentOriginX) * overlay.currentTileSize
         y: -overlay.canvasMargin
            + (overlay.paintedOriginY - overlay.currentOriginY) * overlay.currentTileSize
-        visible: overlay.settings.showTooltips || overlay.settings.showWaypoints || overlay.settings.showHouses
+        visible: overlay.settings.showTooltips || overlay.settings.showWaypoints
+                 || overlay.settings.showHouses || overlay.settings.showLightSources
 
         onPaint: {
             const ctx = getContext("2d");
@@ -165,6 +201,11 @@ Item {
                     overlay.drawWaypoint(ctx, centerX, centerY);
                 if (entry.kind === "house_exit" && overlay.settings.showHouses && !overlay.mapCtrl.modernZones)
                     overlay.drawHouseExit(ctx, centerX, centerY);
+                if (entry.kind === "light_source" && overlay.settings.showLightSources)
+                    overlay.drawLightSource(ctx, entry.x - overlay.paintedOriginX,
+                                            entry.y - overlay.paintedOriginY,
+                                            entry.intensity, entry.red, entry.green,
+                                            entry.blue);
                 if (overlay.settings.showTooltips && entry.kind !== "container" && entry.kind !== "house_exit"
                         && entry.text.length > 0)
                     overlay.drawTooltip(ctx, entry.text, centerX,
@@ -385,6 +426,7 @@ Item {
         function onShowTooltipsChanged() { overlay.refreshData(true); }
         function onShowWaypointsChanged() { overlay.refreshData(true); }
         function onShowHousesChanged() { overlay.refreshData(true); }
+        function onShowLightSourcesChanged() { overlay.refreshData(true); }
     }
 
     Component.onCompleted: refreshData(true)

@@ -21,8 +21,8 @@ Item {
         signal contentUpdated()
         function renderOriginX() { return 0; }
         function renderOriginY() { return 0; }
-        function mapOverlayData(tooltips, waypoints, houses) {
-            return houses ? [{kind: "house_exit", x: exitX, y: 1, name: "House", text: "EXIT"}] : [];
+        function mapOverlayData(tooltips, waypoints, houses, lights) {
+            return lights ? [{kind: "light_source", x: exitX, y: 1, name: "", text: "", intensity: 7, red: 255, green: 153, blue: 0}] : [];
         }
     }
     Components.MapOverlay {
@@ -32,40 +32,45 @@ Item {
         settings: prefs
     }
     TestCase {
-        name: "HouseExitOverlay"
+        name: "LightSourceOverlay"
         when: windowShown
         function init() {
             prefs.showTooltips = false;
-            prefs.showHouses = false;
+            prefs.showLightSources = false;
             map.exitX = 1;
             overlay.refreshData(true);
         }
-        function test_house_toggle_without_tooltips() {
+        function test_light_toggle_without_tooltips() {
             compare(overlay.visible, false);
-            prefs.showHouses = true;
+            prefs.showLightSources = true;
             compare(overlay.visible, true);
             compare(overlay.entries.length, 1);
-            compare(overlay.entries[0].kind, "house_exit");
-            prefs.showHouses = false;
+            compare(overlay.entries[0].kind, "light_source");
+            prefs.showLightSources = false;
             compare(overlay.entries.length, 0);
             prefs.showTooltips = true;
             compare(overlay.entries.length, 0);
         }
-        function test_refresh_after_exit_moves() {
-            prefs.showHouses = true;
+        function test_refresh_after_source_moves() {
+            prefs.showLightSources = true;
             map.exitX = 2;
             overlay.refreshData(true);
             compare(overlay.entries[0].x, 2);
         }
-        function test_exit_label() {
+        function test_source_badge() {
             let labels = [];
+            let fills = [];
             const ctx = {
-                strokeText: function(text, x, y) {},
-                fillText: function(text, x, y) { labels.push(text); }
+                strokeRect: function() {},
+                fillRect: function() { fills.push(this.fillStyle); },
+                strokeText: function() {},
+                fillText: function(text) { labels.push(text); }
             };
-            overlay.drawHouseExit(ctx, 16, 16);
+            overlay.drawLightSource(ctx, 1, 1, 7, 255, 153, 0);
             compare(labels.length, 1);
-            compare(labels[0], "EXIT");
+            compare(labels[0], "7");
+            compare(fills.length, 1);
+            compare(fills[0], Qt.rgba(1, 0.6, 0, 1));
         }
     }
 }

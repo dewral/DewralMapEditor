@@ -1,6 +1,6 @@
-# DME — RME minimal v4
+# DME — Fluent Dark minimal v4
 
-Makieta koncepcyjna dme-rme-minimal-v4.png wygenerowana wbudowanym image_gen, na podstawie najnowszego zrzutu użytkownika. Nie jest implementacją.
+Makieta koncepcyjna dme-fluent-minimal-v4.png wygenerowana wbudowanym image_gen, na podstawie najnowszego zrzutu użytkownika. Nie jest implementacją.
 
 Górny toolbar wyłącznie pliki, Undo/Redo i schowek. Wszystkie narzędzia mapowania i rozmiary pędzla na dole wąskiej lewej palety. Pozostałe funkcje DME pozostają w menu i oknach otwieranych na żądanie, zgodnie z mapowaniem funkcji w README.md. Brak dodatkowego prawego panelu. Pusta mapa pozwala ocenić rzeczywiste proporcje. Drobne etykiety i ikony w obrazie są ilustracyjne; wdrożenie wymaga poprawnych zasobów i pojedynczego czytelnego nagłówka Palette.
 

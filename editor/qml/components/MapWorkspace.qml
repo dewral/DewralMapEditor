@@ -5,7 +5,7 @@ import "../style"
 
 Item {
     id: workspace
-    readonly property bool rmeUi: Backend.uiTheme.style === "rme-fluent"
+    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
     required property var app
     required property var settings
     required property var propertiesDialog
@@ -13,7 +13,7 @@ Item {
     required property var paletteNavigator
     readonly property bool githubUi: Backend.uiTheme.style !== "classic"
                                      && Backend.uiTheme.style !== "windows-classic"
-                                     && Backend.uiTheme.style !== "rme-fluent"
+                                     && Backend.uiTheme.style !== "fluent-dark"
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
 
@@ -44,7 +44,7 @@ Item {
 
     DmePanel {
         anchors.fill: parent
-        visible: !workspace.rmeUi && !workspace.githubUi
+        visible: !workspace.fluentUi && !workspace.githubUi
     }
 
     Rectangle {
@@ -660,7 +660,7 @@ Item {
         }
 
         Rectangle {
-            visible: workspace.settings.showFps && !workspace.rmeUi && !workspace.githubUi
+            visible: workspace.settings.showFps && !workspace.fluentUi && !workspace.githubUi
             anchors {
                 left: parent.left
                 top: parent.top
@@ -709,7 +709,7 @@ Item {
                 bottom: parent.bottom
                 margins: 8
             }
-            visible: !workspace.rmeUi && !workspace.githubUi && mapView.hoverText.length > 0
+            visible: !workspace.fluentUi && !workspace.githubUi && mapView.hoverText.length > 0
             width: hoverLabel.implicitWidth + 16
             height: 22
             radius: 4
@@ -896,7 +896,7 @@ Item {
     }
 
     WorkTimerStatus {
-        visible: workspace.settings.showWorkTimer && !workspace.rmeUi && !workspace.githubUi && Backend.otbmReader.loaded
+        visible: workspace.settings.showWorkTimer && !workspace.fluentUi && !workspace.githubUi && Backend.otbmReader.loaded
         anchors {
             right: parent.right
             bottom: parent.bottom

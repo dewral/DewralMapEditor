@@ -10,10 +10,10 @@ Item {
     Components.PaletteItemGrid { id: items; width: 300; height: 200; app: app; mapCtrl: map; filterModel: []; currentKind: "Terrain Palette"; githubUi: false }
     Components.DoodadPaletteGrid { id: doodads; y: 210; width: 300; height: 200; app: app; mapCtrl: map; itemIds: []; categoryName: ""; searchText: ""; githubUi: false }
     TestCase {
-        name: "RmePaletteLayout"
+        name: "FluentPaletteLayout"
         when: windowShown
         function test_modesAndScale() {
-            Backend.uiTheme.style = "rme-fluent";
+            Backend.uiTheme.style = "fluent-dark";
             for (const panel of [items, doodads]) {
                 const grid = findChild(panel, "paletteGrid");
                 prefs.paletteViewMode = "grid";

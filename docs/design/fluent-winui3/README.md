@@ -1,4 +1,8 @@
-# DME — projekt Fluent WinUI 3
+# DME — Fluent Dark
+
+Fluent Dark to nazwa motywu aplikacji, opartego na Qt Fluent WinUI 3.
+Kod motywu znajduje się w `editor/qml/themes/fluent`, a jego identyfikator
+to `fluent-dark`. Poniższe makiety dokumentują rozwój projektu interfejsu.
 
 Projekt koncepcyjny, 16.09.2026. Makieta: `dme-fluent-concept-v1.png`.
 Grafika została wygenerowana wbudowanym image_gen; nie jest zrzutem działającej implementacji Qt. Miniatury, mapa i numery ID są ilustracyjne. Specyfikacja poniżej rozstrzyga detale, których obraz nie pokazuje dokładnie.

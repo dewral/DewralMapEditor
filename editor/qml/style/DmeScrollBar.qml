@@ -3,7 +3,7 @@ import Tibia 1.0
 
 Item {
     id: root
-    readonly property bool rmeTheme: Backend.uiTheme.style === "rme-fluent"
+    readonly property bool fluentTheme: Backend.uiTheme.style === "fluent-dark"
     property var flickable
     property bool dragging: false
     readonly property bool githubTheme: Backend.uiTheme.style !== "classic"
@@ -89,7 +89,7 @@ Item {
     }
     Component {
         id: githubTrack
-        Item { Rectangle { anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 4; radius: root.rmeTheme ? 0 : 2; color: root.rmeTheme ? "#252729" : root.grayTheme ? "#242424" : "#161B22" } }
+        Item { Rectangle { anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 4; radius: root.fluentTheme ? 0 : 2; color: root.fluentTheme ? "#252729" : root.grayTheme ? "#242424" : "#161B22" } }
     }
     Component {
         id: classicUp
@@ -113,6 +113,6 @@ Item {
     }
     Component {
         id: githubThumb
-        Item { Rectangle { anchors.fill: parent; anchors.leftMargin: 3; anchors.rightMargin: 3; radius: root.rmeTheme ? 0 : 3; color: thumbArea.containsMouse || root.dragging ? (root.grayTheme ? "#A0A0A0" : "#8B949E") : (root.rmeTheme ? "#777C80" : root.grayTheme ? "#666666" : "#57606A") } }
+        Item { Rectangle { anchors.fill: parent; anchors.leftMargin: 3; anchors.rightMargin: 3; radius: root.fluentTheme ? 0 : 3; color: thumbArea.containsMouse || root.dragging ? (root.grayTheme ? "#A0A0A0" : "#8B949E") : (root.fluentTheme ? "#777C80" : root.grayTheme ? "#666666" : "#57606A") } }
     }
 }

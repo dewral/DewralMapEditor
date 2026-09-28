@@ -3,7 +3,7 @@ import Tibia 1.0
 
 Item {
     id: tabs
-    readonly property bool fluentUi: Backend.uiTheme.style === "rme-fluent"
+    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
     readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
     required property var app
 

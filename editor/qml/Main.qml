@@ -14,13 +14,13 @@ import "themes/github"
 Window {
     id: root
     // Both modern themes share one layout. Only their palettes differ.
-    readonly property bool rmeFluentUi: Backend.uiTheme.style === "rme-fluent"
+    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
     readonly property bool windowsClassicUi: Backend.uiTheme.style === "windows-classic"
-    readonly property bool githubUi: Backend.uiTheme.style !== "classic" && !windowsClassicUi && !rmeFluentUi
+    readonly property bool githubUi: Backend.uiTheme.style !== "classic" && !windowsClassicUi && !fluentUi
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
     readonly property bool modernGrayUi: Backend.uiTheme.style === "gray-modern"
-    readonly property int topBarHeight: rmeFluentUi ? 54 : (githubUi ? 56 : 45)
+    readonly property int topBarHeight: fluentUi ? 54 : (githubUi ? 56 : 45)
     readonly property int minimumPaletteWidth: modernGrayUi ? 330 : (githubUi ? 220 : 160)
     readonly property int maximumPaletteWidth: Math.floor(width * 0.5)
 
@@ -45,13 +45,13 @@ Window {
 
     Rectangle {
         anchors.fill: parent
-        visible: root.rmeFluentUi
+        visible: root.fluentUi
         color: "#252729"
     }
 
     DmeDialogBackground {
         anchors.fill: parent
-        visible: !root.githubUi && !root.rmeFluentUi
+        visible: !root.githubUi && !root.fluentUi
 
         frameSource: (Backend.uiTheme.tex + "popupwindow_tall.png")
         topBorder: 45
@@ -76,8 +76,8 @@ Window {
             right: parent.right
             top: parent.top
             topMargin: root.githubUi ? 1 : 0
-            leftMargin: root.githubUi || root.rmeFluentUi ? 0 : 6
-            rightMargin: root.githubUi || root.rmeFluentUi ? 0 : 6
+            leftMargin: root.githubUi || root.fluentUi ? 0 : 6
+            rightMargin: root.githubUi || root.fluentUi ? 0 : 6
         }
 
         height: root.topBarHeight
@@ -102,17 +102,17 @@ Window {
 
         Rectangle {
             anchors.fill: parent
-            visible: root.rmeFluentUi
+            visible: root.fluentUi
             color: "#1C1E20"
             Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 27; color: "#252729" }
         }
         Image {
-            visible: root.rmeFluentUi
+            visible: root.fluentUi
             x: 10; y: 5; width: 16; height: 16
             source: "qrc:/ui/github/app-icon.png"
         }
         Text {
-            visible: root.rmeFluentUi
+            visible: root.fluentUi
             x: 38; y: 0; height: 27; width: Math.max(0, parent.width - 190)
             text: root.title
             color: "#EEEEEE"; font.pixelSize: 12; font.family: "Segoe UI"
@@ -122,14 +122,14 @@ Window {
         Text {
             id: titleText
 
-            visible: !root.githubUi && !root.rmeFluentUi
+            visible: !root.githubUi && !root.fluentUi
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
-            anchors.verticalCenterOffset: root.rmeFluentUi ? -15 : -5
+            anchors.verticalCenterOffset: root.fluentUi ? -15 : -5
             text: root.title
             color: root.windowsClassicUi ? "#202020" : "#c0c0c0"
             font.bold: !root.windowsClassicUi
-            font.pixelSize: root.rmeFluentUi ? 12 : 15
+            font.pixelSize: root.fluentUi ? 12 : 15
             elide: Text.ElideMiddle
 
             width: Math.max(0, Math.min(implicitWidth, parent.width - 2 * (menuBar.width + 24)))
@@ -179,11 +179,11 @@ Window {
 
         Row {
             id: winButtons
-            height: root.rmeFluentUi ? 27 : titleBar.height
+            height: root.fluentUi ? 27 : titleBar.height
             anchors {
                 right: parent.right
                 top: parent.top
-                bottom: root.rmeFluentUi ? undefined : parent.bottom
+                bottom: root.fluentUi ? undefined : parent.bottom
             }
             spacing: 0
             z: 5
@@ -261,7 +261,7 @@ Window {
     MainMenuBar {
         id: menuBar
         menuLeftInset: root.githubUi ? 52 : 4
-        menuVerticalOffset: root.rmeFluentUi ? 13 : (root.githubUi ? 0 : -4)
+        menuVerticalOffset: root.fluentUi ? 13 : (root.githubUi ? 0 : -4)
         width: root.githubUi ? 520 : implicitWidth
         appController: app
         mapView: workspace.mapView
@@ -344,12 +344,12 @@ Window {
         onAccepted: workspace.mapView.randomizeMap()
     }
 
-    RmeFluentFileBar {
+    FluentFileBar {
         id: fluentFileBar
         anchors.top: titleBar.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        visible: root.rmeFluentUi
+        visible: root.fluentUi
         height: visible ? 36 : 0
         mapView: workspace.mapView
         onNewRequested: newMapDialog.open()
@@ -360,17 +360,17 @@ Window {
 
     PalettePanel {
         id: palette
-        anchors.top: root.rmeFluentUi ? fluentFileBar.bottom : titleBar.bottom
+        anchors.top: root.fluentUi ? fluentFileBar.bottom : titleBar.bottom
         anchors.topMargin: 0
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.leftMargin: root.githubUi ? 1 : 6
-        anchors.bottomMargin: root.rmeFluentUi ? 28 : root.githubUi ? 1 : 6
+        anchors.bottomMargin: root.fluentUi ? 28 : root.githubUi ? 1 : 6
         width: {
             if (prefs.paletteCollapsed)
                 return 0;
             return Math.max(root.minimumPaletteWidth,
-                            Math.min(root.rmeFluentUi ? prefs.rmePaletteWidth : prefs.paletteWidth, root.maximumPaletteWidth));
+                            Math.min(root.fluentUi ? prefs.fluentPaletteWidth : prefs.paletteWidth, root.maximumPaletteWidth));
         }
         visible: !prefs.paletteCollapsed
         app: app
@@ -414,7 +414,7 @@ Window {
                 if (pressed) {
                     const value = Math.max(root.minimumPaletteWidth, Math.min(root.maximumPaletteWidth,
                         startWidth + (mapToItem(root.contentItem, mouse.x, 0).x - startX)));
-                    if (root.rmeFluentUi) prefs.rmePaletteWidth = value;
+                    if (root.fluentUi) prefs.fluentPaletteWidth = value;
                     else prefs.paletteWidth = value;
                 }
             }
@@ -499,15 +499,15 @@ Window {
 
     Loader {
         id: toolBar
-        height: root.rmeFluentUi ? 0 : (item ? item.height : 0)
-        anchors.top: root.rmeFluentUi ? fluentFileBar.bottom : titleBar.bottom
+        height: root.fluentUi ? 0 : (item ? item.height : 0)
+        anchors.top: root.fluentUi ? fluentFileBar.bottom : titleBar.bottom
         anchors.topMargin: 0
         anchors.left: paletteSplitter.right
         anchors.right: parent.right
-        anchors.leftMargin: root.rmeFluentUi ? 0 : root.githubUi ? 0 : 4
+        anchors.leftMargin: root.fluentUi ? 0 : root.githubUi ? 0 : 4
         anchors.rightMargin: root.githubUi ? 1 : 8
 
-        sourceComponent: root.rmeFluentUi ? null : root.githubUi
+        sourceComponent: root.fluentUi ? null : root.githubUi
                          ? githubToolBarComponent
                          : classicToolBarComponent
     }
@@ -535,9 +535,9 @@ Window {
         anchors.topMargin: 0
         anchors.left: paletteSplitter.right
         anchors.right: parent.right
-        anchors.leftMargin: root.rmeFluentUi ? 0 : root.githubUi ? 0 : 4
+        anchors.leftMargin: root.fluentUi ? 0 : root.githubUi ? 0 : 4
         anchors.rightMargin: root.githubUi ? 1 : 8
-        height: app.started ? (root.rmeFluentUi ? 30 : root.githubUi ? 42 : 22) : 0
+        height: app.started ? (root.fluentUi ? 30 : root.githubUi ? 42 : 22) : 0
         visible: app.started
 
         sourceComponent: root.githubUi
@@ -618,9 +618,9 @@ Window {
         anchors.bottom: parent.bottom
         anchors.left: paletteSplitter.right
         anchors.right: parent.right
-        anchors.leftMargin: root.rmeFluentUi ? 0 : root.githubUi ? 0 : 4
+        anchors.leftMargin: root.fluentUi ? 0 : root.githubUi ? 0 : 4
         anchors.rightMargin: root.githubUi ? 1 : 8
-        anchors.bottomMargin: root.rmeFluentUi ? 28 : root.githubUi ? 1 : 6
+        anchors.bottomMargin: root.fluentUi ? 28 : root.githubUi ? 1 : 6
         visible: app.started
         app: app
         settings: prefs
@@ -630,7 +630,7 @@ Window {
     }
 
     Rectangle {
-        visible: root.rmeFluentUi && app.started
+        visible: root.fluentUi && app.started
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
         height: 26; color: "#292B2D"
         Row {

@@ -1,6 +1,6 @@
-# DME — RME layout / Fluent v3
+# DME — Fluent Dark layout v3
 
-Makieta graficzna wygenerowana wbudowanym image_gen, nie implementacja. Plik: dme-rme-layout-v3.png.
+Makieta graficzna wygenerowana wbudowanym image_gen, nie implementacja. Plik: dme-fluent-layout-v3.png.
 
 Układ wzorowany na zrzucie użytkownika: menu i pasek ikon u góry; paleta, tileset i miniatury po lewej; Tools oraz Brush size na dole palety; mapa z kartami i paskami przewijania po prawej; pasek stanu na dole. Ciemne wykończenie Fluent. W docelowym układzie szerokość palety regulowana, startowo 225–260 px, miniatury 32 px; makieta pokazuje powiększone kontrolki dla czytelności.
 

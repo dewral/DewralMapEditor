@@ -1,14 +1,14 @@
 import QtQuick
 import QtQuick.Window
 import Tibia 1.0
-import "../themes/rme/Colors.js" as RmeColors
+import "../themes/fluent/Colors.js" as FluentColors
 
 // Lightweight GitHub-style tooltip. It is an Item instead of a Controls
 // Popup so it also works in the editor's frameless Window (which is not an
 // ApplicationWindow and therefore has no guaranteed Controls overlay).
 Item {
     id: root
-    readonly property bool rmeTheme: Backend.uiTheme.style === "rme-fluent"
+    readonly property bool fluentTheme: Backend.uiTheme.style === "fluent-dark"
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
 
@@ -62,18 +62,18 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: root.rmeTheme ? 0 : 6
-        color: root.rmeTheme ? RmeColors.popup : root.grayTheme ? "#242424" : "#161B22"
+        radius: root.fluentTheme ? 0 : 6
+        color: root.fluentTheme ? FluentColors.popup : root.grayTheme ? "#242424" : "#161B22"
         border.width: 1
-        border.color: root.rmeTheme ? RmeColors.border : root.grayTheme ? "#484848" : "#30363D"
+        border.color: root.fluentTheme ? FluentColors.border : root.grayTheme ? "#484848" : "#30363D"
 
         Rectangle {
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
             width: 2
-            radius: root.rmeTheme ? 0 : 1
-            color: root.rmeTheme ? RmeColors.accent : root.grayTheme ? "#C79A3B" : "#2EA043"
+            radius: root.fluentTheme ? 0 : 1
+            color: root.fluentTheme ? FluentColors.accent : root.grayTheme ? "#C79A3B" : "#2EA043"
         }
     }
 
@@ -85,7 +85,7 @@ Item {
         topPadding: 6
         bottomPadding: 6
         text: root.message
-        color: root.rmeTheme ? RmeColors.text : root.grayTheme ? "#F0F0F0" : "#E6EDF3"
+        color: root.fluentTheme ? FluentColors.text : root.grayTheme ? "#F0F0F0" : "#E6EDF3"
         font.pixelSize: 12
         elide: Text.ElideRight
         verticalAlignment: Text.AlignVCenter

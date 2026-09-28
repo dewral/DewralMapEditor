@@ -4,7 +4,7 @@ import Tibia 1.0
 
 Item {
     id: root
-    readonly property bool fluentUi: Backend.uiTheme.style === "rme-fluent"
+    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
 

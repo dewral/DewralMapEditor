@@ -23,7 +23,7 @@ Column {
                     Image {
                         anchors.horizontalCenter: parent.horizontalCenter
                         width: 16; height: 16
-                        source: "qrc:/qml/themes/rme/icons/" + toolButton.modelData + ".svg"
+                        source: "qrc:/qml/themes/fluent/icons/" + toolButton.modelData + ".svg"
                     }
                     Text { anchors.horizontalCenter: parent.horizontalCenter; text: toolButton.modelData; color: "#E0E0E0"; font.pixelSize: 9 }
                 }

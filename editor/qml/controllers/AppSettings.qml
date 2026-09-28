@@ -1,7 +1,7 @@
 import QtCore
 
 Settings {
-    property int rmePaletteWidth: 225
+    property int fluentPaletteWidth: 225
     property bool showWorkTimer: true
     property bool showFps: true
     property string clientFolder: ""

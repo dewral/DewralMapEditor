@@ -10,7 +10,7 @@ Column {
 
     required property var app
     required property var mapCtrl
-    readonly property bool fluentUi: Backend.uiTheme.style === "rme-fluent"
+    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
     required property bool githubUi
     required property string searchText
     required property string filterMode

@@ -13,7 +13,7 @@ DmeDialog {
     width: Math.min(820, Overlay.overlay ? Overlay.overlay.width - 32 : 820)
     height: Math.min(570, Overlay.overlay ? Overlay.overlay.height - 32 : 570)
     property int page: 0
-    readonly property bool rmeUi: Backend.uiTheme.style === "rme-fluent"
+    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
 
     function styleIndex() {
         for (let i = 0; i < Backend.uiTheme.styles.length; ++i)
@@ -44,13 +44,13 @@ DmeDialog {
                         required property int index
                         width: parent.width
                         height: 58
-                        radius: dialog.rmeUi ? 0 : 5
-                        color: dialog.page === index ? (dialog.rmeUi ? "#414447" : "#493A1D") : navMouse.containsMouse ? "#252A31" : "transparent"
-                        border { width: dialog.page === index ? 1 : 0; color: dialog.rmeUi ? "#B8BDC2" : "#C89B3C" }
+                        radius: dialog.fluentUi ? 0 : 5
+                        color: dialog.page === index ? (dialog.fluentUi ? "#414447" : "#493A1D") : navMouse.containsMouse ? "#252A31" : "transparent"
+                        border { width: dialog.page === index ? 1 : 0; color: dialog.fluentUi ? "#B8BDC2" : "#C89B3C" }
                         Column {
                             anchors.centerIn: parent
                             spacing: 3
-                            Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.icon; color: dialog.page === index ? (dialog.rmeUi ? "#B8BDC2" : "#E3B341") : "#8B949E"; font.pixelSize: 17 }
+                            Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.icon; color: dialog.page === index ? (dialog.fluentUi ? "#B8BDC2" : "#E3B341") : "#8B949E"; font.pixelSize: 17 }
                             Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.name; color: dialog.page === index ? "#F0F3F6" : "#C9D1D9"; font.pixelSize: 11 }
                         }
                         MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; onClicked: dialog.page = index }

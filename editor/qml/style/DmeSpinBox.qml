@@ -2,7 +2,7 @@ import QtQuick
 import "../themes/classic/controls" as Classic
 import "../themes/github/controls" as Github
 import "../themes/gray/controls" as Gray
-import "../themes/rme/controls" as Rme
+import "../themes/fluent/controls" as Fluent
 import Tibia 1.0
 
 Item {
@@ -28,7 +28,7 @@ Item {
     Loader {
         id: controlLoader
         anchors.fill: parent
-        sourceComponent: Backend.uiTheme.style === "rme-fluent" ? rmeSpinBox : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicSpinBox : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? graySpinBox : githubSpinBox)
+        sourceComponent: Backend.uiTheme.style === "fluent-dark" ? fluentSpinBox : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicSpinBox : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? graySpinBox : githubSpinBox)
     }
     Component {
         id: classicSpinBox
@@ -51,6 +51,6 @@ Item {
         }
     }
     Component { id: graySpinBox; Gray.GraySpinBox { value: root.value; from: root.from; to: root.to; stepSize: root.stepSize; editable: root.editable; enabled: root.enabled; nextTabItem: root.nextTabItem; previousTabItem: root.previousTabItem; pasteHandler: root.pasteHandler; onValueModified: value => { root.value = value; root.valueModified(); } } }
-    Component { id: rmeSpinBox; Rme.RmeSpinBox { value: root.value; from: root.from; to: root.to; stepSize: root.stepSize; editable: root.editable; enabled: root.enabled; nextTabItem: root.nextTabItem; previousTabItem: root.previousTabItem; pasteHandler: root.pasteHandler; onValueModified: value => { root.value = value; root.valueModified(); } }
+    Component { id: fluentSpinBox; Fluent.FluentSpinBox { value: root.value; from: root.from; to: root.to; stepSize: root.stepSize; editable: root.editable; enabled: root.enabled; nextTabItem: root.nextTabItem; previousTabItem: root.previousTabItem; pasteHandler: root.pasteHandler; onValueModified: value => { root.value = value; root.valueModified(); } }
 }
 }

@@ -39,7 +39,7 @@ Rectangle {
                         anchors.centerIn: parent
                         width: 20
                         height: 20
-                        source: "qrc:/qml/themes/rme/icons/" + toolButton.modelData.op + ".svg"
+                        source: "qrc:/qml/themes/fluent/icons/" + toolButton.modelData.op + ".svg"
                         sourceSize: Qt.size(20, 20)
                         opacity: toolButton.enabled ? 1 : 0.35
                     }

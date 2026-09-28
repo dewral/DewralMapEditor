@@ -6,7 +6,7 @@ Column {
     id: root
 
     required property var mapCtrl
-    readonly property bool fluentUi: Backend.uiTheme.style === "rme-fluent"
+    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
     required property bool githubUi
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"

@@ -44,8 +44,8 @@ Column {
         }
 
         Item {
-            width: Backend.uiTheme.style === "rme-fluent" ? parent.width : root.githubUi ? 6 : 10
-            height: Backend.uiTheme.style === "rme-fluent" ? 0 : 26
+            width: Backend.uiTheme.style === "fluent-dark" ? parent.width : root.githubUi ? 6 : 10
+            height: Backend.uiTheme.style === "fluent-dark" ? 0 : 26
         }
 
         Repeater {
@@ -58,12 +58,12 @@ Column {
                 round: root.mapCtrl.brushShape === "circle"
                 iconSize: 6 + index * 2
                 onClicked: root.mapCtrl.brushSize = modelData
-                ToolTip.visible: !root.githubUi && Backend.uiTheme.style !== "rme-fluent" && hovered
+                ToolTip.visible: !root.githubUi && Backend.uiTheme.style !== "fluent-dark" && hovered
                 ToolTip.text: (modelData * 2 + 1) + "x" + (modelData * 2 + 1)
 
                 GithubToolTip {
                     targetItem: hoverArea
-                    targetHovered: (root.githubUi || Backend.uiTheme.style === "rme-fluent") && hovered
+                    targetHovered: (root.githubUi || Backend.uiTheme.style === "fluent-dark") && hovered
                     message: (modelData * 2 + 1) + "x" + (modelData * 2 + 1)
                 }
             }

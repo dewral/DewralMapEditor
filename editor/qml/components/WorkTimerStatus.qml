@@ -14,8 +14,8 @@ Item {
     property var selectedSession: null
     property string pendingTimerRemoval: ""
     property bool showTimerDetails: false
-    readonly property bool rmeTheme: Backend.uiTheme.style === "rme-fluent"
-    readonly property bool grayTheme: rmeTheme || Backend.uiTheme.style === "gray-dark"
+    readonly property bool fluentTheme: Backend.uiTheme.style === "fluent-dark"
+    readonly property bool grayTheme: fluentTheme || Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
     readonly property color panelColor: grayTheme ? "#1A1A1A" : "#0F141B"
     readonly property color cardColor: grayTheme ? "#242424" : "#151B23"
@@ -25,7 +25,7 @@ Item {
     readonly property color strongText: grayTheme ? "#F0F0F0" : "#F0F3F6"
     readonly property color mutedText: grayTheme ? "#9A9A9A" : "#8B949E"
     readonly property color subtleText: grayTheme ? "#777777" : "#6E7681"
-    readonly property color activeFill: rmeTheme ? "#414447" : grayTheme ? "#4A3A1F" : "#163B2C"
+    readonly property color activeFill: fluentTheme ? "#414447" : grayTheme ? "#4A3A1F" : "#163B2C"
 
     function durationFromText(value) {
         var parts = value.split(":")
@@ -49,7 +49,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: root.rmeTheme ? 0 : 4
+        radius: root.fluentTheme ? 0 : 4
         color: hit.containsMouse ? root.hoverColor : "transparent"
     }
     Row {
@@ -122,7 +122,7 @@ Item {
 
             Rectangle {
                 anchors.fill: parent
-                radius: root.rmeTheme ? 0 : 4
+                radius: root.fluentTheme ? 0 : 4
                 color: statusToggleMouse.containsMouse ? root.activeFill : "transparent"
                 border.width: Backend.workTimer.active ? 1 : 0
                 border.color: root.accent
@@ -202,7 +202,7 @@ Item {
             color: root.panelColor
             border.color: root.borderColor
             border.width: 1
-            radius: root.rmeTheme ? 0 : 8
+            radius: root.fluentTheme ? 0 : 8
         }
 
         Column {
@@ -284,7 +284,7 @@ Item {
                                 required property var modelData
                                 width: taskTimerList.width
                                 height: 42
-                                radius: root.rmeTheme ? 0 : 3
+                                radius: root.fluentTheme ? 0 : 3
                                 color: modelData.active ? root.activeFill : (timerMouse.containsMouse ? root.hoverColor : "transparent")
                                 border.width: modelData.active ? 1 : 0
                                 border.color: root.accent
@@ -405,7 +405,7 @@ Item {
                             required property int index
                             width: historyList.width
                             height: 58
-                            radius: root.rmeTheme ? 0 : 4
+                            radius: root.fluentTheme ? 0 : 4
                             color: historyMouse.containsMouse ? root.hoverColor : (index % 2 ? root.panelColor : root.cardColor)
                             border.width: 1
                             border.color: root.borderColor

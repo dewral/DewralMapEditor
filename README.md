@@ -27,11 +27,21 @@ multi-floor Tibia maps.
   cut/copy/paste, undo/redo, item properties, search, and replacement tools.
 - Includes a configurable In-game Preview window. [ WIP ]
 - Loads maps even when optional house and spawn sidecar files are absent.
-- Lets you switch between the modern GitHub-inspired interface and the
-  Tibia-inspired Classic UI from the theme settings.
+- Offers Fluent Dark, GitHub Dark, gray themes, Windows Classic and the
+  Tibia-inspired Classic UI through the theme settings.
 - Produces a self-contained Windows release folder and ZIP archive.
 
 ## Screenshots
+
+### Fluent Dark
+
+Fluent Dark provides a compact file toolbar, a resizable palette with larger
+item previews, fixed-width drawing tools and a full-width status bar. Select
+**Fluent Dark** in the theme settings. FPS and work timer visibility can be
+changed from the View menu.
+
+The theme uses Qt Fluent WinUI 3 controls. Design concepts and layout notes are
+available in [the design documentation](docs/design/fluent-winui3/README.md).
 
 ### Client profiles
 
@@ -49,7 +59,7 @@ Create and organize custom brushes directly in the editor.
 ### Classic UI
 
 The interface can be changed at any time in the theme settings. Choose the
-modern GitHub-inspired layout or the textured, Tibia-inspired Classic UI.
+Fluent Dark, the modern GitHub-inspired layout or the textured, Tibia-inspired Classic UI.
 
 ![Dewral Map Editor using the Tibia-inspired Classic UI](docs/screenshots/classic-interface.png)
 

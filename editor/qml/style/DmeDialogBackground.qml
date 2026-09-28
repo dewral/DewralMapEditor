@@ -2,6 +2,7 @@ import QtQuick
 import "../themes/classic/controls" as Classic
 import "../themes/github/controls" as Github
 import "../themes/gray/controls" as Gray
+import "../themes/fluent/controls" as Fluent
 import Tibia 1.0
 
 Item {
@@ -10,9 +11,10 @@ Item {
     property url frameSource: Backend.uiTheme.tex + "popupwindow.png"
     Loader {
         anchors.fill: parent
-        sourceComponent: (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicBackground : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayBackground : githubBackground)
+        sourceComponent: Backend.uiTheme.style === "fluent-dark" ? fluentBackground : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicBackground : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayBackground : githubBackground)
     }
     Component { id: classicBackground; Classic.ClassicDialogBackground { topBorder: root.topBorder; frameSource: root.frameSource } }
     Component { id: githubBackground; Github.GithubDialogBackground {} }
     Component { id: grayBackground; Gray.GrayDialogBackground {} }
+    Component { id: fluentBackground; Fluent.FluentDialogBackground {} }
 }

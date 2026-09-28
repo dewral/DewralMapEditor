@@ -442,7 +442,19 @@ DmeMenuBar {
 
     DmeMenu {
         title: "View"
+        Action {
+            text: "Show FPS"
+            checkable: true
+            checked: menuBar.settings.showFps
+            onTriggered: menuBar.settings.showFps = checked
+        }
         focus: false
+        Action {
+            text: "Show Work Timer"
+            checkable: true
+            checked: menuBar.settings.showWorkTimer
+            onTriggered: menuBar.settings.showWorkTimer = checked
+        }
         Action {
             text: "Zoom In"
             shortcut: "Ctrl++"

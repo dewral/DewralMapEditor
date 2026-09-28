@@ -32,6 +32,7 @@ QtObject {
         function deleteTileset(kind, name) { return true }
     }
     property QtObject otbReader: QtObject {
+        property bool loaded: true
         function clientIdForServerId(id) { return 0 }
         function rowForServerId(id) { return -1 }
         function detailsAt(row) { return {} }

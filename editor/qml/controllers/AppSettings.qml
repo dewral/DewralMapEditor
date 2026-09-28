@@ -1,6 +1,9 @@
 import QtCore
 
 Settings {
+    property int fluentPaletteWidth: 225
+    property bool showWorkTimer: true
+    property bool showFps: true
     property string clientFolder: ""
     property string clientPathsJson: "{}"
     property string customProfilesJson: "[]"

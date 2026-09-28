@@ -44,7 +44,9 @@ DmeDialog {
 
         Text {
             width: parent.width - 24
-            text: Backend.uiTheme.style === "windows-classic"
+            text: Backend.uiTheme.style === "fluent-dark"
+                  ? "Fluent Dark layout: compact file toolbar, narrow palette and drawing tools below the tiles."
+                  : Backend.uiTheme.style === "windows-classic"
                   ? "Compact Windows-inspired layout with light beveled controls and native-looking menus."
                   : (Backend.uiTheme.style === "classic"
                   ? "Original Tibia-inspired layout and textured controls."

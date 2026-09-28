@@ -10,9 +10,11 @@ Item {
     required property var mapCtrl
     required property var filterModel
     required property string currentKind
+    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
     required property bool githubUi
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
+    readonly property int fluentCellSize: root.app.iconSizePx
     readonly property bool listView: root.app.settings.paletteViewMode === "list"
 
     signal contextMenuRequested(int serverId)
@@ -33,6 +35,7 @@ Item {
 
     GridView {
         id: grid
+        objectName: "paletteGrid"
 
         readonly property int githubGridGap: 8
         readonly property int githubPreferredCellWidth: Math.max(72, root.app.iconSizePx + 14)
@@ -42,16 +45,16 @@ Item {
                                                                               / (githubPreferredCellWidth + githubGridGap) + 0.4)))
         readonly property real githubCellHeight: root.listView
                                                      ? Math.max(48, root.app.iconSizePx * 0.72)
-                                                     : root.app.iconSizePx + 22
+                                                     : (root.fluentUi ? root.fluentCellSize : root.app.iconSizePx) + 22
 
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         width: parent.width - (root.githubUi ? 4 : 14)
         clip: true
-        cellWidth: root.githubUi ? Math.max(1, Math.floor(width / githubColumns))
-                                 : root.app.iconSizePx
-        cellHeight: root.githubUi ? githubCellHeight : root.app.iconSizePx
+        cellWidth: root.listView ? grid.width : root.githubUi ? Math.max(1, Math.floor(width / githubColumns))
+                                 : (root.fluentUi ? root.fluentCellSize : root.app.iconSizePx)
+        cellHeight: root.listView ? Math.max(48, root.app.iconSizePx * 0.72) : root.githubUi ? githubCellHeight : (root.fluentUi ? root.fluentCellSize : root.app.iconSizePx)
         model: Backend.otbReader.loaded
                ? (root.directAllItems ? Backend.otbReader : root.filterModel)
                : (Backend.datReader.loaded ? Backend.datReader : Backend.sprReader)
@@ -69,12 +72,12 @@ Item {
             property string doodadPreview: typeof serverId !== "undefined"
                                            ? root.mapCtrl.doodadPreviewSource(serverId) : ""
             color: isBrush
-                   ? (root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
+                   ? (root.fluentUi ? "#414447" : root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
                    : (cellMouseArea.containsMouse
                       ? (root.githubUi ? (root.grayUi ? "#303030" : "#161E27") : "#303030")
-                      : (root.githubUi ? (root.grayUi ? "#242424" : "#0D1117") : "#252525"))
+                      : (root.githubUi ? (root.grayUi ? "#242424" : "#0D1117") : (root.fluentUi ? "#252729" : "#252525")))
             border.color: isBrush
-                          ? (root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
+                          ? (root.fluentUi ? "#B8BDC2" : root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
                           : (root.githubUi
                              ? (cellMouseArea.containsMouse ? (root.grayUi ? "#595959" : "#3A4655") : (root.grayUi ? "#424242" : "#202A35"))
                              : "#3a3a3a")
@@ -98,7 +101,7 @@ Item {
                                                        : Math.max(1, parent.width - (root.githubUi ? 12 : 6))
                 readonly property real availableH: Math.max(1, parent.height - (root.githubUi ? 24 : 6))
                 readonly property real tileScale: (grid.cellWidth - (root.githubUi ? 16 : 6)) / 64
-                readonly property real fitScale: Math.min(root.githubUi ? 1 : tileScale,
+                readonly property real fitScale: Math.min(root.fluentUi ? (root.app.iconSizePx - 8) / 32 : root.githubUi ? 1 : tileScale,
                                                            availableW / nativeW,
                                                            availableH / nativeH)
 
@@ -127,7 +130,7 @@ Item {
             }
 
             Text {
-                visible: !root.listView
+                visible: !root.listView && !root.fluentUi
                 anchors.bottom: parent.bottom
                 anchors.horizontalCenter: root.githubUi ? parent.horizontalCenter : undefined
                 anchors.right: root.githubUi ? undefined : parent.right
@@ -179,18 +182,23 @@ Item {
                 hoverEnabled: true
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 cursorShape: Qt.PointingHandCursor
-                ToolTip.visible: !root.githubUi && containsMouse
-                                     && typeof itemName !== "undefined" && itemName.length > 0
-                ToolTip.text: (typeof itemName !== "undefined" ? itemName : "")
-                              + (typeof serverId !== "undefined" ? "  (sid " + serverId + ")" : "")
+                readonly property string itemTooltip: {
+                    const name = typeof itemName !== "undefined" ? itemName.trim() : "";
+                    const ids = [];
+                    if (typeof serverId !== "undefined") ids.push("Server ID: " + serverId);
+                    if (typeof clientId !== "undefined" && clientId > 0) ids.push("Client ID: " + clientId);
+                    if (!ids.length && typeof itemId !== "undefined") ids.push("Item ID: " + itemId);
+                    if (!ids.length && typeof spriteId !== "undefined") ids.push("Sprite ID: " + spriteId);
+                    return (name || "Unnamed item") + (ids.length ? "\n" + ids.join("  ") : "");
+                }
+                ToolTip.visible: !root.githubUi && !root.fluentUi && containsMouse
+                ToolTip.text: itemTooltip
                 ToolTip.delay: 550
 
                 GithubToolTip {
                     targetItem: cellMouseArea
-                    targetHovered: root.githubUi && cellMouseArea.containsMouse
-                                   && typeof itemName !== "undefined" && itemName.length > 0
-                    message: (typeof itemName !== "undefined" ? itemName : "")
-                             + (typeof serverId !== "undefined" ? "  (sid " + serverId + ")" : "")
+                    targetHovered: (root.githubUi || root.fluentUi) && cellMouseArea.containsMouse
+                    message: cellMouseArea.itemTooltip
                 }
 
                 onClicked: mouse => {

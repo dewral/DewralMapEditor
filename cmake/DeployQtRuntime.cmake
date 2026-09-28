@@ -16,15 +16,12 @@ execute_process(
         --verbose 0
         --skip-plugin-types generic,qmltooling,networkinformation
         --exclude-plugins qgif,qico,qjpeg
-        --no-quickcontrols2fusion
-        --no-quickcontrols2fusionstyleimpl
         --no-quickcontrols2imagine
         --no-quickcontrols2imaginestyleimpl
         --no-quickcontrols2material
         --no-quickcontrols2materialstyleimpl
         --no-quickcontrols2universal
         --no-quickcontrols2universalstyleimpl
-        --no-quickcontrols2fluentwinui3styleimpl
         --no-quickcontrols2windowsstyleimpl
         --no-quickeffects
         "${APPLICATION_FILE}"
@@ -41,9 +38,6 @@ set(obsolete_runtime_paths
     "DME_ui_preview.exe"
     "opengl32sw.dll"
     "Qt6Quick3DUtils.dll"
-    "Qt6QuickControls2FluentWinUI3StyleImpl.dll"
-    "Qt6QuickControls2Fusion.dll"
-    "Qt6QuickControls2FusionStyleImpl.dll"
     "Qt6QuickControls2Imagine.dll"
     "Qt6QuickControls2ImagineStyleImpl.dll"
     "Qt6QuickControls2Material.dll"
@@ -61,8 +55,6 @@ set(obsolete_runtime_paths
     "imageformats/qjpeg.dll"
     "tls/qcertonlybackend.dll"
     "tls/qopensslbackend.dll"
-    "qml/QtQuick/Controls/FluentWinUI3"
-    "qml/QtQuick/Controls/Fusion"
     "qml/QtQuick/Controls/Imagine"
     "qml/QtQuick/Controls/Material"
     "qml/QtQuick/Controls/Universal"

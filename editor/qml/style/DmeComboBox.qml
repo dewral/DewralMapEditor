@@ -2,6 +2,7 @@ import QtQuick
 import "../themes/classic/controls" as Classic
 import "../themes/github/controls" as Github
 import "../themes/gray/controls" as Gray
+import "../themes/fluent/controls" as Fluent
 import Tibia 1.0
 
 Item {
@@ -14,7 +15,7 @@ Item {
     implicitWidth: controlLoader.item ? controlLoader.item.implicitWidth : 140
     implicitHeight: controlLoader.item ? controlLoader.item.implicitHeight : 23
 
-    Loader { id: controlLoader; anchors.fill: parent; sourceComponent: (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicCombo : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayCombo : githubCombo) }
+    Loader { id: controlLoader; anchors.fill: parent; sourceComponent: Backend.uiTheme.style === "fluent-dark" ? fluentCombo : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicCombo : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayCombo : githubCombo) }
     Component {
         id: classicCombo
         Classic.ClassicComboBox {
@@ -30,4 +31,13 @@ Item {
         }
     }
     Component { id: grayCombo; Gray.GrayComboBox { model: root.model; currentIndex: root.currentIndex; enabled: root.enabled; onActivated: index => { root.currentIndex = index; root.activated(index); } } }
+    Component {
+        id: fluentCombo
+        Fluent.FluentComboBox {
+            model: root.model
+            currentIndex: root.currentIndex
+            enabled: root.enabled
+            onActivated: index => { root.currentIndex = index; root.activated(index); }
+        }
+    }
 }

@@ -13,9 +13,11 @@ Item {
     required property var itemIds
     required property string categoryName
     required property string searchText
+    readonly property bool fluentUi: Backend.uiTheme.style === "rme-fluent"
     required property bool githubUi
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
+    readonly property int fluentCellSize: root.app.iconSizePx
     readonly property bool listView: root.app.settings.paletteViewMode === "list"
 
     signal contextMenuRequested(int serverId)
@@ -82,6 +84,7 @@ Item {
 
     GridView {
         id: grid
+        objectName: "paletteGrid"
         readonly property int gap: root.githubUi ? 8 : 2
         readonly property int preferredWidth: root.githubUi ? Math.max(72, root.app.iconSizePx + 14)
                                                           : root.app.iconSizePx
@@ -92,8 +95,8 @@ Item {
         anchors.bottom: parent.bottom
         width: parent.width - (root.githubUi ? 4 : 14)
         clip: true
-        cellWidth: root.githubUi ? Math.max(1, Math.floor(width / columns)) : root.app.iconSizePx
-        cellHeight: root.githubUi ? (root.listView ? Math.max(48, root.app.iconSizePx * 0.72)
+        cellWidth: root.listView ? grid.width : root.fluentUi ? root.fluentCellSize : root.githubUi ? Math.max(1, Math.floor(width / columns)) : root.app.iconSizePx
+        cellHeight: root.listView ? Math.max(48, root.app.iconSizePx * 0.72) : root.fluentUi ? root.fluentCellSize : root.githubUi ? (root.listView ? Math.max(48, root.app.iconSizePx * 0.72)
                                                   : root.app.iconSizePx + 22)
                                   : root.app.iconSizePx
         model: root.entries
@@ -114,11 +117,11 @@ Item {
             height: grid.cellHeight - grid.gap
             radius: root.githubUi ? 4 : 0
             clip: true
-            color: selected ? (root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
+            color: selected ? (root.fluentUi ? "#414447" : root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
                             : (area.containsMouse ? (root.githubUi ? (root.grayUi ? "#303030" : "#161E27") : "#303030")
-                                                  : (root.githubUi ? (root.grayUi ? "#242424" : "#0D1117") : "#252525"))
+                                                  : (root.githubUi ? (root.grayUi ? "#242424" : "#0D1117") : (root.fluentUi ? "#252729" : "#252525")))
             border.width: selected ? 2 : 1
-            border.color: selected ? (root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
+            border.color: selected ? (root.fluentUi ? "#B8BDC2" : root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
                                    : (root.githubUi ? (root.grayUi ? "#424242" : "#202A35") : "#3a3a3a")
 
             Image {
@@ -137,7 +140,7 @@ Item {
                                                            ? Math.max(1, Math.min(40, parent.height - 8))
                                                            : Math.max(1, parent.width - 12)
                 readonly property real availableHeight: Math.max(1, parent.height - (root.githubUi ? 24 : 6))
-                readonly property real scaleFactor: Math.min(1, availableWidth / nativeWidth,
+                readonly property real scaleFactor: Math.min(root.fluentUi ? (root.app.iconSizePx - 8) / 32 : 1, availableWidth / nativeWidth,
                                                              availableHeight / nativeHeight)
                 width: nativeWidth * scaleFactor
                 height: nativeHeight * scaleFactor
@@ -154,7 +157,7 @@ Item {
             }
 
             Text {
-                visible: !root.listView
+                visible: !root.listView && !root.fluentUi
                 anchors.bottom: parent.bottom
                 anchors.horizontalCenter: root.githubUi ? parent.horizontalCenter : undefined
                 anchors.right: root.githubUi ? undefined : parent.right

@@ -5,6 +5,7 @@ import "../style"
 
 Item {
     id: workspace
+    readonly property bool rmeUi: Backend.uiTheme.style === "rme-fluent"
     required property var app
     required property var settings
     required property var propertiesDialog
@@ -12,6 +13,7 @@ Item {
     required property var paletteNavigator
     readonly property bool githubUi: Backend.uiTheme.style !== "classic"
                                      && Backend.uiTheme.style !== "windows-classic"
+                                     && Backend.uiTheme.style !== "rme-fluent"
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
 
@@ -42,7 +44,7 @@ Item {
 
     DmePanel {
         anchors.fill: parent
-        visible: !workspace.githubUi
+        visible: !workspace.rmeUi && !workspace.githubUi
     }
 
     Rectangle {
@@ -658,7 +660,7 @@ Item {
         }
 
         Rectangle {
-            visible: !workspace.githubUi
+            visible: workspace.settings.showFps && !workspace.rmeUi && !workspace.githubUi
             anchors {
                 left: parent.left
                 top: parent.top
@@ -707,7 +709,7 @@ Item {
                 bottom: parent.bottom
                 margins: 8
             }
-            visible: !workspace.githubUi && mapView.hoverText.length > 0
+            visible: !workspace.rmeUi && !workspace.githubUi && mapView.hoverText.length > 0
             width: hoverLabel.implicitWidth + 16
             height: 22
             radius: 4
@@ -856,7 +858,7 @@ Item {
             spacing: 7
 
             WorkTimerStatus {
-                visible: githubStatus.width >= 500
+                visible: workspace.settings.showWorkTimer && githubStatus.width >= 500
                 width: githubStatus.width < 680 ? 205 : 245
                 height: 30
                 anchors.verticalCenter: parent.verticalCenter
@@ -865,7 +867,7 @@ Item {
             }
 
             Rectangle {
-                visible: githubStatus.width >= 500
+                visible: workspace.settings.showWorkTimer && githubStatus.width >= 500
                 width: 1
                 height: 20
                 color: workspace.grayUi ? "#3A3A3A" : "#242D38"
@@ -874,6 +876,7 @@ Item {
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
+                visible: workspace.settings.showFps
                 text: mapRenderer.fps > 0 ? ("FPS " + mapRenderer.fps) : "FPS idle"
                 color: workspace.grayUi ? "#C79A3B" : "#3FB950"
                 font {
@@ -882,6 +885,7 @@ Item {
                 }
             }
             Rectangle {
+                visible: workspace.settings.showFps
                 width: 7
                 height: 7
                 radius: 4
@@ -892,7 +896,7 @@ Item {
     }
 
     WorkTimerStatus {
-        visible: !workspace.githubUi && Backend.otbmReader.loaded
+        visible: workspace.settings.showWorkTimer && !workspace.rmeUi && !workspace.githubUi && Backend.otbmReader.loaded
         anchors {
             right: parent.right
             bottom: parent.bottom

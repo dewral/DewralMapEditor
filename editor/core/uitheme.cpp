@@ -53,7 +53,8 @@ UiTheme::UiTheme(QObject *parent)
         m_style = styleOverride;
     if (m_style == QLatin1String("flat"))
         m_style = QStringLiteral("github-dark");
-    if (m_style != QLatin1String("github-dark") &&
+    if (m_style != QLatin1String("rme-fluent") &&
+        m_style != QLatin1String("github-dark") &&
         m_style != QLatin1String("gray-dark") &&
         m_style != QLatin1String("gray-modern") &&
         m_style != QLatin1String("windows-classic"))
@@ -68,7 +69,8 @@ QString UiTheme::style() const
 
 void UiTheme::setStyle(const QString &s)
 {
-    const QString v = (s == QLatin1String("github-dark") ||
+    const QString v = (s == QLatin1String("rme-fluent") ||
+                       s == QLatin1String("github-dark") ||
                        s == QLatin1String("gray-dark") ||
                        s == QLatin1String("gray-modern") ||
                        s == QLatin1String("windows-classic"))
@@ -106,6 +108,8 @@ QVariantList UiTheme::styles() const
     out.push_back(gray);
     out.push_back(grayModern);
     out.push_back(windowsClassic);
+    out.push_back(QVariantMap{{QStringLiteral("id"), QStringLiteral("rme-fluent")},
+                             {QStringLiteral("name"), QStringLiteral("RME Fluent Dark")}});
     return out;
 }
 
@@ -320,15 +324,26 @@ QImage UiTheme::texture(const QString &file) const
         style = m_style;
     }
 
-    QImage img = style == QLatin1String("github-dark")
+    QImage img = (style == QLatin1String("github-dark") || style == QLatin1String("rme-fluent"))
                      ? flatTexture(file)
                      : (style == QLatin1String("windows-classic")
                             ? windowsClassicTexture(file)
                             : QImage(QStringLiteral(":/ui/") + file));
+    if (style == QLatin1String("rme-fluent") && !img.isNull()) {
+        img = img.convertToFormat(QImage::Format_ARGB32);
+        for (int y = 0; y < img.height(); ++y) {
+            auto *pixels = reinterpret_cast<QRgb *>(img.scanLine(y));
+            for (int x = 0; x < img.width(); ++x) {
+                const int gray = qGray(pixels[x]);
+                const int level = gray > 140 ? 210 : (gray > 85 ? 62 : (gray > 65 ? 45 : 32));
+                pixels[x] = qRgba(level, level, level, qAlpha(pixels[x]));
+            }
+        }
+    }
     if (img.isNull()) {
         return img;
     }
-    if (style == QLatin1String("github-dark") ||
+    if (style == QLatin1String("rme-fluent") || style == QLatin1String("github-dark") ||
         style == QLatin1String("windows-classic")) {
         return img;
     }

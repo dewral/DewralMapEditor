@@ -10,6 +10,7 @@ Column {
 
     required property var app
     required property var mapCtrl
+    readonly property bool fluentUi: Backend.uiTheme.style === "rme-fluent"
     required property bool githubUi
     required property string searchText
     required property string filterMode
@@ -124,12 +125,12 @@ Column {
                 property bool isBrush: root.mapCtrl.creatureBrush === name
                                        && root.mapCtrl.creatureBrushIsNpc === isNpc
                 color: isBrush
-                       ? (root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
+                       ? (root.fluentUi ? "#414447" : root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
                        : (root.githubUi
                           ? (creatureMouseArea.containsMouse ? (root.grayUi ? "#303030" : "#161E27") : (root.grayUi ? "#242424" : "#0D1117"))
                           : (creatureMouseArea.containsMouse ? "#3A3A3A" : "#2A2A2A"))
                 border.color: isBrush
-                              ? (root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
+                              ? (root.fluentUi ? "#B8BDC2" : root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
                               : (root.githubUi ? (root.grayUi ? "#424242" : "#202A35") : "#3a3a3a")
                 border.width: isBrush ? 2 : 1
 

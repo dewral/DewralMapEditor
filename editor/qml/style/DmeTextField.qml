@@ -2,6 +2,7 @@ import QtQuick
 import "../themes/classic/controls" as Classic
 import "../themes/github/controls" as Github
 import "../themes/gray/controls" as Gray
+import "../themes/rme/controls" as Rme
 import Tibia 1.0
 
 Item {
@@ -17,7 +18,7 @@ Item {
     Loader {
         id: controlLoader
         anchors.fill: parent
-        sourceComponent: (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicTextField : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayTextField : githubTextField)
+        sourceComponent: Backend.uiTheme.style === "rme-fluent" ? rmeTextField : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicTextField : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayTextField : githubTextField)
     }
     Component {
         id: classicTextField
@@ -38,4 +39,5 @@ Item {
         }
     }
     Component { id: grayTextField; Gray.GrayTextField { text: root.text; placeholderText: root.placeholderText; enabled: root.enabled; onUserTextChanged: value => root.text = value; onAccepted: root.accepted(); onEditingFinished: root.editingFinished() } }
+    Component { id: rmeTextField; Rme.RmeTextField { text: root.text; placeholderText: root.placeholderText; enabled: root.enabled; onUserTextChanged: value => root.text = value; onAccepted: root.accepted(); onEditingFinished: root.editingFinished() } }
 }

@@ -5,6 +5,8 @@
              wlasne delegaty menu (zolte podswietlenie, centrowany tekst). -->
         <file alias="qtquickcontrols2.conf">qtquickcontrols2.conf</file>
         <file alias="qml/Main.qml">qml/Main.qml</file>
+        <file alias="qml/components/RmeFluentFileBar.qml">qml/components/RmeFluentFileBar.qml</file>
+        <file alias="qml/components/RmeFluentTools.qml">qml/components/RmeFluentTools.qml</file>
         <file alias="qml/PalettePanel.qml">qml/PalettePanel.qml</file>
         <file alias="qml/StartupWindow.qml">qml/StartupWindow.qml</file>
         <file alias="qml/controllers/AppSettings.qml">qml/controllers/AppSettings.qml</file>
@@ -242,5 +244,34 @@
         <file alias="ui/github/minimap.svg">ui/github/minimap.svg</file>
         <file alias="ui/github/waypoints.svg">ui/github/waypoints.svg</file>
         <file alias="ui/github/app-icon.png">ui/github/app-icon.png</file>
+        <file alias="qml/themes/rme/controls/RmeButton.qml">qml/themes/rme/controls/RmeButton.qml</file>
+        <file alias="qml/themes/rme/controls/RmeCheckBox.qml">qml/themes/rme/controls/RmeCheckBox.qml</file>
+        <file alias="qml/themes/rme/controls/RmeComboBox.qml">qml/themes/rme/controls/RmeComboBox.qml</file>
+        <file alias="qml/themes/rme/controls/RmeDialogBackground.qml">qml/themes/rme/controls/RmeDialogBackground.qml</file>
+        <file alias="qml/themes/rme/controls/RmePanel.qml">qml/themes/rme/controls/RmePanel.qml</file>
+        <file alias="qml/themes/rme/controls/RmeSeparator.qml">qml/themes/rme/controls/RmeSeparator.qml</file>
+        <file alias="qml/themes/rme/controls/RmeSpinBox.qml">qml/themes/rme/controls/RmeSpinBox.qml</file>
+        <file alias="qml/themes/rme/controls/RmeTextField.qml">qml/themes/rme/controls/RmeTextField.qml</file>
+        <file alias="qml/themes/rme/Colors.js">qml/themes/rme/Colors.js</file>
+        <file alias="qml/themes/rme/icons/Draw.svg">qml/themes/rme/icons/Draw.svg</file>
+        <file alias="qml/themes/rme/icons/Select.svg">qml/themes/rme/icons/Select.svg</file>
+        <file alias="qml/themes/rme/icons/Lasso.svg">qml/themes/rme/icons/Lasso.svg</file>
+        <file alias="qml/themes/rme/icons/Erase.svg">qml/themes/rme/icons/Erase.svg</file>
+        <file alias="qml/themes/rme/icons/Border.svg">qml/themes/rme/icons/Border.svg</file>
+        <file alias="qml/themes/rme/icons/Auto.svg">qml/themes/rme/icons/Auto.svg</file>
+        <file alias="qml/themes/rme/icons/Doors.svg">qml/themes/rme/icons/Doors.svg</file>
+        <file alias="qml/themes/rme/icons/PZ.svg">qml/themes/rme/icons/PZ.svg</file>
+        <file alias="qml/themes/rme/icons/NP.svg">qml/themes/rme/icons/NP.svg</file>
+        <file alias="qml/themes/rme/icons/NL.svg">qml/themes/rme/icons/NL.svg</file>
+        <file alias="qml/themes/rme/icons/PvP.svg">qml/themes/rme/icons/PvP.svg</file>
+            <file alias="qml/themes/rme/icons/cut.svg">qml/themes/rme/icons/cut.svg</file>
+            <file alias="qml/themes/rme/icons/saveAs.svg">qml/themes/rme/icons/saveAs.svg</file>
+            <file alias="qml/themes/rme/icons/redo.svg">qml/themes/rme/icons/redo.svg</file>
+            <file alias="qml/themes/rme/icons/save.svg">qml/themes/rme/icons/save.svg</file>
+            <file alias="qml/themes/rme/icons/open.svg">qml/themes/rme/icons/open.svg</file>
+            <file alias="qml/themes/rme/icons/paste.svg">qml/themes/rme/icons/paste.svg</file>
+            <file alias="qml/themes/rme/icons/undo.svg">qml/themes/rme/icons/undo.svg</file>
+            <file alias="qml/themes/rme/icons/new.svg">qml/themes/rme/icons/new.svg</file>
+            <file alias="qml/themes/rme/icons/copy.svg">qml/themes/rme/icons/copy.svg</file>
     </qresource>
 </RCC>

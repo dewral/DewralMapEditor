@@ -13,8 +13,9 @@ Rectangle {
     required property var app
 
     required property var mapCtrl
+    readonly property bool rmeFluentUi: Backend.uiTheme.style === "rme-fluent"
     readonly property bool windowsClassicUi: Backend.uiTheme.style === "windows-classic"
-    readonly property bool githubUi: Backend.uiTheme.style !== "classic" && !windowsClassicUi
+    readonly property bool githubUi: Backend.uiTheme.style !== "classic" && !windowsClassicUi && !rmeFluentUi
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
     property bool modernLayout: false
@@ -599,8 +600,11 @@ Rectangle {
             spacing: 4
 
             Item {
-                width: 0
-                height: 0
+                visible: paletteRoot.rmeFluentUi; width: parent.width; height: visible ? 22 : 0
+                Text { text: "Palette"; color: "#D8DADD"; font.pixelSize: 12 }
+                Text { anchors.right: parent.right; text: "\u00d7"; color: "#ddd"; font.pixelSize: 16
+                    MouseArea { anchors.fill: parent; anchors.margins: -3; onClicked: paletteRoot.collapseRequested() }
+                }
             }
 
             DmeComboBox {
@@ -608,14 +612,14 @@ Rectangle {
                 width: parent.width
                 height: 23
                 model: paletteCol.kinds
-                currentIndex: paletteRoot.githubUi ? paletteCol.kinds.indexOf("Item Palette") : 0
+                currentIndex: paletteRoot.rmeFluentUi ? paletteCol.kinds.indexOf("Terrain Palette") : paletteRoot.githubUi ? paletteCol.kinds.indexOf("Item Palette") : 0
             }
 
             Text {
                 visible: paletteCol.showSub || paletteCol.creatureMode
                 text: paletteCol.creatureMode ? "Type"
                       : (paletteCol.currentKind === "My Palettes" ? "Palette" : "Tileset")
-                color: paletteRoot.windowsClassicUi ? "#202020" : "#7fdc8f"
+                color: paletteRoot.rmeFluentUi ? "#D8DADD" : paletteRoot.windowsClassicUi ? "#202020" : "#7fdc8f"
                 font.pixelSize: 10
                 font.bold: true
             }
@@ -661,7 +665,7 @@ Rectangle {
 
         Item {
             width: parent.width
-            height: parent.height - controlsColumn.height - githubControlsColumn.height - brushSizeBox.height - paletteCol.spacing * 3
+            height: parent.height - controlsColumn.height - githubControlsColumn.height - brushSizeBox.height - fluentTools.height - paletteCol.spacing * (paletteRoot.rmeFluentUi ? 4 : 3)
 
             PaletteItemGrid {
                 id: grid
@@ -714,6 +718,15 @@ Rectangle {
                 }
             }
 
+        }
+
+        RmeFluentTools {
+            id: fluentTools
+            width: parent.width
+            visible: paletteRoot.rmeFluentUi
+            height: visible ? implicitHeight : 0
+            mapView: paletteRoot.mapCtrl
+            onDoorsRequested: paletteRoot.selectKind("Door Palette")
         }
 
         PaletteBrushSizeSelector {

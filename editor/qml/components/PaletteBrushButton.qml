@@ -4,6 +4,7 @@ import Tibia 1.0
 
 Item {
     id: root
+    readonly property bool fluentUi: Backend.uiTheme.style === "rme-fluent"
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
 
@@ -35,10 +36,10 @@ Item {
     Rectangle {
         anchors.fill: parent
         visible: !root.githubStyle
-        color: root.active ? "#992f6f4f"
+        color: root.active ? (root.fluentUi ? "#335F6265" : "#992f6f4f")
                            : (mouseArea.containsMouse ? "#28ffffff" : "transparent")
         border.width: root.active ? 1 : 0
-        border.color: "#7fdc8f"
+        border.color: root.fluentUi ? "#B8BDC2" : "#7fdc8f"
     }
 
     Rectangle {
@@ -47,7 +48,7 @@ Item {
         radius: 5
         color: mouseArea.containsMouse ? (root.grayTheme ? "#303030" : "#171E27") : (root.grayTheme ? "#242424" : "#111820")
         border.width: root.active ? 2 : 1
-        border.color: root.active ? (root.grayTheme ? "#C79A3B" : "#2EA043") : (root.grayTheme ? "#484848" : "#242D38")
+        border.color: root.active ? (root.fluentUi ? "#CDD0D3" : root.grayTheme ? "#C79A3B" : "#2EA043") : (root.grayTheme ? "#484848" : "#242D38")
     }
 
     Rectangle {
@@ -55,8 +56,8 @@ Item {
         width: root.iconSize
         height: root.iconSize
         radius: root.round ? width / 2 : 0
-        color: root.active ? (root.grayTheme ? "#C79A3B" : "#3FB950") : (root.grayTheme ? "#858585" : "#7D8590")
-        border.color: root.active ? (root.grayTheme ? "#F0CD78" : "#7EE787") : (root.grayTheme ? "#B0B0B0" : "#A7B1BC")
+        color: root.active ? (root.fluentUi ? "#B8BDC2" : root.grayTheme ? "#C79A3B" : "#3FB950") : (root.grayTheme ? "#858585" : "#7D8590")
+        border.color: root.active ? (root.fluentUi ? "#CDD0D3" : root.grayTheme ? "#F0CD78" : "#7EE787") : (root.grayTheme ? "#B0B0B0" : "#A7B1BC")
         border.width: 1
     }
 

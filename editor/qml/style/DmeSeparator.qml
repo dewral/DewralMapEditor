@@ -2,6 +2,7 @@ import QtQuick
 import "../themes/classic/controls" as Classic
 import "../themes/github/controls" as Github
 import "../themes/gray/controls" as Gray
+import "../themes/rme/controls" as Rme
 import Tibia 1.0
 
 Item {
@@ -12,9 +13,10 @@ Item {
     Loader {
         id: controlLoader
         anchors.fill: parent
-        sourceComponent: (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicSeparator : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? graySeparator : githubSeparator)
+        sourceComponent: Backend.uiTheme.style === "rme-fluent" ? rmeSeparator : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicSeparator : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? graySeparator : githubSeparator)
     }
     Component { id: classicSeparator; Classic.ClassicSeparator { orientation: root.orientation } }
     Component { id: githubSeparator; Github.GithubSeparator { orientation: root.orientation } }
     Component { id: graySeparator; Gray.GraySeparator { orientation: root.orientation } }
+    Component { id: rmeSeparator; Rme.RmeSeparator { orientation: root.orientation } }
 }

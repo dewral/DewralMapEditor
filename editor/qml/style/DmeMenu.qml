@@ -1,15 +1,18 @@
 import QtQuick
 import QtQuick.Controls
 import Tibia 1.0
+import "../themes/rme/Colors.js" as RmeColors
 
 Menu {
     id: root
+    readonly property bool rmeTheme: Backend.uiTheme.style === "rme-fluent"
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
     readonly property bool classicLayout: Backend.uiTheme.style === "classic"
                                           || Backend.uiTheme.style === "windows-classic"
     implicitWidth: Math.max(160, implicitContentWidth + leftPadding + rightPadding)
-    padding: 1
+    padding: root.rmeTheme ? 4 : 1
+    palette.mid: root.rmeTheme ? RmeColors.separator : "#808080"
     overlap: 0
     background: Loader {
         sourceComponent: root.classicLayout ? classicMenuBackground : githubMenuBackground
@@ -24,7 +27,7 @@ Menu {
     }
     Component {
         id: githubMenuBackground
-        Rectangle { implicitWidth: 150; radius: 6; color: root.grayTheme ? "#202020" : "#10151C"; border.width: 1; border.color: root.grayTheme ? "#424242" : "#2D3743" }
+        Rectangle { implicitWidth: 150; radius: root.rmeTheme ? 0 : 6; color: root.rmeTheme ? RmeColors.popup : root.grayTheme ? "#202020" : "#10151C"; border.width: 1; border.color: root.rmeTheme ? RmeColors.border : root.grayTheme ? "#424242" : "#2D3743" }
     }
     delegate: DmeMenuItem {}
 }

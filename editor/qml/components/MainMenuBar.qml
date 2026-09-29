@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
+import QtQml.Models
 import Tibia 1.0
 import "../style"
 
@@ -56,6 +57,32 @@ DmeMenuBar {
             text: "Open..."
             shortcut: "Ctrl+O"
             onTriggered: menuBar.startupWindow.openMapDialog()
+        }
+        DmeMenu {
+            id: recentMapsMenu
+            title: "Open recent"
+            enabled: menuBar.appController.recentMaps.length > 0
+                     && !Backend.otbmReader.loading
+
+            Instantiator {
+                model: menuBar.appController.recentMaps
+                delegate: DmeMenuItem {
+                    required property string modelData
+                    text: Backend.fileTools.fileName(modelData)
+                    ToolTip.visible: hovered
+                    ToolTip.delay: 500
+                    ToolTip.text: modelData
+                    onTriggered: {
+                        if (!Backend.fileTools.exists(modelData)) {
+                            menuBar.appController.showToast("Map not found: " + modelData);
+                            return;
+                        }
+                        menuBar.startupWindow.beginLoadMap(modelData);
+                    }
+                }
+                onObjectAdded: (index, object) => recentMapsMenu.insertItem(index, object)
+                onObjectRemoved: (index, object) => recentMapsMenu.removeItem(object)
+            }
         }
         Action {
             text: "Import Map..."

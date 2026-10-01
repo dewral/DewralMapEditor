@@ -19,7 +19,7 @@ Item {
     readonly property int leftButtonHeight: 62
     readonly property int rightButtonHeight: 54
 
-    height: Backend.otbmReader.loaded ? 78 : 0
+    implicitHeight: Backend.otbmReader.loaded ? 78 : 0
     visible: Backend.otbmReader.loaded
 
     Rectangle {

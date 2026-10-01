@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/">
+        <file alias="qml/components/ImplicitHeightLoader.qml">qml/components/ImplicitHeightLoader.qml</file>
         <!-- Wymusza styl Basic Qt Quick Controls (Qt czyta :/qtquickcontrols2.conf
              automatycznie). Bez tego Windows uzywa stylu natywnego, ktory ignoruje
              wlasne delegaty menu (zolte podswietlenie, centrowany tekst). -->

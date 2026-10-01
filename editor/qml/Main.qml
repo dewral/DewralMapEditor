@@ -1086,6 +1086,9 @@ Window {
             startupLoader.active = true;
             return startupLoader.item;
         }
+        function beginLoadMap(path) {
+            ensureWindow().beginLoadMap(path);
+        }
         function openMapDialog() {
             ensureWindow().openMapDialog();
         }

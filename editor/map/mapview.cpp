@@ -479,6 +479,7 @@ void MapView::useDoodadBrush(const QString &name)
 {
     BrushStore *store = m_brushController.store();
     if (!store || !store->isDoodadBrush(name)) return;
+    if (m_groundClusterStampActive) cancelGroundClusterStamp();
     if (m_pathBuilder.active()) cancelPathBuilder();
     if (m_brushController.optionalBorderBrush()) {
         m_brushController.optionalBorderBrush() = false;
@@ -503,11 +504,20 @@ void MapView::useDoodadBrush(const QString &name)
     m_brushController.creatureBrush().clear();
     m_brushController.spawnBrush() = false;
     m_brushController.doodadVariant() = -1;
+    m_brushController.doodadRotation() = 0;
     setCursor(Qt::CrossCursor);
 
     {
         std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
-        for (int id : store->doodadItemIds(name)) ensureItemSprites(id);
+        for (int id : store->doodadItemIds(name)) {
+            int rotated = id;
+            for (int turn = 0; turn < 4; ++turn) {
+                ensureItemSprites(rotated);
+                const int next = m_otb ? m_otb->rotateToForServerId(rotated) : 0;
+                if (next <= 0 || next == rotated) break;
+                rotated = next;
+            }
+        }
     }
     emit brushChanged();
     emit contentUpdated();
@@ -516,6 +526,7 @@ void MapView::useDoodadBrush(const QString &name)
 
 void MapView::setEraseMode(bool on)
 {
+    if (on && m_groundClusterStampActive) cancelGroundClusterStamp();
     if (m_editController.eraseMode() == on) return;
     m_editController.eraseMode() = on;
     setCursor((on || m_brushController.serverId() > 0 || m_editController.activeZone() != 0) ? Qt::CrossCursor : Qt::ArrowCursor);
@@ -523,8 +534,25 @@ void MapView::setEraseMode(bool on)
     emit contentUpdated(); update();
 }
 
+void MapView::setDoodadRotation(int quarterTurns)
+{
+    const int normalized = ((quarterTurns % 4) + 4) % 4;
+    if (m_brushController.doodadRotation() == normalized) return;
+    m_brushController.doodadRotation() = normalized;
+    emit brushChanged();
+    emit contentUpdated();
+    update();
+}
+
+void MapView::rotateDoodadBrush()
+{
+    if (m_brushController.doodadBrush().isEmpty()) return;
+    setDoodadRotation(m_brushController.doodadRotation() + 1);
+}
+
 void MapView::setOptionalBorderMode(bool on)
 {
+    if (on && m_groundClusterStampActive) cancelGroundClusterStamp();
     if (m_brushController.optionalBorderBrush() == on) return;
     if (on && m_pathBuilder.active()) cancelPathBuilder();
 
@@ -555,6 +583,7 @@ void MapView::setOptionalBorderMode(bool on)
 void MapView::setActiveZone(int zone)
 {
     const quint32 z = static_cast<quint32>(zone < 0 ? 0 : zone);
+    if (z != 0 && m_groundClusterStampActive) cancelGroundClusterStamp();
     if (z != 0 && m_pathBuilder.active()) cancelPathBuilder();
     if (m_editController.activeZone() == z) return;
     m_editController.activeZone() = z;
@@ -584,6 +613,7 @@ void MapView::setActiveZone(int zone)
 
 void MapView::setSelectionMode(bool on)
 {
+    if (on && m_groundClusterStampActive) cancelGroundClusterStamp();
     if (on && m_pathBuilder.active()) cancelPathBuilder();
     if (!on) {
         cancelLasso();
@@ -611,6 +641,7 @@ void MapView::setSelectionMode(bool on)
 void MapView::applyBrushServerId(int serverId, bool asBrush)
 {
     if (serverId < 0) serverId = 0;
+    if (serverId > 0 && m_groundClusterStampActive) cancelGroundClusterStamp();
     if (serverId > 0 && m_pathBuilder.active()) cancelPathBuilder();
 
     if (serverId > 0) {
@@ -644,7 +675,10 @@ void MapView::applyBrushServerId(int serverId, bool asBrush)
                               ? serverId : 0;
     if (m_brushController.doorBrushId() > 0) m_brushController.wallBrush().clear();
 
-    if (m_brushController.doodadBrush() != prevDoodad) m_brushController.doodadVariant() = -1;
+    if (m_brushController.doodadBrush() != prevDoodad) {
+        m_brushController.doodadVariant() = -1;
+        m_brushController.doodadRotation() = 0;
+    }
     setCursor(serverId > 0 ? Qt::CrossCursor : Qt::ArrowCursor);
     if (serverId > 0) {
         if (m_brushController.optionalBorderBrush()) {

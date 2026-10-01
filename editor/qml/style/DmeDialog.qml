@@ -6,7 +6,8 @@ Dialog {
     id: root
     property bool movable: true
     property bool floatingPositionInitialized: false
-    readonly property bool modernTheme: Backend.uiTheme.style !== "classic"
+    readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
+    readonly property bool modernTheme: Backend.uiTheme.style !== "classic" && !windowsClassic
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
     modal: true
@@ -37,8 +38,8 @@ Dialog {
             anchors.verticalCenter: parent.verticalCenter
             x: root.modernTheme ? 16 : (parent.width - width) / 2
             text: root.title
-            color: root.grayTheme ? "#F0F0F0" : (root.modernTheme ? "#F0F6FC" : "#c0c0c0")
-            font.bold: true
+            color: root.windowsClassic ? "#202020" : (root.grayTheme ? "#F0F0F0" : (root.modernTheme ? "#F0F6FC" : "#c0c0c0"))
+            font.bold: !root.windowsClassic
             font.pixelSize: root.modernTheme ? 14 : 13
         }
 

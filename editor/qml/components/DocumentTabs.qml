@@ -3,7 +3,11 @@ import Tibia 1.0
 
 Item {
     id: tabs
+    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
+    readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
     required property var app
+
+    Rectangle { anchors.fill: parent; visible: tabs.fluentUi; color: "#252729" }
 
     Row {
         anchors.left: parent.left
@@ -17,10 +21,17 @@ Item {
                 required property var modelData
                 required property int index
                 readonly property bool active: index === Backend.docMgr.currentIndex
-                width: tabLabel.implicitWidth + 34
-                height: 20
+                width: tabLabel.implicitWidth + (tabs.fluentUi ? 44 : 34)
+                height: tabs.fluentUi ? 30 : 20
 
+                Rectangle {
+                    anchors.fill: parent
+                    visible: tabs.fluentUi
+                    color: tabDelegate.active ? "#303234" : "#252729"
+                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: "#B8BDC2"; visible: tabDelegate.active }
+                }
                 BorderImage {
+                    visible: !tabs.fluentUi
                     anchors.fill: parent
                     source: Backend.uiTheme.tex + (tabDelegate.active ? "tab_checked.png" : "tab_normal.png")
                     smooth: false
@@ -39,7 +50,7 @@ Item {
                         verticalCenter: parent.verticalCenter
                     }
                     text: tabDelegate.modelData.title + (tabDelegate.modelData.dirty ? " *" : "")
-                    color: tabDelegate.active ? "#eaffea" : "#c0c0c0"
+                    color: tabs.fluentUi ? "#E0E0E0" : tabs.windowsClassic ? "#202020" : (tabDelegate.active ? "#eaffea" : "#c0c0c0")
                     font.pixelSize: 11
                     font.bold: tabDelegate.active
                 }
@@ -55,7 +66,7 @@ Item {
                         verticalCenter: parent.verticalCenter
                     }
                     text: "X"
-                    color: closeArea.containsMouse ? "#ff8f8f" : "#888"
+                    color: closeArea.containsMouse ? (tabs.windowsClassic ? "#c42b1c" : "#ff8f8f") : (tabs.windowsClassic ? "#444" : "#888")
                     font.pixelSize: 12
                     font.bold: true
                     MouseArea {

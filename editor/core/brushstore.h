@@ -49,6 +49,11 @@ public:
     Q_INVOKABLE QVariantList wallBrushEdit(const QString &name) const;
     Q_INVOKABLE bool saveWallBrush(const QString &name, const QVariantList &align17);
     Q_INVOKABLE void deleteWallBrush(const QString &name);
+    Q_INVOKABLE QStringList advancedBrushNames(const QString &kind) const;
+    Q_INVOKABLE QVariantMap advancedBrushEdit(const QString &kind, const QString &name) const;
+    Q_INVOKABLE QVariantMap saveAdvancedBrush(const QString &kind, const QString &name,
+                                             const QString &originalName, const QVariantMap &draft);
+    Q_INVOKABLE QVariantMap learnBrushSelection(const QString &kind, const QVariantList &tiles) const;
 
 signals:
 
@@ -72,6 +77,8 @@ public:
     int pickGroundItem(const QString &name) const;
 
     bool isManagedBorderItem(int serverId) const { return m_borderItemIds.contains(serverId); }
+    int rotatedSelectionBorderItem(int serverId, int quarterTurns) const;
+    int rotatedSelectionWallItem(int serverId, int quarterTurns) const;
     bool isOptionalBorderItem(int serverId) const { return m_optionalBorderItemIds.contains(serverId); }
 
 
@@ -121,6 +128,13 @@ public:
     int computeTableItem(const QString &name, bool n, bool w, bool e, bool s) const;
 
 private:
+    struct WeightedNode {
+        QVector<QPair<int, int>> items;
+        int totalChance = 0;
+    };
+    struct BorderDef {
+        std::array<WeightedNode, 13> align;
+    };
     struct BorderBlock {
         bool outer = true;
         QString to;
@@ -150,7 +164,8 @@ private:
     QString getBrushTo(const QString &firstName, const QString &secondName) const;
 
     bool friendOf(const GroundDef &self, const QString &otherName) const;
-    const std::array<int, 13> *borderTiles(const QString &key) const;
+    const BorderDef *borderTiles(const QString &key) const;
+    int pickWeightedItem(const WeightedNode &node) const;
 
     const GroundDef *groundDef(const QString &name) const;
 
@@ -178,7 +193,7 @@ private:
     };
     const DoodadDef *doodadDef(const QString &name) const;
 
-    QHash<QString, std::array<int, 13>> m_borders;
+    QHash<QString, BorderDef> m_borders;
     QHash<QString, GroundDef> m_grounds;
     QHash<int, QString> m_groundByServerId;
     QSet<int> m_borderItemIds;

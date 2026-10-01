@@ -13,6 +13,7 @@ Item {
     opacity: enabled ? 1 : 0.5
 
     readonly property bool active: checked || mouseArea.pressed
+    readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
 
     BorderImage {
         anchors.fill: parent
@@ -27,8 +28,8 @@ Item {
         anchors.centerIn: parent
         anchors.verticalCenterOffset: root.active ? 1 : 0
         text: root.text
-        color: root.enabled ? "#c0c0c0" : "#777"
-        font.bold: true
+        color: root.enabled ? (root.windowsClassic ? "#202020" : "#c0c0c0") : "#777"
+        font.bold: !root.windowsClassic
         font.pixelSize: 12
     }
 

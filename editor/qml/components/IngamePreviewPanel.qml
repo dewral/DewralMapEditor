@@ -66,8 +66,8 @@ Item {
                 explorer.setPosition(mapView.hoverX, mapView.hoverY, mapView.floor);
             } else {
                 explorer.setPosition(
-                            Math.floor(mapView.glOriginX() + mapView.width / (2 * mapView.tileSize)),
-                            Math.floor(mapView.glOriginY() + mapView.height / (2 * mapView.tileSize)),
+                            Math.floor(mapView.renderOriginX() + mapView.width / (2 * mapView.tileSize)),
+                            Math.floor(mapView.renderOriginY() + mapView.height / (2 * mapView.tileSize)),
                             mapView.floor);
             }
         }
@@ -78,8 +78,8 @@ Item {
             explorer.setPosition(mapView.hoverX, mapView.hoverY, mapView.floor);
         } else {
             explorer.setPosition(
-                        Math.floor(mapView.glOriginX() + mapView.width / (2 * mapView.tileSize)),
-                        Math.floor(mapView.glOriginY() + mapView.height / (2 * mapView.tileSize)),
+                        Math.floor(mapView.renderOriginX() + mapView.width / (2 * mapView.tileSize)),
+                        Math.floor(mapView.renderOriginY() + mapView.height / (2 * mapView.tileSize)),
                         mapView.floor);
         }
     }
@@ -371,7 +371,7 @@ Item {
         }
     }
 
-    MapGLView {
+    MapRhiView {
         id: previewRenderer
         anchors { left: parent.left; top: header.bottom; margins: 1 }
         width: panel.contentWidth
@@ -382,8 +382,7 @@ Item {
         previewCenterY: explorer.visualY
         previewFloor: explorer.z
         previewLighting: panel.settings.ingamePreviewLighting
-        maxFps: panel.settings.glMaxFps > 0 ? Math.min(30, panel.settings.glMaxFps) : 0
-        vsyncEnabled: panel.settings.vsyncEnabled
+        maxFps: panel.settings.renderMaxFps > 0 ? Math.min(30, panel.settings.renderMaxFps) : 0
     }
 
     MouseArea {

@@ -1,6 +1,9 @@
 import QtCore
 
 Settings {
+    property int fluentPaletteWidth: 225
+    property bool showWorkTimer: true
+    property bool showFps: true
     property string clientFolder: ""
     property string clientPathsJson: "{}"
     property string customProfilesJson: "[]"
@@ -11,8 +14,8 @@ Settings {
     property string favoriteBrushesJson: "{}"
     property bool autosaveEnabled: true
     property int autosaveIntervalMinutes: 3
-    property int glMaxFps: 60
-    property bool glMaxFpsConfigured: false
+    property int renderMaxFps: 60
+    property bool renderMaxFpsConfigured: false
     property bool vsyncEnabled: true
     property bool showClientBox: false
     property bool showTooltips: true

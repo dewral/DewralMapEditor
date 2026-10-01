@@ -14,11 +14,13 @@ import "themes/github"
 Window {
     id: root
     // Both modern themes share one layout. Only their palettes differ.
-    readonly property bool githubUi: Backend.uiTheme.style !== "classic"
+    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
+    readonly property bool windowsClassicUi: Backend.uiTheme.style === "windows-classic"
+    readonly property bool githubUi: Backend.uiTheme.style !== "classic" && !windowsClassicUi && !fluentUi
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
     readonly property bool modernGrayUi: Backend.uiTheme.style === "gray-modern"
-    readonly property int topBarHeight: githubUi ? 56 : 45
+    readonly property int topBarHeight: fluentUi ? 54 : (githubUi ? 56 : 45)
     readonly property int minimumPaletteWidth: modernGrayUi ? 330 : (githubUi ? 220 : 160)
     readonly property int maximumPaletteWidth: Math.floor(width * 0.5)
 
@@ -41,9 +43,15 @@ Window {
         app.requestAppClose();
     }
 
+    Rectangle {
+        anchors.fill: parent
+        visible: root.fluentUi
+        color: "#252729"
+    }
+
     DmeDialogBackground {
         anchors.fill: parent
-        visible: !root.githubUi
+        visible: !root.githubUi && !root.fluentUi
 
         frameSource: (Backend.uiTheme.tex + "popupwindow_tall.png")
         topBorder: 45
@@ -68,8 +76,8 @@ Window {
             right: parent.right
             top: parent.top
             topMargin: root.githubUi ? 1 : 0
-            leftMargin: root.githubUi ? 1 : 6
-            rightMargin: root.githubUi ? 1 : 6
+            leftMargin: root.githubUi || root.fluentUi ? 0 : 6
+            rightMargin: root.githubUi || root.fluentUi ? 0 : 6
         }
 
         height: root.topBarHeight
@@ -92,17 +100,36 @@ Window {
             }
         }
 
+        Rectangle {
+            anchors.fill: parent
+            visible: root.fluentUi
+            color: "#1C1E20"
+            Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 27; color: "#252729" }
+        }
+        Image {
+            visible: root.fluentUi
+            x: 10; y: 5; width: 16; height: 16
+            source: "qrc:/ui/github/app-icon.png"
+        }
+        Text {
+            visible: root.fluentUi
+            x: 38; y: 0; height: 27; width: Math.max(0, parent.width - 190)
+            text: root.title
+            color: "#EEEEEE"; font.pixelSize: 12; font.family: "Segoe UI"
+            font.bold: true
+            verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
+        }
         Text {
             id: titleText
 
-            visible: !root.githubUi
+            visible: !root.githubUi && !root.fluentUi
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
-            anchors.verticalCenterOffset: -5
+            anchors.verticalCenterOffset: root.fluentUi ? -15 : -5
             text: root.title
-            color: "#c0c0c0"
-            font.bold: true
-            font.pixelSize: 15
+            color: root.windowsClassicUi ? "#202020" : "#c0c0c0"
+            font.bold: !root.windowsClassicUi
+            font.pixelSize: root.fluentUi ? 12 : 15
             elide: Text.ElideMiddle
 
             width: Math.max(0, Math.min(implicitWidth, parent.width - 2 * (menuBar.width + 24)))
@@ -152,10 +179,11 @@ Window {
 
         Row {
             id: winButtons
+            height: root.fluentUi ? 27 : titleBar.height
             anchors {
                 right: parent.right
                 top: parent.top
-                bottom: parent.bottom
+                bottom: root.fluentUi ? undefined : parent.bottom
             }
             spacing: 0
             z: 5
@@ -233,11 +261,11 @@ Window {
     MainMenuBar {
         id: menuBar
         menuLeftInset: root.githubUi ? 52 : 4
-        menuVerticalOffset: root.githubUi ? 0 : -4
+        menuVerticalOffset: root.fluentUi ? 13 : (root.githubUi ? 0 : -4)
         width: root.githubUi ? 520 : implicitWidth
         appController: app
         mapView: workspace.mapView
-        mapGl: workspace.mapGl
+        mapRenderer: workspace.mapRenderer
         settings: prefs
         titleBarItem: titleBar
         startupWindow: startupScreen
@@ -259,6 +287,7 @@ Window {
         aiMapAssistantDialog: aiMapAssistantDialog
         terrainGeneratorDialog: terrainGeneratorDialog
         dungeonGeneratorDialog: dungeonGeneratorDialog
+        groundClusterGeneratorDialog: groundClusterGeneratorDialog
         themeDialog: themeDialog
         borderizeConfirm: borderizeMapConfirm
         randomizeConfirm: randomizeMapConfirm
@@ -315,19 +344,33 @@ Window {
         onAccepted: workspace.mapView.randomizeMap()
     }
 
+    FluentFileBar {
+        id: fluentFileBar
+        anchors.top: titleBar.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        visible: root.fluentUi
+        height: visible ? 36 : 0
+        mapView: workspace.mapView
+        onNewRequested: newMapDialog.open()
+        onOpenRequested: startupScreen.openMapDialog()
+        onSaveRequested: app.saveMap()
+        onSaveAsRequested: saveDialog.open()
+    }
+
     PalettePanel {
         id: palette
-        anchors.top: titleBar.bottom
+        anchors.top: root.fluentUi ? fluentFileBar.bottom : titleBar.bottom
         anchors.topMargin: 0
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.leftMargin: root.githubUi ? 1 : 6
-        anchors.bottomMargin: root.githubUi ? 1 : 6
+        anchors.bottomMargin: root.fluentUi ? 28 : root.githubUi ? 1 : 6
         width: {
             if (prefs.paletteCollapsed)
                 return 0;
             return Math.max(root.minimumPaletteWidth,
-                            Math.min(prefs.paletteWidth, root.maximumPaletteWidth));
+                            Math.min(root.fluentUi ? prefs.fluentPaletteWidth : prefs.paletteWidth, root.maximumPaletteWidth));
         }
         visible: !prefs.paletteCollapsed
         app: app
@@ -368,10 +411,12 @@ Window {
                 startWidth = palette.width;
             }
             onPositionChanged: mouse => {
-                if (pressed)
-                    prefs.paletteWidth = Math.max(root.minimumPaletteWidth,
-                                                  Math.min(root.maximumPaletteWidth,
+                if (pressed) {
+                    const value = Math.max(root.minimumPaletteWidth, Math.min(root.maximumPaletteWidth,
                         startWidth + (mapToItem(root.contentItem, mouse.x, 0).x - startX)));
+                    if (root.fluentUi) prefs.fluentPaletteWidth = value;
+                    else prefs.paletteWidth = value;
+                }
             }
         }
     }
@@ -389,14 +434,14 @@ Window {
 
         Rectangle {
             anchors.fill: parent
-            color: toggleArea.containsMouse ? "#3a3a3a" : "#242424"
-            border.color: "#4a4a4a"
+            color: root.windowsClassicUi ? (toggleArea.containsMouse ? "#e5f1fb" : "#f0f0f0") : (toggleArea.containsMouse ? "#3a3a3a" : "#242424")
+            border.color: root.windowsClassicUi ? "#7a7a7a" : "#4a4a4a"
             border.width: 1
         }
         Text {
             anchors.centerIn: parent
             text: prefs.paletteCollapsed ? ">" : "<"
-            color: "#ccc"
+            color: root.windowsClassicUi ? "#202020" : "#ccc"
             font.pixelSize: 10
         }
         MouseArea {
@@ -454,14 +499,15 @@ Window {
 
     Loader {
         id: toolBar
-        anchors.top: titleBar.bottom
+        height: root.fluentUi ? 0 : (item ? item.height : 0)
+        anchors.top: root.fluentUi ? fluentFileBar.bottom : titleBar.bottom
         anchors.topMargin: 0
         anchors.left: paletteSplitter.right
         anchors.right: parent.right
-        anchors.leftMargin: root.githubUi ? 0 : 4
+        anchors.leftMargin: root.fluentUi ? 0 : root.githubUi ? 0 : 4
         anchors.rightMargin: root.githubUi ? 1 : 8
 
-        sourceComponent: root.githubUi
+        sourceComponent: root.fluentUi ? null : root.githubUi
                          ? githubToolBarComponent
                          : classicToolBarComponent
     }
@@ -489,9 +535,9 @@ Window {
         anchors.topMargin: 0
         anchors.left: paletteSplitter.right
         anchors.right: parent.right
-        anchors.leftMargin: root.githubUi ? 0 : 4
+        anchors.leftMargin: root.fluentUi ? 0 : root.githubUi ? 0 : 4
         anchors.rightMargin: root.githubUi ? 1 : 8
-        height: app.started ? (root.githubUi ? 42 : 22) : 0
+        height: app.started ? (root.fluentUi ? 30 : root.githubUi ? 42 : 22) : 0
         visible: app.started
 
         sourceComponent: root.githubUi
@@ -531,7 +577,7 @@ Window {
             Text {
                 width: appCloseConfirm.width - 24
                 text: appCloseConfirm.message
-                color: root.grayUi ? "#E0E0E0" : (root.githubUi ? "#C9D1D9" : "#c0c0c0")
+                color: root.windowsClassicUi ? "#202020" : (root.grayUi ? "#E0E0E0" : (root.githubUi ? "#C9D1D9" : "#c0c0c0"))
                 font.pixelSize: 12
                 wrapMode: Text.WordWrap
             }
@@ -572,15 +618,54 @@ Window {
         anchors.bottom: parent.bottom
         anchors.left: paletteSplitter.right
         anchors.right: parent.right
-        anchors.leftMargin: root.githubUi ? 0 : 4
+        anchors.leftMargin: root.fluentUi ? 0 : root.githubUi ? 0 : 4
         anchors.rightMargin: root.githubUi ? 1 : 8
-        anchors.bottomMargin: root.githubUi ? 1 : 6
+        anchors.bottomMargin: root.fluentUi ? 28 : root.githubUi ? 1 : 6
         visible: app.started
         app: app
         settings: prefs
         propertiesDialog: propsDialog
         browseFieldDialog: browseFieldDialog
         paletteNavigator: palette
+    }
+
+    Rectangle {
+        visible: root.fluentUi && app.started
+        anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+        height: 26; color: "#292B2D"
+        Row {
+            anchors.fill: parent
+            anchors.rightMargin: (statusTimer.visible ? statusTimer.width + 8 : 0) + (statusFps.visible ? statusFps.width + 8 : 0)
+            Repeater {
+                model: [Backend.otbmReader.loaded ? "Ready" : "No map",
+                    workspace.mapView.selectionCount ? workspace.mapView.selectionCount + " selected" : "Nothing selected",
+                    workspace.mapView.hoverText,
+                    "Zoom: " + Math.round(workspace.mapView.tileSize / 32 * 100) + "%"]
+                delegate: Item {
+                    required property string modelData
+                    width: parent.width / 4; height: parent.height
+                    Rectangle { width: 1; height: 14; anchors.verticalCenter: parent.verticalCenter; color: "#45484B" }
+                    Text { anchors.fill: parent; anchors.leftMargin: 9; text: modelData; color: "#ddd"; font.pixelSize: 11; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+                }
+            }
+        }
+        Text {
+            id: statusFps
+            visible: prefs.showFps
+            anchors.right: parent.right; anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            width: 72
+            text: workspace.mapRenderer.fps > 0 ? "FPS: " + workspace.mapRenderer.fps : "FPS: idle"
+            color: "#E0E0E0"; font.pixelSize: 11
+        }
+        WorkTimerStatus {
+            id: statusTimer
+            visible: prefs.showWorkTimer
+            anchors.right: parent.right; anchors.rightMargin: statusFps.visible ? statusFps.width + 14 : 6
+            anchors.verticalCenter: parent.verticalCenter
+            width: 245; height: 26
+            foreground: "#E0E0E0"; accent: "#B8BDC2"
+        }
     }
 
     ModernMapToolRail {
@@ -727,6 +812,21 @@ Window {
             dungeonGeneratorLoader.item["open"]();
         }
     }
+    QtObject {
+        id: groundClusterGeneratorDialog
+        function open() {
+            groundClusterGeneratorLoader.active = true;
+            groundClusterGeneratorLoader.item["open"]();
+        }
+    }
+    Loader {
+        id: groundClusterGeneratorLoader
+        active: false
+        sourceComponent: GroundClusterGeneratorDialog {
+            mapCtrl: workspace.mapView
+            onClosed: Qt.callLater(() => groundClusterGeneratorLoader.active = false)
+        }
+    }
     Loader {
         id: dungeonGeneratorLoader
         active: false
@@ -863,7 +963,7 @@ Window {
         active: false
         sourceComponent: PreferencesDialog {
             settings: prefs
-            mapGl: workspace.mapGl
+            mapRenderer: workspace.mapRenderer
             onClosed: Qt.callLater(() => themeLoader.active = false)
         }
     }

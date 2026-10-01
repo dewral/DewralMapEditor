@@ -192,7 +192,7 @@ void MapChunkStore::workerLoop()
 void MapAtlasService::reset()
 {
     m_image = QImage();
-    m_patches.clear();
+    ++m_epoch;
     m_rows = 0;
     m_spriteToSlot.clear();
     m_slots.clear();
@@ -244,7 +244,7 @@ bool MapAtlasService::addSprites(SprReader *spr, const QSet<uint32_t> &spriteIds
         }
 
         m_image = std::move(image);
-        m_patches.clear();
+        ++m_epoch;
         m_rows = rows;
         grew = true;
     }
@@ -263,7 +263,6 @@ bool MapAtlasService::addSprites(SprReader *spr, const QSet<uint32_t> &spriteIds
         const auto sprite = spr->loadSpriteUncached(spriteId);
         if (sprite && !sprite->image.isNull()) {
             if (painter) painter->drawImage(x, y, sprite->image);
-            else m_patches.push_back(Patch{x, y, sprite->image});
         }
         m_spriteToSlot.insert(spriteId, slot);
         m_slots.emplace_back(x, y, SpriteSize, SpriteSize);
@@ -311,7 +310,6 @@ bool MapAtlasService::addDecodedSprites(QVector<DecodedSprite> sprites)
         const int y = (slot / Columns) * SpriteSize;
         if (!sprite.image.isNull()) {
             if (painter) painter->drawImage(x, y, sprite.image);
-            else m_patches.push_back(Patch{x, y, std::move(sprite.image)});
         }
         m_spriteToSlot.insert(sprite.id, slot);
         m_slots.emplace_back(x, y, SpriteSize, SpriteSize);
@@ -484,7 +482,7 @@ void MapAtlasService::adoptBuilt(MapAtlasService &&built)
 {
     const int nextGeneration = m_generation + 1;
     m_image = std::move(built.m_image);
-    m_patches = std::move(built.m_patches);
+    ++m_epoch;
     m_spriteToSlot = std::move(built.m_spriteToSlot);
     m_ensuredServerIds = std::move(built.m_ensuredServerIds);
     m_ensuredOutfits = std::move(built.m_ensuredOutfits);
@@ -498,15 +496,28 @@ int MapAtlasService::slotForSprite(uint32_t spriteId) const
     return m_spriteToSlot.value(spriteId, -1);
 }
 
-void MapAtlasService::takePatches(QVector<Patch> &out)
+MapAtlasService::Upload MapAtlasService::uploadSince(quint64 epoch, int count) const
 {
-    out = std::move(m_patches);
-    m_patches.clear();
-}
-
-void MapAtlasService::releaseImage(int generation)
-{
-    if (generation == m_generation) m_image = QImage();
+    Upload upload;
+    upload.epoch = m_epoch;
+    upload.spriteCount = spriteCount();
+    upload.size = m_image.size();
+    if (m_image.isNull()) {
+        upload.image = QImage(1, 1, QImage::Format_RGBA8888);
+        upload.image.fill(Qt::transparent);
+        upload.size = upload.image.size();
+    } else if (epoch != m_epoch || count < 0 || count > spriteCount()) {
+        upload.image = m_image;
+    } else if (count < spriteCount()) {
+        // Slots are append-only within an epoch. Upload complete affected rows;
+        // no consumer can drain updates needed by a different preview window.
+        const int firstRow = count / Columns;
+        const int lastRow = (spriteCount() - 1) / Columns;
+        upload.offset = QPoint(0, firstRow * SpriteSize);
+        upload.image = m_image.copy(0, upload.offset.y(), m_image.width(),
+                                   (lastRow - firstRow + 1) * SpriteSize);
+    }
+    return upload;
 }
 
 int MapMinimapService::colorIndexForTile(const OtbmTile *tile, const OtbReader *otb,

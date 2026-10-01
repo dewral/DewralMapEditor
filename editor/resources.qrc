@@ -5,6 +5,8 @@
              wlasne delegaty menu (zolte podswietlenie, centrowany tekst). -->
         <file alias="qtquickcontrols2.conf">qtquickcontrols2.conf</file>
         <file alias="qml/Main.qml">qml/Main.qml</file>
+        <file alias="qml/components/FluentFileBar.qml">qml/components/FluentFileBar.qml</file>
+        <file alias="qml/components/FluentTools.qml">qml/components/FluentTools.qml</file>
         <file alias="qml/PalettePanel.qml">qml/PalettePanel.qml</file>
         <file alias="qml/StartupWindow.qml">qml/StartupWindow.qml</file>
         <file alias="qml/controllers/AppSettings.qml">qml/controllers/AppSettings.qml</file>
@@ -53,9 +55,11 @@
         <file alias="qml/dialogs/PreferencesDialog.qml">qml/dialogs/PreferencesDialog.qml</file>
         <file alias="qml/dialogs/NewMapDialog.qml">qml/dialogs/NewMapDialog.qml</file>
         <file alias="qml/dialogs/BrushEditorDialog.qml">qml/dialogs/BrushEditorDialog.qml</file>
+        <file alias="qml/dialogs/AdvancedBrushEditor.qml">qml/dialogs/AdvancedBrushEditor.qml</file>
         <file alias="qml/dialogs/AiMapAssistantDialog.qml">qml/dialogs/AiMapAssistantDialog.qml</file>
         <file alias="qml/dialogs/TerrainGeneratorDialog.qml">qml/dialogs/TerrainGeneratorDialog.qml</file>
         <file alias="qml/dialogs/DungeonGeneratorDialog.qml">qml/dialogs/DungeonGeneratorDialog.qml</file>
+        <file alias="qml/dialogs/GroundClusterGeneratorDialog.qml">qml/dialogs/GroundClusterGeneratorDialog.qml</file>
         <file alias="qml/dialogs/UpdateDialog.qml">qml/dialogs/UpdateDialog.qml</file>
         <file alias="qml/dialogs/AboutDialog.qml">qml/dialogs/AboutDialog.qml</file>
         <file alias="qml/style/GithubToolTip.qml">qml/style/GithubToolTip.qml</file>
@@ -240,5 +244,34 @@
         <file alias="ui/github/minimap.svg">ui/github/minimap.svg</file>
         <file alias="ui/github/waypoints.svg">ui/github/waypoints.svg</file>
         <file alias="ui/github/app-icon.png">ui/github/app-icon.png</file>
+        <file alias="qml/themes/fluent/controls/FluentButton.qml">qml/themes/fluent/controls/FluentButton.qml</file>
+        <file alias="qml/themes/fluent/controls/FluentCheckBox.qml">qml/themes/fluent/controls/FluentCheckBox.qml</file>
+        <file alias="qml/themes/fluent/controls/FluentComboBox.qml">qml/themes/fluent/controls/FluentComboBox.qml</file>
+        <file alias="qml/themes/fluent/controls/FluentDialogBackground.qml">qml/themes/fluent/controls/FluentDialogBackground.qml</file>
+        <file alias="qml/themes/fluent/controls/FluentPanel.qml">qml/themes/fluent/controls/FluentPanel.qml</file>
+        <file alias="qml/themes/fluent/controls/FluentSeparator.qml">qml/themes/fluent/controls/FluentSeparator.qml</file>
+        <file alias="qml/themes/fluent/controls/FluentSpinBox.qml">qml/themes/fluent/controls/FluentSpinBox.qml</file>
+        <file alias="qml/themes/fluent/controls/FluentTextField.qml">qml/themes/fluent/controls/FluentTextField.qml</file>
+        <file alias="qml/themes/fluent/Colors.js">qml/themes/fluent/Colors.js</file>
+        <file alias="qml/themes/fluent/icons/Draw.svg">qml/themes/fluent/icons/Draw.svg</file>
+        <file alias="qml/themes/fluent/icons/Select.svg">qml/themes/fluent/icons/Select.svg</file>
+        <file alias="qml/themes/fluent/icons/Lasso.svg">qml/themes/fluent/icons/Lasso.svg</file>
+        <file alias="qml/themes/fluent/icons/Erase.svg">qml/themes/fluent/icons/Erase.svg</file>
+        <file alias="qml/themes/fluent/icons/Border.svg">qml/themes/fluent/icons/Border.svg</file>
+        <file alias="qml/themes/fluent/icons/Auto.svg">qml/themes/fluent/icons/Auto.svg</file>
+        <file alias="qml/themes/fluent/icons/Doors.svg">qml/themes/fluent/icons/Doors.svg</file>
+        <file alias="qml/themes/fluent/icons/PZ.svg">qml/themes/fluent/icons/PZ.svg</file>
+        <file alias="qml/themes/fluent/icons/NP.svg">qml/themes/fluent/icons/NP.svg</file>
+        <file alias="qml/themes/fluent/icons/NL.svg">qml/themes/fluent/icons/NL.svg</file>
+        <file alias="qml/themes/fluent/icons/PvP.svg">qml/themes/fluent/icons/PvP.svg</file>
+            <file alias="qml/themes/fluent/icons/cut.svg">qml/themes/fluent/icons/cut.svg</file>
+            <file alias="qml/themes/fluent/icons/saveAs.svg">qml/themes/fluent/icons/saveAs.svg</file>
+            <file alias="qml/themes/fluent/icons/redo.svg">qml/themes/fluent/icons/redo.svg</file>
+            <file alias="qml/themes/fluent/icons/save.svg">qml/themes/fluent/icons/save.svg</file>
+            <file alias="qml/themes/fluent/icons/open.svg">qml/themes/fluent/icons/open.svg</file>
+            <file alias="qml/themes/fluent/icons/paste.svg">qml/themes/fluent/icons/paste.svg</file>
+            <file alias="qml/themes/fluent/icons/undo.svg">qml/themes/fluent/icons/undo.svg</file>
+            <file alias="qml/themes/fluent/icons/new.svg">qml/themes/fluent/icons/new.svg</file>
+            <file alias="qml/themes/fluent/icons/copy.svg">qml/themes/fluent/icons/copy.svg</file>
     </qresource>
 </RCC>

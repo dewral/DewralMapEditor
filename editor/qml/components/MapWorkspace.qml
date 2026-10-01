@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Tibia 1.0
 import "../style"
+import "../controllers"
 
 Item {
     id: workspace
@@ -20,6 +21,12 @@ Item {
     property alias mapView: mapView
     property alias mapRenderer: mapRenderer
     property alias context: mapArea.ctx
+
+    MapViewSettings {
+        settings: workspace.settings
+        mapView: workspace.mapView
+    }
+
     function positionText(format) {
         var x = mapArea.ctx.x;
         var y = mapArea.ctx.y;

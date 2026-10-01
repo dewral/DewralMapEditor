@@ -183,7 +183,6 @@ Window {
             anchors {
                 right: parent.right
                 top: parent.top
-                bottom: root.fluentUi ? undefined : parent.bottom
             }
             spacing: 0
             z: 5
@@ -497,9 +496,8 @@ Window {
         }
     }
 
-    Loader {
+    ImplicitHeightLoader {
         id: toolBar
-        height: root.fluentUi ? 0 : (item ? item.height : 0)
         anchors.top: root.fluentUi ? fluentFileBar.bottom : titleBar.bottom
         anchors.topMargin: 0
         anchors.left: paletteSplitter.right

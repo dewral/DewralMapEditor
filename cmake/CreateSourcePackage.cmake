@@ -29,6 +29,8 @@ set(source_directories
     "editor"
     "libs"
     "scripts"
+    "tests"
+    "triplets"
 )
 
 foreach(relative_path IN LISTS source_files)

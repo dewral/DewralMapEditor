@@ -8,7 +8,7 @@ Item {
     QtObject { id: app; property var settings: prefs; property int iconSizePx: prefs.iconSize }
     QtObject { id: map; property int brushServerId: 0; property string doodadBrush: ""; function doodadPreviewSource(id) { return "" } }
     Components.PaletteItemGrid { id: items; width: 300; height: 200; app: app; mapCtrl: map; filterModel: []; currentKind: "Terrain Palette"; githubUi: false }
-    Components.DoodadPaletteGrid { id: doodads; y: 210; width: 300; height: 200; app: app; mapCtrl: map; itemIds: []; categoryName: ""; searchText: ""; githubUi: false }
+    Components.DoodadPaletteGrid { id: doodads; y: 210; width: 300; height: 200; app: app; mapCtrl: map; filterModel: ({hideInvisibleSprites: false}); itemIds: []; categoryName: ""; searchText: ""; githubUi: false }
     TestCase {
         name: "FluentPaletteLayout"
         when: windowShown

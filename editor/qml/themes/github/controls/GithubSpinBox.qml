@@ -46,9 +46,18 @@ Item {
         onTextEdited: root.setValue(parseInt(text || "0", 10))
         onEditingFinished: root.setValue(parseInt(text || "0", 10))
         Keys.priority: Keys.BeforeItem
+        Keys.onShortcutOverride: function(event) {
+            if (event.matches(StandardKey.Paste) && root.pasteHandler)
+                event.accepted = true;
+        }
         Keys.onPressed: function(event) {
             if (event.matches(StandardKey.Paste) && root.pasteHandler) {
                 event.accepted = root.pasteHandler();
+                if (event.accepted) {
+                    // The focused editor does not follow external value changes.
+                    input.text = String(root.value);
+                    input.selectAll();
+                }
             } else if (event.key === Qt.Key_Tab && root.nextTabItem) {
                 root.nextTabItem.focusEditor(); event.accepted = true;
             } else if (event.key === Qt.Key_Backtab && root.previousTabItem) {

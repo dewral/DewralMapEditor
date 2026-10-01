@@ -20,6 +20,7 @@ Item {
     readonly property bool directAllItems: Backend.otbReader.loaded
                                                    && currentKind === "All Items"
                                                    && filterModel.searchText === ""
+                                                   && !filterModel.hideInvisibleSprites
     readonly property int count: grid.count
     property alias currentIndex: grid.currentIndex
 

@@ -10,6 +10,7 @@ Item {
 
     required property var app
     required property var mapCtrl
+    required property var filterModel
     required property var itemIds
     required property string categoryName
     required property string searchText
@@ -22,6 +23,8 @@ Item {
 
     readonly property var entries: {
         const brushRevision = Backend.brushStore.revision;
+        const imageRevision = Backend.sprReader.itemImagesRevision;
+        const hideInvisible = filterModel.hideInvisibleSprites;
         const query = searchText.trim().toLowerCase();
         const result = [];
 
@@ -29,6 +32,8 @@ Item {
             const sid = Number(itemIds[i]);
             const row = Backend.otbReader.rowForServerId(sid);
             if (row < 0)
+                continue;
+            if (hideInvisible && !filterModel.itemHasVisibleSprite(sid))
                 continue;
             const details = Backend.otbReader.detailsAt(row);
             const name = details.name || "";
@@ -51,6 +56,8 @@ Item {
                 ? [] : Backend.brushStore.prefabsForPalette(categoryName);
         for (let j = 0; j < prefabs.length; ++j) {
             const prefab = prefabs[j];
+            if (hideInvisible && !filterModel.doodadHasVisibleSprite(prefab.name))
+                continue;
             if (query !== "" && prefab.name.toLowerCase().indexOf(query) < 0
                     && String(prefab.lookid).indexOf(query) !== 0)
                 continue;

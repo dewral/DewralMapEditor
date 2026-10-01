@@ -7,6 +7,7 @@
 #include <QReadWriteLock>
 #include <QVector>
 #include <QHash>
+#include <QSet>
 #include <QString>
 #include <QFile>
 #include <QUrl>
@@ -34,6 +35,7 @@ class SprReader : public QAbstractListModel
     Q_PROPERTY(int spriteCount READ spriteCount NOTIFY spriteCountChanged)
     Q_PROPERTY(bool loaded READ isLoaded NOTIFY loadedChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY errorChanged)
+    Q_PROPERTY(int itemImagesRevision READ itemImagesRevision NOTIFY itemImagesChanged)
 
 public:
     enum SpriteRoles {
@@ -90,11 +92,14 @@ public:
 
     int preloadItemImageSources(const DatReader *datReader);
     QImage preloadedItemImage(int clientId) const;
+    int itemImagesRevision() const { return m_itemImagesRevision; }
+    Q_INVOKABLE bool itemHasVisibleSprite(int clientId) const;
 
 signals:
     void spriteCountChanged();
     void loadedChanged();
     void errorChanged();
+    void itemImagesChanged();
 
 private:
     static constexpr int kDefaultSpriteSize = 32;
@@ -148,6 +153,8 @@ private:
     qsizetype m_dataUrlCacheBytes = 0;
     mutable QReadWriteLock m_preloadedItemLock;
     QHash<int, QByteArray> m_preloadedItemPng;
+    QSet<int> m_visibleItemImages;
+    int m_itemImagesRevision = 0;
 };
 
 #endif

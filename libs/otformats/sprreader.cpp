@@ -122,12 +122,15 @@ void SprReader::reset()
     {
         QWriteLocker lock(&m_preloadedItemLock);
         m_preloadedItemPng.clear();
+        m_visibleItemImages.clear();
     }
     m_loaded = false;
     endResetModel();
 
     emit spriteCountChanged();
     emit loadedChanged();
+    ++m_itemImagesRevision;
+    emit itemImagesChanged();
 }
 
 void SprReader::setError(const QString &message)
@@ -592,6 +595,7 @@ int SprReader::preloadItemImageSources(const DatReader *datReader)
     if (!m_loaded || !datReader || !datReader->isLoaded()) return 0;
 
     QHash<int, QByteArray> preparedImages;
+    QSet<int> visibleImages;
     preparedImages.reserve(datReader->itemCount());
     beginBulkAccess();
     for (const ClientItem &item : datReader->items()) {
@@ -604,6 +608,20 @@ int SprReader::preloadItemImageSources(const DatReader *datReader)
 
         const QImage image = composeItemImage(spriteIds, item.width,
                                               item.height, item.layers);
+        // Inspect the complete thumbnail, including every tile and layer.
+        // Transparent and entirely black placeholders have no visible artwork.
+        bool visible = false;
+        for (int y = 0; y < image.height() && !visible; ++y) {
+            const uchar *pixels = image.constScanLine(y); // Format_RGBA8888
+            for (int x = 0; x < image.width(); ++x) {
+                const uchar *pixel = pixels + x * 4;
+                if (pixel[3] != 0 && (pixel[0] != 0 || pixel[1] != 0 || pixel[2] != 0)) {
+                    visible = true;
+                    break;
+                }
+            }
+        }
+        if (visible) visibleImages.insert(item.id);
         QByteArray png;
         QBuffer buffer(&png);
         if (buffer.open(QIODevice::WriteOnly) && image.save(&buffer, "PNG"))
@@ -614,8 +632,17 @@ int SprReader::preloadItemImageSources(const DatReader *datReader)
     {
         QWriteLocker lock(&m_preloadedItemLock);
         m_preloadedItemPng = std::move(preparedImages);
+        m_visibleItemImages = std::move(visibleImages);
     }
+    ++m_itemImagesRevision;
+    emit itemImagesChanged();
     return prepared;
+}
+
+bool SprReader::itemHasVisibleSprite(int clientId) const
+{
+    QReadLocker lock(&m_preloadedItemLock);
+    return m_visibleItemImages.contains(clientId);
 }
 
 QImage SprReader::preloadedItemImage(int clientId) const

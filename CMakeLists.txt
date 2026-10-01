@@ -204,6 +204,13 @@ target_link_libraries(DewralMapEditor
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(palette_visibility_test EXCLUDE_FROM_ALL
+        tests/palette_visibility_test.cpp
+        editor/core/palettefilter.cpp
+        editor/core/brushstore.cpp)
+    target_include_directories(palette_visibility_test PRIVATE libs/otformats editor/core)
+    target_link_libraries(palette_visibility_test PRIVATE OTFormats Qt6::Core Qt6::Gui)
+    add_test(NAME palette_visibility COMMAND palette_visibility_test)
     add_executable(otbm_compact_storage_test EXCLUDE_FROM_ALL
         tests/otbm_compact_storage_test.cpp)
     target_include_directories(otbm_compact_storage_test PRIVATE libs/otformats)
@@ -281,7 +288,7 @@ if(BUILD_TESTING)
         set_tests_properties(otbm_compact_storage otbm_editing_storage
                              otbm_background_load atlas_background_build map_path_builder
                              map_terrain_generator map_terrain_profile map_dungeon_generator
-                             document_recovery creature_store update_version PROPERTIES
+                             document_recovery creature_store update_version palette_visibility PROPERTIES
             ENVIRONMENT_MODIFICATION
                 "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
     endif()

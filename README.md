@@ -94,6 +94,11 @@ Each release provides two independent archives:
 
 ## Updates
 
+Editor preferences, including View toggles such as **Show wall outlines**, are
+saved between sessions in the per-user Qt settings store. On Windows this is
+`HKEY_CURRENT_USER\Software\Dewral\DewralMapEditor`. View options changed through
+menus, toolbars, or keyboard shortcuts share the same saved preferences.
+
 DME checks for stable updates whenever the start window opens. That window shows
 the current status and, when a newer release is available, a **Download & install**
 button. DME downloads the portable ZIP, verifies its SHA-256 digest, and hands installation

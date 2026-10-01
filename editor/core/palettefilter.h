@@ -8,6 +8,9 @@
 #include <QtQml/qqmlregistration.h>
 
 class BrushStore;
+class SprReader;
+Q_MOC_INCLUDE("brushstore.h")
+Q_MOC_INCLUDE("sprreader.h")
 
 class PaletteFilter : public QSortFilterProxyModel
 {
@@ -16,6 +19,8 @@ class PaletteFilter : public QSortFilterProxyModel
     Q_PROPERTY(QString mode READ mode WRITE setMode NOTIFY modeChanged)
     Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY searchTextChanged)
     Q_PROPERTY(BrushStore *brushStore READ brushStore WRITE setBrushStore NOTIFY brushStoreChanged)
+    Q_PROPERTY(SprReader *sprReader READ sprReader WRITE setSprReader NOTIFY sprReaderChanged)
+    Q_PROPERTY(bool hideInvisibleSprites READ hideInvisibleSprites WRITE setHideInvisibleSprites NOTIFY hideInvisibleSpritesChanged)
 
 public:
     explicit PaletteFilter(QObject *parent = nullptr);
@@ -26,6 +31,12 @@ public:
     void setSearchText(const QString &t);
     BrushStore *brushStore() const { return m_brushStore; }
     void setBrushStore(BrushStore *store);
+    SprReader *sprReader() const { return m_sprReader; }
+    void setSprReader(SprReader *reader);
+    bool hideInvisibleSprites() const { return m_hideInvisibleSprites; }
+    void setHideInvisibleSprites(bool hide);
+    Q_INVOKABLE bool itemHasVisibleSprite(int serverId) const;
+    Q_INVOKABLE bool doodadHasVisibleSprite(const QString &name) const;
 
     Q_INVOKABLE void setIds(const QVariantList &ids);
     Q_INVOKABLE void setOrderedIds(const QVariantList &ids);
@@ -37,6 +48,8 @@ signals:
     void modeChanged();
     void searchTextChanged();
     void brushStoreChanged();
+    void sprReaderChanged();
+    void hideInvisibleSpritesChanged();
 
 protected:
     bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const override;
@@ -48,6 +61,8 @@ private:
     QSet<int> m_ids;
     QHash<int, int> m_order;
     BrushStore *m_brushStore = nullptr;
+    SprReader *m_sprReader = nullptr;
+    bool m_hideInvisibleSprites = false;
 };
 
 #endif

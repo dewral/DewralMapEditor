@@ -202,6 +202,9 @@ Rectangle {
     PaletteFilter {
         id: paletteFilter
         sourceModel: Backend.otbReader
+        sprReader: Backend.sprReader
+        brushStore: Backend.brushStore
+        hideInvisibleSprites: paletteRoot.app.settings.hideInvisibleSprites
     }
 
     Column {
@@ -280,8 +283,7 @@ Rectangle {
         }
         onCurrentIdsChanged: {
             if (currentIds === null) {
-                if (paletteFilter.searchText !== "")
-                    paletteFilter.mode = "all";
+                paletteFilter.mode = "all";
                 return;
             }
             if (quickCollection)
@@ -580,6 +582,14 @@ Rectangle {
                 }
             }
 
+            DmeCheckBox {
+                width: parent.width
+                visible: !paletteCol.creatureMode && !paletteCol.houseMode
+                text: "Hide invisible sprites"
+                checked: paletteRoot.app.settings.hideInvisibleSprites
+                onClicked: paletteRoot.app.settings.hideInvisibleSprites = !checked
+            }
+
             Text {
                 width: parent.width
                 text: (paletteCol.showSub && paletteCol.currentSubName !== ""
@@ -653,6 +663,14 @@ Rectangle {
                 onTextChanged: paletteCol.queueSearch(text)
             }
 
+            DmeCheckBox {
+                width: parent.width
+                visible: !paletteCol.creatureMode && !paletteCol.houseMode
+                text: "Hide invisible sprites"
+                checked: paletteRoot.app.settings.hideInvisibleSprites
+                onClicked: paletteRoot.app.settings.hideInvisibleSprites = !checked
+            }
+
             Text {
                 text: (paletteCol.showSub && paletteCol.currentSubName !== "" ? paletteCol.currentSubName : paletteCol.currentKind) + "  (" + paletteCol.displayedCount + ")"
                 color: paletteRoot.windowsClassicUi ? "#202020" : "#ddd"
@@ -704,6 +722,7 @@ Rectangle {
 
             DoodadPaletteGrid {
                 id: doodadGrid
+                filterModel: paletteFilter
                 anchors.fill: parent
                 visible: paletteCol.currentKind === "Doodad Palette"
                 app: paletteRoot.app

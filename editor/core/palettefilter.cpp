@@ -1,6 +1,7 @@
 #include "palettefilter.h"
 #include "otbreader.h"
 #include "brushstore.h"
+#include "sprreader.h"
 
 #include <utility>
 #include <limits>
@@ -15,7 +16,11 @@ void PaletteFilter::setMode(const QString &m)
     if (m_mode == m) return;
     beginFilterChange();
     m_mode = m;
+    if (m_mode != QLatin1String("ids"))
+        m_order.clear();
     endFilterChange(Direction::Rows);
+    if (m_mode != QLatin1String("ids"))
+        sort(-1);
     emit modeChanged();
 }
 
@@ -108,6 +113,57 @@ int PaletteFilter::serverIdAtRow(int row) const
     return index(row, 0).data(OtbReader::ServerIdRole).toInt();
 }
 
+void PaletteFilter::setSprReader(SprReader *reader)
+{
+    if (m_sprReader == reader) return;
+    if (m_sprReader) disconnect(m_sprReader, nullptr, this, nullptr);
+    m_sprReader = reader;
+    if (m_sprReader) {
+        connect(m_sprReader, &SprReader::itemImagesChanged, this, [this] {
+            beginFilterChange();
+            endFilterChange(Direction::Rows);
+        });
+    }
+    beginFilterChange();
+    endFilterChange(Direction::Rows);
+    emit sprReaderChanged();
+}
+
+void PaletteFilter::setHideInvisibleSprites(bool hide)
+{
+    if (m_hideInvisibleSprites == hide) return;
+    beginFilterChange();
+    m_hideInvisibleSprites = hide;
+    endFilterChange(Direction::Rows);
+    emit hideInvisibleSpritesChanged();
+}
+
+bool PaletteFilter::doodadHasVisibleSprite(const QString &name) const
+{
+    auto *otb = qobject_cast<OtbReader *>(sourceModel());
+    if (!m_sprReader || !m_brushStore || !otb) return true;
+    const auto tiles = m_brushStore->doodadPreviewTiles(name);
+    for (const auto &tile : tiles) {
+        for (int serverId : tile.items) {
+            if (m_sprReader->itemHasVisibleSprite(otb->clientIdForServerId(serverId)))
+                return true;
+        }
+    }
+    return false;
+}
+
+bool PaletteFilter::itemHasVisibleSprite(int serverId) const
+{
+    auto *otb = qobject_cast<OtbReader *>(sourceModel());
+    if (!m_sprReader || !otb) return true;
+    if (m_brushStore) {
+        const QString doodad = m_brushStore->doodadBrushForServerId(serverId);
+        if (!doodad.isEmpty() && !m_brushStore->doodadPreviewTiles(doodad).isEmpty())
+            return doodadHasVisibleSprite(doodad);
+    }
+    return m_sprReader->itemHasVisibleSprite(otb->clientIdForServerId(serverId));
+}
+
 bool PaletteFilter::filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const
 {
     const QAbstractItemModel *src = sourceModel();
@@ -135,7 +191,8 @@ bool PaletteFilter::filterAcceptsRow(int sourceRow, const QModelIndex &sourcePar
                 && !sid.startsWith(m_search) && !aliasMatches)
             return false;
     }
-    return true;
+    return !m_hideInvisibleSprites
+            || itemHasVisibleSprite(idx.data(OtbReader::ServerIdRole).toInt());
 }
 
 bool PaletteFilter::lessThan(const QModelIndex &left, const QModelIndex &right) const

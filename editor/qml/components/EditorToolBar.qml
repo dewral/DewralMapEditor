@@ -9,7 +9,7 @@ Item {
     readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
     required property var mapView
     required property var settings
-    height: Backend.otbmReader.loaded ? 40 : 0
+    implicitHeight: Backend.otbmReader.loaded ? 40 : 0
     visible: Backend.otbmReader.loaded
 
     DmePanel {

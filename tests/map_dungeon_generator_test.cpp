@@ -86,5 +86,21 @@ int main()
         assert(organic.tiles[i].y == organicAgain.tiles[i].y);
         assert(organic.tiles[i].kind == organicAgain.tiles[i].kind);
     }
+    // Enclosed-rock cleanup must add usable floor without breaching the rim.
+    settings.caveWallThreshold = 0;
+    const auto withIslands = MapDungeonGenerator::generate(area, settings);
+    settings.caveWallThreshold = 1000;
+    const auto cleaned = MapDungeonGenerator::generate(area, settings);
+    assert(cleaned.fullyConnected);
+    assert(cleaned.tiles.size() > withIslands.tiles.size());
+    for (const auto &tile : cleaned.tiles) {
+        assert(tile.x > 200 && tile.x < 299);
+        assert(tile.y > 100 && tile.y < 179);
+    }
+    // Every generated tile must respect irregular selections, including holes.
+    const auto irregularCave = MapDungeonGenerator::generate(irregular, settings);
+    assert(irregularCave.fullyConnected);
+    for (const auto &tile : irregularCave.tiles)
+        assert(!(tile.x >= 52 && tile.x <= 57 && tile.y < 70));
     return 0;
 }

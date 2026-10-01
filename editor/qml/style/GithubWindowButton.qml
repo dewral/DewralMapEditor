@@ -5,6 +5,7 @@ Item {
     id: root
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
+    readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
 
     property string controlType: "minimize"
     property bool maximized: false
@@ -20,7 +21,9 @@ Item {
             if (!controlMouse.containsMouse)
                 return "transparent";
             if (root.controlType === "close")
-                return controlMouse.pressed ? "#B62324" : "#DA3633";
+                return controlMouse.pressed ? "#B62324" : (root.windowsClassic ? "#e81123" : "#DA3633");
+            if (root.windowsClassic)
+                return controlMouse.pressed ? "#c8dff2" : "#dcecf8";
             return controlMouse.pressed ? (root.grayTheme ? "#353535" : "#30363D") : (root.grayTheme ? "#292929" : "#21262D");
         }
     }
@@ -40,7 +43,7 @@ Item {
             }
             width: 11
             height: 1
-            color: controlMouse.containsMouse ? "#FFFFFF" : "#A7B1BC"
+            color: root.windowsClassic && !(root.controlType === "close" && controlMouse.containsMouse) ? "#202020" : (controlMouse.containsMouse ? "#FFFFFF" : "#A7B1BC")
         }
 
         Rectangle {
@@ -50,7 +53,7 @@ Item {
             height: 9
             color: "transparent"
             border.width: 1
-            border.color: controlMouse.containsMouse ? "#FFFFFF" : "#A7B1BC"
+            border.color: root.windowsClassic ? "#202020" : (controlMouse.containsMouse ? "#FFFFFF" : "#A7B1BC")
         }
 
         Rectangle {
@@ -59,9 +62,9 @@ Item {
             y: 2
             width: 8
             height: 8
-            color: root.grayTheme ? "#151515" : "#0D1117"
+            color: root.windowsClassic ? "#e7eef7" : (root.grayTheme ? "#151515" : "#0D1117")
             border.width: 1
-            border.color: controlMouse.containsMouse ? "#FFFFFF" : "#A7B1BC"
+            border.color: root.windowsClassic ? "#202020" : (controlMouse.containsMouse ? "#FFFFFF" : "#A7B1BC")
         }
 
         Rectangle {
@@ -70,9 +73,9 @@ Item {
             y: 4
             width: 8
             height: 8
-            color: controlMouse.containsMouse ? (root.grayTheme ? "#292929" : "#21262D") : (root.grayTheme ? "#151515" : "#0D1117")
+            color: root.windowsClassic ? (controlMouse.containsMouse ? "#dcecf8" : "#e7eef7") : (controlMouse.containsMouse ? (root.grayTheme ? "#292929" : "#21262D") : (root.grayTheme ? "#151515" : "#0D1117"))
             border.width: 1
-            border.color: controlMouse.containsMouse ? "#FFFFFF" : "#A7B1BC"
+            border.color: root.windowsClassic ? "#202020" : (controlMouse.containsMouse ? "#FFFFFF" : "#A7B1BC")
         }
 
         Rectangle {
@@ -81,7 +84,7 @@ Item {
             width: 12
             height: 1
             rotation: 45
-            color: controlMouse.containsMouse ? "#FFFFFF" : "#A7B1BC"
+            color: root.windowsClassic && !controlMouse.containsMouse ? "#202020" : (controlMouse.containsMouse ? "#FFFFFF" : "#A7B1BC")
             antialiasing: true
         }
 
@@ -91,7 +94,7 @@ Item {
             width: 12
             height: 1
             rotation: -45
-            color: controlMouse.containsMouse ? "#FFFFFF" : "#A7B1BC"
+            color: root.windowsClassic && !controlMouse.containsMouse ? "#202020" : (controlMouse.containsMouse ? "#FFFFFF" : "#A7B1BC")
             antialiasing: true
         }
     }

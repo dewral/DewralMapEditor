@@ -20,7 +20,13 @@ class SprReader;
 class MapAtlasService
 {
 public:
-    struct Patch { int x = 0; int y = 0; QImage image; };
+    struct Upload {
+        QImage image;
+        QSize size;
+        QPoint offset;
+        quint64 epoch = 0;
+        int spriteCount = 0;
+    };
     struct DecodedSprite { uint32_t id = 0; QImage image; };
 
     void reset();
@@ -53,14 +59,13 @@ public:
     const std::vector<QRect> &atlasSlots() const { return m_slots; }
     const QImage &image() const { return m_image; }
     int generation() const { return m_generation; }
-    void takePatches(QVector<Patch> &out);
-    void releaseImage(int generation);
+    Upload uploadSince(quint64 epoch, int spriteCount) const;
 
 private:
     static constexpr int SpriteSize = 32;
     static constexpr int Columns = 128;
     QImage m_image;
-    QVector<Patch> m_patches;
+    quint64 m_epoch = 1;
     QHash<uint32_t, int> m_spriteToSlot;
     QSet<int> m_ensuredServerIds;
     QSet<int> m_ensuredOutfits;

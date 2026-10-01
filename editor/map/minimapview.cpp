@@ -35,7 +35,7 @@ void MinimapView::maybeRepaint()
     // Track bitmap and viewport changes that are visible on the minimap.
     // Mouse hover alone changes none of these values, so it needs no repaint.
     const quint32 ver = m_source->minimapVersion();
-    const double ox = m_source->glOriginX(), oy = m_source->glOriginY();
+    const double ox = m_source->renderOriginX(), oy = m_source->renderOriginY();
     const int ts = m_source->tileSize(), fl = m_source->floor();
     const double w = m_source->width(), h = m_source->height();
     if (ver == m_paintedVer && ox == m_lastOx && oy == m_lastOy
@@ -66,8 +66,8 @@ void MinimapView::paint(QPainter *p)
     if (img.isNull()) return;
 
     const double ts = std::max(1, m_source->tileSize());
-    const double cx = m_source->glOriginX() + m_source->width() / (2.0 * ts);
-    const double cy = m_source->glOriginY() + m_source->height() / (2.0 * ts);
+    const double cx = m_source->renderOriginX() + m_source->width() / (2.0 * ts);
+    const double cy = m_source->renderOriginY() + m_source->height() / (2.0 * ts);
 
     const double tilesW = width() / double(m_pxPerTile);
     const double tilesH = height() / double(m_pxPerTile);
@@ -103,8 +103,8 @@ void MinimapView::centerMapAt(const QPointF &pos)
 {
     if (!m_source) return;
     const double ts = std::max(1, m_source->tileSize());
-    const double cx = m_source->glOriginX() + m_source->width() / (2.0 * ts);
-    const double cy = m_source->glOriginY() + m_source->height() / (2.0 * ts);
+    const double cx = m_source->renderOriginX() + m_source->width() / (2.0 * ts);
+    const double cy = m_source->renderOriginY() + m_source->height() / (2.0 * ts);
 
     const int tx = static_cast<int>(std::floor(cx + (pos.x() - width() / 2.0) / m_pxPerTile));
     const int ty = static_cast<int>(std::floor(cy + (pos.y() - height() / 2.0) / m_pxPerTile));

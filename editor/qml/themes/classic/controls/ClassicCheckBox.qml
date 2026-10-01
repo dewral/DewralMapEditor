@@ -6,6 +6,7 @@ Item {
     signal clicked
     property bool checked: false
     property string text: ""
+    readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
 
     implicitWidth: box.width + (text.length > 0 ? label.implicitWidth + 8 : 0)
     implicitHeight: Math.max(box.height, label.implicitHeight)
@@ -25,7 +26,7 @@ Item {
         anchors.leftMargin: 8
         anchors.verticalCenter: parent.verticalCenter
         text: root.text
-        color: "#c0c0c0"
+        color: root.windowsClassic ? "#202020" : "#c0c0c0"
         font.pixelSize: 12
     }
     MouseArea {

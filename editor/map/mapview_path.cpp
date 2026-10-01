@@ -8,6 +8,7 @@ QVariantMap MapView::startPathBuilder(const QString &straightPrefab,
                                       const QString &endPrefab,
                                       int spacing)
 {
+    if (m_groundClusterStampActive) cancelGroundClusterStamp();
     QVariantMap result{{QStringLiteral("success"), false}};
     BrushStore *store = m_brushController.store();
     if (!m_otbm || !store) {
@@ -95,6 +96,34 @@ int MapView::rotatedPathItemId(int serverId, int quarterTurns) const
     return result;
 }
 
+QVector<BrushStore::DoodadTile> MapView::rotatedDoodadTiles(
+    QVector<BrushStore::DoodadTile> tiles, int quarterTurns) const
+{
+    const int turns = ((quarterTurns % 4) + 4) % 4;
+    for (int turn = 0; turn < turns && !tiles.isEmpty(); ++turn) {
+        int minX = tiles.constFirst().dx;
+        int maxX = minX;
+        int minY = tiles.constFirst().dy;
+        int maxY = minY;
+        for (const BrushStore::DoodadTile &tile : tiles) {
+            minX = std::min(minX, tile.dx);
+            maxX = std::max(maxX, tile.dx);
+            minY = std::min(minY, tile.dy);
+            maxY = std::max(maxY, tile.dy);
+        }
+        for (BrushStore::DoodadTile &tile : tiles) {
+            const int oldDx = tile.dx;
+            const int oldDy = tile.dy;
+            tile.dx = minX + (maxY - oldDy);
+            tile.dy = minY + (oldDx - minX);
+        }
+    }
+    for (BrushStore::DoodadTile &tile : tiles)
+        for (int &id : tile.items)
+            id = rotatedPathItemId(id, turns);
+    return tiles;
+}
+
 QVector<BrushStore::DoodadTile> MapView::pathPlacementTiles(
     const MapPathBuilder::Placement &placement) const
 {
@@ -102,26 +131,11 @@ QVector<BrushStore::DoodadTile> MapView::pathPlacementTiles(
     if (!store) return {};
     QVector<BrushStore::DoodadTile> result = store->doodadPreviewTiles(placement.prefab);
     const int turns = ((placement.quarterTurns % 4) + 4) % 4;
-    for (int turn = 0; turn < turns && !result.isEmpty(); ++turn) {
-        int minX = result.constFirst().dx;
-        int maxX = minX;
-        int minY = result.constFirst().dy;
-        int maxY = minY;
-        for (const BrushStore::DoodadTile &tile : result) {
-            minX = std::min(minX, tile.dx);
-            maxX = std::max(maxX, tile.dx);
-            minY = std::min(minY, tile.dy);
-            maxY = std::max(maxY, tile.dy);
-        }
-        for (BrushStore::DoodadTile &tile : result) {
-            const int oldDx = tile.dx;
-            const int oldDy = tile.dy;
-            tile.dx = minX + (maxY - oldDy);
-            tile.dy = minY + (oldDx - minX);
-        }
-    }
+    result = rotatedDoodadTiles(std::move(result), turns);
     for (BrushStore::DoodadTile &tile : result) {
-        for (int &id : tile.items) id = rotatedPathItemId(id, turns);
+        if (m_pathPreserveGround)
+            tile.items.erase(std::remove_if(tile.items.begin(), tile.items.end(),
+                [this](int id) { return itemCategory(id) == 0; }), tile.items.end());
     }
     return result;
 }

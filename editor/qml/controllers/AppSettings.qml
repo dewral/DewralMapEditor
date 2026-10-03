@@ -20,6 +20,24 @@ Settings {
     property bool showClientBox: false
     property bool showTooltips: true
     property bool showWaypoints: true
+    property bool showWallOutlines: true
+    property bool showGrid: false
+    property bool showPathing: false
+    property bool showCreatures: true
+    property bool showSpawns: true
+    property bool showHouses: true
+    property bool showZones: true
+    property bool showZonesAlways: true
+    property bool showAnimations: false
+    property bool torchOn: false
+    property int lightAmbient: 40
+    property bool minimapOn: false
+    property bool showShade: true
+    property bool showLowerFloors: true
+    property bool placeEffect: true
+    property bool automagic: true
+    property bool compensatedSelect: true
+    property int selectionFloors: 0
     property bool showIngamePreviewWindow: false
     property bool ingamePreviewFollowCursor: true
     property bool ingamePreviewLighting: true

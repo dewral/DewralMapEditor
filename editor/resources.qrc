@@ -11,6 +11,7 @@
         <file alias="qml/PalettePanel.qml">qml/PalettePanel.qml</file>
         <file alias="qml/StartupWindow.qml">qml/StartupWindow.qml</file>
         <file alias="qml/controllers/AppSettings.qml">qml/controllers/AppSettings.qml</file>
+        <file alias="qml/controllers/MapViewSettings.qml">qml/controllers/MapViewSettings.qml</file>
         <file alias="qml/controllers/AppController.qml">qml/controllers/AppController.qml</file>
         <file alias="qml/controllers/ClientProfileController.qml">qml/controllers/ClientProfileController.qml</file>
         <file alias="qml/controllers/DocumentController.qml">qml/controllers/DocumentController.qml</file>

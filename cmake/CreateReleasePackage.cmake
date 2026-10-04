@@ -12,6 +12,9 @@ file(REMOVE_RECURSE "${package_directory}")
 file(REMOVE "${package_archive}")
 file(MAKE_DIRECTORY "${RELEASE_ROOT}")
 file(COPY "${DEPLOYED_DIRECTORY}/" DESTINATION "${package_directory}")
+if(SYSTEM_RUNTIME_LIBRARIES)
+    file(COPY ${SYSTEM_RUNTIME_LIBRARIES} DESTINATION "${package_directory}")
+endif()
 
 # The deployment directory is also used for local development and can contain
 # old diagnostic executables. Only the application and its updater belong in
@@ -72,6 +75,41 @@ endif()
 set(application_file "${package_directory}/DME.exe")
 if(NOT EXISTS "${application_file}")
     message(FATAL_ERROR "The deployed DME.exe was not found")
+endif()
+
+# Qt builds from vcpkg can link additional shared libraries that windeployqt
+# does not deploy. Resolve the actual imports of the application and plugins.
+if(RUNTIME_DEPENDENCY_COMMAND)
+    set(CMAKE_GET_RUNTIME_DEPENDENCIES_PLATFORM "windows+pe")
+    set(CMAKE_GET_RUNTIME_DEPENDENCIES_TOOL "dumpbin")
+    set(CMAKE_GET_RUNTIME_DEPENDENCIES_COMMAND "${RUNTIME_DEPENDENCY_COMMAND}")
+    get_filename_component(qt_runtime_directory "${QT_CORE_FILE}" DIRECTORY)
+    file(GLOB_RECURSE runtime_libraries "${package_directory}/*.dll")
+    file(GET_RUNTIME_DEPENDENCIES
+        EXECUTABLES "${application_file}" "${package_directory}/DMEUpdater.exe"
+        LIBRARIES ${runtime_libraries}
+        DIRECTORIES "${package_directory}" "${qt_runtime_directory}"
+        PRE_EXCLUDE_REGEXES "^(api-ms-|ext-ms-)"
+        POST_EXCLUDE_REGEXES ".*[/\\\\][Ss][Yy][Ss][Tt][Ee][Mm]32[/\\\\].*"
+        RESOLVED_DEPENDENCIES_VAR resolved_libraries
+        UNRESOLVED_DEPENDENCIES_VAR unresolved_libraries)
+    if(unresolved_libraries)
+        message(FATAL_ERROR "Unresolved release dependencies: ${unresolved_libraries}")
+    endif()
+    foreach(runtime_library IN LISTS resolved_libraries)
+        get_filename_component(runtime_name "${runtime_library}" NAME)
+        if(NOT EXISTS "${package_directory}/${runtime_name}")
+            file(COPY "${runtime_library}" DESTINATION "${package_directory}")
+        endif()
+    endforeach()
+    # Preserve the dependency notices supplied by a vcpkg Qt installation.
+    file(GLOB runtime_notices "${qt_runtime_directory}/../share/*/copyright")
+    foreach(runtime_notice IN LISTS runtime_notices)
+        get_filename_component(notice_directory "${runtime_notice}" DIRECTORY)
+        get_filename_component(dependency_name "${notice_directory}" NAME)
+        file(COPY "${runtime_notice}"
+            DESTINATION "${package_directory}/licenses/${dependency_name}")
+    endforeach()
 endif()
 
 if(DEFINED STRIP_EXECUTABLE

@@ -333,7 +333,7 @@ Window {
                                     case "downloading": return "Downloading... " + Math.round(Backend.updateService.downloadProgress * 100) + "%";
                                     case "installing": return "Starting installer...";
                                     case "error": return "Unable to check for updates";
-                                    case "upToDate": return "DME is up to date";
+                                    case "upToDate": return "No newer stable release";
                                     default: return "Checking for updates...";
                                     }
                                 }

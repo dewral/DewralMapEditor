@@ -7,6 +7,9 @@ set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
 
 project(DewralMapEditor VERSION 1.1.4 LANGUAGES CXX)
 
+set(DME_RELEASE_REPOSITORY "dewral/DewralMapEditor" CACHE STRING
+    "GitHub repository hosting the stable update packages")
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
@@ -199,6 +202,12 @@ target_link_libraries(DewralMapEditor
 
 include(CTest)
 if(BUILD_TESTING)
+    add_test(NAME release_manifest
+        COMMAND "${CMAKE_COMMAND}"
+                "-DSOURCE_ROOT=${CMAKE_SOURCE_DIR}"
+                "-DTEST_ROOT=${CMAKE_BINARY_DIR}/tmp/release-manifest-test"
+                -P "${CMAKE_SOURCE_DIR}/tests/release_manifest_test.cmake")
+
     add_executable(palette_visibility_test EXCLUDE_FROM_ALL
         tests/palette_visibility_test.cpp
         editor/core/palettefilter.cpp
@@ -426,8 +435,10 @@ if(WIN32)
         DEPENDS package_release package_source
         COMMAND "${CMAKE_COMMAND}"
                 "-DRELEASE_ROOT=${CMAKE_SOURCE_DIR}/release"
+                "-DRELEASE_VERSION=${PROJECT_VERSION}"
+                "-DRELEASE_REPOSITORY=${DME_RELEASE_REPOSITORY}"
                 -P "${CMAKE_SOURCE_DIR}/cmake/CreateChecksums.cmake"
-        COMMENT "Generating release checksums"
+        COMMENT "Generating release checksums and update manifest"
         VERBATIM)
 
     add_custom_target(package_all DEPENDS package_checksums)

@@ -7,6 +7,9 @@ set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
 
 project(DewralMapEditor VERSION 1.1.4 LANGUAGES CXX)
 
+set(DME_RELEASE_REPOSITORY "dewral/DewralMapEditor" CACHE STRING
+    "GitHub repository hosting the stable update packages")
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
@@ -199,6 +202,12 @@ target_link_libraries(DewralMapEditor
 
 include(CTest)
 if(BUILD_TESTING)
+    add_test(NAME release_manifest
+        COMMAND "${CMAKE_COMMAND}"
+                "-DSOURCE_ROOT=${CMAKE_SOURCE_DIR}"
+                "-DTEST_ROOT=${CMAKE_BINARY_DIR}/tmp/release-manifest-test"
+                -P "${CMAKE_SOURCE_DIR}/tests/release_manifest_test.cmake")
+
     add_executable(palette_visibility_test EXCLUDE_FROM_ALL
         tests/palette_visibility_test.cpp
         editor/core/palettefilter.cpp
@@ -403,6 +412,18 @@ if(WIN32)
 endif()
 
 if(WIN32)
+    if(MSVC)
+        # windeployqt may not find the compiler runtime outside a VS developer
+        # shell. Resolve it through CMake so every portable package contains it.
+        set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP TRUE)
+        include(InstallRequiredSystemLibraries)
+        if(NOT CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS)
+            message(FATAL_ERROR "The MSVC redistributable runtime could not be located")
+        endif()
+        get_filename_component(_dme_msvc_bin "${CMAKE_LINKER}" DIRECTORY)
+        find_program(DME_RUNTIME_DUMPBIN dumpbin HINTS "${_dme_msvc_bin}" REQUIRED)
+    endif()
+
     add_custom_target(package_release
         DEPENDS DewralMapEditor DMEUpdater
         COMMAND "${CMAKE_COMMAND}"
@@ -410,6 +431,9 @@ if(WIN32)
                 "-DRELEASE_ROOT=${CMAKE_SOURCE_DIR}/release"
                 "-DSOURCE_ROOT=${CMAKE_SOURCE_DIR}"
                 "-DSTRIP_EXECUTABLE=${CMAKE_STRIP}"
+                "-DSYSTEM_RUNTIME_LIBRARIES=${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS}"
+                "-DRUNTIME_DEPENDENCY_COMMAND=${DME_RUNTIME_DUMPBIN}"
+                "-DQT_CORE_FILE=$<TARGET_FILE:Qt6::Core>"
                 -P "${CMAKE_SOURCE_DIR}/cmake/CreateReleasePackage.cmake"
         COMMENT "Creating the production Windows release package"
         VERBATIM)
@@ -426,8 +450,10 @@ if(WIN32)
         DEPENDS package_release package_source
         COMMAND "${CMAKE_COMMAND}"
                 "-DRELEASE_ROOT=${CMAKE_SOURCE_DIR}/release"
+                "-DRELEASE_VERSION=${PROJECT_VERSION}"
+                "-DRELEASE_REPOSITORY=${DME_RELEASE_REPOSITORY}"
                 -P "${CMAKE_SOURCE_DIR}/cmake/CreateChecksums.cmake"
-        COMMENT "Generating release checksums"
+        COMMENT "Generating release checksums and update manifest"
         VERBATIM)
 
     add_custom_target(package_all DEPENDS package_checksums)

@@ -21,7 +21,7 @@ DmeDialog {
         switch (Backend.updateService.state) {
         case "checking": return "Checking GitHub for updates...";
         case "available": return "A new version is available.";
-        case "upToDate": return "DME is up to date.";
+        case "upToDate": return "No newer stable release is available.";
         case "downloading": return "Downloading and verifying the update...";
         case "installing": return "Starting the updater...";
         case "error": return Backend.updateService.errorString;

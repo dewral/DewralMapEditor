@@ -412,6 +412,18 @@ if(WIN32)
 endif()
 
 if(WIN32)
+    if(MSVC)
+        # windeployqt may not find the compiler runtime outside a VS developer
+        # shell. Resolve it through CMake so every portable package contains it.
+        set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP TRUE)
+        include(InstallRequiredSystemLibraries)
+        if(NOT CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS)
+            message(FATAL_ERROR "The MSVC redistributable runtime could not be located")
+        endif()
+        get_filename_component(_dme_msvc_bin "${CMAKE_LINKER}" DIRECTORY)
+        find_program(DME_RUNTIME_DUMPBIN dumpbin HINTS "${_dme_msvc_bin}" REQUIRED)
+    endif()
+
     add_custom_target(package_release
         DEPENDS DewralMapEditor DMEUpdater
         COMMAND "${CMAKE_COMMAND}"
@@ -419,6 +431,9 @@ if(WIN32)
                 "-DRELEASE_ROOT=${CMAKE_SOURCE_DIR}/release"
                 "-DSOURCE_ROOT=${CMAKE_SOURCE_DIR}"
                 "-DSTRIP_EXECUTABLE=${CMAKE_STRIP}"
+                "-DSYSTEM_RUNTIME_LIBRARIES=${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS}"
+                "-DRUNTIME_DEPENDENCY_COMMAND=${DME_RUNTIME_DUMPBIN}"
+                "-DQT_CORE_FILE=$<TARGET_FILE:Qt6::Core>"
                 -P "${CMAKE_SOURCE_DIR}/cmake/CreateReleasePackage.cmake"
         COMMENT "Creating the production Windows release package"
         VERBATIM)

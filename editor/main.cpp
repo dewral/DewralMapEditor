@@ -4,6 +4,7 @@
 #include <QQuickWindow>
 #include <QSettings>
 #include <QSurfaceFormat>
+#include <QTimer>
 
 #include <cstdio>
 
@@ -48,8 +49,6 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName(QStringLiteral("DewralMapEditor"));
     QCoreApplication::setApplicationVersion(QStringLiteral(DME_VERSION));
 
-    qmlRegisterType<DmeWindow>("Tibia", 1, 0, "DmeWindow");
-
     Backend backend(nullptr);
     QObject::connect(&app, &QCoreApplication::aboutToQuit,
                      backend.docMgr(), &DocumentManager::markCleanShutdown);
@@ -78,6 +77,9 @@ int main(int argc, char *argv[])
         std::fflush(stderr);
         return -1;
     }
+
+    if (app.arguments().contains(QStringLiteral("--smoke-test")))
+        QTimer::singleShot(0, &app, &QCoreApplication::quit);
 
     return app.exec();
 }

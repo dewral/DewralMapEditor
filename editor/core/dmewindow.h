@@ -4,11 +4,13 @@
 #include <QPointer>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QtQml/qqmlregistration.h>
 
 // Keep the QML frame while exposing native window capabilities to Windows.
 class DmeWindow : public QQuickWindow
 {
     Q_OBJECT
+    QML_NAMED_ELEMENT(DmeWindow)
     Q_PROPERTY(QQuickItem *maximizeButton READ maximizeButton WRITE setMaximizeButton
                NOTIFY maximizeButtonChanged)
     Q_PROPERTY(bool maximizeHovered READ maximizeHovered NOTIFY maximizeInteractionChanged)

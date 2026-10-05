@@ -54,9 +54,9 @@ jobs:
             throw "Release packaging failed with exit code $LASTEXITCODE."
           }
 
-          ctest --test-dir build/github-actions -C Release -R '^release_manifest$' --output-on-failure
+          ctest --test-dir build/github-actions -C Release -R '^(release_manifest|dme_startup)$' --output-on-failure
           if ($LASTEXITCODE -ne 0) {
-            throw "Release manifest validation failed with exit code $LASTEXITCODE."
+            throw "Release validation failed with exit code $LASTEXITCODE."
           }
 
       - name: Read the packaged release version

@@ -51,7 +51,7 @@ int main(int argc, char **argv)
                 id: maximizeControl
                 x: 700; y: 1; width: 46; height: 40
             }
-            WindowResizeHandles { targetWindow: editorWindow }
+            WindowResizeHandles { objectName: "resizeHandles"; targetWindow: editorWindow }
         }
     )", QUrl::fromLocalFile(QStringLiteral(DME_QML_SOURCE_DIR "/NativeWindowTest.qml")));
     std::unique_ptr<QObject> root(component.create());
@@ -60,6 +60,10 @@ int main(int argc, char **argv)
     expect(root && qobject_cast<DmeWindow *>(root.get()),
            "QML must create the custom window and its caption controls");
     DmeWindow &window = *qobject_cast<DmeWindow *>(root.get());
+    QQuickItem *resizeHandles = window.findChild<QQuickItem *>(QStringLiteral("resizeHandles"));
+    expect(resizeHandles && resizeHandles->property("targetWindow").value<QObject *>() == &window,
+           "resize handles must bind the native DME window");
+    expect(resizeHandles->isEnabled(), "resize handles must be active on a normal DME window");
     expect(window.maximizeButton(), "QML must bind the native maximize hit region");
     QQuickItem &button = *window.maximizeButton();
     window.show();

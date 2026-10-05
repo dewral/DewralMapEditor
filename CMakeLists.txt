@@ -165,6 +165,7 @@ qt_add_qml_module(DewralMapEditor
     URI Tibia
     VERSION 1.0
     SOURCES
+        editor/core/dmewindow.h
         editor/core/backend.h
         editor/core/aimapassistant.h
         editor/map/mapview.h
@@ -205,6 +206,10 @@ target_link_libraries(DewralMapEditor
 
 include(CTest)
 if(BUILD_TESTING)
+    add_test(NAME dme_startup COMMAND DewralMapEditor --smoke-test)
+    set_tests_properties(dme_startup PROPERTIES
+        ENVIRONMENT "QT_QUICK_BACKEND=software;QML_IMPORT_PATH=$<TARGET_FILE_DIR:DewralMapEditor>/qml"
+        TIMEOUT 30)
     if(WIN32)
         add_executable(dme_window_test EXCLUDE_FROM_ALL
             tests/dme_window_test.cpp

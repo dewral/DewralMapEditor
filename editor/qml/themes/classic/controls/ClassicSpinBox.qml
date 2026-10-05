@@ -16,7 +16,7 @@ Item {
     implicitWidth: 96
     implicitHeight: 22
 
-    function focusEditor() { input.forceActiveFocus(); input.selectAll(); }
+    function focusEditor() { input.text = String(root.value); input.forceActiveFocus(); input.selectAll(); }
 
     function setValue(nextValue) {
         var clamped = Math.max(from, Math.min(to, nextValue));

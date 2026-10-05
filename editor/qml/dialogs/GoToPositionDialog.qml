@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import Tibia 1.0
 import "../style"
 
 DmeDialog {

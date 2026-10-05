@@ -387,7 +387,8 @@ void MapView::ensureCreatureSprites(const CreatureStore::CreatureType &creature)
     if (creature.lookType > 0)
         queueAtlasSprites(MapAtlasService::outfitSpriteIds(creature.lookType, m_dat));
     else if (creature.lookItem > 0)
-        queueAtlasSprites(MapAtlasService::clientItemSpriteIds(creature.lookItem, m_dat));
+        queueAtlasSprites(MapAtlasService::clientItemSpriteIds(
+            m_otb ? m_otb->clientIdForServerId(creature.lookItem) : 0, m_dat));
 }
 
 bool MapView::tileInAnySpawn(int x, int y) const

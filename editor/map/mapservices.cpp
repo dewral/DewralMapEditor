@@ -406,7 +406,8 @@ QSet<uint32_t> MapAtlasService::collectSpriteIds(
             if (creature.lookType > 0)
                 spriteIds.unite(outfitSpriteIds(creature.lookType, dat));
             else if (creature.lookItem > 0)
-                spriteIds.unite(clientItemSpriteIds(creature.lookItem, dat));
+                spriteIds.unite(clientItemSpriteIds(
+                    otb->clientIdForServerId(creature.lookItem), dat));
         }
     }
 

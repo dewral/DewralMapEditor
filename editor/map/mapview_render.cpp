@@ -1125,7 +1125,8 @@ void MapView::renderCollectGhostInstances(std::vector<float> &out)
         const ClientItem *outfit = isOutfit
             ? m_dat->outfitByLookType(static_cast<uint16_t>(creature->lookType))
             : (creature && creature->lookItem > 0
-                ? m_dat->itemByClientId(static_cast<uint16_t>(creature->lookItem)) : nullptr);
+                ? m_dat->itemByClientId(static_cast<uint16_t>(
+                    m_otb->clientIdForServerId(creature->lookItem))) : nullptr);
         if (!outfit || outfit->sprite_ids.empty()) return;
 
         const int width = std::max<int>(1, outfit->width);

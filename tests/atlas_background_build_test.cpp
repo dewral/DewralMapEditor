@@ -1,8 +1,13 @@
 #include "mapatlasservice.h"
+#include "creaturestore.h"
+#include "datreader.h"
+#include "dmedatadir.h"
+#include "otbreader.h"
 #include "sprreader.h"
 
 #include <QCoreApplication>
 #include <QFile>
+#include <QFileInfo>
 #include <QTemporaryDir>
 #include <QDebug>
 
@@ -31,6 +36,78 @@ bool require(bool condition, const char *message)
     return false;
 }
 
+bool writeFile(const QString &path, const QByteArray &data)
+{
+    QFile file(path);
+    return file.open(QIODevice::WriteOnly) && file.write(data) == data.size();
+}
+
+bool checkCreatureItemOutfits(const QTemporaryDir &directory)
+{
+    QByteArray datData;
+    appendU32(datData, 0x12345678);
+    appendU16(datData, 5711);
+    datData.append(QByteArray(6, '\0')); // No outfits, effects or missiles.
+    for (int clientId = 100; clientId <= 5711; ++clientId) {
+        datData.append(static_cast<char>(0xff)); // End of flags.
+        datData.append(QByteArray(7, '\1')); // Size, layers, patterns, frames.
+        appendU16(datData, clientId == 100 ? 1 : clientId >= 5710 ? 2 : 0);
+    }
+
+    QByteArray otbData("OTBI");
+    otbData.append(static_cast<char>(0xfe));
+    otbData.append(QByteArray(5, '\0')); // Root type and flags.
+    QByteArray item(5, '\0'); // Item group and flags.
+    item.append(static_cast<char>(0x10));
+    appendU16(item, 2);
+    appendU16(item, 5710); // Server ID.
+    item.append(static_cast<char>(0x11));
+    appendU16(item, 2);
+    appendU16(item, 100); // Different client ID.
+    otbData.append(static_cast<char>(0xfe));
+    for (char byte : item) {
+        if (static_cast<uchar>(byte) >= 0xfd) otbData.append(static_cast<char>(0xfd));
+        otbData.append(byte);
+    }
+    otbData.append(QByteArray(2, static_cast<char>(0xff)));
+
+    const QString datPath = directory.filePath(QStringLiteral("creature.dat"));
+    const QString otbPath = directory.filePath(QStringLiteral("creature.otb"));
+    const QString monsterPath = directory.filePath(QStringLiteral("monster.xml"));
+    if (!require(writeFile(datPath, datData) && writeFile(otbPath, otbData)
+                     && writeFile(monsterPath, QByteArrayLiteral(
+                         "<monster name=\"Item Monster\">"
+                         "<look typeex=\"5710\" corpse=\"8311\"/></monster>")),
+                 "Could not write creature item outfit fixtures")) return false;
+
+    DatReader dat;
+    dat.setClientVersion(860);
+    OtbReader otb;
+    if (!require(dat.loadFile(datPath) && otb.loadFile(otbPath),
+                 "Could not load creature item outfit fixtures")) return false;
+
+    QDir().mkpath(dmeDataDir());
+    QTemporaryDir profileDirectory(QDir(dmeDataDir()).filePath(
+        QStringLiteral("creature-atlas-test-XXXXXX")));
+    if (!require(profileDirectory.isValid(), "Could not create creature profile")) return false;
+    const QString profile = QFileInfo(profileDirectory.path()).fileName();
+    CreatureStore creatures;
+    creatures.loadForDir(profile);
+    if (!require(creatures.importOtFile(monsterPath).value(QStringLiteral("success")).toBool(),
+                 "Could not import creature with a server item outfit")) return false;
+    if (!require(MapAtlasService::collectSpriteIds(QVector<uint16_t>{}, &otb, &dat,
+                         &creatures, 0) == QSet<uint32_t>{1},
+                 "Creature atlas must resolve server ID 5710 to client ID 100")) return false;
+
+    if (!require(creatures.saveCreature({}, QStringLiteral("Unmapped Item"), false,
+                                        0, 5711, 0, 0, 0, 0)
+                     && creatures.loadForDir(profile),
+                 "Could not reload creatures with item outfits")) return false;
+    return require(MapAtlasService::collectSpriteIds(QVector<uint16_t>{}, &otb, &dat,
+                       &creatures, 0) == QSet<uint32_t>{1},
+                   "Reloaded and unmapped server outfits must never use a client ID directly");
+}
+
 }
 
 int main(int argc, char **argv)
@@ -38,6 +115,7 @@ int main(int argc, char **argv)
     QCoreApplication application(argc, argv);
     QTemporaryDir directory;
     if (!require(directory.isValid(), "Could not create temporary directory")) return 1;
+    if (!checkCreatureItemOutfits(directory)) return 1;
 
     QByteArray fileData;
     appendU32(fileData, 0x12345678);

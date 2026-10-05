@@ -17,6 +17,7 @@ Item {
     implicitHeight: 22
 
     function focusEditor() {
+        input.text = String(root.value);
         input.forceActiveFocus();
         input.selectAll();
     }

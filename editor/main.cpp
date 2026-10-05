@@ -8,6 +8,7 @@
 #include <cstdio>
 
 #include "backend.h"
+#include "dmewindow.h"
 #include "mapview.h"
 #include "maprhiview.h"
 #include "minimapview.h"
@@ -46,6 +47,8 @@ int main(int argc, char *argv[])
     QCoreApplication::setOrganizationName(QStringLiteral("Dewral"));
     QCoreApplication::setApplicationName(QStringLiteral("DewralMapEditor"));
     QCoreApplication::setApplicationVersion(QStringLiteral(DME_VERSION));
+
+    qmlRegisterType<DmeWindow>("Tibia", 1, 0, "DmeWindow");
 
     Backend backend(nullptr);
     QObject::connect(&app, &QCoreApplication::aboutToQuit,

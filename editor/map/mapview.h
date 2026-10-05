@@ -187,7 +187,7 @@ public:
 
     Q_INVOKABLE void setBrushStore(BrushStore *bs) { m_brushController.store() = bs; }
 
-    Q_INVOKABLE void setCreatureStore(CreatureStore *cs) { m_creatureStore = cs; }
+    Q_INVOKABLE void setCreatureStore(CreatureStore *cs);
 
     Q_INVOKABLE QString brushForServerId(int serverId) const {
         if (!m_brushController.store() || serverId <= 0) return QString();
@@ -704,6 +704,7 @@ protected:
 
 private slots:
     void onMapLoaded();
+    void refreshCreatures();
 
 private:
     static constexpr int kSprite = 32;
@@ -1023,6 +1024,7 @@ private:
     QSet<uint32_t> m_pendingAtlasSpriteIds;
     std::set<std::pair<int, quint64>> m_atlasDirtyChunks;
     bool m_atlasBuilding = false;
+    bool m_refreshCreaturesAfterAtlas = false;
     int m_dataVersion = 0;
     quint32 m_metadataOverlayVersion = 0;
     quint32 m_pathBuilderVersion = 0;

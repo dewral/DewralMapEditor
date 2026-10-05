@@ -6,11 +6,11 @@ import QtQuick.Window
 Item {
     id: root
 
-    required property Window targetWindow
+    required property var targetWindow
     property int handleSize: 6
 
     anchors.fill: parent
-    enabled: targetWindow.visibility !== Window.Maximized
+    enabled: targetWindow && targetWindow.visibility !== Window.Maximized
     z: 10000
 
     component ResizeArea: MouseArea {

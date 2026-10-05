@@ -311,7 +311,7 @@ Window {
                         }
 
                         Text {
-                            text: "Updates"
+                            text: "Updates (v" + Backend.updateService.currentVersion + ")"
                             color: "#ddd"
                             font.pixelSize: 13
                             font.bold: true

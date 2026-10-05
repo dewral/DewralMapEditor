@@ -120,6 +120,9 @@ Item {
     function addItemToPalette(name, serverId) {
         palettes.addItemToPalette(name, serverId);
     }
+    function addItemsToPalette(name, serverIds) {
+        palettes.addItemsToPalette(name, serverIds);
+    }
     function removeItemFromPalette(name, serverId) {
         palettes.removeItemFromPalette(name, serverId);
     }

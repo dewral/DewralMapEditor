@@ -104,11 +104,17 @@ QtObject {
     }
 
     function addItemToPalette(name, serverId) {
+        addItemsToPalette(name, [serverId]);
+    }
+
+    function addItemsToPalette(name, serverIds) {
         if (customPalettes[name] === undefined)
             return;
         var copy = JSON.parse(JSON.stringify(customPalettes));
-        if (copy[name].indexOf(serverId) < 0)
-            copy[name].push(serverId);
+        for (const serverId of serverIds) {
+            if (serverId > 0 && copy[name].indexOf(serverId) < 0)
+                copy[name].push(serverId);
+        }
         customPalettes = copy;
         save();
     }

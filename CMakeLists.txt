@@ -235,14 +235,23 @@ if(BUILD_TESTING)
     target_include_directories(brushstore_advanced_test PRIVATE editor/core libs/otformats)
     target_link_libraries(brushstore_advanced_test PRIVATE Qt6::Core)
     add_test(NAME brushstore_advanced COMMAND brushstore_advanced_test)
-    find_program(DME_QML_TEST_RUNNER qmltestrunner HINTS "${Qt6_DIR}/../../../bin")
+    find_program(DME_QML_TEST_RUNNER qmltestrunner HINTS
+        "${Qt6_DIR}/../../../bin" "${Qt6_DIR}/../../tools/Qt6/bin")
     if(DME_QML_TEST_RUNNER)
+        # vcpkg's Windows Qt lacks offscreen; the Windows plugin also supports
+        # the screenshot assertions in the QML tests.
+        if(WIN32)
+            set(DME_QML_TEST_PLATFORM windows)
+        else()
+            set(DME_QML_TEST_PLATFORM offscreen)
+        endif()
         add_test(NAME advanced_brush_qml COMMAND "${DME_QML_TEST_RUNNER}"
-            -platform offscreen -input "${CMAKE_SOURCE_DIR}/tests/qml"
+            -platform "${DME_QML_TEST_PLATFORM}" -input "${CMAKE_SOURCE_DIR}/tests/qml"
             -import "${CMAKE_SOURCE_DIR}/tests/qml/imports")
         set_tests_properties(advanced_brush_qml PROPERTIES
             WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-            ENVIRONMENT "QT_QUICK_CONTROLS_STYLE=Basic"
+            ENVIRONMENT "QT_QUICK_CONTROLS_STYLE=Basic;QT_QUICK_BACKEND=software"
+            ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
             TIMEOUT 30)
     endif()
     add_executable(brushstore_border_variants_test EXCLUDE_FROM_ALL

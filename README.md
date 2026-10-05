@@ -21,6 +21,9 @@ multi-floor Tibia maps.
 - Uses an instanced QRhi renderer with chunk caching, smooth pan and zoom,
   multiple visible floors, lighting preview, and optional item animations.
 - Provides terrain, doodad, item, creature, house, and custom palettes.
+- Select palette items with **Shift-click** for a range or **Ctrl-click** to
+  toggle individual items. Right-click a selected item and choose a palette
+  and tileset (for example, **Terrain Palette > Walls**) to add every selected ID.
 - Includes ground brushes, automatic borders, wall brushes, doodad variants,
   zone tools, spawns, creatures, houses, and towns.
 - Supports selection, multi-floor selection, moving items between floors,

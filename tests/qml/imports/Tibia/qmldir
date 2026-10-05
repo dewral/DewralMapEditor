@@ -1,2 +1,4 @@
 module Tibia
 singleton Backend 1.0 Backend.qml
+PaletteFilter 1.0 PaletteFilter.qml
+CreatureFilter 1.0 CreatureFilter.qml

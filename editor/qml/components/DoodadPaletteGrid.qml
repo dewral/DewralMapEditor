@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Controls
 import Tibia 1.0
 import "../style"
+import "../controllers"
 
 Item {
     id: root
@@ -77,6 +78,21 @@ Item {
     }
     readonly property int count: grid.count
     property alias currentIndex: grid.currentIndex
+    readonly property var selectedServerIds: selection.selectedServerIds
+
+    PaletteSelection {
+        id: selection
+        model: root.entries
+    }
+
+    function clearSelection() {
+        selection.clear();
+    }
+
+    onVisibleChanged: {
+        if (!visible)
+            clearSelection();
+    }
 
     function rowForServerId(serverId) {
         for (let i = 0; i < entries.length; ++i)
@@ -114,8 +130,9 @@ Item {
             required property var modelData
 
             readonly property bool selected: modelData.prefab
-                    ? root.mapCtrl.doodadBrush === modelData.name
-                    : root.mapCtrl.brushServerId === modelData.serverId
+                    ? (root.selectedServerIds.length === 0 && root.mapCtrl.doodadBrush === modelData.name)
+                    : (root.selectedServerIds.length > 0 ? selection.contains(modelData.serverId)
+                                                        : root.mapCtrl.brushServerId === modelData.serverId)
             readonly property string doodadSource: modelData.prefab
                     ? root.mapCtrl.doodadPreviewSourceForName(modelData.name)
                     : root.mapCtrl.doodadPreviewSource(modelData.serverId)
@@ -215,6 +232,9 @@ Item {
                                                       : "  (sid " + cell.modelData.serverId + ")")
                 onClicked: mouse => {
                     grid.currentIndex = index;
+                    if (!cell.modelData.prefab)
+                        selection.select(cell.modelData.serverId, index, mouse.modifiers,
+                                         mouse.button === Qt.RightButton);
                     if (mouse.button === Qt.RightButton) {
                         if (cell.modelData.prefab) {
                             prefabMenu.prefabName = cell.modelData.name;
@@ -223,7 +243,10 @@ Item {
                             root.contextMenuRequested(cell.modelData.serverId);
                         }
                     } else if (cell.modelData.prefab) {
+                        selection.clear();
                         root.mapCtrl.useDoodadBrush(cell.modelData.name);
+                    } else if ((mouse.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) !== 0) {
+                        return;
                     } else if (root.mapCtrl.brushServerId === cell.modelData.serverId) {
                         root.mapCtrl.brushServerId = 0;
                     } else {

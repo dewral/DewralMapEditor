@@ -15,29 +15,36 @@ Item {
     implicitWidth: controlLoader.item ? controlLoader.item.implicitWidth : 140
     implicitHeight: controlLoader.item ? controlLoader.item.implicitHeight : 23
 
+    function handleActivation(index) {
+        root.currentIndex = index;
+        // The themed control assigns its index on click, replacing its binding.
+        controlLoader.item.currentIndex = Qt.binding(() => root.currentIndex);
+        root.activated(index);
+    }
+
     Loader { id: controlLoader; anchors.fill: parent; sourceComponent: Backend.uiTheme.style === "fluent-dark" ? fluentCombo : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicCombo : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayCombo : githubCombo) }
     Component {
         id: classicCombo
         Classic.ClassicComboBox {
             model: root.model; currentIndex: root.currentIndex; enabled: root.enabled
-            onActivated: index => { root.currentIndex = index; root.activated(index); }
+            onActivated: index => root.handleActivation(index)
         }
     }
     Component {
         id: githubCombo
         Github.GithubComboBox {
             model: root.model; currentIndex: root.currentIndex; enabled: root.enabled
-            onActivated: index => { root.currentIndex = index; root.activated(index); }
+            onActivated: index => root.handleActivation(index)
         }
     }
-    Component { id: grayCombo; Gray.GrayComboBox { model: root.model; currentIndex: root.currentIndex; enabled: root.enabled; onActivated: index => { root.currentIndex = index; root.activated(index); } } }
+    Component { id: grayCombo; Gray.GrayComboBox { model: root.model; currentIndex: root.currentIndex; enabled: root.enabled; onActivated: index => root.handleActivation(index) } }
     Component {
         id: fluentCombo
         Fluent.FluentComboBox {
             model: root.model
             currentIndex: root.currentIndex
             enabled: root.enabled
-            onActivated: index => { root.currentIndex = index; root.activated(index); }
+            onActivated: index => root.handleActivation(index)
         }
     }
 }

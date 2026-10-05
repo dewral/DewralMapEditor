@@ -623,6 +623,7 @@ Rectangle {
 
             DmeComboBox {
                 id: kindCombo
+                objectName: "paletteKindCombo"
                 width: parent.width
                 height: 23
                 model: paletteCol.kinds
@@ -709,6 +710,7 @@ Rectangle {
 
             CreaturePaletteView {
                 id: creatureList
+                objectName: "creaturePaletteView"
                 anchors.fill: parent
                 visible: paletteCol.creatureMode
                 app: paletteRoot.app

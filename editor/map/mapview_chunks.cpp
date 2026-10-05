@@ -152,8 +152,9 @@ void MapView::appendItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out,
         const bool isOutfit = ct && ct->lookType > 0;
         const ClientItem *of = isOutfit
             ? m_dat->outfitByLookType(static_cast<uint16_t>(ct->lookType))
-            : (ct && ct->lookItem > 0
-                ? m_dat->itemByClientId(static_cast<uint16_t>(ct->lookItem)) : nullptr);
+            : (ct && ct->lookItem > 0 && m_otb
+                ? m_dat->itemByClientId(static_cast<uint16_t>(
+                    m_otb->clientIdForServerId(ct->lookItem))) : nullptr);
         if (of && !of->sprite_ids.empty()) {
             const int w = std::max<int>(1, of->width);
             const int h = std::max<int>(1, of->height);

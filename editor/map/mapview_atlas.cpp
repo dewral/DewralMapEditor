@@ -182,7 +182,7 @@ void MapView::startAtlasJob(QSet<uint32_t> spriteIds, bool replaceAtlas)
                 if (success) {
                     std::lock_guard<std::recursive_mutex> lock(self->m_dataMutex);
                     ++self->m_dataVersion;
-                    if (replaceAtlas) {
+                    if (replaceAtlas || self->m_refreshCreaturesAfterAtlas) {
                         self->clearChunkQuadCache();
                     } else {
                         for (const auto &[floor, key] : self->m_atlasDirtyChunks) {
@@ -193,6 +193,9 @@ void MapView::startAtlasJob(QSet<uint32_t> spriteIds, bool replaceAtlas)
                         }
                     }
                     self->m_atlasDirtyChunks.clear();
+                    self->m_refreshCreaturesAfterAtlas =
+                        self->m_refreshCreaturesAfterAtlas
+                        && !self->m_pendingAtlasSpriteIds.isEmpty();
                     if (self->m_otbm && self->m_otbm->isLoading())
                         self->m_otbm->reportLoadingProgress(99,
                             QStringLiteral("Sprite atlas ready..."));

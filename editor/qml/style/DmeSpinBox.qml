@@ -30,10 +30,17 @@ Item {
         anchors.fill: parent
         sourceComponent: Backend.uiTheme.style === "fluent-dark" ? fluentSpinBox : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicSpinBox : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? graySpinBox : githubSpinBox)
     }
+    // Keep external changes flowing to the themed control after a user edit.
+    Binding {
+        target: controlLoader.item
+        property: "value"
+        value: root.value
+        when: controlLoader.item !== null
+    }
     Component {
         id: classicSpinBox
         Classic.ClassicSpinBox {
-            value: root.value; from: root.from; to: root.to; stepSize: root.stepSize
+            from: root.from; to: root.to; stepSize: root.stepSize
             editable: root.editable; enabled: root.enabled
             nextTabItem: root.nextTabItem; previousTabItem: root.previousTabItem
             pasteHandler: root.pasteHandler
@@ -43,14 +50,14 @@ Item {
     Component {
         id: githubSpinBox
         Github.GithubSpinBox {
-            value: root.value; from: root.from; to: root.to; stepSize: root.stepSize
+            from: root.from; to: root.to; stepSize: root.stepSize
             editable: root.editable; enabled: root.enabled
             nextTabItem: root.nextTabItem; previousTabItem: root.previousTabItem
             pasteHandler: root.pasteHandler
             onValueModified: value => { root.value = value; root.valueModified(); }
         }
     }
-    Component { id: graySpinBox; Gray.GraySpinBox { value: root.value; from: root.from; to: root.to; stepSize: root.stepSize; editable: root.editable; enabled: root.enabled; nextTabItem: root.nextTabItem; previousTabItem: root.previousTabItem; pasteHandler: root.pasteHandler; onValueModified: value => { root.value = value; root.valueModified(); } } }
-    Component { id: fluentSpinBox; Fluent.FluentSpinBox { value: root.value; from: root.from; to: root.to; stepSize: root.stepSize; editable: root.editable; enabled: root.enabled; nextTabItem: root.nextTabItem; previousTabItem: root.previousTabItem; pasteHandler: root.pasteHandler; onValueModified: value => { root.value = value; root.valueModified(); } }
+    Component { id: graySpinBox; Gray.GraySpinBox { from: root.from; to: root.to; stepSize: root.stepSize; editable: root.editable; enabled: root.enabled; nextTabItem: root.nextTabItem; previousTabItem: root.previousTabItem; pasteHandler: root.pasteHandler; onValueModified: value => { root.value = value; root.valueModified(); } } }
+    Component { id: fluentSpinBox; Fluent.FluentSpinBox { from: root.from; to: root.to; stepSize: root.stepSize; editable: root.editable; enabled: root.enabled; nextTabItem: root.nextTabItem; previousTabItem: root.previousTabItem; pasteHandler: root.pasteHandler; onValueModified: value => { root.value = value; root.valueModified(); } }
 }
 }

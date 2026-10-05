@@ -23,7 +23,7 @@ public:
         QString name;
         bool isNpc = false;
         int lookType = 0;
-        int lookItem = 0;
+        int lookItem = 0; // Server item ID (OT typeex / editor lookitem).
         int lookHead = 0, lookBody = 0, lookLegs = 0, lookFeet = 0;
     };
 

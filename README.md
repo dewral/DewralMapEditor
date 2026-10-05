@@ -259,6 +259,11 @@ directory.
 
 ## Useful controls
 
+The editor supports Windows Snap: drag its title bar to the top or sides of the
+screen, or use **Win + Arrow**. On Windows 11, hover over **Maximize** or press
+**Win + Z** to choose a Snap Layout. Available zones depend on the monitor and
+the editor's minimum size (720 × 480).
+
 | Action | Control |
 |---|---|
 | Toggle draw/select mode | `Space` |

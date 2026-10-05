@@ -11,7 +11,7 @@ import "controllers"
 import "components"
 import "themes/github"
 
-Window {
+DmeWindow {
     id: root
     // Both modern themes share one layout. Only their palettes differ.
     readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
@@ -32,6 +32,7 @@ Window {
     title: "Dewral Map Editor  -  " + (Backend.otbmReader.filePath !== "" ? Backend.fileTools.fileName(Backend.otbmReader.filePath) : "(no map)") + (Backend.otbmReader.dirty ? "  *" : "")
 
     flags: Qt.FramelessWindowHint | Qt.Window
+    maximizeButton: maximizeWindowButton
     color: "transparent"
 
     onClosing: function (close) {
@@ -194,9 +195,12 @@ Window {
             }
 
             GithubWindowButton {
+                id: maximizeWindowButton
                 height: parent.height
                 controlType: "maximize"
                 maximized: root.visibility === Window.Maximized
+                nativeHovered: root.maximizeHovered
+                nativePressed: root.maximizePressed
                 onTriggered: root.visibility === Window.Maximized ? root.showNormal() : root.showMaximized()
             }
 

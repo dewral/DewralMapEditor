@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
     "Disable Qt Creator package-manager auto setup" FORCE)
 
-project(DewralMapEditor VERSION 1.1.5 LANGUAGES CXX)
+project(DewralMapEditor VERSION 1.1.6 LANGUAGES CXX)
 
 set(DME_RELEASE_REPOSITORY "dewral/DewralMapEditor" CACHE STRING
     "GitHub repository hosting the stable update packages")
@@ -61,6 +61,8 @@ target_include_directories(OTFormats PUBLIC libs/otformats)
 
 add_executable(DewralMapEditor
     editor/main.cpp
+    editor/core/dmewindow.cpp
+    editor/core/dmewindow.h
     editor/core/backend.cpp
     editor/core/backend.h
     editor/core/aimapassistant.cpp
@@ -156,6 +158,7 @@ endif()
 if(WIN32)
     enable_language(RC)
     target_sources(DewralMapEditor PRIVATE editor/windows/DME.rc)
+    target_link_libraries(DewralMapEditor PRIVATE user32)
 endif()
 
 qt_add_qml_module(DewralMapEditor
@@ -202,6 +205,23 @@ target_link_libraries(DewralMapEditor
 
 include(CTest)
 if(BUILD_TESTING)
+    if(WIN32)
+        add_executable(dme_window_test EXCLUDE_FROM_ALL
+            tests/dme_window_test.cpp
+            editor/core/dmewindow.cpp
+            editor/core/dmewindow.h)
+        target_include_directories(dme_window_test PRIVATE editor/core)
+        target_compile_definitions(dme_window_test PRIVATE
+            DME_QML_SOURCE_DIR="${CMAKE_SOURCE_DIR}/editor/qml"
+            DME_QT_QML_DIR="${Qt6_DIR}/../../Qt6/qml")
+        target_link_libraries(dme_window_test PRIVATE Qt6::Quick user32)
+        add_test(NAME dme_window COMMAND dme_window_test)
+        add_test(NAME dme_window_scaled COMMAND dme_window_test)
+        set_tests_properties(dme_window dme_window_scaled PROPERTIES
+            ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
+            TIMEOUT 30)
+        set_tests_properties(dme_window_scaled PROPERTIES ENVIRONMENT "QT_SCALE_FACTOR=1.5")
+    endif()
     add_test(NAME release_manifest
         COMMAND "${CMAKE_COMMAND}"
                 "-DSOURCE_ROOT=${CMAKE_SOURCE_DIR}"
@@ -326,6 +346,27 @@ if(BUILD_TESTING)
     target_link_libraries(atlas_background_build_test PRIVATE
         OTFormats Qt6::Core Qt6::Gui)
     add_test(NAME atlas_background_build COMMAND atlas_background_build_test)
+    get_target_property(_dme_creature_refresh_sources DewralMapEditor SOURCES)
+    list(FILTER _dme_creature_refresh_sources INCLUDE REGEX
+        "^editor/map/(mapview[^/]*|mapservices|mappathbuilder|mapgroundclustergenerator|mapterraingenerator|mapterrainprofile|mapdungeongenerator)\\.(cpp|h)$")
+    add_executable(map_creature_refresh_test EXCLUDE_FROM_ALL
+        tests/map_creature_refresh_test.cpp
+        editor/core/brushstore.cpp
+        editor/core/creaturestore.cpp
+        ${_dme_creature_refresh_sources})
+    target_include_directories(map_creature_refresh_test PRIVATE
+        libs/otformats editor/map editor/core)
+    target_link_libraries(map_creature_refresh_test PRIVATE
+        OTFormats Qt6::Quick Qt6::Concurrent)
+    target_compile_options(map_creature_refresh_test PRIVATE
+        $<$<CXX_COMPILER_ID:MSVC>:/MP4>)
+    add_test(NAME map_creature_refresh COMMAND map_creature_refresh_test)
+    set_tests_properties(map_creature_refresh PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=minimal" TIMEOUT 30)
+    if(WIN32)
+        set_tests_properties(map_creature_refresh PROPERTIES ENVIRONMENT
+            "QT_QPA_PLATFORM=minimal;QT_QPA_PLATFORM_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::QWindowsIntegrationPlugin>")
+    endif()
     add_executable(document_recovery_test EXCLUDE_FROM_ALL
         tests/document_recovery_test.cpp
         editor/core/documentmanager.cpp)
@@ -351,7 +392,7 @@ if(BUILD_TESTING)
                              otbm_background_load atlas_background_build map_path_builder
                              map_terrain_generator map_terrain_profile map_dungeon_generator
                              map_ground_cluster_generator map_selection_rotation
-                             document_recovery creature_store update_version
+                             document_recovery creature_store map_creature_refresh update_version
                              brushstore_advanced brushstore_border_variants
                              palette_visibility PROPERTIES
             ENVIRONMENT_MODIFICATION

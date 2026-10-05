@@ -148,7 +148,9 @@ Column {
                         source: {
                             const preview = creatureDelegate.lookType > 0
                                     ? Backend.datReader.outfitPreview(creatureDelegate.lookType)
-                                    : Backend.datReader.itemPreview(creatureDelegate.lookItem);
+                                    : Backend.datReader.itemPreview(
+                                          Backend.otbReader.clientIdForServerId(
+                                              creatureDelegate.lookItem));
                             return preview.ids !== undefined && preview.ids.length > 0
                                     ? Backend.sprReader.itemImageSource(preview.ids, preview.width,
                                                                       preview.height, 1) : "";

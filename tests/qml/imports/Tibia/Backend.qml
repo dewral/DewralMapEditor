@@ -3,7 +3,12 @@ import QtQuick
 QtObject {
     property QtObject uiTheme: QtObject {
         property string style: "gray-dark"
-        function tex(name) { return "" }
+        property string tex: Qt.resolvedUrl("../../../../editor/ui/")
+    }
+    property QtObject fileTools: QtObject {
+        property string text: ""
+        function clipboardText() { return text }
+        function setClipboard(value) { text = value }
     }
     property QtObject brushStore: QtObject {
         property int revision: 1

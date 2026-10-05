@@ -210,7 +210,8 @@ DmeDialog {
                                                 : "";
                                     }
                                     const item = Backend.datReader.itemPreview(
-                                                     creatureRow.lookItem);
+                                                     Backend.otbReader.clientIdForServerId(
+                                                         creatureRow.lookItem));
                                     return item.ids !== undefined && item.ids.length > 0
                                             ? Backend.sprReader.itemImageSource(
                                                   item.ids, item.width, item.height, 1)
@@ -331,7 +332,7 @@ DmeDialog {
                     }
                     Column {
                         spacing: 3
-                        Text { text: "Look Item"; color: "#777"; font.pixelSize: 10 }
+                        Text { text: "Look Item (Server ID)"; color: "#777"; font.pixelSize: 10 }
                         DmeSpinBox {
                             id: lookItemField
                             width: 130

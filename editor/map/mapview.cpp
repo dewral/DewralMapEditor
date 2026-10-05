@@ -366,6 +366,49 @@ void MapView::setSpr(SprReader *reader)
     onMapLoaded();
 }
 
+void MapView::setCreatureStore(CreatureStore *store)
+{
+    if (m_creatureStore == store) return;
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    if (m_creatureStore) disconnect(m_creatureStore, nullptr, this, nullptr);
+    m_creatureStore = store;
+    if (store) {
+        // Chunk workers read the creature definitions while building quads.
+        // Keep them out of the model's reset/mutation interval.
+        connect(store, &QAbstractItemModel::modelAboutToBeReset, this,
+                [this] { m_dataMutex.lock(); });
+        connect(store, &QAbstractItemModel::modelReset, this,
+                [this] { m_dataMutex.unlock(); });
+        // Emitted after imports, edits, removals and profile loads, even when
+        // only an outfit changed and the number of creatures stayed the same.
+        connect(store, &CreatureStore::countChanged,
+                this, &MapView::refreshCreatures);
+        connect(store, &QObject::destroyed, this, [this] {
+            m_creatureStore = nullptr;
+            refreshCreatures();
+        });
+    }
+    refreshCreatures();
+}
+
+void MapView::refreshCreatures()
+{
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    clearChunkQuadCache();
+    ++m_dataVersion;
+    if (m_creatureStore && m_otbm && m_otbm->isLoaded()
+        && m_otb && m_otb->isLoaded() && m_dat && m_dat->isLoaded()
+        && m_spr && m_spr->isLoaded()) {
+        queueAtlasSprites(MapAtlasService::collectSpriteIds(
+            QVector<uint16_t>{}, m_otb, m_dat, m_creatureStore, 0));
+    }
+    // Chunks built before new sprites arrive must be refreshed again. Keep
+    // this pending across atlas jobs when further edits queue more sprites.
+    m_refreshCreaturesAfterAtlas = m_atlasBuilding;
+    emit contentUpdated();
+    update();
+}
+
 void MapView::setFloor(int floor)
 {
     floor = std::clamp(floor, 0, 15);

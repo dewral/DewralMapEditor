@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Dialogs
 import Tibia 1.0
 import "../style"
@@ -283,6 +284,12 @@ DmeDialog {
                     DmeButton {
                         text: "Import server..."
                         width: 137
+                        ToolTip.visible: serverImportHover.hovered
+                        ToolTip.delay: 500
+                        ToolTip.text: "Data Folder"
+                        HoverHandler {
+                            id: serverImportHover
+                        }
                         onClicked: serverFolderDialog.open()
                     }
                 }

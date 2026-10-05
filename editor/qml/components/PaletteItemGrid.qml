@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Tibia 1.0
 import "../style"
+import "../controllers"
 
 Item {
     id: root
@@ -25,6 +26,22 @@ Item {
                                                    && !filterModel.hideInvisibleSprites
     readonly property int count: grid.count
     property alias currentIndex: grid.currentIndex
+    readonly property var selectedServerIds: selection.selectedServerIds
+
+    PaletteSelection {
+        id: selection
+        model: grid.model
+    }
+
+    function clearSelection() {
+        selection.clear();
+    }
+
+    onCurrentKindChanged: clearSelection()
+    onVisibleChanged: {
+        if (!visible)
+            clearSelection();
+    }
 
     function positionViewAtIndex(index, mode) {
         grid.positionViewAtIndex(index, mode);
@@ -70,19 +87,21 @@ Item {
 
             property bool isBrush: typeof serverId !== "undefined"
                                    && root.mapCtrl.brushServerId === serverId
+            readonly property bool selected: typeof serverId !== "undefined"
+                    && (root.selectedServerIds.length > 0 ? selection.contains(serverId) : isBrush)
             property string doodadPreview: typeof serverId !== "undefined"
                                            ? root.mapCtrl.doodadPreviewSource(serverId) : ""
-            color: isBrush
+            color: selected
                    ? (root.fluentUi ? "#414447" : root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
                    : (cellMouseArea.containsMouse
                       ? (root.githubUi ? (root.grayUi ? "#303030" : "#161E27") : "#303030")
                       : (root.githubUi ? (root.grayUi ? "#242424" : "#0D1117") : (root.fluentUi ? "#252729" : "#252525")))
-            border.color: isBrush
+            border.color: selected
                           ? (root.fluentUi ? "#B8BDC2" : root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
                           : (root.githubUi
                              ? (cellMouseArea.containsMouse ? (root.grayUi ? "#595959" : "#3A4655") : (root.grayUi ? "#424242" : "#202A35"))
                              : "#3a3a3a")
-            border.width: isBrush ? 2 : 1
+            border.width: selected ? 2 : 1
 
             Image {
                 anchors.verticalCenter: parent.verticalCenter
@@ -206,8 +225,11 @@ Item {
                     if (typeof serverId === "undefined")
                         return;
                     grid.currentIndex = index;
+                    selection.select(serverId, index, mouse.modifiers, mouse.button === Qt.RightButton);
                     if (mouse.button === Qt.RightButton) {
                         root.contextMenuRequested(serverId);
+                    } else if ((mouse.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) !== 0) {
+                        return;
                     } else if (root.mapCtrl.brushServerId === serverId) {
                         root.mapCtrl.brushServerId = 0;
                     } else if (root.currentKind === "All Items"

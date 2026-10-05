@@ -16,6 +16,7 @@
         <file alias="qml/controllers/ClientProfileController.qml">qml/controllers/ClientProfileController.qml</file>
         <file alias="qml/controllers/DocumentController.qml">qml/controllers/DocumentController.qml</file>
         <file alias="qml/controllers/PaletteController.qml">qml/controllers/PaletteController.qml</file>
+        <file alias="qml/controllers/PaletteSelection.qml">qml/controllers/PaletteSelection.qml</file>
         <file alias="qml/components/DocumentTabs.qml">qml/components/DocumentTabs.qml</file>
         <file alias="qml/components/EditorToolBar.qml">qml/components/EditorToolBar.qml</file>
         <file alias="qml/themes/github/GithubEditorToolBar.qml">qml/themes/github/GithubEditorToolBar.qml</file>

@@ -259,6 +259,10 @@ Rectangle {
         property bool showSub: currentKind !== "All Items" && !quickCollection
                                && !creatureMode && !houseMode
         property string currentSubName: (subCombo.currentIndex >= 0 && subCombo.currentIndex < subNames.length) ? subNames[subCombo.currentIndex] : ""
+        onCurrentSubNameChanged: {
+            grid.clearSelection();
+            doodadGrid.clearSelection();
+        }
 
         property string currentCustomName: currentKind === "My Palettes" ? currentSubName : ""
 
@@ -687,6 +691,7 @@ Rectangle {
 
             PaletteItemGrid {
                 id: grid
+                objectName: "paletteItemGrid"
                 anchors.fill: parent
                 visible: !paletteCol.creatureMode && !paletteCol.houseMode
                          && paletteCol.currentKind !== "Doodad Palette"
@@ -697,6 +702,7 @@ Rectangle {
                 githubUi: paletteRoot.githubUi
                 onContextMenuRequested: serverId => {
                     palItemMenu.sid = serverId;
+                    palItemMenu.serverIds = grid.selectedServerIds.slice();
                     palItemMenu.popup();
                 }
             }
@@ -722,6 +728,7 @@ Rectangle {
 
             DoodadPaletteGrid {
                 id: doodadGrid
+                objectName: "doodadPaletteGrid"
                 filterModel: paletteFilter
                 anchors.fill: parent
                 visible: paletteCol.currentKind === "Doodad Palette"
@@ -733,6 +740,7 @@ Rectangle {
                 githubUi: paletteRoot.githubUi
                 onContextMenuRequested: serverId => {
                     palItemMenu.sid = serverId;
+                    palItemMenu.serverIds = doodadGrid.selectedServerIds.slice();
                     palItemMenu.popup();
                 }
             }
@@ -780,7 +788,16 @@ Rectangle {
 
     DmeMenu {
         id: palItemMenu
+        objectName: "paletteItemMenu"
         property int sid: 0
+        property var serverIds: []
+
+        DmeMenuItem {
+            text: palItemMenu.serverIds.length + " items selected"
+            enabled: false
+            visible: palItemMenu.serverIds.length > 1
+            height: visible ? implicitHeight : 0
+        }
 
         DmeMenuItem {
             text: "Export sprite..."
@@ -826,7 +843,7 @@ Rectangle {
                 model: app.customPaletteNames
                 delegate: DmeMenuItem {
                     text: modelData
-                    onTriggered: app.addItemToPalette(modelData, palItemMenu.sid)
+                    onTriggered: app.addItemsToPalette(modelData, palItemMenu.serverIds)
                 }
                 onObjectAdded: (index, object) => addToMenu.insertItem(index, object)
                 onObjectRemoved: (index, object) => addToMenu.removeItem(object)
@@ -838,7 +855,7 @@ Rectangle {
                 text: "New palette..."
                 onTriggered: {
                     newPaletteField.text = "";
-                    newPaletteDialog.pendingSid = palItemMenu.sid;
+                    newPaletteDialog.pendingServerIds = palItemMenu.serverIds.slice();
                     newPaletteDialog.targetCategory = "";
                     newPaletteDialog.open();
                 }
@@ -849,9 +866,17 @@ Rectangle {
             visible: paletteCol.showSub && paletteCol.currentSubName !== ""
         }
         DmeMenuItem {
-            text: app.isFavoriteBrush(palItemMenu.sid)
+            readonly property bool allFavorites: palItemMenu.serverIds.length > 0
+                    && palItemMenu.serverIds.every(id => app.isFavoriteBrush(id))
+            text: allFavorites
                   ? "Remove from Favorites" : "Add to Favorites"
-            onTriggered: app.toggleFavoriteBrush(palItemMenu.sid)
+            onTriggered: {
+                const remove = allFavorites;
+                for (const id of palItemMenu.serverIds) {
+                    if (app.isFavoriteBrush(id) === remove)
+                        app.toggleFavoriteBrush(id);
+                }
+            }
         }
         DmeMenuItem {
             text: "Clear Recent"
@@ -865,10 +890,12 @@ Rectangle {
             visible: paletteCol.showSub && paletteCol.currentSubName !== ""
             height: visible ? implicitHeight : 0
             onTriggered: {
-                if (paletteCol.currentKind === "My Palettes")
-                    app.removeItemFromPalette(paletteCol.currentCustomName, palItemMenu.sid);
-                else
-                    Backend.tilesetStore.removeItem(paletteCol.currentCategory, paletteCol.currentSubName, palItemMenu.sid);
+                for (const id of palItemMenu.serverIds) {
+                    if (paletteCol.currentKind === "My Palettes")
+                        app.removeItemFromPalette(paletteCol.currentCustomName, id);
+                    else
+                        Backend.tilesetStore.removeItem(paletteCol.currentCategory, paletteCol.currentSubName, id);
+                }
             }
         }
     }
@@ -878,6 +905,7 @@ Rectangle {
         required property string category
         required property string label
         readonly property int tilesetRevision: Backend.tilesetStore.revision
+        objectName: "paletteAdd_" + category
         title: label
         Instantiator {
 
@@ -887,7 +915,7 @@ Rectangle {
             }
             delegate: DmeMenuItem {
                 text: modelData
-                onTriggered: Backend.tilesetStore.addItem(catMenu.category, modelData, palItemMenu.sid)
+                onTriggered: Backend.tilesetStore.addItems(catMenu.category, modelData, palItemMenu.serverIds)
             }
             onObjectAdded: (index, object) => catMenu.insertItem(index, object)
             onObjectRemoved: (index, object) => catMenu.removeItem(object)
@@ -902,7 +930,7 @@ Rectangle {
             text: "New tileset..."
             onTriggered: {
                 newPaletteField.text = "";
-                newPaletteDialog.pendingSid = palItemMenu.sid;
+                newPaletteDialog.pendingServerIds = palItemMenu.serverIds.slice();
                 newPaletteDialog.targetCategory = catMenu.category;
                 newPaletteDialog.open();
             }
@@ -911,7 +939,8 @@ Rectangle {
 
     DmeDialog {
         id: newPaletteDialog
-        property int pendingSid: 0
+        objectName: "newPaletteDialog"
+        property var pendingServerIds: []
         property string targetCategory: ""
         title: targetCategory === "" ? "New palette" : "New tileset"
 
@@ -920,16 +949,15 @@ Rectangle {
             if (name === "")
                 return;
             if (targetCategory === "") {
-                if (app.addCustomPalette(name) && pendingSid > 0)
-                    app.addItemToPalette(name, pendingSid);
-                pendingSid = 0;
+                if (app.addCustomPalette(name) && pendingServerIds.length > 0)
+                    app.addItemsToPalette(name, pendingServerIds);
                 paletteCol.selectCustomPalette(name);
             } else {
-                if (Backend.tilesetStore.newTileset(targetCategory, name) && pendingSid > 0)
-                    Backend.tilesetStore.addItem(targetCategory, name, pendingSid);
-                pendingSid = 0;
+                if (Backend.tilesetStore.newTileset(targetCategory, name) && pendingServerIds.length > 0)
+                    Backend.tilesetStore.addItems(targetCategory, name, pendingServerIds);
                 paletteCol.selectCategoryTileset(targetCategory, name);
             }
+            pendingServerIds = [];
             newPaletteDialog.close();
         }
 
@@ -942,6 +970,7 @@ Rectangle {
             spacing: 10
             DmeTextField {
                 id: newPaletteField
+                objectName: "newPaletteName"
                 width: 220
                 placeholderText: newPaletteDialog.targetCategory === "" ? "Palette name" : "Tileset name"
                 onAccepted: newPaletteDialog.commit()

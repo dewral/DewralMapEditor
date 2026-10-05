@@ -44,6 +44,7 @@ Item {
         property int brushServerId: 0
         property string doodadBrush: ""
         property string creatureBrush: ""
+        property bool creatureBrushIsNpc: false
         property bool spawnBrush: false
         property int creatureSpawntime: 60
         property int spawnBrushRadius: 1
@@ -56,6 +57,10 @@ Item {
         function useGroundBrush(id) { brushServerId = id; }
         function doodadPreviewSource(id) { return ""; }
         function doodadPreviewSourceForName(name) { return ""; }
+        function selectCreatureBrush(name, isNpc) {
+            creatureBrush = name;
+            creatureBrushIsNpc = isNpc;
+        }
     }
     ListModel {
         id: items
@@ -135,6 +140,8 @@ Item {
             Backend.uiTheme.style = "gray-dark";
             prefs.paletteViewMode = "grid";
             mockMap.brushServerId = 0;
+            mockMap.creatureBrush = "";
+            mockMap.creatureBrushIsNpc = false;
             palettes.customPalettes = ({});
             mockApp.favoriteBrushIds = [];
             tilesets.saved = ({Walls: []});
@@ -227,6 +234,46 @@ Item {
             terrain.itemAt(0).triggered();
             compare(tilesets.saved.Walls, [506, 509, 512, 515]);
             menu.close();
+        }
+        function test_selectCreatureAfterPaletteDropdown_data() {
+            const rows = [];
+            for (const theme of ["classic", "windows-classic", "github", "gray-dark",
+                                 "gray-modern", "fluent-dark"]) {
+                for (const isNpc of [false, true])
+                    rows.push({tag: theme + (isNpc ? "-npc" : "-monster"), theme, isNpc});
+            }
+            return rows;
+        }
+        function test_selectCreatureAfterPaletteDropdown(data) {
+            Backend.uiTheme.style = data.theme;
+            const panel = createTemporaryObject(panelComponent, testRoot);
+            verify(panel);
+            const combo = findChild(panel, "paletteKindCombo");
+            const control = combo.children[0].item;
+            // The themed dropdown updates its own index before emitting activated.
+            // Exercise that user selection before the context-menu navigation.
+            const terrainIndex = combo.model.indexOf("Terrain Palette");
+            control.currentIndex = terrainIndex;
+            control.activated(terrainIndex);
+            compare(panel.currentKind, "Terrain Palette");
+
+            const name = data.isNpc ? "Captain Bluebear" : "Rat";
+            panel.selectCreature(name, data.isNpc);
+            compare(panel.currentKind, "Creature Palette");
+            compare(combo.currentText, "Creature Palette");
+            compare(control.currentText, "Creature Palette");
+            const creatures = findChild(panel, "creaturePaletteView");
+            verify(creatures.visible);
+            compare(creatures.filterMode, data.isNpc ? "npc" : "monster");
+            compare(mockMap.creatureBrush, name);
+            compare(mockMap.creatureBrushIsNpc, data.isNpc);
+
+            panel.selectKind("Terrain Palette");
+            compare(panel.currentKind, "Terrain Palette");
+            verify(!creatures.visible);
+            panel.selectCreature(name, data.isNpc);
+            compare(panel.currentKind, "Creature Palette");
+            compare(mockMap.creatureBrush, name);
         }
         function test_filteredRangeUsesVisibleRows() {
             const panel = createTemporaryObject(panelComponent, testRoot);

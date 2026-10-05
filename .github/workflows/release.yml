@@ -1,14 +1,19 @@
 name: Windows stable release
 
 on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: dme-release
-  cancel-in-progress: true
+  group: dme-release-${{ github.ref }}
+  # Let an active publication finish uploading its archives and manifest.
+  cancel-in-progress: false
 
 jobs:
   windows:
@@ -61,6 +66,7 @@ jobs:
           "RELEASE_VERSION=$($manifest.version)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Update the main release
+        if: github.ref == 'refs/heads/main'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}

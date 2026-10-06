@@ -205,6 +205,7 @@ Rectangle {
         sprReader: Backend.sprReader
         brushStore: Backend.brushStore
         hideInvisibleSprites: paletteRoot.app.settings.hideInvisibleSprites
+        hideNamedItems: paletteRoot.app.settings.hideNamedItems
     }
 
     Column {
@@ -586,12 +587,24 @@ Rectangle {
                 }
             }
 
-            DmeCheckBox {
+            Flow {
                 width: parent.width
                 visible: !paletteCol.creatureMode && !paletteCol.houseMode
-                text: "Hide invisible sprites"
-                checked: paletteRoot.app.settings.hideInvisibleSprites
-                onClicked: paletteRoot.app.settings.hideInvisibleSprites = !checked
+                spacing: 12
+
+                DmeCheckBox {
+                    objectName: "githubHideInvisibleSprites"
+                    text: "Hide invisible sprites"
+                    checked: paletteRoot.app.settings.hideInvisibleSprites
+                    onClicked: paletteRoot.app.settings.hideInvisibleSprites = !checked
+                }
+
+                DmeCheckBox {
+                    objectName: "githubHideNamedItems"
+                    text: "Hide Named Items"
+                    checked: paletteRoot.app.settings.hideNamedItems
+                    onClicked: paletteRoot.app.settings.hideNamedItems = !checked
+                }
             }
 
             Text {
@@ -668,12 +681,24 @@ Rectangle {
                 onTextChanged: paletteCol.queueSearch(text)
             }
 
-            DmeCheckBox {
+            Flow {
                 width: parent.width
                 visible: !paletteCol.creatureMode && !paletteCol.houseMode
-                text: "Hide invisible sprites"
-                checked: paletteRoot.app.settings.hideInvisibleSprites
-                onClicked: paletteRoot.app.settings.hideInvisibleSprites = !checked
+                spacing: 12
+
+                DmeCheckBox {
+                    objectName: "paletteHideInvisibleSprites"
+                    text: "Hide invisible sprites"
+                    checked: paletteRoot.app.settings.hideInvisibleSprites
+                    onClicked: paletteRoot.app.settings.hideInvisibleSprites = !checked
+                }
+
+                DmeCheckBox {
+                    objectName: "paletteHideNamedItems"
+                    text: "Hide Named Items"
+                    checked: paletteRoot.app.settings.hideNamedItems
+                    onClicked: paletteRoot.app.settings.hideNamedItems = !checked
+                }
             }
 
             Text {

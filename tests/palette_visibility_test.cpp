@@ -1,6 +1,7 @@
 #include "datreader.h"
 #include "brushstore.h"
 #include "otbreader.h"
+#include "itemsxmlreader.h"
 #include "palettefilter.h"
 #include "sprreader.h"
 
@@ -97,6 +98,14 @@ QByteArray otbFile()
         item.append(static_cast<char>(0x11));
         appendU16(item, 2);
         appendU16(item, static_cast<quint16>(cid));
+        const QByteArray name = cid == 101 ? QByteArray("stone")
+                : cid == 105 ? QByteArray("torch")
+                : cid == 108 ? QByteArray("  ") : QByteArray();
+        if (!name.isEmpty()) {
+            item.append(static_cast<char>(0x12)); // Item name.
+            appendU16(item, static_cast<quint16>(name.size()));
+            item.append(name);
+        }
         data.append(static_cast<char>(0xfe));
         for (char byte : item) {
             if (static_cast<uchar>(byte) >= 0xfd) data.append(static_cast<char>(0xfd));
@@ -125,7 +134,9 @@ int main(int argc, char **argv)
     dat.setClientVersion(860);
     SprReader spr;
     OtbReader otb;
+    ItemsXmlReader itemsXml;
     otb.setDatReader(&dat);
+    otb.setItemsXml(&itemsXml);
     if (!require(dat.loadFile(datPath) && spr.loadFile(sprPath, 0, false, true)
                      && otb.loadFile(otbPath), "Could not load fixtures")) return 1;
 
@@ -195,6 +206,41 @@ int main(int argc, char **argv)
     store.loadForDir(directory.filePath(QStringLiteral("missing")));
     if (!require(filter.rowForServerId(1000) < 0 && filter.rowForServerId(1005) >= 0,
                  "Brush changes must refresh visibility")) return 1;
-    qInfo() << "Palette visibility checks passed";
+    const QString xmlPath = directory.filePath(QStringLiteral("items.xml"));
+    const QByteArray names = R"(<items><item id="1006" name="wall"/></items>)";
+    if (!require(writeFile(xmlPath, names) && itemsXml.loadFile(xmlPath),
+                 "Could not load item names")) return 1;
+    filter.setHideInvisibleSprites(false);
+    filter.setHideNamedItems(true);
+    if (!require(filter.rowCount() == 6 && filter.rowForServerId(1001) < 0
+                     && filter.rowForServerId(1005) < 0 && filter.rowForServerId(1006) < 0
+                     && filter.rowForServerId(1008) >= 0,
+                 "Name filtering must hide OTB/XML names and keep blank or whitespace names")) return 1;
+    filter.setOrderedIds({1007, 1001, 1000, 1006});
+    if (!require(filter.rowCount() == 2 && filter.serverIdAtRow(0) == 1007
+                     && filter.serverIdAtRow(1) == 1000,
+                 "Name filtering must preserve category membership and recent/favorite order")) return 1;
+    filter.setHideInvisibleSprites(true);
+    if (!require(filter.rowCount() == 1 && filter.serverIdAtRow(0) == 1007,
+                 "Name and sprite visibility filters must combine")) return 1;
+    filter.setSearchText(QStringLiteral("1006"));
+    if (!require(filter.rowCount() == 0, "Server ID search must honor name filtering")) return 1;
+    filter.setHideNamedItems(false);
+    if (!require(filter.rowCount() == 1 && filter.serverIdAtRow(0) == 1006,
+                 "Disabling name filtering must restore named search results")) return 1;
+    filter.setHideNamedItems(true);
+    filter.setSearchText(QStringLiteral("1007"));
+    if (!require(filter.rowCount() == 1, "Unnamed items must remain searchable by ID")) return 1;
+    filter.setSearchText(QString());
+    filter.setMode(QStringLiteral("all"));
+    const QByteArray changedNames = R"(<items><item id="1007" name="window"/></items>)";
+    if (!require(writeFile(xmlPath, changedNames) && itemsXml.loadFile(xmlPath)
+                     && filter.rowCount() == 1 && filter.rowForServerId(1006) >= 0
+                     && filter.rowForServerId(1007) < 0,
+                 "Reloading XML names must refresh the active name filter")) return 1;
+    filter.setHideNamedItems(false);
+    filter.setHideInvisibleSprites(false);
+    if (!require(filter.rowCount() == 9, "Disabling both filters must restore every item")) return 1;
+    qInfo() << "Palette visibility and name checks passed";
     return 0;
 }

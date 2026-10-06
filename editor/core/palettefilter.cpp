@@ -9,6 +9,7 @@
 PaletteFilter::PaletteFilter(QObject *parent)
     : QSortFilterProxyModel(parent)
 {
+    setFilterRole(OtbReader::NameRole);
 }
 
 void PaletteFilter::setMode(const QString &m)
@@ -138,6 +139,15 @@ void PaletteFilter::setHideInvisibleSprites(bool hide)
     emit hideInvisibleSpritesChanged();
 }
 
+void PaletteFilter::setHideNamedItems(bool hide)
+{
+    if (m_hideNamedItems == hide) return;
+    beginFilterChange();
+    m_hideNamedItems = hide;
+    endFilterChange(Direction::Rows);
+    emit hideNamedItemsChanged();
+}
+
 bool PaletteFilter::doodadHasVisibleSprite(const QString &name) const
 {
     auto *otb = qobject_cast<OtbReader *>(sourceModel());
@@ -169,6 +179,9 @@ bool PaletteFilter::filterAcceptsRow(int sourceRow, const QModelIndex &sourcePar
     const QAbstractItemModel *src = sourceModel();
     if (!src) return false;
     const QModelIndex idx = src->index(sourceRow, 0, sourceParent);
+
+    if (m_hideNamedItems && !idx.data(OtbReader::NameRole).toString().trimmed().isEmpty())
+        return false;
 
     if (m_mode == QLatin1String("ids")) {
         const int sid = idx.data(OtbReader::ServerIdRole).toInt();

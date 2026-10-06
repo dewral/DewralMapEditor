@@ -53,6 +53,7 @@ items.otb
 # ---- Local test maps / scratch data ----
 /aqtinstall.log
 /recovery/
+/creature-refresh-fixtures-*/
 *.otbm
 *-house.xml
 *-spawn.xml

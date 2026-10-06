@@ -40,8 +40,16 @@ item previews, fixed-width drawing tools and a full-width status bar. Select
 **Fluent Dark** in the theme settings. FPS and work timer visibility can be
 changed from the View menu.
 
-The theme uses Qt Fluent WinUI 3 controls. Design concepts and layout notes are
-available in [the design documentation](docs/design/fluent-winui3/README.md).
+The theme uses custom Qt Quick controls with a shared Fluent Dark palette.
+**Preferences → Interface → UI Colorize** lets you edit interface colors,
+preview the affected elements and save overrides. See [UI Colorize](docs/ui-colorize.md).
+
+**Preferences → Zone display** controls zone and house overlays, their opacity,
+and map layer visibility. Houses use violet overlays and visible exit markers;
+spawns use square coverage outlines. See [zone display](docs/zone-display.md).
+
+Loading measurements and profiling instructions are documented in
+[map loading performance](docs/map-loading-performance.md).
 
 ### Client profiles
 

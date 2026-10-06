@@ -113,14 +113,12 @@ Do not download only `DME.exe`. The executable requires the DLL and QML files
 that are shipped beside it in the ready-to-run archive.
 
 The **Windows stable release** workflow builds and publishes automatically after
-each push or merge into `main`. Pull requests build and validate the packages
-without publishing. Before merging a new update, increase the version in
+each push or merge into `main`. Pull requests and pushes to other branches do
+not trigger a build. Before merging a new update, increase the version in
 `CMakeLists.txt` beyond the version in the currently published
 `update-manifest.json` so installed copies can detect it.
 
-The workflow can also be run manually from `main` to rebuild and publish the
-current version. Manual runs on other branches only build and validate the
-packages. Local `package_all` builds also generate `update-manifest.json`
+Local `package_all` builds also generate `update-manifest.json`
 and `SHA256SUMS.txt` alongside both ZIP archives. For a manual publication, upload
 both ZIPs and the checksums to the `1.0` release first, then upload the matching
 manifest last. Uploading only the ZIP leaves installed copies checking the old

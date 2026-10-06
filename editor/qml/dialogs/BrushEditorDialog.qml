@@ -605,6 +605,7 @@ DmeDialog {
 
                 GridView {
                     id: pickerGrid
+                    objectName: "brushManagerPickerGrid"
                     anchors.fill: parent
                     anchors.margins: 3
                     clip: true
@@ -672,6 +673,8 @@ DmeDialog {
                             onDoubleClicked: {
                                 if (root.tab === "tilesets")
                                     root.addSelectedToTileset();
+                                else if (root.tab === "ground")
+                                    root.addBorderVariant(root.selectedBorderType, parent.sid);
                             }
                             ToolTip.visible: containsMouse
                             ToolTip.delay: 450
@@ -1472,6 +1475,7 @@ DmeDialog {
                         ]
                         delegate: Rectangle {
                             required property var modelData
+                            objectName: "brushManagerBorderSlot" + modelData.bt
                             x: modelData.cx * 50
                             y: modelData.cy * 50
                             width: 44
@@ -1546,7 +1550,7 @@ DmeDialog {
                         }
                         Text {
                             width: parent.width
-                            text: "Drop several items onto a border slot or add the current picker selection. Weight controls how often each variant is used."
+                            text: "Drop items onto a border slot or double-click a picker item to add it to the selected slot. Weight controls how often each variant is used."
                             color: root.mutedColor
                             font.pixelSize: 10
                             wrapMode: Text.WordWrap

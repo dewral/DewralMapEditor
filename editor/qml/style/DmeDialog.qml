@@ -11,6 +11,7 @@ Dialog {
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
     modal: true
+    focus: true
     dim: modernTheme
     anchors.centerIn: root.movable ? null : Overlay.overlay
     closePolicy: Popup.CloseOnEscape

@@ -802,6 +802,11 @@ Rectangle {
         }
 
         DmeMenuItem {
+            text: "Copy Server ID"
+            enabled: palItemMenu.sid > 0
+            onTriggered: Backend.fileTools.setClipboard(String(palItemMenu.sid))
+        }
+        DmeMenuItem {
             text: "Export sprite..."
             enabled: palItemMenu.sid > 0
             onTriggered: {

@@ -1,5 +1,6 @@
 import QtQuick
 import Tibia 1.0
+import "../themes/fluent/Colors.js" as Colors
 
 Item {
     id: tabs
@@ -7,11 +8,20 @@ Item {
     readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
     required property var app
 
-    Rectangle { anchors.fill: parent; visible: tabs.fluentUi; color: "#252729" }
+    Rectangle { anchors.fill: parent; visible: tabs.fluentUi; color: Colors.c("background") }
 
+    Flickable {
+        anchors.fill: parent
+        contentWidth: tabRow.width + (tabs.fluentUi ? 8 : 0)
+        contentHeight: height
+        clip: tabs.fluentUi
+        interactive: tabs.fluentUi && contentWidth > width
+        boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.HorizontalFlick
     Row {
-        anchors.left: parent.left
-        anchors.bottom: parent.bottom
+        id: tabRow
+        x: tabs.fluentUi ? 4 : 0
+        y: tabs.height - (tabs.fluentUi ? 32 : 20)
         spacing: 2
 
         Repeater {
@@ -21,14 +31,14 @@ Item {
                 required property var modelData
                 required property int index
                 readonly property bool active: index === Backend.docMgr.currentIndex
-                width: tabLabel.implicitWidth + (tabs.fluentUi ? 44 : 34)
-                height: tabs.fluentUi ? 30 : 20
+                width: tabs.fluentUi ? Math.min(220, tabLabel.implicitWidth + 44) : tabLabel.implicitWidth + 34
+                height: tabs.fluentUi ? 28 : 20
 
                 Rectangle {
                     anchors.fill: parent
                     visible: tabs.fluentUi
-                    color: tabDelegate.active ? "#303234" : "#252729"
-                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: "#B8BDC2"; visible: tabDelegate.active }
+                    radius: 4
+                    color: tabDelegate.active ? Colors.c("selected") : Colors.c("background")
                 }
                 BorderImage {
                     visible: !tabs.fluentUi
@@ -50,9 +60,13 @@ Item {
                         verticalCenter: parent.verticalCenter
                     }
                     text: tabDelegate.modelData.title + (tabDelegate.modelData.dirty ? " *" : "")
-                    color: tabs.fluentUi ? "#E0E0E0" : tabs.windowsClassic ? "#202020" : (tabDelegate.active ? "#eaffea" : "#c0c0c0")
-                    font.pixelSize: 11
-                    font.bold: tabDelegate.active
+                    color: tabs.fluentUi ? Colors.c("text") : tabs.windowsClassic ? "#202020" : (tabDelegate.active ? "#eaffea" : "#c0c0c0")
+                    font.pixelSize: tabs.fluentUi ? Colors.fontSize : 11
+                    font.family: tabs.fluentUi ? Colors.fontFamily : Qt.application.font.family
+                    renderType: tabs.fluentUi ? Text.NativeRendering : Text.QtRendering
+                    width: parent.width - (tabs.fluentUi ? 36 : 28)
+                    elide: Text.ElideRight
+                    font.bold: !tabs.fluentUi && tabDelegate.active
                 }
                 MouseArea {
                     anchors.fill: parent
@@ -65,10 +79,10 @@ Item {
                         rightMargin: 6
                         verticalCenter: parent.verticalCenter
                     }
-                    text: "X"
+                    text: tabs.fluentUi ? "\u00d7" : "X"
                     color: closeArea.containsMouse ? (tabs.windowsClassic ? "#c42b1c" : "#ff8f8f") : (tabs.windowsClassic ? "#444" : "#888")
                     font.pixelSize: 12
-                    font.bold: true
+                    font.bold: !tabs.fluentUi
                     MouseArea {
                         id: closeArea
                         anchors.fill: parent
@@ -80,4 +94,6 @@ Item {
             }
         }
     }
+    }
+    ColorHighlight { targetItem: tabs; colorKeys: ["background", "text", "selected"] }
 }

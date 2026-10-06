@@ -43,6 +43,11 @@ UiTheme::UiTheme(QObject *parent)
 {
     // Migrate preferences saved before the Fluent Dark naming update.
     QSettings settings;
+    const auto savedColors = settings.value(QStringLiteral("ui/fluentColors")).toMap();
+    for (auto it = savedColors.cbegin(); it != savedColors.cend(); ++it) {
+        const QColor color(it.value().toString());
+        if (color.isValid()) m_colorOverrides.insert(it.key(), color.name(QColor::HexArgb));
+    }
     if (settings.value(QLatin1String(kStyleKey)).toString() == QLatin1String("rme-fluent"))
         settings.setValue(QLatin1String(kStyleKey), QStringLiteral("fluent-dark"));
     if (settings.contains(QStringLiteral("rmePaletteWidth"))) {
@@ -76,6 +81,38 @@ QString UiTheme::style() const
 {
     QMutexLocker lock(&m_mutex);
     return m_style;
+}
+
+bool UiTheme::setUiColor(const QString &key, const QColor &color)
+{
+    if (key.isEmpty() || key.size() > 64 || !color.isValid()) return false;
+    const QString value = color.name(QColor::HexArgb);
+    if (m_colorOverrides.value(key).toString() == value) return true;
+    m_colorOverrides.insert(key, value);
+    QSettings().setValue(QStringLiteral("ui/fluentColors"), m_colorOverrides);
+    emit colorsChanged();
+    return true;
+}
+
+void UiTheme::resetUiColor(const QString &key)
+{
+    if (!m_colorOverrides.remove(key)) return;
+    QSettings().setValue(QStringLiteral("ui/fluentColors"), m_colorOverrides);
+    emit colorsChanged();
+}
+
+void UiTheme::resetUiColors()
+{
+    if (m_colorOverrides.isEmpty()) return;
+    m_colorOverrides.clear();
+    QSettings().remove(QStringLiteral("ui/fluentColors"));
+    emit colorsChanged();
+}
+
+void UiTheme::setHighlightedColor(const QString &key)
+{
+    m_highlightedColor = key;
+    emit highlightedColorChanged();
 }
 
 void UiTheme::setStyle(const QString &s)
@@ -387,6 +424,22 @@ UiThemeImageProvider::UiThemeImageProvider(UiTheme *theme)
 
 QImage UiThemeImageProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
 {
+    if (id.startsWith(QLatin1String("fluent-icon/"))) {
+        const QStringList parts = id.split(QLatin1Char('/'));
+        if (parts.size() != 3 || parts[1].contains(QLatin1Char('.'))) return {};
+        const QColor color(QStringLiteral("#") + parts[2]);
+        if (!color.isValid()) return {};
+        QImage icon(QStringLiteral(":/qml/themes/fluent/icons/") + parts[1] + QStringLiteral(".svg"));
+        if (icon.isNull()) return {};
+        icon = icon.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        if (requestedSize.isValid()) icon = icon.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        QPainter painter(&icon);
+        painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+        painter.fillRect(icon.rect(), color);
+        painter.end();
+        if (size) *size = icon.size();
+        return icon;
+    }
 
     const int slash = id.indexOf(QLatin1Char('/'));
     const QString file = (slash >= 0) ? id.mid(slash + 1) : id;

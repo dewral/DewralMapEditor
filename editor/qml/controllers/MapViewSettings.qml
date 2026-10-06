@@ -12,6 +12,8 @@ Item {
     readonly property var preferenceNames: [
         "showWallOutlines", "showGrid", "showPathing", "showCreatures",
         "showSpawns", "showHouses", "showZones", "showZonesAlways",
+        "visibleZoneMask", "zoneOpacities",
+        "tilesOpacity", "itemsOpacity", "houseOpacity",
         "showAnimations", "torchOn", "lightAmbient", "minimapOn",
         "showShade", "showLowerFloors", "placeEffect", "automagic",
         "compensatedSelect", "selectionFloors"

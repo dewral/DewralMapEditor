@@ -15,6 +15,8 @@
 #include <QFuture>
 #include <algorithm>
 #include <vector>
+#include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
@@ -102,6 +104,12 @@ class MapView : public QQuickItem
     Q_PROPERTY(bool showSpawns READ showSpawns WRITE setShowSpawns NOTIFY viewFlagsChanged)
     Q_PROPERTY(bool showHouses READ showHouses WRITE setShowHouses NOTIFY viewFlagsChanged)
     Q_PROPERTY(bool showZones READ showZones WRITE setShowZones NOTIFY viewFlagsChanged)
+    Q_PROPERTY(bool modernZones READ modernZones WRITE setModernZones NOTIFY viewFlagsChanged)
+    Q_PROPERTY(QVariantList zoneOpacities READ zoneOpacities WRITE setZoneOpacities NOTIFY viewFlagsChanged)
+    Q_PROPERTY(int visibleZoneMask READ visibleZoneMask WRITE setVisibleZoneMask NOTIFY viewFlagsChanged)
+    Q_PROPERTY(double tilesOpacity READ tilesOpacity WRITE setTilesOpacity NOTIFY viewFlagsChanged)
+    Q_PROPERTY(double itemsOpacity READ itemsOpacity WRITE setItemsOpacity NOTIFY viewFlagsChanged)
+    Q_PROPERTY(double houseOpacity READ houseOpacity WRITE setHouseOpacity NOTIFY viewFlagsChanged)
 
     Q_PROPERTY(bool showZonesAlways READ showZonesAlways WRITE setShowZonesAlways NOTIFY viewFlagsChanged)
 
@@ -262,6 +270,37 @@ public:
     bool showHouses() const { return m_showHouses; }
     void setShowHouses(bool on) { setBakedViewFlag(m_showHouses, on); }
     bool showZones() const { return m_showZones; }
+    bool modernZones() const { return m_modernZones; }
+    double tilesOpacity() const { return m_tilesOpacity; }
+    double itemsOpacity() const { return m_itemsOpacity; }
+    double houseOpacity() const { return m_houseOpacity; }
+    void setHouseOpacity(double value) { setLayerOpacity(m_houseOpacity, value); }
+    void setTilesOpacity(double value) { setLayerOpacity(m_tilesOpacity, value); }
+    void setItemsOpacity(double value) { setLayerOpacity(m_itemsOpacity, value); }
+    void setModernZones(bool on) { setBakedViewFlag(m_modernZones, on); }
+    QVariantList zoneOpacities() const { return m_zoneOpacities; }
+    void setZoneOpacities(const QVariantList &values) {
+        if (values.size() != 4) return;
+        QVariantList clean;
+        for (const auto &value : values) {
+            bool ok = false;
+            const double alpha = value.toDouble(&ok);
+            if (!ok || !std::isfinite(alpha)) return;
+            clean.append(qBound(0.0, alpha, 1.0));
+        }
+        if (clean == m_zoneOpacities) return;
+        m_zoneOpacities = clean;
+        ++m_metadataOverlayVersion;
+        emit viewFlagsChanged(); emit contentUpdated(); update();
+    }
+    int visibleZoneMask() const { return m_visibleZoneMask; }
+    void setVisibleZoneMask(int mask) {
+        mask &= 29;
+        if (mask == m_visibleZoneMask) return;
+        m_visibleZoneMask = mask;
+        ++m_metadataOverlayVersion;
+        emit viewFlagsChanged(); emit contentUpdated(); update();
+    }
     void setShowZones(bool on) { setBakedViewFlag(m_showZones, on); }
     bool showZonesAlways() const { return m_showZonesAlways; }
     void setShowZonesAlways(bool on) {
@@ -310,6 +349,8 @@ public:
     void setHouseBrush(int id);
     bool houseExitMode() const { return m_brushController.houseExitMode(); }
     void setHouseExitMode(bool on);
+    Q_INVOKABLE bool setHouseExitAt(int x, int y, int z);
+    bool canSetHouseExitAt(int x, int y, int z) const;
 
     int spawnBrushRadius() const { return m_brushController.spawnRadius(); }
     void setSpawnBrushRadius(int r) {
@@ -367,6 +408,10 @@ public:
         return m_atlasService.uploadSince(epoch, count);
     }
     Q_INVOKABLE double renderOriginX() const { return m_navigationController.originX(); }
+    Q_INVOKABLE QVariantList visibleZoneLabels() const;
+    Q_INVOKABLE bool zoneLabelEditInProgress() const {
+        return m_brushController.painting() || m_selectionController.moving();
+    }
     Q_INVOKABLE double renderOriginY() const { return m_navigationController.originY(); }
     double renderPointerVisualOffsetX() const;
     double renderPointerVisualOffsetY() const;
@@ -418,7 +463,7 @@ public:
     void renderCollectBrushCursorInstances(std::vector<float> &out,
                                        std::vector<float> &outBorder);
 
-    void renderCollectSpawnMarkInstances(std::vector<float> &out, std::vector<float> &outSel);
+    void renderCollectSpawnMarkInstances(std::vector<float> &out, std::vector<float> &outSel, std::vector<float> *fill = nullptr);
 
     quint32 renderUpdateLightGrid();
     const std::vector<uint32_t> &lightPixels() const { return m_lightPixels; }
@@ -454,7 +499,7 @@ public:
                                     std::vector<float> &outPz,
                                     std::vector<float> &outNoPvp,
                                     std::vector<float> &outNoLogout,
-                                    std::vector<float> &outPvp);
+                                    std::vector<float> &outPvp, std::array<std::vector<float>, 6> &outBorders);
 
     bool renderRubberBandRect(double &x0, double &y0, double &x1, double &y1) const {
         if (!m_selectionController.selecting()) return false;
@@ -486,6 +531,10 @@ public:
     void setTileSize(int size);
 
     Q_INVOKABLE bool loadMap(const QString &path);
+    Q_INVOKABLE void setClientAtlasIdentity(const QString &identity);
+    Q_INVOKABLE void awaitInitialView();
+    quint64 initialViewToken() const { return m_initialViewToken.load(); }
+    void completeInitialView(quint64 token);
     Q_INVOKABLE QVariantMap importMap(const QString &path, int offsetX, int offsetY,
                                       int offsetZ,
                                       bool importHouses, bool importSpawns,
@@ -527,7 +576,8 @@ public:
     Q_INVOKABLE bool startMapAnalysis();
     Q_INVOKABLE void cancelMapQuery();
     Q_INVOKABLE QVariantList mapOverlayData(bool includeTooltips,
-                                            bool includeWaypoints) const;
+                                           bool includeWaypoints,
+                                           bool includeHouses = false) const;
     Q_INVOKABLE QVariantList contextItemPath() const;
     Q_INVOKABLE QVariantList contextContainerItems(const QVariantList &path) const;
     Q_INVOKABLE bool addContextContainerItem(const QVariantList &path, int serverId);
@@ -677,6 +727,7 @@ signals:
     void terrainProfileLearned(const QVariantMap &result);
     void dungeonGeneratorChanged();
     void mapLoadFinished(bool success, const QString &path, const QString &error);
+    void initialViewReady();
     void queryBusyChanged();
     void queryProgressChanged();
     void itemSearchFinished(const QVariantMap &result);
@@ -789,6 +840,9 @@ private:
     void updateHoverText();
     void applyBrushServerId(int serverId, bool asBrush);
     void paintAt(int x, int y);
+    bool isHouseDoorItem(uint16_t serverId) const;
+    QSet<int> collectHouseDoorIds(uint32_t houseId,
+                                 const OtbmMapItem *excluded = nullptr) const;
 
     void paintFootprint(int x, int y);
 
@@ -959,6 +1013,19 @@ private:
     bool m_showCreatures = true;
     bool m_showSpawns = true;
     bool m_showHouses = true;
+    bool m_modernZones = false;
+    double m_tilesOpacity = 1.0, m_itemsOpacity = 1.0;
+    double m_houseOpacity = 0.25;
+    void setLayerOpacity(double &layer, double value) {
+        if (!std::isfinite(value)) return;
+        value = qBound(0.0, value, 1.0);
+        if (layer == value) return;
+        layer = value;
+        ++m_dataVersion;
+        emit viewFlagsChanged(); emit contentUpdated(); update();
+    }
+    int m_visibleZoneMask = 29;
+    QVariantList m_zoneOpacities {0.25, 0.25, 0.25, 0.25};
     bool m_showZones = true;
     bool m_showZonesAlways = true;
 
@@ -1017,6 +1084,7 @@ private:
     void minimapUpdateTile(int x, int y, int z);
 
     MapAtlasService m_atlasService;
+    QString m_clientAtlasIdentity;
     QVector<uint16_t> m_loadedMapServerIds;
     bool m_loadedMapServerIdsReady = false;
     std::atomic<quint64> m_atlasBuildGeneration{0};
@@ -1027,12 +1095,17 @@ private:
     bool m_refreshCreaturesAfterAtlas = false;
     int m_dataVersion = 0;
     quint32 m_metadataOverlayVersion = 0;
+    mutable quint64 m_zoneLabelCacheVersion = ~quint64(0);
+    mutable QHash<quint64, int> m_zoneLabelRegions;
+    mutable QVector<QVariantMap> m_zoneLabelAnchors;
     quint32 m_pathBuilderVersion = 0;
 
     bool m_showLowerFloors = true;
     bool m_showShade = true;
     std::atomic<quint64> m_mapLoadGeneration{0};
     std::shared_ptr<std::atomic_bool> m_mapLoadCancel;
+    std::atomic<quint64> m_initialViewToken{0};
+    quint64 m_initialViewSequence = 0;
     bool m_asyncFloorIndexReady = false;
 };
 

@@ -91,7 +91,8 @@ public:
     Q_INVOKABLE QColor outfitColor(int colorIndex) const;
 
     int preloadItemImageSources(const DatReader *datReader);
-    QImage preloadedItemImage(int clientId) const;
+    QImage preloadedItemImage(int clientId, int revision = -1) const;
+    qsizetype thumbnailCacheBytes() const;
     int itemImagesRevision() const { return m_itemImagesRevision; }
     Q_INVOKABLE bool itemHasVisibleSprite(int clientId) const;
 
@@ -152,7 +153,8 @@ private:
     std::list<QString> m_dataUrlCacheLru;
     qsizetype m_dataUrlCacheBytes = 0;
     mutable QReadWriteLock m_preloadedItemLock;
-    QHash<int, QByteArray> m_preloadedItemPng;
+    struct ItemImageState;
+    std::shared_ptr<ItemImageState> m_itemImageState;
     QSet<int> m_visibleItemImages;
     int m_itemImagesRevision = 0;
 };

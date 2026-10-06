@@ -9,6 +9,8 @@
 #include <QDebug>
 #include <QFile>
 #include <QTemporaryDir>
+#include <thread>
+#include <atomic>
 
 namespace {
 
@@ -66,12 +68,12 @@ QByteArray spriteFile()
     return data;
 }
 
-QByteArray datFile()
+QByteArray datFile(int additionalItems = 0)
 {
     const QVector<QVector<quint16>> sprites = {{0}, {1}, {2}, {3}, {4}, {5}, {0, 5}, {0, 5}, {999}};
     QByteArray data;
     appendU32(data, 0x12345678);
-    appendU16(data, 108);
+    appendU16(data, static_cast<quint16>(108 + additionalItems));
     data.append(QByteArray(6, '\0')); // No outfits, effects or missiles.
     for (int i = 0; i < sprites.size(); ++i) {
         data.append(static_cast<char>(0xff)); // End of flags.
@@ -81,6 +83,11 @@ QByteArray datFile()
         data.append(static_cast<char>(i == 7 ? 2 : 1)); // Layers.
         data.append(QByteArray(4, '\1')); // Patterns and frames.
         for (quint16 sprite : sprites[i]) appendU16(data, sprite);
+    }
+    for (int i = 0; i < additionalItems; ++i) {
+        data.append(static_cast<char>(0xff));
+        data.append(QByteArray(7, '\1')); // One tile, layer, pattern and frame.
+        appendU16(data, 5);
     }
     return data;
 }
@@ -147,6 +154,16 @@ int main(int argc, char **argv)
     filter.setHideInvisibleSprites(true);
     if (!require(spr.preloadItemImageSources(&dat) == 9 && filter.rowCount() == 3,
                  "Preloading must refresh the filter and retain only visible thumbnails")) return 1;
+    if (!require(spr.thumbnailCacheBytes() == 0,
+                 "Visibility preparation must not retain every thumbnail")) return 1;
+    const int firstRevision = spr.itemImagesRevision();
+    QImage firstRequest, duplicateRequest;
+    std::thread requestA([&] { firstRequest = spr.preloadedItemImage(105, firstRevision); });
+    std::thread requestB([&] { duplicateRequest = spr.preloadedItemImage(105, firstRevision); });
+    requestA.join(); requestB.join();
+    if (!require(!firstRequest.isNull() && firstRequest == duplicateRequest
+                     && spr.thumbnailCacheBytes() == firstRequest.sizeInBytes(),
+                 "Concurrent thumbnail requests must share a single cached image")) return 1;
     for (int cid = 100; cid <= 108; ++cid) {
         const bool visible = cid >= 105 && cid <= 107;
         if (!require(spr.itemHasVisibleSprite(cid) == visible,
@@ -185,6 +202,9 @@ int main(int argc, char **argv)
                      && spr.itemImagesRevision() > revision,
                  "Sprite reload must invalidate old visibility data")) return 1;
     spr.preloadItemImageSources(&dat);
+    if (!require(spr.preloadedItemImage(105, firstRevision).isNull()
+                     && spr.thumbnailCacheBytes() == 0,
+                 "Profile changes must reject stale requests and clear the thumbnail cache")) return 1;
     if (!require(filter.rowCount() == 3, "Sprite reload must restore current visibility")) return 1;
 
     const QByteArray brushes = R"({"doodads": {
@@ -241,6 +261,35 @@ int main(int argc, char **argv)
     filter.setHideNamedItems(false);
     filter.setHideInvisibleSprites(false);
     if (!require(filter.rowCount() == 9, "Disabling both filters must restore every item")) return 1;
-    qInfo() << "Palette visibility and name checks passed";
+    // Fill the real cache beyond its budget and verify LRU, not just its counter.
+    if (!require(writeFile(datPath, datFile(8300)) && dat.loadFile(datPath),
+                 "Could not load cache eviction fixture")) return 1;
+    spr.preloadItemImageSources(&dat);
+    const int cacheRevision = spr.itemImagesRevision();
+    const QImage oldest = spr.preloadedItemImage(105, cacheRevision);
+    const QImage recentlyUsed = spr.preloadedItemImage(8408, cacheRevision);
+    for (int cid = 109; cid <= 8408; ++cid) {
+        if (cid % 100 == 0) spr.preloadedItemImage(8408, cacheRevision);
+        if (!require(!spr.preloadedItemImage(cid, cacheRevision).isNull()
+                         && spr.thumbnailCacheBytes() <= 32 * 1024 * 1024,
+                     "Thumbnail cache exceeded its memory budget")) return 1;
+    }
+    if (!require(spr.preloadedItemImage(8408, cacheRevision).cacheKey() == recentlyUsed.cacheKey()
+                     && spr.preloadedItemImage(105, cacheRevision).cacheKey() != oldest.cacheKey(),
+                 "Thumbnail cache did not retain hot entries and evict old entries")) return 1;
+    std::atomic_bool requesting{false};
+    std::thread changingProfile([&] {
+        requesting.store(true);
+        for (int cid = 109; cid <= 8408; ++cid)
+            spr.preloadedItemImage(cid, cacheRevision);
+    });
+    while (!requesting.load()) std::this_thread::yield();
+    spr.loadFile(sprPath, 0, false, true);
+    spr.preloadItemImageSources(&dat);
+    changingProfile.join();
+    if (!require(spr.thumbnailCacheBytes() == 0
+                     && spr.preloadedItemImage(105, cacheRevision).isNull(),
+                 "In-flight requests polluted the replacement profile cache")) return 1;
+    qInfo() << "Palette visibility, name, LRU and profile switching checks passed";
     return 0;
 }

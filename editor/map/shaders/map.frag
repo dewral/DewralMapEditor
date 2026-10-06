@@ -32,12 +32,19 @@ void main()
     } else if (mode == 0) {
         vec4 c = texture(atlas, uv);
         if (c.a < 0.01) discard;
-        vec3 color = zoneColor(c.rgb * tint.rgb * (spriteFlags.x > 0.5 ? 0.5 : 1.0), spriteFlags.y);
+        vec3 base = c.rgb * tint.rgb;
+        if (spriteFlags.x > 0.5) {
+            bool fluent = (int(spriteFlags.y + 0.5) & (128 | 256)) != 0;
+            base = fluent ? mix(base, vec3(0.376, 0.804, 1.0), 0.25) : base * 0.5;
+        }
+        vec3 color = zoneColor(base, spriteFlags.y);
         if (options.x > 0.5) {
             vec2 lightUv = (worldPx / 32.0 - lightRect.xy) / lightRect.zw;
             color *= texture(light, clamp(lightUv, vec2(0), vec2(1))).rgb;
         }
-        fragColor = vec4(color, c.a * tint.a);
+        int flags = int(spriteFlags.y + 0.5);
+        float layerAlpha = (flags & 128) != 0 ? options.y : ((flags & 256) != 0 ? options.w : 1.0);
+        fragColor = vec4(color, c.a * tint.a * layerAlpha);
     } else {
         fragColor = tint;
     }

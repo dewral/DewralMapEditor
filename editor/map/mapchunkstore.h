@@ -41,6 +41,8 @@ public:
     const MapFloorTileIndex &tiles() const { return m_tiles; }
     qsizetype &indexedTileCount() { return m_indexedTileCount; }
     qsizetype indexedTileCount() const { return m_indexedTileCount; }
+    MapFloorBoundsIndex &bounds() { return m_bounds; }
+    QSet<int> &dirtyBounds() { return m_dirtyBounds; }
     std::mutex &cacheMutex() { return m_cacheMutex; }
     QuadCache &quadCache() { return m_quadCache; }
     const QuadCache &quadCache() const { return m_quadCache; }
@@ -64,6 +66,8 @@ private:
     void workerLoop();
 
     MapFloorTileIndex m_tiles;
+    MapFloorBoundsIndex m_bounds;
+    QSet<int> m_dirtyBounds;
     qsizetype m_indexedTileCount = 0;
     std::mutex m_cacheMutex;
     QuadCache m_quadCache;

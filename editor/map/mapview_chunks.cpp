@@ -1,6 +1,7 @@
 
 #include "mapview.h"
 #include "mapview_p.h"
+#include "loadprofile.h"
 
 #include <QPainter>
 #include <QMouseEvent>
@@ -21,11 +22,14 @@ void MapView::buildStaticIndex()
 {
     auto &tileIndex = m_chunkStore.tiles();
     tileIndex.clear();
+    m_chunkStore.bounds() = {};
+    m_chunkStore.dirtyBounds().clear();
     MapSpawnIndexService::FloorCenters spawnCenters;
     m_chunkStore.indexedTileCount() = 0;
     if (!m_otbm || !m_otbm->isLoaded()) return;
 
     for (const OtbmTile &tile : m_otbm->tiles()) {
+        m_chunkStore.bounds()[tile.z].include(tile.x, tile.y);
         const int cx = floorDiv(tile.x, kChunkTiles);
         const int cy = floorDiv(tile.y, kChunkTiles);
         tileIndex[tile.z][chunkKey(cx, cy)].push_back(&tile);
@@ -53,18 +57,22 @@ void MapView::updateCurrentFloor()
     m_minTileX = m_minTileY = m_maxTileX = m_maxTileY = 0;
     if (!m_otbm || !m_otbm->isLoaded()) return;
 
-    bool first = true;
+    const int floor = m_navigationController.floor();
+    auto &bounds = m_chunkStore.bounds()[floor];
     auto &tileIndex = m_chunkStore.tiles();
-    auto zit = tileIndex.find(m_navigationController.floor());
-    if (zit != tileIndex.end()) {
-        for (auto cit = zit->begin(); cit != zit->end(); ++cit) {
-            for (const OtbmTile *tile : cit.value()) {
-                if (first) { m_minTileX = m_maxTileX = tile->x; m_minTileY = m_maxTileY = tile->y; first = false; }
-                else { m_minTileX = std::min<int>(m_minTileX, tile->x); m_maxTileX = std::max<int>(m_maxTileX, tile->x);
-                       m_minTileY = std::min<int>(m_minTileY, tile->y); m_maxTileY = std::max<int>(m_maxTileY, tile->y); }
+    auto zit = tileIndex.find(floor);
+    if (m_chunkStore.dirtyBounds().remove(floor)) {
+        bounds = {};
+        if (zit != tileIndex.end()) {
+            for (auto cit = zit->begin(); cit != zit->end(); ++cit) {
+                for (const OtbmTile *tile : cit.value()) {
+                    bounds.include(tile->x, tile->y);
+                }
             }
         }
     }
+    m_minTileX = bounds.minX; m_minTileY = bounds.minY;
+    m_maxTileX = bounds.maxX; m_maxTileY = bounds.maxY;
 }
 
 void MapView::rebuildFloorIndex()
@@ -139,8 +147,8 @@ void MapView::appendItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out,
                         (tile->y - hh) * kSprite - oy - elevation,
                         as, isGround, tile->x, tile->y, isTop,
 
-                        idx == 0 ? ((m_showZones ? static_cast<int>(tile->flags) : 0)
-                                   | ((m_showHouses && tile->is_house) ? 64 : 0))
+                        idx == 0 ? ((m_showZones && !m_modernZones ? static_cast<int>(tile->flags) : 0)
+                                   | ((m_showHouses && !m_modernZones && tile->is_house) ? 64 : 0))
                                  : 0 });
                 }
 
@@ -246,6 +254,7 @@ void MapView::startWorker()
             collectFloorChunkQuads(floor, key, quads, &animated);
             if (!m_chunkStore.isCurrentRequest(generation)) return false;
             storeChunkQuads(floor, key, std::move(quads), animated);
+            if (initialViewToken()) LoadProfile::record(QStringLiteral("initial_chunk_ready"));
             return true;
         },
         [this] {

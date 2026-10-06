@@ -1,4 +1,5 @@
 #include "mapservices.h"
+#include "loadprofile.h"
 
 #include "datreader.h"
 #include "otbreader.h"
@@ -550,6 +551,7 @@ void MapMinimapService::invalidate()
 void MapMinimapService::rebuild(int floor, const MapFloorTileIndex &tiles,
                                 const OtbReader *otb, const DatReader *dat)
 {
+    LoadProfile::Scope timing(QStringLiteral("minimap"));
     m_image = QImage();
     m_floor = floor;
     m_originX = m_originY = 0;

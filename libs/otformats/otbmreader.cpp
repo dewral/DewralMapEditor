@@ -1,4 +1,5 @@
 #include "otbmreader.h"
+#include "loadprofile.h"
 
 #include <QCoreApplication>
 #include <QEventLoop>
@@ -520,11 +521,13 @@ bool OtbmReader::abortLoad(QString message)
 void OtbmReader::reportLoadingProgress(int progress, const QString &stage)
 {
     progress = std::clamp(progress, 0, 100);
+    if (m_loading && !m_detachedLoading && progress < m_loadingProgress) return;
     if (m_loadingProgress != progress) {
         m_loadingProgress = progress;
         emit loadingProgressChanged();
     }
     if (m_loadingStage != stage) {
+        LoadProfile::record(stage);
         m_loadingStage = stage;
         emit loadingStageChanged();
     }
@@ -535,7 +538,9 @@ void OtbmReader::reportLoadingProgress(int progress, const QString &stage)
     // Without this guard a large map can build a recursive chain of queued
     // progress callbacks and eventually overflow the GUI thread stack.
     static thread_local bool processingEvents = false;
-    if (!m_detachedLoading && !processingEvents) {
+    // Queued background progress is already delivered by the GUI event loop.
+    // Pumping events here can reenter QML/model updates while adopting a map.
+    if (!m_detachedLoading && !m_backgroundLoading && !processingEvents) {
         processingEvents = true;
         QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 5);
         processingEvents = false;
@@ -551,10 +556,14 @@ void OtbmReader::finishLoading(bool success)
         m_loading = false;
         emit loadingChanged();
     }
+    m_backgroundLoading = false;
 }
 
 bool OtbmReader::loadFile(const QString &path)
 {
+    LoadProfile::Scope timing(QStringLiteral("otbm"));
+    m_loadingProgress = 0;
+    emit loadingProgressChanged();
     if (!m_loading) {
         m_loading = true;
         emit loadingChanged();
@@ -621,6 +630,8 @@ bool OtbmReader::loadFile(const QString &path)
 
     m_loaded = true;
     m_filePath = path;
+    LoadProfile::record(QStringLiteral("map_counts"), -1,
+        QStringLiteral("tiles=%1 items=%2").arg(m_tiles.size()).arg(m_itemCount));
     emit filePathChanged();
     setDirty(false);
     reportLoadingProgress(72, QStringLiteral("Preparing map view..."));
@@ -650,6 +661,9 @@ bool OtbmReader::loadCancelled() const
 
 void OtbmReader::beginBackgroundLoad()
 {
+    m_backgroundLoading = true;
+    m_loadingProgress = 0;
+    emit loadingProgressChanged();
     if (!m_loading) {
         m_loading = true;
         emit loadingChanged();
@@ -1006,6 +1020,7 @@ bool OtbmReader::parseTile(BinaryNode &tile, uint16_t baseX, uint16_t baseY, uin
             OtbmMapItem ground;
             ground.server_id = serverId;
             ground.is_ground = true;
+            result.items.reserve(result.items.size() + tile.children().size() + 1);
             result.items.push_back(std::move(ground));
         } else {
             setError(QStringLiteral("Unsupported tile attribute: %1").arg(attrType));
@@ -1013,6 +1028,7 @@ bool OtbmReader::parseTile(BinaryNode &tile, uint16_t baseX, uint16_t baseY, uin
         }
     }
 
+    result.items.reserve(result.items.size() + tile.children().size());
     for (const BinaryNode &sourceItem : tile.children()) {
         BinaryNode itemNode = sourceItem;
         uint8_t itemType = 0;
@@ -1027,7 +1043,6 @@ bool OtbmReader::parseTile(BinaryNode &tile, uint16_t baseX, uint16_t baseY, uin
         result.items.push_back(std::move(item));
     }
 
-    result.items.shrink_to_fit();
     for (const OtbmMapItem &item : result.items) m_itemCount += countItems(item);
     m_tiles.push_back(std::move(result));
     return true;
@@ -1720,6 +1735,9 @@ int OtbmReader::addHouse(int townId)
 {
     uint32_t maxId = 0;
     for (const OtbmHouse &h : m_houses) maxId = std::max(maxId, h.id);
+    for (const OtbmTile &tile : m_tiles)
+        if (tile.is_house) maxId = std::max(maxId, tile.house_id);
+    if (maxId >= static_cast<uint32_t>(std::numeric_limits<int>::max())) return 0;
     OtbmHouse h;
     h.id = maxId + 1;
     h.name = QStringLiteral("Unnamed House #%1").arg(h.id);
@@ -1777,7 +1795,12 @@ void OtbmReader::setHouseEntry(int id, int x, int y, int z)
 {
     OtbmHouse *h = houseById(id);
     if (!h) return;
+    if (x < 0 || x > 65535 || y < 0 || y > 65535 || z < 0 || z > 15
+        || (x == 0 && y == 0 && z == 0)) return;
+    const OtbmTile *tile = tileAt(x, y, z);
+    if (!tile || tile->is_house) return;
     if (h->entryX == x && h->entryY == y && h->entryZ == z) return;
+    recordHouse(static_cast<uint32_t>(id));
     h->entryX = x; h->entryY = y; h->entryZ = z;
     m_housesModified = true;
     emit mapChanged();
@@ -2478,7 +2501,7 @@ void OtbmReader::pushUndo(UndoAction &&action)
 {
     m_redoStack.clear();
     m_redoBytes = 0;
-    if (action.tiles.empty()) return;
+    if (action.tiles.empty() && action.houses.empty()) return;
     ++m_editOperationCount;
     m_changedTileCount += static_cast<qint64>(action.tiles.size());
     if (m_undoLimit <= 0) return;
@@ -2518,6 +2541,8 @@ qsizetype OtbmReader::estimateItemDynamicBytes(const OtbmMapItem &item)
 qsizetype OtbmReader::estimateActionBytes(const UndoAction &action)
 {
     qsizetype bytes = static_cast<qsizetype>(sizeof(UndoAction));
+    bytes += static_cast<qsizetype>(action.houses.capacity())
+             * static_cast<qsizetype>(sizeof(UndoAction::HouseSnapshot));
     bytes += static_cast<qsizetype>(action.tiles.capacity())
              * static_cast<qsizetype>(sizeof(TileSnapshot));
     for (const TileSnapshot &snapshot : action.tiles) {
@@ -2592,7 +2617,7 @@ void OtbmReader::endUndoGroup()
 {
     m_undoGrouping = false;
     m_groupRecorded.clear();
-    const bool pushed = !m_currentGroup.tiles.empty();
+    const bool pushed = !m_currentGroup.tiles.empty() || !m_currentGroup.houses.empty();
     if (pushed) {
         pushUndo(std::move(m_currentGroup));
     }
@@ -2714,6 +2739,9 @@ bool OtbmReader::undo()
     redoAction.tiles.reserve(action.tiles.size());
     for (const TileSnapshot &snap : action.tiles)
         redoAction.tiles.push_back(currentSnapshot(snap.x, snap.y, snap.z));
+    for (const auto &snap : action.houses)
+        if (const OtbmHouse *house = houseById(static_cast<int>(snap.id)))
+            redoAction.houses.push_back({snap.id, house->entryX, house->entryY, house->entryZ});
     redoAction.bytes = estimateActionBytes(redoAction);
     m_redoBytes += redoAction.bytes;
     m_redoStack.push_back(std::move(redoAction));
@@ -2722,6 +2750,7 @@ bool OtbmReader::undo()
 
     m_lastAffected.clear();
     restoreSnapshots(action.tiles);
+    restoreHouseSnapshots(action.houses);
     for (const TileSnapshot &snap : action.tiles)
         m_lastAffected.push_back({ snap.x, snap.y, snap.z });
     emit mapChanged();
@@ -2741,6 +2770,9 @@ bool OtbmReader::redo()
     undoAction.tiles.reserve(action.tiles.size());
     for (const TileSnapshot &snap : action.tiles)
         undoAction.tiles.push_back(currentSnapshot(snap.x, snap.y, snap.z));
+    for (const auto &snap : action.houses)
+        if (const OtbmHouse *house = houseById(static_cast<int>(snap.id)))
+            undoAction.houses.push_back({snap.id, house->entryX, house->entryY, house->entryZ});
     undoAction.bytes = estimateActionBytes(undoAction);
     m_undoBytes += undoAction.bytes;
     m_undoStack.push_back(std::move(undoAction));
@@ -2749,6 +2781,7 @@ bool OtbmReader::redo()
 
     m_lastAffected.clear();
     restoreSnapshots(action.tiles);
+    restoreHouseSnapshots(action.houses);
     for (const TileSnapshot &snap : action.tiles)
         m_lastAffected.push_back({ snap.x, snap.y, snap.z });
     emit mapChanged();
@@ -3127,6 +3160,35 @@ QVariantMap OtbmReader::cleanupMap(const QSet<uint16_t> &validServerIds,
     result.insert(QStringLiteral("clearedUniqueIds"), clearedUniqueIds);
     result.insert(QStringLiteral("removedHouses"), removedHouses);
     return result;
+}
+
+void OtbmReader::recordHouse(uint32_t id)
+{
+    const OtbmHouse *house = houseById(static_cast<int>(id));
+    if (!house) return;
+    if (m_undoGrouping) {
+        // A mouse stroke can move the same exit through many tiles. Undo
+        // must restore the position before the stroke, not an intermediate one.
+        for (const auto &snapshot : m_currentGroup.houses)
+            if (snapshot.id == id) return;
+        m_currentGroup.houses.push_back({id, house->entryX, house->entryY, house->entryZ});
+    } else {
+        UndoAction action;
+        action.houses.push_back({id, house->entryX, house->entryY, house->entryZ});
+        pushUndo(std::move(action));
+    }
+}
+
+void OtbmReader::restoreHouseSnapshots(
+    const std::vector<UndoAction::HouseSnapshot> &snapshots)
+{
+    for (const auto &snapshot : snapshots)
+        if (OtbmHouse *house = houseById(static_cast<int>(snapshot.id))) {
+            house->entryX = snapshot.entryX;
+            house->entryY = snapshot.entryY;
+            house->entryZ = snapshot.entryZ;
+            m_housesModified = true;
+        }
 }
 
 bool OtbmReader::saveFile(const QString &path)

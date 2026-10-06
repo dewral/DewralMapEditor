@@ -30,6 +30,11 @@ TestCase {
                 property bool showSpawns: true
                 property bool showHouses: true
                 property bool showZones: true
+                property int visibleZoneMask: 29
+                property var zoneOpacities: [0.25,0.25,0.25,0.25]
+                property double houseOpacity: 0.25
+        property double tilesOpacity: 1.0
+                property double itemsOpacity: 1.0
                 property bool showZonesAlways: true
                 property bool showAnimations: false
                 property bool torchOn: false
@@ -48,6 +53,11 @@ TestCase {
                 onShowSpawnsChanged: viewFlagsChanged()
                 onShowHousesChanged: viewFlagsChanged()
                 onShowZonesChanged: viewFlagsChanged()
+                onVisibleZoneMaskChanged: viewFlagsChanged()
+                onZoneOpacitiesChanged: viewFlagsChanged()
+                onTilesOpacityChanged: viewFlagsChanged()
+                onItemsOpacityChanged: viewFlagsChanged()
+                onHouseOpacityChanged: viewFlagsChanged()
                 onShowZonesAlwaysChanged: viewFlagsChanged()
                 onTorchOnChanged: torchChanged()
                 onLightAmbientChanged: torchChanged()
@@ -79,7 +89,9 @@ TestCase {
         const changed = {};
         for (const name of session.preferenceNames) {
             defaults[name] = session.mapView[name];
-            changed[name] = typeof defaults[name] === "boolean" ? !defaults[name]
+            changed[name] = name === "zoneOpacities" ? [0.5,0.1,0.75,0.3]
+                            : name === "houseOpacity" || name === "tilesOpacity" || name === "itemsOpacity" ? 0.4
+                            : typeof defaults[name] === "boolean" ? !defaults[name]
                             : (name === "lightAmbient" ? 128 : 2);
         }
         compare(defaults.showWallOutlines, true);

@@ -1,6 +1,7 @@
 
 #include "mapview.h"
 #include "mapview_p.h"
+#include "loadprofile.h"
 
 #include <QPainter>
 #include <QBuffer>
@@ -124,6 +125,7 @@ void MapView::setShowLowerFloors(bool on)
 bool MapView::loadMap(const QString &path)
 {
     if (!m_otbm || path.trimmed().isEmpty() || m_otbm->isLoading()) return false;
+    m_initialViewToken.store(0);
     m_optionalBorderTiles.clear();
     m_optionalBorderOverrides.clear();
 
@@ -140,6 +142,7 @@ bool MapView::loadMap(const QString &path)
     struct LoadResult {
         std::unique_ptr<OtbmReader> reader;
         MapFloorTileIndex floorIndex;
+        MapFloorBoundsIndex bounds;
         MapSpawnIndexService::FloorCenters spawnCenters;
         std::bitset<65536> serverIdBits;
         QVector<uint16_t> serverIds;
@@ -174,6 +177,7 @@ bool MapView::loadMap(const QString &path)
             result->error = result->reader->errorString();
         } else {
             publishProgress(71, QStringLiteral("Building renderer tile index..."));
+            LoadProfile::Scope timing(QStringLiteral("renderer_index"));
             const qsizetype totalTiles = static_cast<qsizetype>(result->reader->tiles().size());
             qsizetype indexedTiles = 0;
             int lastIndexProgress = -1;
@@ -189,6 +193,7 @@ bool MapView::loadMap(const QString &path)
                 const quint64 key = (static_cast<quint64>(static_cast<quint32>(cx)) << 32)
                                   | static_cast<quint64>(static_cast<quint32>(cy));
                 result->floorIndex[tile.z][key].push_back(&tile);
+                result->bounds[tile.z].include(tile.x, tile.y);
                 for (const OtbmMapItem &item : tile.items)
                     if (item.server_id != 0) result->serverIdBits.set(item.server_id);
                 auto &floorSpawns = result->spawnCenters[tile.z];
@@ -252,6 +257,8 @@ bool MapView::loadMap(const QString &path)
             {
                 std::lock_guard<std::recursive_mutex> lock(guard->m_dataMutex);
                 guard->m_chunkStore.tiles() = std::move(result->floorIndex);
+                guard->m_chunkStore.bounds() = result->bounds;
+                guard->m_chunkStore.dirtyBounds().clear();
                 guard->m_chunkStore.indexedTileCount() =
                     static_cast<qsizetype>(result->reader->tiles().size());
                 guard->m_spawnIndex.setPrebuilt(std::move(result->spawnCenters));
@@ -271,6 +278,22 @@ bool MapView::loadMap(const QString &path)
         }, Qt::QueuedConnection);
     }).detach();
     return true;
+}
+
+void MapView::awaitInitialView()
+{
+    m_initialViewToken.store(++m_initialViewSequence);
+    LoadProfile::record(QStringLiteral("await_initial_view"));
+    emit contentUpdated();
+    update();
+}
+
+void MapView::completeInitialView(quint64 token)
+{
+    if (!token || m_initialViewToken.load() != token || !m_otbm || !m_otbm->isLoaded()) return;
+    m_initialViewToken.store(0);
+    LoadProfile::record(QStringLiteral("first_complete_frame"));
+    emit initialViewReady();
 }
 
 QVariantMap MapView::importMap(const QString &path, int offsetX, int offsetY,
@@ -331,9 +354,11 @@ void MapView::rebuildAtlas()
 void MapView::setOtbm(OtbmReader *reader)
 {
     if (m_otbm == reader) return;
+    m_initialViewToken.store(0);
     if (m_otbm) disconnect(m_otbm, nullptr, this, nullptr);
     if (m_mapLoadCancel) m_mapLoadCancel->store(true, std::memory_order_release);
     m_mapLoadGeneration.fetch_add(1, std::memory_order_acq_rel);
+    if (m_otbm && m_otbm->isLoading()) m_otbm->finishLoading(false);
     m_otbm = reader;
     m_optionalBorderTiles.clear();
     m_optionalBorderOverrides.clear();
@@ -396,7 +421,7 @@ void MapView::refreshCreatures()
     std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
     clearChunkQuadCache();
     ++m_dataVersion;
-    if (m_creatureStore && m_otbm && m_otbm->isLoaded()
+    if (m_creatureStore && m_otbm && m_otbm->isLoaded() && !m_otbm->isLoading()
         && m_otb && m_otb->isLoaded() && m_dat && m_dat->isLoaded()
         && m_spr && m_spr->isLoaded()) {
         queueAtlasSprites(MapAtlasService::collectSpriteIds(
@@ -651,6 +676,7 @@ void MapView::setActiveZone(int zone)
     }
     setCursor(z != 0 ? Qt::CrossCursor : Qt::ArrowCursor);
     emit activeZoneChanged();
+    if (m_modernZones) ++m_metadataOverlayVersion;
     emit contentUpdated(); update();
 }
 
@@ -802,7 +828,16 @@ void MapView::onMapLoaded()
         // During background loading the client profile is selected only after
         // map adoption. Defer atlas construction so an atlas for the previous
         // client is not built and immediately discarded.
-        if (reportProgress) resetAtlas();
+        if (reportProgress || !m_otbm || !m_otbm->isLoaded()) {
+            // Keep the atlas until the profile identity is checked. Stop jobs
+            // for the previous document without discarding reusable sprites.
+            m_atlasBuildGeneration.fetch_add(1, std::memory_order_acq_rel);
+            m_pendingAtlasSpriteIds.clear();
+            if (m_atlasBuilding) {
+                m_atlasBuilding = false;
+                emit atlasBuildingChanged();
+            }
+        }
         else buildAtlasImage();
     }
     clearChunkQuadCache();

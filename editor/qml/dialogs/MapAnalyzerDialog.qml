@@ -182,7 +182,7 @@ DmeDialog {
                         Image {
                             width: 34; height: 34; fillMode: Image.PreserveAspectFit; smooth: false
                             source: usageRow.modelData.clientId > 0
-                                    ? "image://paletteitem/" + usageRow.modelData.clientId : ""
+                                    ? "image://paletteitem/" + usageRow.modelData.clientId + "/" + Backend.sprReader.itemImagesRevision : ""
                         }
                         Column {
                             width: parent.width - 190

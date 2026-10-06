@@ -1,8 +1,23 @@
 pragma Singleton
 import QtQuick
 QtObject {
+    property QtObject otbmReader: QtObject {
+        property bool loaded: true
+        property int undoCount: 0
+        property int redoCount: 0
+        signal mapChanged()
+    }
     property QtObject uiTheme: QtObject {
         property string style: "gray-dark"
+        property var colorOverrides: ({})
+        property string highlightedColor: ""
+        signal colorsChanged()
+        function setUiColor(key, value) {
+            if (!/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(value)) return false;
+            const copy = Object.assign({}, colorOverrides); copy[key] = value; colorOverrides = copy; colorsChanged(); return true;
+        }
+        function resetUiColor(key) { const copy = Object.assign({}, colorOverrides); delete copy[key]; colorOverrides = copy; colorsChanged(); }
+        function resetUiColors() { colorOverrides = ({}); colorsChanged(); }
         property string tex: Qt.resolvedUrl("../../../../editor/ui/")
     }
     property QtObject fileTools: QtObject {
@@ -44,6 +59,7 @@ QtObject {
         function detailsAt(row) { return {} }
     }
     property QtObject sprReader: QtObject {
+        property int itemImagesRevision: 1
         function itemImageSource(spriteIds, width, height, layers) { return "" }
     }
 }

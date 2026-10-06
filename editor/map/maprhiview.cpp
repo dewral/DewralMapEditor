@@ -1,5 +1,6 @@
 #include "maprhiview.h"
 #include "maprhibackend.h"
+#include "loadprofile.h"
 #include <QQuickWindow>
 #include <QImage>
 #include <algorithm>
@@ -33,10 +34,22 @@ public:
     void synchronize(QQuickRhiItem *item) override
     {
         auto *view = static_cast<MapRhiView *>(item);
+        m_readyToken = 0;
         m_view = view;
         m_previewWindow = view->previewWindow();
         m_previewLighting = view->previewLighting();
         MapView *src = view->source();
+        m_modernZones = src && src->modernZones();
+        m_tilesOpacity = src && !m_previewWindow ? src->tilesOpacity() : 1.0f;
+        m_itemsOpacity = src && !m_previewWindow ? src->itemsOpacity() : 1.0f;
+        m_houseOpacity = src ? float(src->houseOpacity()) : 0.25f;
+        if (src) for (int i = 0; i < 4; ++i) m_zoneAlpha[i] = src->zoneOpacities()[i].toFloat();
+        const quint64 initialToken = src && !m_previewWindow ? src->initialViewToken() : 0;
+        if (initialToken != m_waitingInitialToken) {
+            m_tracedInitialSync = false;
+            m_tracedInitialRender = false;
+        }
+        m_waitingInitialToken = initialToken;
         if (!src) {
             m_source = nullptr;
             for (auto &l : m_drawList) l.clear();
@@ -265,6 +278,8 @@ public:
         }
 
         const quint64 pointerOverlayVersion = src->renderPointerOverlayVersion();
+        m_houseExitCursor = src->houseExitMode();
+        m_houseExitValid = m_houseExitCursor && src->canSetHouseExitAt(src->hoverX(), src->hoverY(), src->floor());
         if (!m_previewWindow && pointerOverlayVersion != m_pointerOverlayVersion) {
             m_pointerOverlayVersion = pointerOverlayVersion;
             src->renderCollectGhostInstances(m_ghostInst);
@@ -398,7 +413,7 @@ public:
             src->renderCollectZoneMarkInstances(m_zoneHouseInst, m_zoneSelectedHouseInst,
                                             m_zonePzInst,
                                             m_zoneNoPvpInst, m_zoneNoLogoutInst,
-                                            m_zonePvpInst);
+                                            m_zonePvpInst, m_zoneBorders);
             uploadDyn(m_zoneHouseVbo, m_zoneHouseInst, m_zoneHouseCount);
             uploadDyn(m_zoneSelectedHouseVbo, m_zoneSelectedHouseInst,
                       m_zoneSelectedHouseCount);
@@ -406,8 +421,10 @@ public:
             uploadDyn(m_zoneNoPvpVbo, m_zoneNoPvpInst, m_zoneNoPvpCount);
             uploadDyn(m_zoneNoLogoutVbo, m_zoneNoLogoutInst, m_zoneNoLogoutCount);
             uploadDyn(m_zonePvpVbo, m_zonePvpInst, m_zonePvpCount);
+            for (int i = 0; i < 6; ++i) uploadDyn(m_zoneBorderVbo[i], m_zoneBorders[i], m_zoneBorderCount[i]);
 
-            src->renderCollectSpawnMarkInstances(m_spawnInst, m_spawnSelInst);
+            src->renderCollectSpawnMarkInstances(m_spawnInst, m_spawnSelInst, &m_spawnFillInst);
+            uploadDyn(m_spawnFillVbo, m_spawnFillInst, m_spawnFillCount);
             uploadDyn(m_spawnVbo, m_spawnInst, m_spawnCount);
             uploadDyn(m_spawnSelVbo, m_spawnSelInst, m_spawnSelCount);
 
@@ -501,6 +518,14 @@ public:
                 update();
             }
         }
+        if (!anyPending && !m_previewWindow && !src->atlasBuilding()
+                && src->otbm() && src->otbm()->isLoaded())
+            m_readyToken = src->initialViewToken();
+        if (src->initialViewToken() && !m_previewWindow && !m_tracedInitialSync) {
+            LoadProfile::record(QStringLiteral("initial_sync"), -1,
+                QStringLiteral("pending=%1").arg(anyPending));
+            m_tracedInitialSync = true;
+        }
     }
 
 
@@ -520,6 +545,8 @@ public:
         u.atlasAndOffset[2] = offset; u.atlasAndOffset[3] = offset;
         const auto &light = m_floorLights[m_curFloor];
         u.options[0] = lighting && light.enabled ? 1.0f : 0.0f;
+        u.options[1] = m_tilesOpacity;
+        u.options[3] = m_itemsOpacity;
         u.lightRect[0] = light.tx; u.lightRect[1] = light.ty;
         u.lightRect[2] = std::max(1, light.tw); u.lightRect[3] = std::max(1, light.th);
         draws.push_back({&buffer, count, u, MapRhiBackend::Sprite});
@@ -550,9 +577,23 @@ public:
         sprite(draws, m_terrainSpriteVbo, m_terrainSpriteCount, matrix, {1,1,1,0.82f});
         sprite(draws, m_fxVbo, m_fxCount, matrix);
         rectangles(draws, m_zoneHouseVbo, m_zoneHouseCount,
-                       QVector4D(0.34f, 0.18f, 0.56f, 0.24f), matrix);
+                       m_modernZones ? QVector4D(0.569f,0.451f,0.745f,m_houseOpacity) : QVector4D(0.34f, 0.18f, 0.56f, 0.24f), matrix);
         rectangles(draws, m_zoneSelectedHouseVbo, m_zoneSelectedHouseCount,
-                       QVector4D(0.10f, 0.52f, 0.25f, 0.34f), matrix);
+                       m_modernZones ? QVector4D(0.569f,0.451f,0.745f,std::min(1.0f, m_houseOpacity * 1.4f)) : QVector4D(0.10f, 0.52f, 0.25f, 0.34f), matrix);
+        if (m_modernZones) {
+            rectangles(draws, m_zoneBorderVbo[4], m_zoneBorderCount[4], {0.569f,0.451f,0.745f,0.85f}, matrix);
+            rectangles(draws, m_zoneBorderVbo[5], m_zoneBorderCount[5], {0.569f,0.451f,0.745f,1.0f}, matrix);
+            QVector4D colors[] {{0.376f,0.804f,1.0f,1}, {0.282f,0.722f,0.514f,1},
+                                {0.875f,0.651f,0.353f,1}, {0.831f,0.420f,0.475f,1}};
+            MapRenderBuffer *fills[] {&m_zonePzVbo,&m_zoneNoPvpVbo,&m_zoneNoLogoutVbo,&m_zonePvpVbo};
+            const int counts[] {m_zonePzCount,m_zoneNoPvpCount,m_zoneNoLogoutCount,m_zonePvpCount};
+            for (int i = 0; i < 4; ++i) {
+                auto fill = colors[i]; fill.setW(m_zoneAlpha[i]);
+                rectangles(draws, *fills[i], counts[i], fill, matrix);
+                colors[i].setW(0.85f);
+                rectangles(draws, m_zoneBorderVbo[i], m_zoneBorderCount[i], colors[i], matrix);
+            }
+        } else {
         rectangles(draws, m_zonePzVbo, m_zonePzCount,
                        QVector4D(0.38f, 1.0f, 0.48f, 0.34f), matrix);
         rectangles(draws, m_zoneNoPvpVbo, m_zoneNoPvpCount,
@@ -562,6 +603,7 @@ public:
         rectangles(draws, m_zonePvpVbo, m_zonePvpCount,
                        QVector4D(0.95f, 0.43f, 0.25f, 0.24f), matrix);
 
+        }
         rectangles(draws, m_terrainLandVbo, m_terrainLandCount,
                        QVector4D(0.12f, 0.78f, 0.36f, 0.30f), matrix);
         rectangles(draws, m_terrainBeachVbo, m_terrainBeachCount,
@@ -590,8 +632,9 @@ public:
                        QVector4D(0.22f, 0.86f, 0.30f, 0.42f), matrix);
         rectangles(draws, m_wallOutlineVbo, m_wallOutlineCount,
                        QVector4D(1.0f, 0.92f, 0.0f, 1.0f), matrix);
-        rectangles(draws, m_spawnVbo, m_spawnCount, QVector4D(0.72f, 0.35f, 0.86f, 0.45f), matrix);
-        rectangles(draws, m_spawnSelVbo, m_spawnSelCount, QVector4D(0.36f, 0.17f, 0.43f, 0.6f), matrix);
+        rectangles(draws, m_spawnFillVbo, m_spawnFillCount, {0.569f,0.451f,0.745f,0.12f}, matrix);
+        rectangles(draws, m_spawnVbo, m_spawnCount, m_modernZones ? QVector4D(0.72f,0.54f,0.89f,0.75f) : QVector4D(0.72f, 0.35f, 0.86f, 0.45f), matrix);
+        rectangles(draws, m_spawnSelVbo, m_spawnSelCount, m_modernZones ? QVector4D(0.80f,0.65f,1.0f,0.95f) : QVector4D(0.36f, 0.17f, 0.43f, 0.6f), matrix);
 
     }
     void pointers(Draws &draws)
@@ -600,13 +643,13 @@ public:
         const auto &matrix = m_pointerMatrix;
         sprite(draws, m_ghostVbo, m_ghostCount, matrix, {0.5f,0.5f,0.5f,0.55f});
         if (m_rubberActive) {
-            auto u = uniforms(matrix, {0.6f,0.6f,0.6f,0.18f});
+            auto u = uniforms(matrix, m_modernZones ? QVector4D(0.376f,0.804f,1.0f,0.18f) : QVector4D(0.6f,0.6f,0.6f,0.18f));
             for (int i = 0; i < 4; ++i) u.rect[i] = float(m_rubberRect[i]);
             draws.push_back({nullptr, 1, u, MapRhiBackend::Flat});
             const float x0 = u.rect[0], y0 = u.rect[1], x1 = u.rect[2], y1 = u.rect[3];
             const float border[]{x0,y0, x1,y0, x1,y0, x1,y1, x1,y1, x0,y1, x0,y1, x0,y0};
             m_rubberLines.assign(border, sizeof(border));
-            draws.push_back({&m_rubberLines, 8, uniforms(matrix, {0.75f,0.75f,0.75f,0.85f}), MapRhiBackend::Lines});
+            draws.push_back({&m_rubberLines, 8, uniforms(matrix, m_modernZones ? QVector4D(0.376f,0.804f,1.0f,0.85f) : QVector4D(0.75f,0.75f,0.75f,0.85f)), MapRhiBackend::Lines});
         }
         if (m_lassoActive && m_lassoVertexCount > 0) {
             const QVector4D color = m_lassoOperation == 2
@@ -615,8 +658,13 @@ public:
                                           : QVector4D(0.92f, 0.92f, 0.82f, 0.95f));
             draws.push_back({&m_lassoVbo, m_lassoVertexCount, uniforms(matrix, color), MapRhiBackend::Lines});
         }
-        rectangles(draws, m_cursorVbo, m_cursorCount, {0.6f,0.6f,0.6f,0.18f}, matrix);
-        rectangles(draws, m_cursorBorderVbo, m_cursorBorderCount, {0.82f,0.82f,0.82f,0.82f}, matrix);
+        const QVector4D cursorColor = m_houseExitCursor
+            ? (m_houseExitValid ? QVector4D(0.28f,0.85f,0.55f,0.22f) : QVector4D(0.95f,0.30f,0.35f,0.22f))
+            : QVector4D(0.6f,0.6f,0.6f,0.18f);
+        rectangles(draws, m_cursorVbo, m_cursorCount, cursorColor, matrix);
+        QVector4D cursorBorder = m_houseExitCursor ? cursorColor : QVector4D(0.82f,0.82f,0.82f,0.82f);
+        if (m_houseExitCursor) cursorBorder.setW(0.95f);
+        rectangles(draws, m_cursorBorderVbo, m_cursorBorderCount, cursorBorder, matrix);
     }
     void render(QRhiCommandBuffer *cb) override
     {
@@ -652,9 +700,17 @@ public:
         }
         pointers(overlayDraws);
         if (m_backend->render(cb, renderTarget(), sceneDraws, overlayDraws, redraw, m_useLinear)) {
+            if (m_waitingInitialToken && !m_tracedInitialRender) {
+                LoadProfile::record(QStringLiteral("initial_render_submitted"));
+                m_tracedInitialRender = true;
+            }
             m_cacheDirty = false;
             m_cacheValid = cached;
             if (m_view) m_view->countFrame();
+            if (m_view && m_readyToken) m_view->markCompleteFrame(m_readyToken);
+            // Request after rendering: an update issued during synchronize()
+            // can be consumed by the current frame before workers finish.
+            if (m_waitingInitialToken && !m_readyToken) update();
         }
     }
     void resetGpuBuffers()
@@ -664,6 +720,7 @@ public:
         m_cursorVbo.resetGpu();
         m_cursorBorderVbo.resetGpu();
         m_spawnVbo.resetGpu();
+        m_spawnFillVbo.resetGpu();
         m_spawnSelVbo.resetGpu();
         m_terrainLandVbo.resetGpu();
         m_terrainBeachVbo.resetGpu();
@@ -686,6 +743,7 @@ public:
         m_zoneNoPvpVbo.resetGpu();
         m_zoneNoLogoutVbo.resetGpu();
         m_zonePvpVbo.resetGpu();
+        for (auto &buffer : m_zoneBorderVbo) buffer.resetGpu();
         m_lassoVbo.resetGpu();
         m_rubberLines.resetGpu();
         for (auto &floor : m_chunkBufs)
@@ -693,6 +751,10 @@ public:
     }
     std::unique_ptr<MapRhiBackend> m_backend;
     MapView *m_source = nullptr;
+    quint64 m_readyToken = 0;
+    quint64 m_waitingInitialToken = 0;
+    bool m_tracedInitialSync = false;
+    bool m_tracedInitialRender = false;
     MapRenderBuffer m_rubberLines;
     QImage m_pendingAtlas;
     QSize m_pendingAtlasSize;
@@ -735,6 +797,9 @@ public:
     std::vector<float> m_cursorBorderInst;
     int m_cursorBorderCount = 0;
     MapRenderBuffer m_spawnVbo;
+    MapRenderBuffer m_spawnFillVbo;
+    std::vector<float> m_spawnFillInst;
+    int m_spawnFillCount = 0;
     std::vector<float> m_spawnInst;
     int m_spawnCount = 0;
     MapRenderBuffer m_spawnSelVbo;
@@ -786,6 +851,13 @@ public:
     std::vector<float> m_floorUpInst;
     int m_floorUpCount = 0;
 
+    bool m_modernZones = false;
+    float m_tilesOpacity = 1.0f, m_itemsOpacity = 1.0f;
+    float m_houseOpacity = 0.25f;
+    float m_zoneAlpha[4] {0.25f, 0.25f, 0.25f, 0.25f};
+    std::array<std::vector<float>, 6> m_zoneBorders;
+    MapRenderBuffer m_zoneBorderVbo[6];
+    int m_zoneBorderCount[6] {};
     MapRenderBuffer m_zoneHouseVbo;
     std::vector<float> m_zoneHouseInst;
     int m_zoneHouseCount = 0;
@@ -814,6 +886,8 @@ public:
     bool m_lassoActive = false;
     int m_lassoOperation = 0;
     bool m_rubberActive = false;
+    bool m_houseExitCursor = false;
+    bool m_houseExitValid = false;
     double m_rubberRect[4] = {0, 0, 0, 0};
     bool m_cacheDirty = true;
     bool m_cacheValid = false;
@@ -846,6 +920,7 @@ MapRhiView::MapRhiView(QQuickItem *parent)
 {
     setAlphaBlending(false);
     setSampleCount(1);
+    connect(this, &QQuickItem::windowChanged, this, [this] { updateRenderDriver(); });
     m_fpsTimer.setInterval(1000);
     connect(&m_fpsTimer, &QTimer::timeout, this, [this] {
         const int frames = m_frameCount.exchange(0, std::memory_order_relaxed);
@@ -883,11 +958,12 @@ void MapRhiView::setSource(MapView *s)
     if (m_source == s) return;
     if (m_source) disconnect(m_source, nullptr, this, nullptr);
     m_source = s;
+    m_completeFrameToken.store(0);
     if (m_source) {
 
         connect(m_source, &MapView::contentUpdated, this, [this] {
             m_framePending.store(true, std::memory_order_relaxed);
-            if (m_maxFps <= 0) {
+            if (m_maxFps <= 0 || m_source->initialViewToken()) {
                 markMapFrameRequested();
                 update();
             }
@@ -910,10 +986,17 @@ void MapRhiView::driverTick()
     // contentUpdated signal marks the next frame as pending.
     const bool animating = m_source && m_source->hasActiveEffects();
     const bool pending = m_framePending.exchange(false, std::memory_order_relaxed);
-    if (pending || animating) {
+    const bool initialView = !m_previewWindow && m_source && m_source->initialViewToken();
+    if (pending || animating || initialView) {
         markMapFrameRequested();
         update();
     }
+}
+
+void MapRhiView::markCompleteFrame(quint64 token)
+{
+    if (m_completeFrameToken.exchange(token) != token)
+        LoadProfile::record(QStringLiteral("scene_ready_for_present"));
 }
 
 void MapRhiView::setMaxFps(int v)
@@ -982,8 +1065,19 @@ void MapRhiView::updateRenderDriver()
 {
 
     disconnect(m_frameConn);
+    disconnect(m_readyFrameConn);
     m_renderTimer.stop();
     if (!window()) return;
+    LoadProfile::record(QStringLiteral("render_driver"), -1,
+        QStringLiteral("fps_limit=%1").arg(m_maxFps));
+    m_readyFrameConn = connect(window(), &QQuickWindow::frameSwapped, this, [this] {
+        const quint64 token = m_completeFrameToken.exchange(0);
+        // Capture the marker at presentation, before a later render can replace
+        // it. Only the document callback runs on the GUI thread.
+        if (token) QMetaObject::invokeMethod(this, [this, token] {
+            if (m_source && !m_previewWindow) m_source->completeInitialView(token);
+        }, Qt::QueuedConnection);
+    }, Qt::DirectConnection);
 
     if (m_maxFps <= 0) {
 

@@ -63,9 +63,9 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: root.fluentTheme ? 0 : 6
-        color: root.fluentTheme ? FluentColors.popup : root.grayTheme ? "#242424" : "#161B22"
+        color: root.fluentTheme ? FluentColors.c("popup") : root.grayTheme ? "#242424" : "#161B22"
         border.width: 1
-        border.color: root.fluentTheme ? FluentColors.border : root.grayTheme ? "#484848" : "#30363D"
+        border.color: root.fluentTheme ? FluentColors.c("border") : root.grayTheme ? "#484848" : "#30363D"
 
         Rectangle {
             anchors.left: parent.left
@@ -73,7 +73,7 @@ Item {
             anchors.bottom: parent.bottom
             width: 2
             radius: root.fluentTheme ? 0 : 1
-            color: root.fluentTheme ? FluentColors.accent : root.grayTheme ? "#C79A3B" : "#2EA043"
+            color: root.fluentTheme ? FluentColors.c("accent") : root.grayTheme ? "#C79A3B" : "#2EA043"
         }
     }
 
@@ -85,7 +85,7 @@ Item {
         topPadding: 6
         bottomPadding: 6
         text: root.message
-        color: root.fluentTheme ? FluentColors.text : root.grayTheme ? "#F0F0F0" : "#E6EDF3"
+        color: root.fluentTheme ? FluentColors.c("text") : root.grayTheme ? "#F0F0F0" : "#E6EDF3"
         font.pixelSize: 12
         elide: Text.ElideRight
         verticalAlignment: Text.AlignVCenter

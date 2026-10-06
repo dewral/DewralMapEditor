@@ -3,11 +3,14 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../style"
+import "../components"
 
 DmeDialog {
     id: dialog
     required property var settings
     required property var mapRenderer
+    required property var mapView
+    signal colorizeRequested()
 
     title: "Preferences"
     width: Math.min(820, Overlay.overlay ? Overlay.overlay.width - 32 : 820)
@@ -37,7 +40,8 @@ DmeDialog {
                         { name: "General", icon: "⚙" },
                         { name: "Interface", icon: "▣" },
                         { name: "Performance", icon: "◫" },
-                        { name: "Editor", icon: "✎" }
+                        { name: "Editor", icon: "✎" },
+                        { name: "Zone display", icon: "◈" }
                     ]
                     delegate: Rectangle {
                         required property var modelData
@@ -95,6 +99,11 @@ DmeDialog {
                     }
                 }
                 PrefCard {
+                    title: "UI Colorize"
+                    Text { width: parent.width; text: "Edit Fluent Dark colors, preview changes and locate UI elements."; color: "#8B949E"; font.pixelSize: 11; wrapMode: Text.WordWrap }
+                    DmeButton { text: "Open UI Colorize…"; width: 180; enabled: dialog.fluentUi; onClicked: { dialog.colorizeRequested(); dialog.close(); } }
+                }
+                PrefCard {
                     title: "Palette style"
                     PrefRow {
                         label: "View mode"
@@ -139,6 +148,13 @@ DmeDialog {
                     }
                     DmeButton { text: "Save recovery now"; width: 170; onClicked: Backend.docMgr.autosaveNow() }
                 }
+            }
+
+            ZoneDisplayPanel {
+                objectName: "preferencesZoneDisplay"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                mapView: dialog.mapView
             }
         }
     }

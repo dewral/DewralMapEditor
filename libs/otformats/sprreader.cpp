@@ -1,10 +1,12 @@
 #include "sprreader.h"
 #include "datreader.h"
+#include "loadprofile.h"
 
 #include <QFile>
 #include <QBuffer>
 #include <QIODevice>
 #include <QPainter>
+#include <mutex>
 
 namespace {
 
@@ -98,6 +100,22 @@ SprReader::SprReader(QObject *parent)
 
 SprReader::~SprReader() = default;
 
+// Immutable client definitions; only the bounded thumbnail cache is mutable.
+// Each requesting thread owns a decoder, never the GUI's QFile or sprite cache.
+struct SprReader::ItemImageState {
+    struct Definition { QVariantList sprites; int width, height, layers; };
+    struct Cached { QImage image; std::list<int>::iterator position; };
+    QString path;
+    bool extended = false, alpha = false;
+    int revision = 0;
+    QHash<int, Definition> definitions;
+    std::mutex mutex;
+    QHash<int, Cached> cache;
+    std::list<int> lru;
+    qsizetype bytes = 0;
+    static constexpr qsizetype limit = 32 * 1024 * 1024;
+};
+
 void SprReader::reset()
 {
     beginResetModel();
@@ -121,7 +139,7 @@ void SprReader::reset()
     m_dataUrlCacheBytes = 0;
     {
         QWriteLocker lock(&m_preloadedItemLock);
-        m_preloadedItemPng.clear();
+        m_itemImageState.reset();
         m_visibleItemImages.clear();
     }
     m_loaded = false;
@@ -593,21 +611,35 @@ QImage SprReader::composeItemImage(const QVariantList &spriteIds,
 int SprReader::preloadItemImageSources(const DatReader *datReader)
 {
     if (!m_loaded || !datReader || !datReader->isLoaded()) return 0;
+    QElapsedTimer scanClock;
+    scanClock.start();
 
-    QHash<int, QByteArray> preparedImages;
+    auto state = std::make_shared<ItemImageState>();
+    state->path = sourcePath();
+    state->extended = m_extended;
+    state->alpha = m_useAlpha;
+    state->revision = m_itemImagesRevision + 1;
     QSet<int> visibleImages;
-    preparedImages.reserve(datReader->itemCount());
+    state->definitions.reserve(datReader->itemCount());
     beginBulkAccess();
     for (const ClientItem &item : datReader->items()) {
         if (item.sprite_ids.empty()) continue;
 
         QVariantList spriteIds;
-        spriteIds.reserve(static_cast<qsizetype>(item.sprite_ids.size()));
-        for (uint32_t spriteId : item.sprite_ids)
-            spriteIds.push_back(QVariant::fromValue(spriteId));
+        const size_t count = std::min(item.sprite_ids.size(),
+            static_cast<size_t>(qMax(1, int(item.width)) * qMax(1, int(item.height))
+                                * qMax(1, int(item.layers))));
+        spriteIds.reserve(static_cast<qsizetype>(count));
+        for (size_t i = 0; i < count; ++i)
+            spriteIds.push_back(QVariant::fromValue(item.sprite_ids[i]));
+        state->definitions.insert(item.id, {spriteIds, item.width, item.height, item.layers});
 
+        const bool firstComposition = state->definitions.size() == 1;
+        const qint64 firstStarted = firstComposition ? scanClock.elapsed() : 0;
         const QImage image = composeItemImage(spriteIds, item.width,
                                               item.height, item.layers);
+        if (firstComposition) LoadProfile::record(QStringLiteral("first_palette_composition"),
+                                                   scanClock.elapsed() - firstStarted);
         // Inspect the complete thumbnail, including every tile and layer.
         // Transparent and entirely black placeholders have no visible artwork.
         bool visible = false;
@@ -622,20 +654,20 @@ int SprReader::preloadItemImageSources(const DatReader *datReader)
             }
         }
         if (visible) visibleImages.insert(item.id);
-        QByteArray png;
-        QBuffer buffer(&png);
-        if (buffer.open(QIODevice::WriteOnly) && image.save(&buffer, "PNG"))
-            preparedImages.insert(item.id, std::move(png));
     }
     endBulkAccess();
-    const int prepared = preparedImages.size();
+    LoadProfile::record(QStringLiteral("visibility_scan"), scanClock.elapsed(),
+        QStringLiteral("definitions=%1 client_sprites=%2").arg(datReader->itemCount()).arg(spriteCount()));
+    const int prepared = state->definitions.size();
     {
         QWriteLocker lock(&m_preloadedItemLock);
-        m_preloadedItemPng = std::move(preparedImages);
+        m_itemImageState = std::move(state);
         m_visibleItemImages = std::move(visibleImages);
     }
     ++m_itemImagesRevision;
+    scanClock.restart();
     emit itemImagesChanged();
+    LoadProfile::record(QStringLiteral("palette_filters_notify"), scanClock.elapsed());
     return prepared;
 }
 
@@ -645,16 +677,63 @@ bool SprReader::itemHasVisibleSprite(int clientId) const
     return m_visibleItemImages.contains(clientId);
 }
 
-QImage SprReader::preloadedItemImage(int clientId) const
+QImage SprReader::preloadedItemImage(int clientId, int revision) const
 {
-    QByteArray png;
+    std::shared_ptr<ItemImageState> state;
     {
         QReadLocker lock(&m_preloadedItemLock);
-        const auto it = m_preloadedItemPng.constFind(clientId);
-        if (it == m_preloadedItemPng.constEnd()) return {};
-        png = it.value();
+        state = m_itemImageState;
     }
-    return QImage::fromData(png, "PNG");
+    if (!state || (revision >= 0 && revision != state->revision)) return {};
+    // Serializing misses also deduplicates simultaneous requests for the same item.
+    std::lock_guard<std::mutex> lock(state->mutex);
+    auto cached = state->cache.find(clientId);
+    if (cached != state->cache.end()) {
+        QReadLocker profileLock(&m_preloadedItemLock);
+        if (state != m_itemImageState) return {};
+        state->lru.splice(state->lru.begin(), state->lru, cached->position);
+        return cached->image;
+    }
+    const auto definition = state->definitions.constFind(clientId);
+    if (definition == state->definitions.cend()) return {};
+    thread_local std::weak_ptr<ItemImageState> decoderProfile;
+    thread_local std::unique_ptr<SprReader> decoder;
+    LoadProfile::Scope timing(QStringLiteral("thumbnail_miss"));
+    if (decoderProfile.lock() != state) {
+        decoder = std::make_unique<SprReader>();
+        if (!decoder->loadFile(state->path, 0, state->extended, state->alpha)) return {};
+        decoderProfile = state;
+    }
+    decoder->beginBulkAccess();
+    QImage image = decoder->composeItemImage(definition->sprites, definition->width,
+                                            definition->height, definition->layers);
+    decoder->endBulkAccess();
+    {
+        QReadLocker profileLock(&m_preloadedItemLock);
+        if (state != m_itemImageState) return {};
+    }
+    const qsizetype cost = image.sizeInBytes();
+    if (cost <= ItemImageState::limit) {
+        while (state->bytes + cost > ItemImageState::limit && !state->lru.empty()) {
+            const int victim = state->lru.back();
+            state->bytes -= state->cache.value(victim).image.sizeInBytes();
+            state->cache.remove(victim);
+            state->lru.pop_back();
+        }
+        state->lru.push_front(clientId);
+        state->cache.insert(clientId, {image, state->lru.begin()});
+        state->bytes += cost;
+    }
+    return image;
+}
+
+qsizetype SprReader::thumbnailCacheBytes() const
+{
+    std::shared_ptr<ItemImageState> state;
+    { QReadLocker lock(&m_preloadedItemLock); state = m_itemImageState; }
+    if (!state) return 0;
+    std::lock_guard<std::mutex> lock(state->mutex);
+    return state->bytes;
 }
 
 QString SprReader::cachedDataUrl(const QString &key)

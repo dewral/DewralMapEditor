@@ -45,6 +45,7 @@ add_library(OTFormats STATIC
     libs/otformats/compactvector.h
     libs/otformats/compactqstring.h
     libs/otformats/tilepositionindex.h
+    libs/otformats/loadprofile.h
 )
 
 target_compile_definitions(OTFormats PUBLIC
@@ -206,6 +207,10 @@ target_link_libraries(DewralMapEditor
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(ui_colorize_test EXCLUDE_FROM_ALL tests/ui_colorize_test.cpp editor/core/uitheme.cpp)
+    target_include_directories(ui_colorize_test PRIVATE editor/core)
+    target_link_libraries(ui_colorize_test PRIVATE Qt6::Core Qt6::Gui Qt6::Quick)
+    add_test(NAME ui_colorize COMMAND ui_colorize_test)
     add_test(NAME dme_startup COMMAND DewralMapEditor --smoke-test)
     set_tests_properties(dme_startup PROPERTIES
         ENVIRONMENT "QT_QUICK_BACKEND=software;QML_IMPORT_PATH=$<TARGET_FILE_DIR:DewralMapEditor>/qml"
@@ -242,7 +247,7 @@ if(BUILD_TESTING)
     add_test(NAME palette_visibility COMMAND palette_visibility_test)
     add_executable(map_rhi_backend_test EXCLUDE_FROM_ALL
         tests/map_rhi_backend_test.cpp editor/map/maprhibackend.cpp)
-    target_include_directories(map_rhi_backend_test PRIVATE editor/map)
+    target_include_directories(map_rhi_backend_test PRIVATE editor/map libs/otformats)
     target_link_libraries(map_rhi_backend_test PRIVATE Qt6::GuiPrivate Qt6::Quick)
     qt_add_shaders(map_rhi_backend_test test_map_shaders
         PREFIX "/shaders" BASE "editor/map/shaders"

@@ -130,17 +130,91 @@ bool writeAssets(const QTemporaryDir &directory)
         && writeFile(directory.filePath(QStringLiteral("test.otb")), otb)
         && writeFile(directory.filePath(QStringLiteral("test.spr")), spr);
 }
+
+bool atlasBudget(const QTemporaryDir &directory)
+{
+    constexpr int spritesPerMap = 33000;
+    QByteArray dat;
+    appendU32(dat, 0x12345678);
+    appendU16(dat, 101);
+    dat.append(QByteArray(6, '\0'));
+    for (int item = 0; item < 2; ++item) {
+        dat.append(static_cast<char>(0xff));
+        dat.append(QByteArray(3, '\1')); // Width, height, layers.
+        dat.append(static_cast<char>(220));
+        dat.append(static_cast<char>(150));
+        dat.append(QByteArray(2, '\1')); // Pattern Z, frames.
+        for (int sprite = 1; sprite <= spritesPerMap; ++sprite)
+            appendU32(dat, item * spritesPerMap + sprite);
+    }
+    QByteArray spr;
+    appendU32(spr, 0x12345678);
+    appendU32(spr, 2 * spritesPerMap);
+    for (int sprite = 0; sprite < 2 * spritesPerMap; ++sprite)
+        appendU32(spr, 8 + 2 * spritesPerMap * 4);
+    spr.append(QByteArray(3, '\0'));
+    appendU16(spr, 7);
+    appendU16(spr, 0);
+    appendU16(spr, 1);
+    spr.append(QByteArray(3, '\x40'));
+    QByteArray otb("OTBI");
+    otb.append(static_cast<char>(0xfe));
+    otb.append(QByteArray(5, '\0'));
+    for (int item = 0; item < 2; ++item) {
+        QByteArray node(5, '\0');
+        node.append(static_cast<char>(0x10)); appendU16(node, 2); appendU16(node, 1000 + item);
+        node.append(static_cast<char>(0x11)); appendU16(node, 2); appendU16(node, 100 + item);
+        otb.append(static_cast<char>(0xfe));
+        for (char byte : node) {
+            if (static_cast<uchar>(byte) >= 0xfd) otb.append(static_cast<char>(0xfd));
+            otb.append(byte);
+        }
+        otb.append(static_cast<char>(0xff));
+    }
+    otb.append(static_cast<char>(0xff));
+    const QString base = directory.filePath(QStringLiteral("budget"));
+    DatReader definitions; definitions.setClientVersion(960);
+    SprReader decoder;
+    OtbReader items;
+    if (!require(writeFile(base + ".dat", dat) && writeFile(base + ".spr", spr)
+                     && writeFile(base + ".otb", otb) && definitions.loadFile(base + ".dat")
+                     && decoder.loadFile(base + ".spr", 0, true, false) && items.loadFile(base + ".otb"),
+                 "Could not create atlas budget fixtures")) return false;
+    OtbmReader first, second;
+    first.newMap(32, 32, 960, 3, 40); first.addItem(1, 1, 7, 1000);
+    second.newMap(32, 32, 960, 3, 40); second.addItem(1, 1, 7, 1001);
+    MapView view;
+    view.setClientAtlasIdentity(QStringLiteral("budget-profile"));
+    view.setOtb(&items); view.setDat(&definitions); view.setSpr(&decoder);
+    view.setOtbm(&first);
+    if (!require(waitUntil([&] { return !view.atlasBuilding(); })
+                     && view.spriteCount() == spritesPerMap, "First budget atlas failed")) return false;
+    view.setOtbm(&second);
+    if (!require(waitUntil([&] { return !view.atlasBuilding(); })
+                     && view.spriteCount() == spritesPerMap
+                     && view.renderAtlasUpload(0, 0).image.sizeInBytes() <= 256LL * 1024 * 1024,
+                 "Opening another map accumulated sprites beyond the atlas budget")) return false;
+    view.setClientAtlasIdentity(QStringLiteral("replacement-profile"));
+    return require(view.spriteCount() == 0, "Changing the client retained an incompatible atlas");
 }
+}
+
+#include "map_house_tool_checks.h"
+#include "map_zone_overlay_checks.h"
 
 int main(int argc, char **argv)
 {
     QGuiApplication application(argc, argv);
-    QTemporaryDir directory;
+    if (!testZoneOverlays()) return 1;
+    if (QCoreApplication::arguments().contains(QStringLiteral("--zone-overlay-only"))) return 0;
+    QTemporaryDir directory(QDir(QDir::currentPath()).filePath(
+        QStringLiteral("creature-refresh-fixtures-XXXXXX")));
     QDir().mkpath(dmeDataDir());
     QTemporaryDir profileDirectory(QDir(dmeDataDir()).filePath(
         QStringLiteral("creature-refresh-test-XXXXXX")));
     if (!require(directory.isValid() && profileDirectory.isValid() && writeAssets(directory),
                  "Could not create creature refresh fixtures")) return 1;
+    if (!testHouseTools(directory)) return 1;
 
     DatReader dat;
     dat.setClientVersion(860);
@@ -166,6 +240,7 @@ int main(int argc, char **argv)
                  "Could not place test creatures")) return 1;
 
     MapView view;
+    view.setClientAtlasIdentity(QStringLiteral("fixture-profile"));
     view.setOtb(&otb);
     view.setDat(&dat);
     view.setSpr(&spr);
@@ -225,6 +300,47 @@ int main(int argc, char **argv)
                  "The map remained connected to its previous creature store")) return 1;
     replacement.reset();
     if (!expectOutfits(view, {}, {})) return 1;
+    const int reusedSpriteCount = view.spriteCount();
+    const int reusedAtlasGeneration = view.renderAtlasGeneration();
+    OtbmReader emptyDocument;
+    view.setOtbm(&emptyDocument);
+    view.setOtbm(&map);
+    if (!require(!view.atlasBuilding() && view.spriteCount() == reusedSpriteCount
+                     && view.renderAtlasGeneration() == reusedAtlasGeneration,
+                 "Switching documents discarded a compatible atlas")) return 1;
+
+    view.setSize({0, 0});
+    view.centerOnContent();
+    if (!require(view.renderOriginX() == 2 && view.renderOriginY() == 1.5,
+                 "Prebuilt floor bounds produced a wrong center")) return 1;
+    view.placeItemAt(20, 30, 1000);
+    view.centerOnContent();
+    if (!require(view.renderOriginX() == 11 && view.renderOriginY() == 16,
+                 "Adding a tile did not extend cached floor bounds")) return 1;
+    view.undo();
+    view.centerOnContent();
+    if (!require(view.renderOriginX() == 2 && view.renderOriginY() == 1.5,
+                 "Undo did not invalidate the removed tile's floor bounds")) return 1;
+    view.redo();
+    view.centerOnContent();
+    if (!require(view.renderOriginX() == 11 && view.renderOriginY() == 16,
+                 "Redo did not refresh structural floor bounds")) return 1;
+
+    view.awaitInitialView();
+    const quint64 obsoleteToken = view.initialViewToken();
+    view.setOtbm(&emptyDocument);
+    view.completeInitialView(obsoleteToken);
+    if (!require(view.initialViewToken() == 0,
+                 "Closing a document retained initial view readiness")) return 1;
+    const QString cancelledPath = directory.filePath(QStringLiteral("cancelled.otbm"));
+    if (!require(map.saveFile(cancelledPath), "Could not save cancellation fixture")) return 1;
+    OtbmReader interrupted;
+    view.setOtbm(&interrupted);
+    if (!require(view.loadMap(cancelledPath), "Could not start cancellable load")) return 1;
+    view.setOtbm(&emptyDocument);
+    if (!require(!interrupted.isLoading() && view.initialViewToken() == 0,
+                 "Switching documents left the cancelled reader stuck loading")) return 1;
+    if (!atlasBudget(directory)) return 1;
     qInfo() << "Creature map refresh checks passed";
     return 0;
 }

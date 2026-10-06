@@ -1,3 +1,5 @@
+import "../../../components"
+import "../Colors.js" as Colors
 import QtQuick
 
 Item {
@@ -32,10 +34,10 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 0
-        color: "#26282A"
+        radius: 4
+        color: Colors.c("field")
         border.width: input.activeFocus ? 2 : 1
-        border.color: input.activeFocus ? "#B8BDC2" : "#3A3A3A"
+        border.color: input.activeFocus ? Colors.c("accent") : Colors.c("border")
     }
 
     TextInput {
@@ -45,8 +47,8 @@ Item {
         anchors.leftMargin: 6
         anchors.rightMargin: 14
         verticalAlignment: TextInput.AlignVCenter
-        color: "#E0E0E0"
-        font.pixelSize: 12
+        color: Colors.c("text")
+        font.family: "Segoe UI"; font.pixelSize: 12
         readOnly: !root.editable
         selectByMouse: true
         text: root.value
@@ -101,13 +103,13 @@ Item {
 
                 Rectangle {
                     anchors.fill: parent
-                    radius: 0
-                    color: arrowArea.containsMouse ? "#353535" : "transparent"
+                    radius: 4
+                    color: arrowArea.containsMouse ? Colors.c("pressed") : "transparent"
                 }
                 Text {
                     anchors.centerIn: parent
                     text: modelData > 0 ? "\u2303" : "\u2304"
-                    color: "#929292"
+                    color: Colors.c("placeholder")
                     font.pixelSize: 10
                 }
                 MouseArea {
@@ -120,4 +122,5 @@ Item {
             }
         }
     }
+    ColorHighlight { targetItem: root; colorKeys: ["field", "accent", "border", "text", "pressed", "placeholder"] }
 }

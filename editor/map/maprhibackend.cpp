@@ -1,4 +1,5 @@
 #include "maprhibackend.h"
+#include "loadprofile.h"
 #include <QFile>
 #include <cstring>
 #include <algorithm>
@@ -201,6 +202,8 @@ bool MapRhiBackend::render(QRhiCommandBuffer *cb, QRhiRenderTarget *output,
     if (!prepare(output)) return failed();
     QRhiResourceUpdateBatch *updates = m_rhi->nextResourceUpdateBatch();
     if (!m_atlasUpload.isNull()) {
+        LoadProfile::record(QStringLiteral("atlas_upload_submit"), -1,
+            QStringLiteral("bytes=%1").arg(m_atlasUpload.sizeInBytes()));
         QRhiTextureSubresourceUploadDescription sub(m_atlasUpload);
         sub.setDestinationTopLeft(m_atlasOffset);
         updates->uploadTexture(m_atlas.get(), QRhiTextureUploadDescription{{0, 0, sub}});

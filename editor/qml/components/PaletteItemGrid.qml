@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import Tibia 1.0
+import "../themes/fluent/Colors.js" as Colors
 import "../style"
 import "../controllers"
 
@@ -56,6 +57,7 @@ Item {
         id: grid
         objectName: "paletteGrid"
 
+        readonly property int fluentColumns: Math.max(1, Math.round(width / root.fluentCellSize))
         readonly property int githubGridGap: 8
         readonly property int githubPreferredCellWidth: Math.max(72, root.app.iconSizePx + 14)
         readonly property int githubMaxNativeColumns: Math.max(1, Math.floor(width / 76))
@@ -64,7 +66,7 @@ Item {
                                                                               / (githubPreferredCellWidth + githubGridGap) + 0.4)))
         readonly property real githubCellHeight: root.listView
                                                      ? Math.max(48, root.app.iconSizePx * 0.72)
-                                                     : (root.fluentUi ? root.fluentCellSize : root.app.iconSizePx) + 22
+                                                     : (root.fluentUi ? Math.floor(grid.width / grid.fluentColumns) : root.app.iconSizePx) + 22
 
         anchors.left: parent.left
         anchors.top: parent.top
@@ -72,8 +74,8 @@ Item {
         width: parent.width - (root.githubUi ? 4 : 14)
         clip: true
         cellWidth: root.listView ? grid.width : root.githubUi ? Math.max(1, Math.floor(width / githubColumns))
-                                 : (root.fluentUi ? root.fluentCellSize : root.app.iconSizePx)
-        cellHeight: root.listView ? Math.max(48, root.app.iconSizePx * 0.72) : root.githubUi ? githubCellHeight : (root.fluentUi ? root.fluentCellSize : root.app.iconSizePx)
+                                 : (root.fluentUi ? Math.floor(grid.width / grid.fluentColumns) : root.app.iconSizePx)
+        cellHeight: root.listView ? Math.max(48, root.app.iconSizePx * 0.72) : root.githubUi ? githubCellHeight : (root.fluentUi ? grid.cellWidth : root.app.iconSizePx)
         model: Backend.otbReader.loaded
                ? (root.directAllItems ? Backend.otbReader : root.filterModel)
                : (Backend.datReader.loaded ? Backend.datReader : Backend.sprReader)
@@ -84,7 +86,7 @@ Item {
             width: grid.cellWidth - (root.githubUi ? grid.githubGridGap : 2)
             height: grid.cellHeight - (root.githubUi ? grid.githubGridGap : 2)
             clip: true
-            radius: root.githubUi ? 4 : 0
+            radius: root.fluentUi ? 1 : root.githubUi ? 4 : 0
 
             property bool isBrush: typeof serverId !== "undefined"
                                    && root.mapCtrl.brushServerId === serverId
@@ -93,15 +95,15 @@ Item {
             property string doodadPreview: typeof serverId !== "undefined"
                                            ? root.mapCtrl.doodadPreviewSource(serverId) : ""
             color: selected
-                   ? (root.fluentUi ? "#414447" : root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
+                   ? (root.fluentUi ? Colors.c("selectedCell") : root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
                    : (cellMouseArea.containsMouse
                       ? (root.githubUi ? (root.grayUi ? "#303030" : "#161E27") : "#303030")
-                      : (root.githubUi ? (root.grayUi ? "#242424" : "#0D1117") : (root.fluentUi ? "#252729" : "#252525")))
+                      : (root.githubUi ? (root.grayUi ? "#242424" : "#0D1117") : (root.fluentUi ? Colors.c("cell") : "#252525")))
             border.color: selected
-                          ? (root.fluentUi ? "#B8BDC2" : root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
+                          ? (root.fluentUi ? Colors.c("selectedBorder") : root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
                           : (root.githubUi
                              ? (cellMouseArea.containsMouse ? (root.grayUi ? "#595959" : "#3A4655") : (root.grayUi ? "#424242" : "#202A35"))
-                             : "#3a3a3a")
+                             : (root.fluentUi ? Colors.c("cellBorder") : "#3a3a3a"))
             border.width: selected ? 2 : 1
 
             Image {
@@ -131,13 +133,15 @@ Item {
                 fillMode: Image.PreserveAspectFit
                 smooth: false
                 cache: true
+                asynchronous: true
+                objectName: "paletteItemImage"
                 source: {
                     if (parent.doodadPreview !== "")
                         return parent.doodadPreview;
                     if (typeof clientId !== "undefined" && clientId > 0)
-                        return "image://paletteitem/" + clientId;
+                        return "image://paletteitem/" + clientId + "/" + Backend.sprReader.itemImagesRevision;
                     if (typeof itemId !== "undefined" && itemId > 0)
-                        return "image://paletteitem/" + itemId;
+                        return "image://paletteitem/" + itemId + "/" + Backend.sprReader.itemImagesRevision;
                     if (typeof spriteIds !== "undefined" && spriteIds.length > 0)
                         return Backend.sprReader.itemImageSource(
                                     spriteIds,
@@ -252,4 +256,5 @@ Item {
         anchors.bottom: parent.bottom
         flickable: grid
     }
+    ColorHighlight { targetItem: root; colorKeys: ["cell", "cellBorder", "selectedCell", "selected", "selectedBorder"] }
 }

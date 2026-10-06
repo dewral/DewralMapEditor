@@ -1,2 +1,6 @@
+import "../../../components"
+import "../Colors.js" as Colors
 import QtQuick
-Rectangle { radius: 0; color: "#1C1C1C"; border.width: 1; border.color: "#3A3A3A" }
+Rectangle { id: root; radius: 6; color: Colors.c("popup"); border.width: 1; border.color: Colors.c("border");
+    ColorHighlight { targetItem: root; colorKeys: ["popup", "border"] }
+}

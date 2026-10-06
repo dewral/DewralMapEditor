@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import Tibia 1.0
+import "../themes/fluent/Colors.js" as Colors
 import "../style"
 import "../controllers"
 
@@ -114,6 +115,7 @@ Item {
         id: grid
         objectName: "paletteGrid"
         readonly property int gap: root.githubUi ? 8 : 2
+        readonly property int fluentColumns: Math.max(1, Math.round(width / root.fluentCellSize))
         readonly property int preferredWidth: root.githubUi ? Math.max(72, root.app.iconSizePx + 14)
                                                           : root.app.iconSizePx
         readonly property int columns: root.listView ? 1
@@ -123,8 +125,8 @@ Item {
         anchors.bottom: parent.bottom
         width: parent.width - (root.githubUi ? 4 : 14)
         clip: true
-        cellWidth: root.listView ? grid.width : root.fluentUi ? root.fluentCellSize : root.githubUi ? Math.max(1, Math.floor(width / columns)) : root.app.iconSizePx
-        cellHeight: root.listView ? Math.max(48, root.app.iconSizePx * 0.72) : root.fluentUi ? root.fluentCellSize : root.githubUi ? (root.listView ? Math.max(48, root.app.iconSizePx * 0.72)
+        cellWidth: root.listView ? grid.width : root.fluentUi ? Math.floor(grid.width / grid.fluentColumns) : root.githubUi ? Math.max(1, Math.floor(width / columns)) : root.app.iconSizePx
+        cellHeight: root.listView ? Math.max(48, root.app.iconSizePx * 0.72) : root.fluentUi ? grid.cellWidth : root.githubUi ? (root.listView ? Math.max(48, root.app.iconSizePx * 0.72)
                                                   : root.app.iconSizePx + 22)
                                   : root.app.iconSizePx
         model: root.entries
@@ -144,14 +146,14 @@ Item {
 
             width: grid.cellWidth - grid.gap
             height: grid.cellHeight - grid.gap
-            radius: root.githubUi ? 4 : 0
+            radius: root.fluentUi ? 1 : root.githubUi ? 4 : 0
             clip: true
-            color: selected ? (root.fluentUi ? "#414447" : root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
+            color: selected ? (root.fluentUi ? Colors.c("selectedCell") : root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
                             : (area.containsMouse ? (root.githubUi ? (root.grayUi ? "#303030" : "#161E27") : "#303030")
-                                                  : (root.githubUi ? (root.grayUi ? "#242424" : "#0D1117") : (root.fluentUi ? "#252729" : "#252525")))
+                                                  : (root.githubUi ? (root.grayUi ? "#242424" : "#0D1117") : (root.fluentUi ? Colors.c("cell") : "#252525")))
             border.width: selected ? 2 : 1
-            border.color: selected ? (root.fluentUi ? "#B8BDC2" : root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
-                                   : (root.githubUi ? (root.grayUi ? "#424242" : "#202A35") : "#3a3a3a")
+            border.color: selected ? (root.fluentUi ? Colors.c("selectedBorder") : root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
+                                   : (root.githubUi ? (root.grayUi ? "#424242" : "#202A35") : (root.fluentUi ? Colors.c("cellBorder") : "#3a3a3a"))
 
             Image {
                 anchors.verticalCenter: parent.verticalCenter
@@ -176,9 +178,10 @@ Item {
                 fillMode: Image.PreserveAspectFit
                 smooth: false
                 cache: true
+                asynchronous: true
                 source: cell.doodadSource !== "" ? cell.doodadSource
                         : (cell.modelData.clientId > 0
-                           ? "image://paletteitem/" + cell.modelData.clientId
+                           ? "image://paletteitem/" + cell.modelData.clientId + "/" + Backend.sprReader.itemImagesRevision
                         : Backend.sprReader.itemImageSource(cell.modelData.spriteIds,
                                                            cell.modelData.itemWidth,
                                                            cell.modelData.itemHeight,
@@ -284,4 +287,5 @@ Item {
         message: "Delete prefab \"" + prefabMenu.prefabName + "\"?"
         onAccepted: Backend.brushStore.deletePrefab(prefabMenu.prefabName)
     }
+    ColorHighlight { targetItem: root; colorKeys: ["cell", "cellBorder", "selectedCell", "selected", "selectedBorder"] }
 }

@@ -269,6 +269,8 @@ void MapView::setHouseBrush(int id)
     if (id < 0) id = 0;
     if (m_brushController.houseBrush() == id) return;
     m_brushController.houseBrush() = id;
+    m_brushController.houseDoorIds().clear();
+    m_brushController.houseDoorIdsInitialized() = false;
     ++m_metadataOverlayVersion;
     if (id > 0) {
         if (m_brushController.optionalBorderBrush()) {
@@ -307,40 +309,73 @@ void MapView::setHouseExitMode(bool on)
     emit contentUpdated(); update();
 }
 
+bool MapView::isHouseDoorItem(uint16_t serverId) const
+{
+    return (m_brushController.store() && m_brushController.store()->isDoorItem(serverId))
+        || (m_otb && m_otb->groupForServerId(serverId) == static_cast<int>(OtbItemGroup::Door));
+}
+
+QSet<int> MapView::collectHouseDoorIds(uint32_t houseId, const OtbmMapItem *excluded) const
+{
+    QSet<int> ids;
+    for (const OtbmTile &tile : m_otbm->tiles()) {
+        if (!tile.is_house || tile.house_id != houseId) continue;
+        for (const OtbmMapItem &item : tile.items)
+            if (&item != excluded && isHouseDoorItem(item.server_id)
+                && item.extra && item.extra->door_id > 0)
+                ids.insert(item.extra->door_id);
+    }
+    return ids;
+}
+
+bool MapView::canSetHouseExitAt(int x, int y, int z) const
+{
+    if (!m_otbm || m_brushController.houseBrush() <= 0
+        || x < 0 || x > 65535 || y < 0 || y > 65535 || z < 0 || z > 15
+        || (x == 0 && y == 0 && z == 0)) return false;
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    const OtbmTile *tile = m_otbm->tileAt(x, y, z);
+    if (!tile || tile->is_house) return false;
+    if (std::none_of(m_otbm->houses().begin(), m_otbm->houses().end(), [this](const OtbmHouse &house) {
+            return house.id == static_cast<uint32_t>(m_brushController.houseBrush());
+        })) return false;
+    bool hasGround = false;
+    for (const OtbmMapItem &item : tile->items) {
+        hasGround = hasGround || item.is_ground || itemCategory(item.server_id) == 0;
+        if (m_otb && (m_otb->isUnpassableForServerId(item.server_id)
+                      || m_otb->isClientUnpassableForServerId(item.server_id))) return false;
+    }
+    if (!hasGround) return false;
+    return true;
+}
+
+bool MapView::setHouseExitAt(int x, int y, int z)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    if (!canSetHouseExitAt(x, y, z)) return false;
+    m_otbm->setHouseEntry(m_brushController.houseBrush(), x, y, z);
+    ++m_metadataOverlayVersion;
+    emit contentUpdated();
+    update();
+    return true;
+}
+
 void MapView::placeHouseAt(int x, int y)
 {
-    if (m_brushController.houseBrush() <= 0) return;
+    if (!m_otbm || m_brushController.houseBrush() <= 0) return;
 
     if (m_brushController.houseExitMode()) {
-        m_otbm->setHouseEntry(m_brushController.houseBrush(), x, y, m_navigationController.floor());
-        emit contentUpdated(); update();
+        setHouseExitAt(x, y, m_navigationController.floor());
         return;
     }
 
     std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
     const uint32_t houseId = static_cast<uint32_t>(m_brushController.houseBrush());
     QSet<int> &usedDoorIds = m_brushController.houseDoorIds();
-    if (!m_brushController.eraseStroke() && m_brushController.store()
-        && !m_brushController.houseDoorIdsInitialized()) {
-        for (const OtbmTile &tile : m_otbm->tiles()) {
-            if (!tile.is_house || tile.house_id != houseId) continue;
-            for (const OtbmMapItem &item : tile.items) {
-                if (!m_brushController.store()->isDoorItem(item.server_id)) continue;
-                const int doorId = item.extra ? item.extra->door_id : 0;
-                if (doorId > 0) usedDoorIds.insert(doorId);
-            }
-        }
+    if (!m_brushController.eraseStroke() && !m_brushController.houseDoorIdsInitialized()) {
+        usedDoorIds = collectHouseDoorIds(houseId);
         m_brushController.houseDoorIdsInitialized() = true;
     }
-
-    const auto takeAvailableDoorId = [&usedDoorIds]() {
-        for (int doorId = 1; doorId <= std::numeric_limits<uint8_t>::max(); ++doorId) {
-            if (usedDoorIds.contains(doorId)) continue;
-            usedDoorIds.insert(doorId);
-            return doorId;
-        }
-        return 0;
-    };
 
     for (int dy = -m_brushController.size(); dy <= m_brushController.size(); ++dy)
         for (int dx = -m_brushController.size(); dx <= m_brushController.size(); ++dx) {
@@ -352,31 +387,49 @@ void MapView::placeHouseAt(int x, int y)
             const OtbmTile *previousTile = m_otbm->tileAt(tx, ty, m_navigationController.floor());
             const bool alreadyInHouse = previousTile && previousTile->is_house
                                       && previousTile->house_id == houseId;
+            QSet<int> nextUsedDoorIds = usedDoorIds;
+            std::vector<std::pair<int, int>> assignments;
+            bool hasAvailableIds = true;
+            if (previousTile && !m_brushController.eraseStroke()) {
+                for (int index = 0; index < static_cast<int>(previousTile->items.size()); ++index) {
+                    const OtbmMapItem &item = previousTile->items[static_cast<size_t>(index)];
+                    if (!isHouseDoorItem(item.server_id)) continue;
+                    const int currentId = item.extra ? item.extra->door_id : 0;
+                    if (currentId > 0 && (alreadyInHouse || !nextUsedDoorIds.contains(currentId))) {
+                        nextUsedDoorIds.insert(currentId);
+                        continue;
+                    }
+                    const int id = MapBrushController::firstFreeHouseDoorId(nextUsedDoorIds);
+                    if (id == 0) { hasAvailableIds = false; break; }
+                    nextUsedDoorIds.insert(id);
+                    assignments.emplace_back(index, id);
+                }
+            }
+            if (!hasAvailableIds) {
+                qWarning() << "Cannot assign house tile: all door IDs 1-255 are in use";
+                continue;
+            }
             const bool ok = m_brushController.eraseStroke() ? m_otbm->clearHouseTileAt(tx, ty, m_navigationController.floor())
                                           : m_otbm->setHouseTileAt(tx, ty, m_navigationController.floor(),
                                                 houseId);
-            if (ok && !m_brushController.eraseStroke() && m_brushController.store()) {
+            if (ok && !m_brushController.eraseStroke()) {
+                usedDoorIds = std::move(nextUsedDoorIds);
+                for (const auto &[index, id] : assignments)
+                    m_otbm->setItemDoorIdAt(tx, ty, m_navigationController.floor(),
+                                           index, static_cast<uint8_t>(id));
+            }
+            if (ok && m_brushController.eraseStroke()) {
                 const OtbmTile *tile = m_otbm->tileAt(tx, ty, m_navigationController.floor());
-                if (tile) {
-                    for (int index = 0; index < static_cast<int>(tile->items.size()); ++index) {
-                        const OtbmMapItem &item = tile->items[static_cast<size_t>(index)];
-                        if (!m_brushController.store()->isDoorItem(item.server_id)) continue;
-
-                        const int currentDoorId = item.extra ? item.extra->door_id : 0;
-                        if (currentDoorId > 0
-                            && (alreadyInHouse || !usedDoorIds.contains(currentDoorId))) {
-                            usedDoorIds.insert(currentDoorId);
-                            continue;
-                        }
-
-                        const int doorId = takeAvailableDoorId();
-                        if (doorId == 0) break;
-                        m_otbm->setItemDoorIdAt(tx, ty, m_navigationController.floor(),
-                                               index, static_cast<uint8_t>(doorId));
-                    }
+                for (int index = 0; tile && index < static_cast<int>(tile->items.size()); ++index) {
+                    const OtbmMapItem &item = tile->items[static_cast<size_t>(index)];
+                    if (isHouseDoorItem(item.server_id) && item.extra && item.extra->door_id != 0)
+                        m_otbm->setItemDoorIdAt(tx, ty, m_navigationController.floor(), index, 0);
                 }
             }
-            if (ok) onTileEdited(tx, ty, m_navigationController.floor());
+            if (ok) {
+                ++m_metadataOverlayVersion;
+                onTileEdited(tx, ty, m_navigationController.floor());
+            }
         }
     if (!m_editController.batching()) flushEditedChunksLocked();
     if (!m_brushController.bulkEdit()) refreshAfterEdit(0);

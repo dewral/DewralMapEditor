@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import Tibia 1.0
+import "../themes/fluent/Colors.js" as Colors
 
 Item {
     id: root
@@ -22,7 +23,7 @@ Item {
 
     BorderImage {
         anchors.fill: parent
-        visible: !root.githubStyle
+        visible: !root.githubStyle && !root.fluentUi
         source: Backend.uiTheme.tex + "panel_side.png"
         smooth: false
         border.left: 1
@@ -35,11 +36,17 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        visible: !root.githubStyle
+        visible: !root.githubStyle && !root.fluentUi
         color: root.active ? (root.fluentUi ? "#335F6265" : "#992f6f4f")
                            : (mouseArea.containsMouse ? "#28ffffff" : "transparent")
         border.width: root.active ? 1 : 0
         border.color: root.fluentUi ? "#B8BDC2" : "#7fdc8f"
+    }
+    Rectangle {
+        anchors.fill: parent; visible: root.fluentUi
+        radius: 4; color: root.active ? (mouseArea.containsMouse ? Colors.c("selectedHover") : Colors.c("selected")) : mouseArea.containsMouse ? Colors.c("hover") : Colors.c("button")
+        border.color: root.active ? Colors.c("selectedBorder") : Colors.c("border")
+        border.width: 1
     }
 
     Rectangle {
@@ -56,8 +63,8 @@ Item {
         width: root.iconSize
         height: root.iconSize
         radius: root.round ? width / 2 : 0
-        color: root.active ? (root.fluentUi ? "#B8BDC2" : root.grayTheme ? "#C79A3B" : "#3FB950") : (root.grayTheme ? "#858585" : "#7D8590")
-        border.color: root.active ? (root.fluentUi ? "#CDD0D3" : root.grayTheme ? "#F0CD78" : "#7EE787") : (root.grayTheme ? "#B0B0B0" : "#A7B1BC")
+        color: root.fluentUi ? (root.round ? "transparent" : Colors.c("text")) : root.active ? (root.grayTheme ? "#C79A3B" : "#3FB950") : (root.grayTheme ? "#858585" : "#7D8590")
+        border.color: root.fluentUi ? Colors.c("text") : root.active ? (root.grayTheme ? "#F0CD78" : "#7EE787") : (root.grayTheme ? "#B0B0B0" : "#A7B1BC")
         border.width: 1
     }
 
@@ -68,4 +75,5 @@ Item {
         cursorShape: Qt.PointingHandCursor
         onClicked: root.clicked()
     }
+    ColorHighlight { targetItem: root; colorKeys: ["button", "hover", "border", "text", "selected", "selectedHover", "selectedBorder"] }
 }

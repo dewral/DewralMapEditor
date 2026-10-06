@@ -257,10 +257,26 @@ void MapView::paintDoorBrushAt(int cx, int cy)
                 if (m_brushController.store()->wallBrushForServerId(source).isEmpty()) continue;
                 const int target =
                     m_brushController.store()->doorBrushItem(source, m_brushController.doorBrushId());
-                if (target <= 0 || target == source) break;
+                if (target <= 0) break;
+                int doorId = 0;
+                if (tile->is_house) {
+                    const OtbmMapItem &previous = tile->items[static_cast<size_t>(index)];
+                    const QSet<int> usedIds = collectHouseDoorIds(tile->house_id, &previous);
+                    doorId = isHouseDoorItem(source) && previous.extra ? previous.extra->door_id : 0;
+                    if (doorId == 0 || usedIds.contains(doorId))
+                        doorId = MapBrushController::firstFreeHouseDoorId(usedIds);
+                    if (doorId == 0) {
+                        qWarning() << "Cannot place house door: all door IDs 1-255 are in use";
+                        break;
+                    }
+                }
                 ensureItemSprites(target);
-                if (m_otbm->setItemServerIdAt(
-                        x, y, m_navigationController.floor(), index, static_cast<uint16_t>(target))) {
+                bool changed = m_otbm->setItemServerIdAt(
+                    x, y, m_navigationController.floor(), index, static_cast<uint16_t>(target));
+                if (doorId > 0)
+                    changed = m_otbm->setItemDoorIdAt(x, y, m_navigationController.floor(),
+                                                     index, static_cast<uint8_t>(doorId)) || changed;
+                if (changed) {
                     onTileEdited(x, y, m_navigationController.floor());
                 }
                 break;
@@ -296,12 +312,15 @@ void MapView::recomputeWallAt(int x, int y, const QString &name)
     const OtbmTile *tile = currentFloorTileAt(x, y);
     std::vector<uint16_t> oldWalls;
     int existingDoor = 0;
+    OtbmMapItem replacement;
     if (tile)
         for (const OtbmMapItem &it : tile->items)
             if (m_brushController.store()->wallBrushForServerId(it.server_id) == name) {
                 oldWalls.push_back(it.server_id);
-                if (m_brushController.store()->isDoorItem(it.server_id))
+                if (m_brushController.store()->isDoorItem(it.server_id)) {
                     existingDoor = it.server_id;
+                    replacement = it;
+                }
             }
 
     if (existingDoor > 0) {
@@ -315,7 +334,10 @@ void MapView::recomputeWallAt(int x, int y, const QString &name)
     std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
     if (!oldWalls.empty())
         m_otbm->removeItemsById(x, y, m_navigationController.floor(), oldWalls);
-    placeItemAt(x, y, newId);
+    replacement.server_id = static_cast<uint16_t>(newId);
+    if (!isHouseDoorItem(replacement.server_id) && replacement.extra)
+        replacement.extra->door_id = 0;
+    placeItemOnFloor(x, y, m_navigationController.floor(), replacement);
 }
 
 void MapView::paintWallBrushAt(int cx, int cy)

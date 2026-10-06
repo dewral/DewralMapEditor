@@ -10,6 +10,7 @@ import "style"
 import "controllers"
 import "components"
 import "themes/github"
+import "themes/fluent/Colors.js" as FluentColors
 
 DmeWindow {
     id: root
@@ -20,7 +21,8 @@ DmeWindow {
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
     readonly property bool modernGrayUi: Backend.uiTheme.style === "gray-modern"
-    readonly property int topBarHeight: fluentUi ? 54 : (githubUi ? 56 : 45)
+    readonly property int fluentTitleHeight: 34
+    readonly property int topBarHeight: fluentUi ? fluentTitleHeight + 32 : (githubUi ? 56 : 45)
     readonly property int minimumPaletteWidth: modernGrayUi ? 330 : (githubUi ? 220 : 160)
     readonly property int maximumPaletteWidth: Math.floor(width * 0.5)
 
@@ -47,7 +49,7 @@ DmeWindow {
     Rectangle {
         anchors.fill: parent
         visible: root.fluentUi
-        color: "#252729"
+        color: FluentColors.c("background")
     }
 
     DmeDialogBackground {
@@ -104,20 +106,20 @@ DmeWindow {
         Rectangle {
             anchors.fill: parent
             visible: root.fluentUi
-            color: "#1C1E20"
-            Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 27; color: "#252729" }
+            color: FluentColors.c("titleBar")
+            Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 32; color: FluentColors.c("titleBar") }
         }
         Image {
             visible: root.fluentUi
-            x: 10; y: 5; width: 16; height: 16
+            x: 10; y: (root.fluentTitleHeight - height) / 2; width: 16; height: 16
             source: "qrc:/ui/github/app-icon.png"
         }
         Text {
             visible: root.fluentUi
-            x: 38; y: 0; height: 27; width: Math.max(0, parent.width - 190)
+            x: 38; y: 0; height: root.fluentTitleHeight; width: Math.max(0, parent.width - 190)
             text: root.title
-            color: "#EEEEEE"; font.pixelSize: 12; font.family: "Segoe UI"
-            font.bold: true
+            color: FluentColors.c("buttonText"); font.pixelSize: 13; font.family: FluentColors.fontFamily
+            font.bold: false
             verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
         }
         Text {
@@ -180,7 +182,7 @@ DmeWindow {
 
         Row {
             id: winButtons
-            height: root.fluentUi ? 27 : titleBar.height
+            height: root.fluentUi ? root.fluentTitleHeight : titleBar.height
             anchors {
                 right: parent.right
                 top: parent.top
@@ -249,6 +251,26 @@ DmeWindow {
         app.initialize();
     }
 
+    // Optional diagnostic launch; does not overwrite the saved client paths.
+    function profileOpen(mapPath, clientFolder, clientVersion) {
+        var paths = Object.assign({}, app.clientPaths);
+        paths[String(clientVersion)] = clientFolder;
+        app.clientPaths = paths;
+        startupScreen.beginLoadMap(mapPath, String(clientVersion));
+    }
+
+    function profileReload(mapPath, clientFolder, clientVersion) {
+        var index = Backend.docMgr.indexOfPath(mapPath);
+        if (index >= 0)
+            Backend.docMgr.closeDocument(index);
+        profileOpen(mapPath, clientFolder, clientVersion);
+    }
+
+    function profilePalettePage(index) {
+        prefs.paletteCollapsed = false;
+        palette.profilePage(index);
+    }
+
     Connections {
         target: Backend.workTimer
         function onReminderRequested(message) {
@@ -263,8 +285,8 @@ DmeWindow {
 
     MainMenuBar {
         id: menuBar
-        menuLeftInset: root.githubUi ? 52 : 4
-        menuVerticalOffset: root.fluentUi ? 13 : (root.githubUi ? 0 : -4)
+        menuLeftInset: root.fluentUi ? 8 : root.githubUi ? 52 : 4
+        menuVerticalOffset: root.fluentUi ? root.fluentTitleHeight / 2 : (root.githubUi ? 0 : -4)
         width: root.githubUi ? 520 : implicitWidth
         appController: app
         mapView: workspace.mapView
@@ -353,7 +375,7 @@ DmeWindow {
         anchors.left: parent.left
         anchors.right: parent.right
         visible: root.fluentUi
-        height: visible ? 36 : 0
+        height: visible ? 42 : 0
         mapView: workspace.mapView
         onNewRequested: newMapDialog.open()
         onOpenRequested: startupScreen.openMapDialog()
@@ -539,7 +561,7 @@ DmeWindow {
         anchors.right: parent.right
         anchors.leftMargin: root.fluentUi ? 0 : root.githubUi ? 0 : 4
         anchors.rightMargin: root.githubUi ? 1 : 8
-        height: app.started ? (root.fluentUi ? 30 : root.githubUi ? 42 : 22) : 0
+        height: app.started ? (root.fluentUi ? 36 : root.githubUi ? 42 : 22) : 0
         visible: app.started
 
         sourceComponent: root.githubUi
@@ -632,9 +654,10 @@ DmeWindow {
     }
 
     Rectangle {
+        id: fluentStatusBar
         visible: root.fluentUi && app.started
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-        height: 26; color: "#292B2D"
+        height: 26; color: FluentColors.c("cell")
         Row {
             anchors.fill: parent
             anchors.rightMargin: (statusTimer.visible ? statusTimer.width + 8 : 0) + (statusFps.visible ? statusFps.width + 8 : 0)
@@ -646,8 +669,8 @@ DmeWindow {
                 delegate: Item {
                     required property string modelData
                     width: parent.width / 4; height: parent.height
-                    Rectangle { width: 1; height: 14; anchors.verticalCenter: parent.verticalCenter; color: "#45484B" }
-                    Text { anchors.fill: parent; anchors.leftMargin: 9; text: modelData; color: "#ddd"; font.pixelSize: 11; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+                    Rectangle { width: 1; height: 14; anchors.verticalCenter: parent.verticalCenter; color: FluentColors.c("separator") }
+                    Text { anchors.fill: parent; anchors.leftMargin: 9; text: modelData; color: FluentColors.c("muted"); font.pixelSize: 11; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
                 }
             }
         }
@@ -658,7 +681,7 @@ DmeWindow {
             anchors.verticalCenter: parent.verticalCenter
             width: 72
             text: workspace.mapRenderer.fps > 0 ? "FPS: " + workspace.mapRenderer.fps : "FPS: idle"
-            color: "#E0E0E0"; font.pixelSize: 11
+            color: FluentColors.c("placeholder"); font.pixelSize: 11
         }
         WorkTimerStatus {
             id: statusTimer
@@ -666,7 +689,7 @@ DmeWindow {
             anchors.right: parent.right; anchors.rightMargin: statusFps.visible ? statusFps.width + 14 : 6
             anchors.verticalCenter: parent.verticalCenter
             width: 245; height: 26
-            foreground: "#E0E0E0"; accent: "#B8BDC2"
+            foreground: FluentColors.c("muted"); accent: FluentColors.c("accent")
         }
     }
 
@@ -966,9 +989,21 @@ DmeWindow {
         sourceComponent: PreferencesDialog {
             settings: prefs
             mapRenderer: workspace.mapRenderer
+            mapView: workspace.mapView
+            onColorizeRequested: { colorizeLoader.active = true; colorizeLoader.item.open(); }
             onClosed: Qt.callLater(() => themeLoader.active = false)
         }
     }
+
+    Loader {
+        id: colorizeLoader
+        active: false
+        sourceComponent: UiColorizeDialog {
+            onClosed: Qt.callLater(() => colorizeLoader.active = false)
+        }
+    }
+    ColorHighlight { targetItem: titleBar; colorKeys: ["titleBar", "background", "text", "buttonText"] }
+    ColorHighlight { targetItem: fluentStatusBar; colorKeys: ["cell", "separator", "muted", "placeholder", "accent"] }
 
     QtObject {
         id: newMapDialog

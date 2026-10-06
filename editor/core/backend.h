@@ -5,9 +5,12 @@
 #include <QQmlEngine>
 #include <QJSEngine>
 #include <QUrl>
+#include <QFileInfo>
+#include <QDateTime>
 #include <QtQml/qqmlregistration.h>
 
 #include "sprreader.h"
+#include "loadprofile.h"
 #include "datreader.h"
 #include "otbreader.h"
 #include "otbmreader.h"
@@ -67,7 +70,23 @@ public:
     WorkTimerService *workTimer() { return &m_workTimer; }
 
     Q_INVOKABLE int preloadPaletteSprites() {
+        LoadProfile::Scope timing(QStringLiteral("palette_visibility"));
         return m_sprReader.preloadItemImageSources(&m_datReader);
+    }
+    Q_INVOKABLE void traceLoadStage(const QString &stage) { LoadProfile::record(stage); }
+
+    Q_INVOKABLE QString clientFingerprint(const QString &dat, const QString &spr,
+                                          const QString &otb, int version,
+                                          bool extended, bool alpha,
+                                          bool frameDurations, bool frameGroups) const {
+        QString key = QStringLiteral("%1/%2/%3/%4/%5").arg(version).arg(extended)
+            .arg(alpha).arg(frameDurations).arg(frameGroups);
+        for (const QString &path : {dat, spr, otb}) {
+            const QFileInfo info(path);
+            key += QStringLiteral("|%1:%2:%3").arg(info.canonicalFilePath())
+                .arg(info.size()).arg(info.lastModified().toMSecsSinceEpoch());
+        }
+        return key;
     }
 
     Q_INVOKABLE QUrl spriteExportUrl(int serverId) const;

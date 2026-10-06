@@ -2,16 +2,32 @@ import QtQuick
 import QtQuick.Controls
 import Tibia 1.0
 import "../style"
+import "../themes/fluent/Colors.js" as Colors
 
-Column {
+Item {
     id: root
 
     required property var mapCtrl
     required property bool githubUi
+    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
 
-    spacing: githubUi ? 9 : 3
+    implicitHeight: brushContent.implicitHeight + (fluentUi ? 16 : 0)
+    Rectangle {
+        anchors.fill: parent
+        visible: root.fluentUi
+        radius: 6
+        color: Colors.c("surface")
+        border.width: 1
+        border.color: Colors.c("border")
+    }
+    Column {
+    id: brushContent
+    x: root.fluentUi ? 8 : 0
+    y: root.fluentUi ? 8 : 0
+    width: root.width - (root.fluentUi ? 16 : 0)
+    spacing: root.fluentUi ? 8 : root.githubUi ? 9 : 3
 
     Rectangle {
         visible: root.githubUi
@@ -22,9 +38,11 @@ Column {
 
     Text {
         text: "Brush size"
-        color: root.grayUi ? "#F0F0F0" : (root.githubUi ? "#E6EDF3" : "#ddd")
+        color: root.fluentUi ? Colors.c("heading") : root.grayUi ? "#F0F0F0" : (root.githubUi ? "#E6EDF3" : "#ddd")
         font.pixelSize: root.githubUi ? 12 : 11
-        font.bold: true
+        font.bold: !root.fluentUi
+        font.family: root.fluentUi ? "Segoe UI" : Qt.application.font.family
+        height: root.fluentUi ? 22 : implicitHeight
     }
 
     Flow {
@@ -35,6 +53,9 @@ Column {
             model: ["square", "circle"]
             delegate: PaletteBrushButton {
                 required property string modelData
+                objectName: "fluentBrush" + modelData
+                width: root.fluentUi ? 24 : root.githubUi ? 32 : 26
+                height: root.fluentUi ? 24 : root.githubUi ? 32 : 26
                 githubStyle: root.githubUi
                 active: root.mapCtrl.brushShape === modelData
                 round: modelData === "circle"
@@ -44,8 +65,8 @@ Column {
         }
 
         Item {
-            width: Backend.uiTheme.style === "fluent-dark" ? parent.width : root.githubUi ? 6 : 10
-            height: Backend.uiTheme.style === "fluent-dark" ? 0 : 26
+            width: root.fluentUi ? 6 : root.githubUi ? 6 : 10
+            height: root.fluentUi ? 24 : 26
         }
 
         Repeater {
@@ -53,6 +74,9 @@ Column {
             delegate: PaletteBrushButton {
                 required property int modelData
                 required property int index
+                objectName: "brushRadius" + modelData
+                width: root.fluentUi ? 24 : root.githubUi ? 32 : 26
+                height: root.fluentUi ? 24 : root.githubUi ? 32 : 26
                 githubStyle: root.githubUi
                 active: root.mapCtrl.brushSize === modelData
                 round: root.mapCtrl.brushShape === "circle"
@@ -68,5 +92,6 @@ Column {
                 }
             }
         }
+    }
     }
 }

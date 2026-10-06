@@ -5,9 +5,12 @@ import QtQuick.Dialogs
 import QtQuick.Controls
 import "dialogs"
 import "style"
+import "components"
+import "themes/fluent/Colors.js" as Colors
 
 Window {
     id: startupScreen
+    readonly property bool fluentTheme: Backend.uiTheme.style === "fluent-dark"
     readonly property bool modernTheme: Backend.uiTheme.style !== "classic"
                                         && Backend.uiTheme.style !== "windows-classic"
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
@@ -28,7 +31,8 @@ Window {
         loadingProfileKey = profileKey || "";
         Backend.otbmReader.reportLoadingProgress(0, "Preparing map...");
         loadingMap = true;
-        loadDelay.restart();
+        if (!app.loadEverything(loadingMapPath, loadingProfileKey))
+            loadingMap = false;
     }
 
     function openMapDialog() {
@@ -46,28 +50,17 @@ Window {
     transientParent: null
     visible: !app.started
     width: loadingMap ? 460 : 800
-    height: loadingMap ? 190 : 520
+    height: loadingMap ? 190 : fluentTheme ? 600 : 520
     minimumWidth: loadingMap ? 460 : 800
     maximumWidth: loadingMap ? 460 : 800
-    minimumHeight: loadingMap ? 190 : 520
-    maximumHeight: loadingMap ? 190 : 520
+    minimumHeight: loadingMap ? 190 : fluentTheme ? 600 : 520
+    maximumHeight: loadingMap ? 190 : fluentTheme ? 600 : 520
     x: Screen.width / 2 - width / 2
     y: Screen.height / 2 - height / 2
     title: "Dewral Map Editor"
 
     flags: Qt.FramelessWindowHint | Qt.Window
     color: "transparent"
-
-    Timer {
-        id: loadDelay
-        interval: 80
-        repeat: false
-        onTriggered: {
-            if (!startupScreen.app.loadEverything(startupScreen.loadingMapPath,
-                                                  startupScreen.loadingProfileKey))
-                startupScreen.loadingMap = false;
-        }
-    }
 
     Connections {
         target: Backend.otbmReader
@@ -82,7 +75,15 @@ Window {
         visible: !startupScreen.loadingMap && Backend.docMgr.recoveryCount === 0
         anchors.centerIn: parent
         width: Math.min(parent.width - 40, 760)
-        height: Math.min(parent.height - 80, 440)
+        height: Math.min(parent.height - 80, startupScreen.fluentTheme ? 520 : 440)
+
+        Rectangle {
+            anchors.fill: parent
+            visible: startupScreen.fluentTheme
+            color: Colors.c("background")
+            border.color: Colors.c("border")
+            radius: 6
+        }
 
         Item {
             id: titleBar
@@ -91,13 +92,22 @@ Window {
                 right: parent.right
                 top: parent.top
             }
-            height: 27
+            height: startupScreen.fluentTheme ? 34 : 27
+
+            Image {
+                visible: startupScreen.fluentTheme
+                x: 12; y: (parent.height - height) / 2; width: 16; height: 16
+                source: "qrc:/ui/github/app-icon.png"
+            }
+            Rectangle { visible: startupScreen.fluentTheme; anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Colors.c("separator") }
 
             Text {
-                anchors.centerIn: parent
+                anchors.verticalCenter: parent.verticalCenter
+                x: startupScreen.fluentTheme ? 38 : (parent.width - width) / 2
                 text: startupScreen.title
-                color: startupScreen.grayTheme ? "#F0F0F0" : (startupScreen.modernTheme ? "#F0F6FC" : "#c0c0c0")
-                font.bold: true
+                color: startupScreen.fluentTheme ? Colors.c("buttonText") : startupScreen.grayTheme ? "#F0F0F0" : (startupScreen.modernTheme ? "#F0F6FC" : "#c0c0c0")
+                font.bold: !startupScreen.fluentTheme
+                font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
                 font.pixelSize: 13
             }
 
@@ -141,26 +151,29 @@ Window {
                 height: parent.height
                 Column {
                     anchors.fill: parent
-                    anchors.margins: 24
+                    anchors.margins: startupScreen.fluentTheme ? 20 : 24
                     spacing: 9
 
                     Column {
                         spacing: 4
                         Text {
                             text: "Dewral Map Editor"
-                            color: "#F0F6FC"
-                            font.pixelSize: 22
+                            color: startupScreen.fluentTheme ? Colors.c("heading") : "#F0F6FC"
+                            font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
+                            font.pixelSize: startupScreen.fluentTheme ? 20 : 22
                             font.bold: true
                         }
                         Rectangle {
+                            visible: !startupScreen.fluentTheme
                             width: 180
                             height: 2
-                            color: startupScreen.grayTheme ? "#C79A3B" : (startupScreen.modernTheme ? "#2EA043" : "#4a90e2")
+                            color: startupScreen.fluentTheme ? Colors.c("selectedHover") : startupScreen.grayTheme ? "#C79A3B" : (startupScreen.modernTheme ? "#2EA043" : "#4a90e2")
                         }
                     }
                     Text {
-                        text: "Tibia 7.72 - 10.98+ | QRhi"
-                        color: "#888"
+                        text: startupScreen.fluentTheme ? "Tibia 7.72 – 10.98+" : "Tibia 7.72 - 10.98+ | QRhi"
+                        color: startupScreen.fluentTheme ? Colors.c("muted") : "#888"
+                        font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
                         font.pixelSize: 12
                     }
 
@@ -190,7 +203,8 @@ Window {
 
                     Text {
                         text: "Client versions"
-                        color: "#ddd"
+                        color: startupScreen.fluentTheme ? Colors.c("heading") : "#ddd"
+                        font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
                         font.pixelSize: 13
                         font.bold: true
                     }
@@ -200,7 +214,7 @@ Window {
                         DmeComboBox {
                             id: verCombo
                             width: 150
-                            height: 23
+                            height: startupScreen.fluentTheme ? 28 : 23
 
                             model: app.allProfileKeys().map(function (k) {
                                 return app.profileLabel(k);
@@ -213,7 +227,7 @@ Window {
                         }
                         DmeButton {
                             width: 76
-                            height: 23
+                            height: startupScreen.fluentTheme ? 28 : 23
                             text: "Folder..."
                             onClicked: {
                                 app.pendingKey = verCombo.selKey;
@@ -228,12 +242,12 @@ Window {
                         DmeTextField {
                             id: newProfileField
                             width: 150
-                            height: 23
+                            height: startupScreen.fluentTheme ? 28 : 23
                             placeholderText: "e.g. Midhem"
                         }
                         DmeButton {
                             width: 76
-                            height: 23
+                            height: startupScreen.fluentTheme ? 28 : 23
                             text: "+ Custom"
                             onClicked: {
                                 var base = app.profileVer(verCombo.selKey);
@@ -266,10 +280,12 @@ Window {
                             width: 232
                             elide: Text.ElideMiddle
                             text: parent.selFolder !== "" ? parent.selFolder : "(folder not set for this version)"
-                            color: "#999"
+                            color: startupScreen.fluentTheme ? Colors.c("muted") : "#999"
+                            font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
                             font.pixelSize: 10
                         }
                         Text {
+                            font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
                             font.pixelSize: 11
                             visible: parent.selFolder !== ""
                             property bool ok: parent.selFiles.dat && parent.selFiles.spr && parent.selFiles.otb
@@ -294,7 +310,8 @@ Window {
                                     return app.profileLabel(k);
                                 }).join(", ");
                             }
-                            color: "#7a9a7a"
+                            color: startupScreen.fluentTheme ? Colors.c("muted") : "#7a9a7a"
+                            font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
                             font.pixelSize: 10
                         }
                     }
@@ -306,13 +323,14 @@ Window {
                         Rectangle {
                             width: parent.width
                             height: 1
-                            color: startupScreen.grayTheme ? "#3A3A3A"
+                            color: startupScreen.fluentTheme ? Colors.c("separator") : startupScreen.grayTheme ? "#3A3A3A"
                                   : (startupScreen.modernTheme ? "#30363D" : "#555555")
                         }
 
                         Text {
                             text: "Updates (v" + Backend.updateService.currentVersion + ")"
-                            color: "#ddd"
+                            color: startupScreen.fluentTheme ? Colors.c("heading") : "#ddd"
+                            font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
                             font.pixelSize: 13
                             font.bold: true
                         }
@@ -339,6 +357,7 @@ Window {
                                 }
                                 color: Backend.updateService.state === "error" ? "#D29922"
                                      : Backend.updateService.updateAvailable ? "#7FDC8F" : "#888"
+                                font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
                                 font.pixelSize: 10
                                 elide: Text.ElideRight
                             }
@@ -379,7 +398,8 @@ Window {
 
                     Text {
                         text: "Recent maps"
-                        color: "#ddd"
+                        color: startupScreen.fluentTheme ? Colors.c("heading") : "#ddd"
+                        font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
                         font.pixelSize: 14
                         font.bold: true
                     }
@@ -387,7 +407,8 @@ Window {
                     Text {
                         visible: app.recentMaps.length === 0
                         text: "No recent maps yet.\nUse Open map... to load one."
-                        color: "#777"
+                        color: startupScreen.fluentTheme ? Colors.c("placeholder") : "#777"
+                        font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
                         font.pixelSize: 12
                         wrapMode: Text.WordWrap
                     }
@@ -402,17 +423,17 @@ Window {
 
                         delegate: Item {
                             width: recentList.width
-                            height: 44
+                            height: startupScreen.fluentTheme ? 50 : 44
 
                             Rectangle {
                                 anchors.fill: parent
-                                radius: startupScreen.modernTheme ? 5 : 0
-                                color: startupScreen.modernTheme
+                                radius: startupScreen.fluentTheme ? 4 : startupScreen.modernTheme ? 5 : 0
+                                color: startupScreen.fluentTheme ? (rma.pressed ? Colors.c("selected") : rma.containsMouse ? Colors.c("hover") : Colors.c("base")) : startupScreen.modernTheme
                                        ? (startupScreen.grayTheme
                                           ? (rma.pressed ? "#353535" : (rma.containsMouse ? "#303030" : "#242424"))
                                           : (rma.pressed ? "#21262D" : (rma.containsMouse ? "#161E27" : "#0D1117")))
                                        : (rma.pressed ? "#14ffffff" : (rma.containsMouse ? "#0affffff" : "transparent"))
-                                border.color: startupScreen.grayTheme ? "#3A3A3A" : (startupScreen.modernTheme ? "#30363D" : "#555")
+                                border.color: startupScreen.fluentTheme ? (rma.pressed ? Colors.c("selectedBorder") : Colors.c("border")) : startupScreen.grayTheme ? "#3A3A3A" : (startupScreen.modernTheme ? "#30363D" : "#555")
                                 border.width: 1
                             }
 
@@ -425,16 +446,18 @@ Window {
                                 spacing: 1
                                 Text {
                                     text: Backend.fileTools.fileName(modelData)
-                                    color: "#eee"
+                                    color: startupScreen.fluentTheme ? Colors.c("text") : "#eee"
+                                    font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
                                     font.pixelSize: 13
-                                    font.bold: true
+                                    font.bold: !startupScreen.fluentTheme
                                     elide: Text.ElideRight
                                     width: parent.width
                                 }
                                 Text {
                                     text: modelData
-                                    color: "#888"
-                                    font.pixelSize: 10
+                                    color: startupScreen.fluentTheme ? Colors.c("placeholder") : "#888"
+                                    font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
+                                    font.pixelSize: startupScreen.fluentTheme ? 11 : 10
                                     elide: Text.ElideMiddle
                                     width: parent.width
                                 }
@@ -476,7 +499,8 @@ Window {
             Text {
                 width: parent.width
                 text: "Recover unsaved maps"
-                color: startupScreen.grayTheme ? "#F0F0F0" : (startupScreen.modernTheme ? "#F0F6FC" : "#d6d6d6")
+                color: startupScreen.fluentTheme ? Colors.c("heading") : startupScreen.grayTheme ? "#F0F0F0" : (startupScreen.modernTheme ? "#F0F6FC" : "#d6d6d6")
+                font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
                 font.pixelSize: 18
                 font.bold: true
             }
@@ -486,7 +510,8 @@ Window {
                       + (Backend.docMgr.recoveryCount === 1
                          ? " map from an interrupted session."
                          : " maps from an interrupted session.")
-                color: startupScreen.grayTheme ? "#999999" : (startupScreen.modernTheme ? "#9DA7B3" : "#b8b8b8")
+                color: startupScreen.fluentTheme ? Colors.c("muted") : startupScreen.grayTheme ? "#999999" : (startupScreen.modernTheme ? "#9DA7B3" : "#b8b8b8")
+                font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
                 font.pixelSize: 12
                 wrapMode: Text.WordWrap
             }
@@ -499,7 +524,8 @@ Window {
                         required property var modelData
                         width: parent.width
                         text: "• " + modelData.title + "  —  " + modelData.savedAt
-                        color: startupScreen.grayTheme ? "#E0E0E0" : (startupScreen.modernTheme ? "#C9D1D9" : "#c0c0c0")
+                        color: startupScreen.fluentTheme ? Colors.c("text") : startupScreen.grayTheme ? "#E0E0E0" : (startupScreen.modernTheme ? "#C9D1D9" : "#c0c0c0")
+                        font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
                         font.pixelSize: 11
                         elide: Text.ElideMiddle
                     }
@@ -541,7 +567,8 @@ Window {
 
             Text {
                 text: "Loading map"
-                color: "#F0F6FC"
+                color: startupScreen.fluentTheme ? Colors.c("heading") : "#F0F6FC"
+                font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
                 font.pixelSize: 15
                 font.weight: Font.DemiBold
             }
@@ -558,7 +585,8 @@ Window {
                         verticalCenter: parent.verticalCenter
                     }
                     text: Backend.fileTools.fileName(startupScreen.loadingMapPath)
-                    color: startupScreen.grayTheme ? "#E0E0E0" : "#C9D1D9"
+                    color: startupScreen.fluentTheme ? Colors.c("text") : startupScreen.grayTheme ? "#E0E0E0" : "#C9D1D9"
+                    font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
                     font.pixelSize: 13
                     elide: Text.ElideMiddle
                 }
@@ -570,7 +598,8 @@ Window {
                         verticalCenter: parent.verticalCenter
                     }
                     text: Backend.otbmReader.loadingProgress + "%"
-                    color: startupScreen.grayTheme ? "#E3BC62" : "#56D364"
+                    color: startupScreen.fluentTheme ? Colors.c("text") : startupScreen.grayTheme ? "#E3BC62" : "#56D364"
+                    font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
                     font.pixelSize: 12
                     font.weight: Font.DemiBold
                 }
@@ -581,7 +610,7 @@ Window {
                 width: parent.width
                 height: 7
                 radius: 4
-                color: startupScreen.grayTheme ? "#353535" : "#21262D"
+                color: startupScreen.fluentTheme ? Colors.c("scrollTrack") : startupScreen.grayTheme ? "#353535" : "#21262D"
                 clip: true
 
                 Rectangle {
@@ -589,10 +618,10 @@ Window {
                     width: progressTrack.width * Backend.otbmReader.loadingProgress / 100
                     height: parent.height
                     radius: 4
-                    color: startupScreen.grayTheme ? "#C79A3B" : "#2EA043"
+                    color: startupScreen.fluentTheme ? Colors.c("loading") : startupScreen.grayTheme ? "#C79A3B" : "#2EA043"
 
                     Behavior on width {
-                        NumberAnimation { duration: 100; easing.type: Easing.OutCubic }
+                        NumberAnimation { duration: 25; easing.type: Easing.OutCubic }
                     }
                 }
             }
@@ -602,6 +631,7 @@ Window {
                       ? Backend.otbmReader.loadingStage
                       : "Preparing map..."
                 color: "#7D8590"
+                font.family: startupScreen.fluentTheme ? Colors.fontFamily : Qt.application.font.family
                 font.pixelSize: 11
             }
         }

@@ -165,6 +165,12 @@ int main(int argc, char **argv)
                  "Decoded atlas pixel differs from the SPR data")) return 1;
 
     const auto firstUpload = atlas.uploadSince(0, 0);
+    const int reusedCount = atlas.spriteCount();
+    SprReader reuseDecoder;
+    if (!reuseDecoder.loadFile(path)) return 1;
+    atlas.addSprites(&reuseDecoder, QSet<uint32_t>{1});
+    if (!require(atlas.spriteCount() == reusedCount,
+                 "Reusing a client atlas must not duplicate existing sprites")) return 1;
     if (!require(firstUpload.image.size() == atlas.image().size(),
                  "New renderer did not receive a complete atlas")) return 1;
     MapAtlasService incremental = atlas;

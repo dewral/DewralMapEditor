@@ -104,7 +104,7 @@ quint32 MapView::renderCollectChunkInstances(int z, quint64 key, bool groundOnly
         out.push_back(static_cast<float>(slot.x()));
         out.push_back(static_cast<float>(slot.y()));
         out.push_back(sel);
-        out.push_back(static_cast<float>(q.zoneFlags));
+        out.push_back(static_cast<float>(q.zoneFlags | (m_modernZones ? (q.ground ? 128 : 256) : 0)));
     }
     return ver;
 }
@@ -536,10 +536,11 @@ void MapView::renderBuildPreviewLightGrid(int firstFloor, int lastFloor,
     }
 }
 
-void MapView::renderCollectSpawnMarkInstances(std::vector<float> &out, std::vector<float> &outSel)
+void MapView::renderCollectSpawnMarkInstances(std::vector<float> &out, std::vector<float> &outSel, std::vector<float> *fill)
 {
     out.clear();
     outSel.clear();
+    if (fill) fill->clear();
     if (!m_showSpawns || m_navigationController.tileSize() < 4) return;
     m_spawnIndex.ensure(m_navigationController.floor(), m_chunkStore.tiles());
 
@@ -561,6 +562,25 @@ void MapView::renderCollectSpawnMarkInstances(std::vector<float> &out, std::vect
         const float cx = c.x * float(kSprite);
         const float cy = c.y * float(kSprite);
 
+        if (m_modernZones) {
+            const float x = cx - c.radius * 32.0f, y = cy - c.radius * 32.0f;
+            const float side = (2 * c.radius + 1) * 32.0f;
+            const float edge = 32.0f / float(ts);
+            if (fill) fill->insert(fill->end(), {x,y,side,side});
+            dst.insert(dst.end(), {x,y,side,edge, x,y+side-edge,side,edge,
+                                   x,y,edge,side, x+side-edge,y,edge,side});
+            const float accent = edge * 2, length = std::min(side / 4, edge * 10);
+            for (int ix = 0; ix < 2; ++ix) for (int iy = 0; iy < 2; ++iy) {
+                const float ax = x + (ix ? side-length : 0), ay = y + (iy ? side-accent : 0);
+                const float bx = x + (ix ? side-accent : 0), by = y + (iy ? side-length : 0);
+                dst.insert(dst.end(), {ax,ay,length,accent,bx,by,accent,length});
+                if (&dst == &outSel) dst.insert(dst.end(), {x+(ix ? side : 0)-edge*3,y+(iy ? side : 0)-edge*3,edge*6,edge*6});
+            }
+            const float marker = edge * 7, mx = cx+16-marker/2, my = cy+16-marker/2;
+            dst.insert(dst.end(), {mx,my,marker,edge,mx,my+marker-edge,marker,edge,
+                                   mx,my,edge,marker,mx+marker-edge,my,edge,marker});
+            continue;
+        }
         dst.insert(dst.end(), { cx, cy, float(kSprite), float(kSprite) });
 
         const float r = float(c.radius);
@@ -878,13 +898,143 @@ void MapView::renderCollectPathingInstances(std::vector<float> &out)
     }
 }
 
+QVariantList MapView::visibleZoneLabels() const
+{
+    QVariantList labels;
+    const double ts = tileSize();
+    if (!m_modernZones || !m_otbm || !m_showZonesAlways || ts < 8) return labels;
+    const double ox = renderOriginX(), oy = renderOriginY();
+    const quint64 cacheVersion = (quint64(m_metadataOverlayVersion) << 32)
+        ^ quint64(m_navigationController.floor()) ^ quint64(reinterpret_cast<quintptr>(m_otbm));
+    QHash<quint64, int> previousRegions;
+    QVector<QVariantMap> previousAnchors;
+    if (m_zoneLabelCacheVersion != cacheVersion) {
+        previousRegions = m_zoneLabelRegions;
+        previousAnchors = m_zoneLabelAnchors;
+        m_zoneLabelCacheVersion = cacheVersion;
+        m_zoneLabelRegions.clear(); m_zoneLabelAnchors.clear();
+    }
+    const int x0 = std::max(0, int(std::floor(ox)));
+    const int y0 = std::max(0, int(std::floor(oy)));
+    const int x1 = std::min(65535, int(std::ceil(ox + width() / ts)));
+    const int y1 = std::min(65535, int(std::ceil(oy + height() / ts)));
+    auto key = [](int x, int y) { return (quint64(uint32_t(x)) << 32) | uint32_t(y); };
+    QHash<quint64, const OtbmTile *> visible;
+    const auto floorIt = m_chunkStore.tiles().constFind(m_navigationController.floor());
+    if (floorIt == m_chunkStore.tiles().cend()) return labels;
+    for (int cy = floorDiv(y0, kChunkTiles); cy <= floorDiv(y1, kChunkTiles); ++cy)
+        for (int cx = floorDiv(x0, kChunkTiles); cx <= floorDiv(x1, kChunkTiles); ++cx) {
+            const auto it = floorIt->constFind(chunkKey(cx, cy));
+            if (it == floorIt->cend()) continue;
+            for (const auto *tile : it.value())
+                if (tile && tile->x >= x0 && tile->x <= x1 && tile->y >= y0 && tile->y <= y1)
+                    visible.insert(key(tile->x, tile->y), tile);
+        }
+    auto flagsFor = [this](const OtbmTile *tile) {
+        uint32_t flags = m_showZones ? (tile->flags & m_visibleZoneMask) : 0;
+        if (m_showHouses && (tile->is_house || tile->house_id > 0)) flags &= ~1u;
+        constexpr uint32_t bits[] {1,4,8,16};
+        for (int i = 0; i < 4; ++i) if (m_zoneOpacities[i].toDouble() <= 0) flags &= ~bits[i];
+        return flags;
+    };
+    QSet<quint64> visited;
+    QSet<int> shownRegions;
+    const QString names[] {QStringLiteral("Protection Zone"), QStringLiteral("Non-PvP"), QStringLiteral("No Logout"), QStringLiteral("PvP")};
+    const QString shortNames[] {QStringLiteral("PZ"), QStringLiteral("NP"), QStringLiteral("NL"), QStringLiteral("PvP")};
+    const QString colors[] {QStringLiteral("#399ee8"),QStringLiteral("#48b883"),QStringLiteral("#dfa65a"),QStringLiteral("#d46b79")};
+    auto addLabel = [&](double x, double y, const QString &name, const QString &color, uint32_t flags = 0) {
+        if (labels.size() < 64) labels.append(QVariantMap{{"x", (x + .5 - ox) * ts}, {"y", (y + .5 - oy) * ts}, {"name",name}, {"color",color}, {"flags",flags}, {"worldX",x + .5}, {"worldY",y + .5}});
+    };
+    // Deterministic iteration prevents label flicker when chunk hash order changes.
+    auto keys = visible.keys();
+    std::sort(keys.begin(), keys.end());
+    for (auto start : keys) {
+        const auto *tile = visible.value(start);
+        if (m_showSpawns && tile->spawn_radius > 0)
+            addLabel(tile->x, tile->y - tile->spawn_radius - .5, QStringLiteral("Spawn · ") + (tile->creature_name.isEmpty() ? QStringLiteral("Area") : QString(tile->creature_name)), QStringLiteral("#b88ae3"));
+        if (visited.contains(start)) continue;
+        const auto cached = m_zoneLabelRegions.constFind(start);
+        if (cached != m_zoneLabelRegions.cend()) {
+            if (!shownRegions.contains(*cached)) {
+                shownRegions.insert(*cached);
+                const auto &anchor = m_zoneLabelAnchors[*cached];
+                addLabel(anchor["worldX"].toDouble() - .5, anchor["worldY"].toDouble() - .5,
+                         anchor["name"].toString(), anchor["color"].toString(), anchor["flags"].toUInt());
+            }
+            continue;
+        }
+        const uint32_t flags = flagsFor(tile);
+        const uint32_t house = m_showHouses ? tile->house_id : 0;
+        if (!flags && !house) continue;
+        QVector<quint64> queue {start};
+        visited.insert(start);
+        double sx = 0, sy = 0;
+        for (qsizetype next = 0; next < queue.size(); ++next) {
+            const auto *current = m_otbm->tileAt(int(queue[next] >> 32), int(uint32_t(queue[next])), m_navigationController.floor());
+            sx += current->x; sy += current->y;
+            const int dx[] {-1,1,0,0}, dy[] {0,0,-1,1};
+            for (int side = 0; side < 4; ++side) {
+                auto candidate = key(current->x + dx[side], current->y + dy[side]);
+                const auto *neighbor = m_otbm->tileAt(current->x + dx[side], current->y + dy[side], m_navigationController.floor());
+                if (!neighbor || visited.contains(candidate) || flagsFor(neighbor) != flags
+                    || (m_showHouses ? neighbor->house_id : 0) != house) continue;
+                visited.insert(candidate); queue.append(candidate);
+            }
+        }
+        if (queue.size() < 3 && !house) continue;
+        QStringList parts;
+        QString color;
+        constexpr uint32_t bits[] {1,4,8,16};
+        for (int i = 0; i < 4; ++i) if (flags & bits[i]) { parts.append(shortNames[i]); if (color.isEmpty()) color = colors[i]; }
+        QString name = parts.join(QStringLiteral(" + "));
+        if (parts.size() == 1) for (int i = 0; i < 4; ++i) if (flags == bits[i]) name = names[i];
+        if (house) {
+            name = QStringLiteral("House · #%1").arg(house);
+            for (const auto &entry : m_otbm->houses()) if (entry.id == house && !entry.name.isEmpty()) { name = QStringLiteral("House · ") + entry.name; break; }
+            color = QStringLiteral("#9173be");
+        }
+        const int region = m_zoneLabelAnchors.size();
+        double worldX = sx / queue.size() + .5, worldY = sy / queue.size() + .5;
+        QHash<int, int> overlap;
+        for (auto position : queue) {
+            const auto previous = previousRegions.constFind(position);
+            if (previous != previousRegions.cend()) ++overlap[*previous];
+        }
+        int bestOverlap = 0;
+        int bestRegion = std::numeric_limits<int>::max();
+        for (auto it = overlap.cbegin(); it != overlap.cend(); ++it) {
+            const auto &old = previousAnchors[it.key()];
+            if (old["flags"].toUInt() != flags || old["house"].toUInt() != house
+                || old["floor"].toInt() != m_navigationController.floor()
+                || old["document"].toULongLong() != qulonglong(reinterpret_cast<quintptr>(m_otbm))) continue;
+            const quint64 oldPosition = key(int(std::floor(old["worldX"].toDouble())), int(std::floor(old["worldY"].toDouble())));
+            // Retain a surviving anchor while painting. If erasing removes its
+            // tile, or the area splits, only the affected region is recentered.
+            if (!queue.contains(oldPosition)) continue;
+            if (it.value() > bestOverlap || (it.value() == bestOverlap && it.key() < bestRegion)) {
+                bestOverlap = it.value(); bestRegion = it.key();
+                worldX = old["worldX"].toDouble(); worldY = old["worldY"].toDouble();
+            }
+        }
+        m_zoneLabelAnchors.append(QVariantMap{{"worldX",worldX}, {"worldY",worldY},
+                                             {"name",name}, {"color",color}, {"flags",flags}, {"house",house},
+                                             {"floor",m_navigationController.floor()},
+                                             {"document",qulonglong(reinterpret_cast<quintptr>(m_otbm))}});
+        for (auto position : queue) m_zoneLabelRegions.insert(position, region);
+        shownRegions.insert(region);
+        addLabel(worldX - .5, worldY - .5, name, color, flags);
+    }
+    return labels;
+}
+
 void MapView::renderCollectZoneMarkInstances(std::vector<float> &outHouse,
                                          std::vector<float> &outSelectedHouse,
                                          std::vector<float> &outPz,
                                          std::vector<float> &outNoPvp,
                                          std::vector<float> &outNoLogout,
-                                         std::vector<float> &outPvp)
+                                         std::vector<float> &outPvp, std::array<std::vector<float>, 6> &outBorders)
 {
+    for (auto &border : outBorders) border.clear();
     outHouse.clear();
     outSelectedHouse.clear();
     outPz.clear();
@@ -917,20 +1067,65 @@ void MapView::renderCollectZoneMarkInstances(std::vector<float> &outHouse,
             for (const OtbmTile *t : cit.value()) {
                 if (!t) continue;
                 if (t->x < tx0 || t->x > tx1 || t->y < ty0 || t->y > ty1) continue;
+                if (m_modernZones && m_showZones && t->flags) {
+                    const uint32_t flags = t->flags & m_visibleZoneMask
+                        & ((m_showHouses && (t->is_house || t->house_id > 0)) ? ~1u : ~0u);
+                    constexpr uint32_t bits[] {1, 4, 8, 16};
+                    std::vector<float> *fills[] {&outPz, &outNoPvp, &outNoLogout, &outPvp};
+                    const float x = t->x * 32.0f, y = t->y * 32.0f;
+                    int count = 0;
+                    for (int i = 0; i < 4; ++i)
+                        if ((flags & bits[i]) && m_zoneOpacities[i].toDouble() > 0) ++count;
+                    int slot = 0;
+                    for (int i = 0; i < 4; ++i) {
+                        if (!(flags & bits[i]) || m_zoneOpacities[i].toDouble() <= 0) continue;
+                        // Mixed flags use alternating bands rather than blended colors.
+                        if (count == 1) {
+                            fills[i]->insert(fills[i]->end(), {x, y, 32.0f, 32.0f});
+                        } else {
+                            for (int row = 0; row < 8; ++row)
+                                for (int band = 0; band < 8; ++band)
+                                    if (((t->x * 8 + t->y * 8 + row + band) % count) == slot)
+                                        fills[i]->insert(fills[i]->end(), {x + band * 4.0f, y + row * 4.0f, 4.0f, 4.0f});
+                        }
+                        ++slot;
+                        const float edge = ((m_editController.activeZone() & bits[i]) ? 2.0f : 1.0f) * 32.0f / ts;
+                        const int dx[] {-1, 1, 0, 0}, dy[] {0, 0, -1, 1};
+                        for (int side = 0; side < 4; ++side) {
+                            const auto *neighbor = m_otbm->tileAt(t->x + dx[side], t->y + dy[side], m_navigationController.floor());
+                            if (neighbor && (neighbor->flags & bits[i])
+                                && (bits[i] != 1 || !m_showHouses || (!neighbor->is_house && neighbor->house_id == 0))) continue;
+                            const float ex = x + (side == 1 ? 32.0f - edge : 0);
+                            const float ey = y + (side == 3 ? 32.0f - edge : 0);
+                            outBorders[i].insert(outBorders[i].end(), {ex, ey, side < 2 ? edge : 32.0f, side < 2 ? 32.0f : edge});
+                        }
+                    }
+                }
                 const bool selectedHouse = m_showHouses
                     && m_brushController.houseBrush() > 0
                     && static_cast<int>(t->house_id) == m_brushController.houseBrush();
+                if (m_modernZones && m_showHouses && t->house_id > 0) {
+                    const float edge = (selectedHouse ? 2.0f : 1.0f) * 32.0f / ts;
+                    const int dx[] {-1,1,0,0}, dy[] {0,0,-1,1};
+                    for (int side = 0; side < 4; ++side) {
+                        const auto *neighbor = m_otbm->tileAt(t->x + dx[side], t->y + dy[side], m_navigationController.floor());
+                        if (neighbor && neighbor->house_id == t->house_id) continue;
+                        const float x = t->x * 32.0f + (side == 1 ? 32.0f - edge : 0);
+                        const float y = t->y * 32.0f + (side == 3 ? 32.0f - edge : 0);
+                        outBorders[selectedHouse ? 5 : 4].insert(outBorders[selectedHouse ? 5 : 4].end(), {x,y,side < 2 ? edge : 32.0f,side < 2 ? 32.0f : edge});
+                    }
+                }
                 if (selectedHouse) {
                     // A selected house is intentionally drawn over every one of
                     // its tiles, including tiles containing ground or objects.
                     outSelectedHouse.insert(outSelectedHouse.end(),
                                             { t->x * 32.0f, t->y * 32.0f, 32.0f, 32.0f });
-                } else if (!t->items.empty()) {
+                } else if (!m_modernZones && !t->items.empty()) {
                     continue;
                 } else if (m_showHouses && (t->is_house || t->house_id > 0)) {
                     outHouse.insert(outHouse.end(),
                                     { t->x * 32.0f, t->y * 32.0f, 32.0f, 32.0f });
-                } else if (m_showZones && t->flags != 0) {
+                } else if (!m_modernZones && m_showZones && t->flags != 0) {
                     const std::initializer_list<float> rect {
                         t->x * 32.0f, t->y * 32.0f, 32.0f, 32.0f
                     };
@@ -949,6 +1144,28 @@ void MapView::renderCollectZoneMarkInstances(std::vector<float> &outHouse,
                 }
             }
         }
+    if (m_showHouses) {
+        for (const OtbmHouse &house : m_otbm->houses()) {
+            if ((house.entryX == 0 && house.entryY == 0 && house.entryZ == 0)
+                || house.entryZ != m_navigationController.floor()
+                || house.entryX < tx0 || house.entryX > tx1
+                || house.entryY < ty0 || house.entryY > ty1) continue;
+            auto &instances = house.id == static_cast<uint32_t>(m_brushController.houseBrush())
+                ? outSelectedHouse : outHouse;
+            if (m_modernZones) {
+                // A cross marks the actual exit tile independently of the house fill.
+                auto &mark = outBorders[house.id == static_cast<uint32_t>(m_brushController.houseBrush()) ? 5 : 4];
+                const float stroke = 2.0f * 32.0f / ts;
+                const float x = house.entryX * 32.0f, y = house.entryY * 32.0f;
+                for (float offset = 8; offset <= 24; offset += stroke) {
+                    mark.insert(mark.end(), {x + offset - stroke / 2, y + offset - stroke / 2, stroke, stroke});
+                    mark.insert(mark.end(), {x + offset - stroke / 2, y + 32 - offset - stroke / 2, stroke, stroke});
+                }
+            } else {
+                instances.insert(instances.end(), {house.entryX * 32.0f, house.entryY * 32.0f, 32.0f, 32.0f});
+            }
+        }
+    }
 }
 
 void MapView::renderCollectBrushCursorInstances(std::vector<float> &out,
@@ -970,6 +1187,21 @@ void MapView::renderCollectBrushCursorInstances(std::vector<float> &out,
         target.insert(target.end(), { x, y, width, height });
     };
     constexpr float borderWidth = 2.0f;
+
+    if (m_brushController.houseExitMode()) {
+        const float x = m_hoverX * 32.0f, y = m_hoverY * 32.0f;
+        const float stroke = 2.0f * 32.0f / std::max(1, m_navigationController.tileSize());
+        addRect(out, x, y, 32, 32);
+        addRect(outBorder, x, y, 32, stroke);
+        addRect(outBorder, x, y + 32 - stroke, 32, stroke);
+        addRect(outBorder, x, y, stroke, 32);
+        addRect(outBorder, x + 32 - stroke, y, stroke, 32);
+        for (float offset = 8; offset <= 24; offset += stroke) {
+            addRect(outBorder, x + offset - stroke / 2, y + offset - stroke / 2, stroke, stroke);
+            addRect(outBorder, x + offset - stroke / 2, y + 32 - offset - stroke / 2, stroke, stroke);
+        }
+        return;
+    }
 
     if (m_dragDraw) {
         const int x0 = std::min(m_dragStartX, m_hoverX);

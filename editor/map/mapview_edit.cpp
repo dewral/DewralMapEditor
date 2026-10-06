@@ -174,7 +174,10 @@ void MapView::undo()
     {
         std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
         ok = m_otbm && m_otbm->undo();
-        if (ok) refreshUndoRedoTilesLocked();
+        if (ok) {
+            ++m_metadataOverlayVersion;
+            refreshUndoRedoTilesLocked();
+        }
     }
     if (ok) {
         invalidateSpawnIndex();
@@ -188,7 +191,10 @@ void MapView::redo()
     {
         std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
         ok = m_otbm && m_otbm->redo();
-        if (ok) refreshUndoRedoTilesLocked();
+        if (ok) {
+            ++m_metadataOverlayVersion;
+            refreshUndoRedoTilesLocked();
+        }
     }
     if (ok) {
         invalidateSpawnIndex();
@@ -209,6 +215,7 @@ void MapView::refreshUndoRedoTilesLocked()
 
         auto &tileIndex = m_chunkStore.tiles();
         for (const auto &[z, chunkX, chunkY] : affectedChunks) {
+            m_chunkStore.dirtyBounds().insert(z);
             const quint64 key = chunkKey(chunkX, chunkY);
             std::vector<const OtbmTile *> rebuilt;
             rebuilt.reserve(kChunkTiles * kChunkTiles);
@@ -279,6 +286,7 @@ void MapView::onTileEdited(int x, int y, int z)
         qsizetype &indexedTileCount = m_chunkStore.indexedTileCount();
         while (indexedTileCount < static_cast<qsizetype>(tiles.size())) {
             const OtbmTile *tile = &tiles[static_cast<size_t>(indexedTileCount++)];
+            m_chunkStore.bounds()[tile->z].include(tile->x, tile->y);
             const int tileCx = floorDiv(tile->x, kChunkTiles);
             const int tileCy = floorDiv(tile->y, kChunkTiles);
             auto &chunkTiles = m_chunkStore.tiles()[tile->z][chunkKey(tileCx, tileCy)];
@@ -302,6 +310,9 @@ void MapView::flushEditedChunksLocked()
 {
     auto &pendingChunkEdits = m_editController.pendingChunkEdits();
     if (pendingChunkEdits.empty()) return;
+    // Zone and house overlays are separate from the sprite chunk cache.
+    // Invalidate them for every committed edit batch, not just camera changes.
+    ++m_metadataOverlayVersion;
     for (const auto &[zc, editedTiles] : pendingChunkEdits) {
         std::vector<QuadRef> quads;
         bool animated = false;
@@ -445,7 +456,27 @@ void MapView::placeItemOnFloor(int x, int y, int z, const OtbmMapItem &src)
     {
         std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
         const qint64 beforeMutation = placementTimer.nsecsElapsed() / 1000;
-        placed = m_otbm->placeItem(x, y, z, src, index, replace, cat == 0);
+        OtbmMapItem item = src;
+        const OtbmTile *houseTile = m_otbm->tileAt(x, y, z);
+        if (houseTile && houseTile->is_house && isHouseDoorItem(sid)) {
+            const OtbmMapItem *replaced = replace && index >= 0
+                && index < static_cast<int>(houseTile->items.size())
+                ? &houseTile->items[static_cast<size_t>(index)] : nullptr;
+            const QSet<int> usedIds = collectHouseDoorIds(houseTile->house_id, replaced);
+            int doorId = item.extra ? item.extra->door_id : 0;
+            if (doorId == 0 && replaced && isHouseDoorItem(replaced->server_id) && replaced->extra)
+                doorId = replaced->extra->door_id;
+            if (doorId == 0 || usedIds.contains(doorId))
+                doorId = MapBrushController::firstFreeHouseDoorId(usedIds);
+            if (doorId == 0) {
+                qWarning() << "Cannot place house door: all door IDs 1-255 are in use";
+                return;
+            }
+            // Set metadata before insertion: placement and ID assignment share
+            // one undo snapshot, regardless of the item's stack category.
+            item.ensureExtra().door_id = static_cast<uint8_t>(doorId);
+        }
+        placed = m_otbm->placeItem(x, y, z, item, index, replace, cat == 0);
         mutationUs = placementTimer.nsecsElapsed() / 1000 - beforeMutation;
         if (placed) {
             const qint64 beforeTileUpdate = placementTimer.nsecsElapsed() / 1000;

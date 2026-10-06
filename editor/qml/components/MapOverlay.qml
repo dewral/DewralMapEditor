@@ -19,7 +19,7 @@ Item {
     readonly property real canvasMargin: 64
 
     clip: true
-    visible: settings.showClientBox || settings.showTooltips || settings.showWaypoints
+    visible: settings.showClientBox || settings.showTooltips || settings.showWaypoints || settings.showHouses
 
     function refreshData(force) {
         if (!mapCtrl)
@@ -35,13 +35,13 @@ Item {
                 + Math.ceil(width / currentTileSize) + ":"
                 + Math.ceil(height / currentTileSize) + ":"
                 + currentTileSize + ":" + settings.showTooltips + ":"
-                + settings.showWaypoints;
+                + settings.showWaypoints + ":" + settings.showHouses;
         if (!force && key === dataKey)
             return;
 
         dataKey = key;
         entries = mapCtrl.mapOverlayData(settings.showTooltips,
-                                         settings.showWaypoints);
+                                         settings.showWaypoints, settings.showHouses);
         paintedOriginX = originX;
         paintedOriginY = originY;
         worldCanvas.requestPaint();
@@ -70,6 +70,17 @@ Item {
         ctx.textBaseline = "middle";
         ctx.fillStyle = "#ffffff";
         ctx.fillText("W", centerX, centerY + 0.5);
+    }
+
+    function drawHouseExit(ctx, centerX, centerY) {
+        ctx.font = "bold " + Math.max(8, Math.min(12, Math.round(currentTileSize * 0.28))) + "px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#202020";
+        ctx.strokeText("EXIT", centerX, centerY);
+        ctx.fillStyle = "#ffd966";
+        ctx.fillText("EXIT", centerX, centerY);
     }
 
     function drawTooltip(ctx, text, anchorX, anchorY, waypoint) {
@@ -137,7 +148,7 @@ Item {
            + (overlay.paintedOriginX - overlay.currentOriginX) * overlay.currentTileSize
         y: -overlay.canvasMargin
            + (overlay.paintedOriginY - overlay.currentOriginY) * overlay.currentTileSize
-        visible: overlay.settings.showTooltips || overlay.settings.showWaypoints
+        visible: overlay.settings.showTooltips || overlay.settings.showWaypoints || overlay.settings.showHouses
 
         onPaint: {
             const ctx = getContext("2d");
@@ -152,7 +163,9 @@ Item {
                 const centerY = (entry.y + 0.5 - overlay.paintedOriginY) * tileSize + margin;
                 if (entry.kind === "waypoint" && overlay.settings.showWaypoints)
                     overlay.drawWaypoint(ctx, centerX, centerY);
-                if (overlay.settings.showTooltips && entry.kind !== "container"
+                if (entry.kind === "house_exit" && overlay.settings.showHouses && !overlay.mapCtrl.modernZones)
+                    overlay.drawHouseExit(ctx, centerX, centerY);
+                if (overlay.settings.showTooltips && entry.kind !== "container" && entry.kind !== "house_exit"
                         && entry.text.length > 0)
                     overlay.drawTooltip(ctx, entry.text, centerX,
                                         (entry.y - overlay.paintedOriginY) * tileSize + margin,
@@ -371,6 +384,7 @@ Item {
         target: overlay.settings
         function onShowTooltipsChanged() { overlay.refreshData(true); }
         function onShowWaypointsChanged() { overlay.refreshData(true); }
+        function onShowHousesChanged() { overlay.refreshData(true); }
     }
 
     Component.onCompleted: refreshData(true)

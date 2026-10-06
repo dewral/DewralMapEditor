@@ -150,6 +150,7 @@ Item {
 
         MapView {
             id: mapView
+            modernZones: workspace.fluentUi
             anchors.fill: parent
             focus: true
             otbm: Backend.docMgr.current
@@ -182,6 +183,12 @@ Item {
                 }
                 maxFps = workspace.settings.renderMaxFps;
             }
+        }
+
+        ZoneLabels {
+            anchors.fill: parent
+            visible: workspace.fluentUi
+            mapView: workspace.mapView
         }
 
         MapOverlay {
@@ -955,7 +962,7 @@ Item {
                     color: workspace.grayUi ? "#C79A3B" : (workspace.githubUi ? "#2EA043" : "#4FAE62")
 
                     Behavior on width {
-                        NumberAnimation { duration: 100; easing.type: Easing.OutCubic }
+                        NumberAnimation { duration: 25; easing.type: Easing.OutCubic }
                     }
                 }
             }

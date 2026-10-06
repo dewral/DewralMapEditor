@@ -1,4 +1,6 @@
+import "../../../components"
 import QtQuick
+import "../Colors.js" as Colors
 
 Item {
     id: root
@@ -12,16 +14,17 @@ Item {
     readonly property bool active: checked || mouseArea.pressed
 
     Rectangle {
-        anchors.fill: parent; radius: 0
+        anchors.fill: parent; radius: 4
         color: {
-            if (root.checked) return "#414447";
-            if (root.variant === "primary") return mouseArea.pressed ? "#55595D" : (mouseArea.containsMouse ? "#CDD0D3" : "#B8BDC2");
+            if (root.checked) return mouseArea.containsMouse ? Colors.c("selectedHover") : Colors.c("selected");
+            if (root.variant === "primary") return mouseArea.pressed ? Qt.darker(Colors.c("accent"), 1.2) : (mouseArea.containsMouse ? Qt.lighter(Colors.c("accent"), 1.15) : Colors.c("accent"));
             if (root.variant === "danger") return mouseArea.pressed ? "#8E1F22" : (mouseArea.containsMouse ? "#DA3633" : "#B62324");
-            return mouseArea.pressed ? "#353535" : (mouseArea.containsMouse ? "#303030" : "#2B2D2F");
+            return mouseArea.pressed ? Colors.c("pressed") : (mouseArea.containsMouse ? Colors.c("hover") : Colors.c("button"));
         }
         border.width: 1
-        border.color: root.checked ? "#B8BDC2" : (root.variant === "primary" ? "#CDD0D3" : (root.variant === "danger" ? "#DA3633" : (mouseArea.containsMouse ? "#5A5A5A" : "#3A3A3A")))
+        border.color: root.checked ? Colors.c("selectedBorder") : (root.variant === "primary" ? Colors.c("selectedBorder") : (root.variant === "danger" ? "#DA3633" : (mouseArea.containsMouse ? "#737d84" : Colors.c("border"))))
     }
-    Text { id: label; anchors.centerIn: parent; anchors.verticalCenterOffset: root.active ? 1 : 0; text: root.text; color: root.enabled ? (root.variant === "primary" ? "#17191B" : "#F0F0F0") : "#858585"; font.weight: Font.DemiBold; font.pixelSize: 12 }
+    Text { id: label; anchors.centerIn: parent; anchors.verticalCenterOffset: root.active ? 1 : 0; text: root.text; color: root.enabled ? (root.variant === "primary" ? "#101b23" : Colors.c("buttonText")) : Colors.c("placeholder"); font.weight: Font.Normal; font.family: "Segoe UI"; font.pixelSize: 12 }
     MouseArea { id: mouseArea; anchors.fill: parent; enabled: root.enabled; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.clicked() }
+    ColorHighlight { targetItem: root; colorKeys: ["selectedHover", "selected", "selectedBorder", "accent", "pressed", "hover", "button", "border", "buttonText", "placeholder"] }
 }

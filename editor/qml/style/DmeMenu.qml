@@ -12,7 +12,7 @@ Menu {
                                           || Backend.uiTheme.style === "windows-classic"
     implicitWidth: Math.max(160, implicitContentWidth + leftPadding + rightPadding)
     padding: root.fluentTheme ? 4 : 1
-    palette.mid: root.fluentTheme ? FluentColors.separator : "#808080"
+    palette.mid: root.fluentTheme ? FluentColors.c("separator") : "#808080"
     overlap: 0
     background: Loader {
         sourceComponent: root.classicLayout ? classicMenuBackground : githubMenuBackground
@@ -27,7 +27,7 @@ Menu {
     }
     Component {
         id: githubMenuBackground
-        Rectangle { implicitWidth: 150; radius: root.fluentTheme ? 0 : 6; color: root.fluentTheme ? FluentColors.popup : root.grayTheme ? "#202020" : "#10151C"; border.width: 1; border.color: root.fluentTheme ? FluentColors.border : root.grayTheme ? "#424242" : "#2D3743" }
+        Rectangle { implicitWidth: 150; radius: root.fluentTheme ? 4 : 6; color: root.fluentTheme ? FluentColors.c("popup") : root.grayTheme ? "#202020" : "#10151C"; border.width: 1; border.color: root.fluentTheme ? FluentColors.c("border") : root.grayTheme ? "#424242" : "#2D3743" }
     }
     delegate: DmeMenuItem {}
 }

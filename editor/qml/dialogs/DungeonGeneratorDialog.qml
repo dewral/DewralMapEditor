@@ -32,7 +32,7 @@ DmeDialog {
         if (!id && data.items && kind === "ground" && data.items.length)
             id = Number(data.items[0].id);
         const clientId = Backend.otbReader.clientIdForServerId(id);
-        return clientId > 0 ? "image://paletteitem/" + clientId : "";
+        return clientId > 0 ? "image://paletteitem/" + clientId + "/" + Backend.sprReader.itemImagesRevision : "";
     }
 
     component BrushPicker: Row {

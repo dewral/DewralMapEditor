@@ -13,6 +13,7 @@ QtObject {
     property int loadedClientVersion: 0
     property string loadedClientKey: ""
     property string loadedClientFolder: ""
+    property string loadedClientFingerprint: ""
 
     function versionLabel(version) {
         if (version >= 10100)
@@ -206,7 +207,18 @@ QtObject {
         if (version <= 0 || folder === "" || !files.dat || !files.spr || !files.otb)
             return false;
 
-        if (loadedClientKey === key && loadedClientFolder === folder)
+        var hasOtfi = Backend.otfiReader.loadFromFolder(folder);
+        var datFile = hasOtfi ? folder + "/" + Backend.otfiReader.metadataFile : files.dat;
+        var sprFile = hasOtfi ? folder + "/" + Backend.otfiReader.spritesFile : files.spr;
+        var extendedSpr = hasOtfi ? Backend.otfiReader.extended : version >= 960;
+        var alphaSpr = hasOtfi ? Backend.otfiReader.transparency : false;
+        var fingerprint = Backend.clientFingerprint(datFile, sprFile, files.otb, version,
+                          extendedSpr, alphaSpr,
+                          hasOtfi && Backend.otfiReader.frameDurations,
+                          hasOtfi && Backend.otfiReader.frameGroups);
+        mapView.setClientAtlasIdentity(fingerprint);
+        if (loadedClientKey === key && loadedClientFolder === folder
+                && loadedClientFingerprint === fingerprint)
         {
             if (Backend.otbmReader.loading) {
                 Backend.otbmReader.reportLoadingProgress(94, "Rebuilding sprite atlas...");
@@ -215,28 +227,27 @@ QtObject {
             return true;
         }
 
-        var hasOtfi = Backend.otfiReader.loadFromFolder(folder);
-        var datFile = hasOtfi ? folder + "/" + Backend.otfiReader.metadataFile : files.dat;
-        var sprFile = hasOtfi ? folder + "/" + Backend.otfiReader.spritesFile : files.spr;
-
         Backend.datReader.clientVersion = version;
+        Backend.traceLoadStage("client_profile_begin");
         Backend.datReader.setOtfiOverrides(hasOtfi, Backend.otfiReader.extended, Backend.otfiReader.frameDurations, Backend.otfiReader.frameGroups);
         if (Backend.otbmReader.loading)
             Backend.otbmReader.reportLoadingProgress(78, "Loading item definitions...");
         var datOk = Backend.datReader.loadFile(datFile, 0);
-        var extendedSpr = hasOtfi ? Backend.otfiReader.extended : version >= 960;
-        var alphaSpr = hasOtfi ? Backend.otfiReader.transparency : false;
+        Backend.traceLoadStage("dat_ready");
         if (Backend.otbmReader.loading)
             Backend.otbmReader.reportLoadingProgress(83, "Loading item sprites...");
         var sprOk = Backend.sprReader.loadFile(sprFile, 0, extendedSpr, alphaSpr);
+        Backend.traceLoadStage("spr_ready");
         if (Backend.otbmReader.loading)
             Backend.otbmReader.reportLoadingProgress(88, "Loading server items...");
         var otbOk = Backend.otbReader.loadFile(files.otb);
+        Backend.traceLoadStage("otb_ready");
 
         if (!datOk || !sprOk || !otbOk) {
             loadedClientVersion = 0;
             loadedClientKey = "";
             loadedClientFolder = "";
+            loadedClientFingerprint = "";
             mapView.rebuildAtlas();
             return false;
         }
@@ -244,12 +255,14 @@ QtObject {
         loadedClientVersion = version;
         loadedClientKey = key;
         loadedClientFolder = folder;
+        loadedClientFingerprint = fingerprint;
         if (Backend.otbmReader.loading)
             Backend.otbmReader.reportLoadingProgress(90, "Preparing palette sprites...");
         Backend.preloadPaletteSprites();
         if (Backend.otbmReader.loading)
             Backend.otbmReader.reportLoadingProgress(92, "Loading editor palettes...");
         loadProfileData(key);
+        Backend.traceLoadStage("editor_definitions_ready");
         if (Backend.otbmReader.loading)
             Backend.otbmReader.reportLoadingProgress(94, "Rebuilding sprite atlas...");
         mapView.rebuildAtlas();

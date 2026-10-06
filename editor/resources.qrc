@@ -24,6 +24,8 @@
         <file alias="qml/themes/github/GithubActivityRail.qml">qml/themes/github/GithubActivityRail.qml</file>
         <file alias="qml/themes/github/ModernMapToolRail.qml">qml/themes/github/ModernMapToolRail.qml</file>
         <file alias="qml/components/MapWorkspace.qml">qml/components/MapWorkspace.qml</file>
+        <file alias="qml/components/ZoneDisplayPanel.qml">qml/components/ZoneDisplayPanel.qml</file>
+        <file alias="qml/components/ZoneLabels.qml">qml/components/ZoneLabels.qml</file>
         <file alias="qml/components/WorkTimerStatus.qml">qml/components/WorkTimerStatus.qml</file>
         <file alias="qml/components/MapOverlay.qml">qml/components/MapOverlay.qml</file>
         <file alias="qml/components/IngamePreviewPanel.qml">qml/components/IngamePreviewPanel.qml</file>
@@ -256,6 +258,8 @@
         <file alias="qml/themes/fluent/controls/FluentSpinBox.qml">qml/themes/fluent/controls/FluentSpinBox.qml</file>
         <file alias="qml/themes/fluent/controls/FluentTextField.qml">qml/themes/fluent/controls/FluentTextField.qml</file>
         <file alias="qml/themes/fluent/Colors.js">qml/themes/fluent/Colors.js</file>
+        <file alias="qml/components/ColorHighlight.qml">qml/components/ColorHighlight.qml</file>
+        <file alias="qml/dialogs/UiColorizeDialog.qml">qml/dialogs/UiColorizeDialog.qml</file>
         <file alias="qml/themes/fluent/icons/Draw.svg">qml/themes/fluent/icons/Draw.svg</file>
         <file alias="qml/themes/fluent/icons/Select.svg">qml/themes/fluent/icons/Select.svg</file>
         <file alias="qml/themes/fluent/icons/Lasso.svg">qml/themes/fluent/icons/Lasso.svg</file>

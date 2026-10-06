@@ -542,10 +542,10 @@ void MapView::cancelMapQuery()
 }
 
 QVariantList MapView::mapOverlayData(bool includeTooltips,
-                                     bool includeWaypoints) const
+                                     bool includeWaypoints, bool includeHouses) const
 {
     QVariantList output;
-    if (!m_otbm || (!includeTooltips && !includeWaypoints)) return output;
+    if (!m_otbm || (!includeTooltips && !includeWaypoints && !includeHouses)) return output;
 
     const int tileSize = std::max(1, m_navigationController.tileSize());
     const int minX = static_cast<int>(std::floor(m_navigationController.originX())) - 1;
@@ -556,7 +556,7 @@ QVariantList MapView::mapOverlayData(bool includeTooltips,
 
     std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
 
-    for (const OtbmWaypoint &waypoint : m_otbm->waypoints()) {
+    if (includeWaypoints || includeTooltips) for (const OtbmWaypoint &waypoint : m_otbm->waypoints()) {
         if (waypoint.z != m_navigationController.floor() || waypoint.x < minX || waypoint.x > maxX
             || waypoint.y < minY || waypoint.y > maxY) {
             continue;
@@ -573,6 +573,21 @@ QVariantList MapView::mapOverlayData(bool includeTooltips,
                          : QString());
         output.append(entry);
         if (output.size() >= kOverlayLimit) return output;
+    }
+
+    if (includeHouses) {
+        for (const OtbmHouse &house : m_otbm->houses()) {
+            if ((house.entryX == 0 && house.entryY == 0 && house.entryZ == 0)
+                || house.entryZ != m_navigationController.floor()
+                || house.entryX < minX || house.entryX > maxX
+                || house.entryY < minY || house.entryY > maxY) continue;
+            output.append(QVariantMap{{QStringLiteral("kind"), QStringLiteral("house_exit")},
+                                      {QStringLiteral("x"), house.entryX},
+                                      {QStringLiteral("y"), house.entryY},
+                                      {QStringLiteral("name"), house.name},
+                                      {QStringLiteral("text"), QStringLiteral("EXIT")}});
+            if (output.size() >= kOverlayLimit) return output;
+        }
     }
 
     if (!includeTooltips || tileSize < 12) return output;

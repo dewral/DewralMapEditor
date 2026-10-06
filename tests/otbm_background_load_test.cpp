@@ -96,5 +96,12 @@ int main(int argc, char **argv)
                  "Adopted position index is invalid")) return 1;
 
     document.finishLoading(true);
+    document.beginBackgroundLoad();
+    if (!require(document.loadingProgress() == 0, "A new load must reset completed progress")) return 1;
+    document.reportLoadingProgress(95, QStringLiteral("Atlas"));
+    document.reportLoadingProgress(75, QStringLiteral("Late worker"));
+    if (!require(document.loadingProgress() == 95 && document.loadingStage() == QStringLiteral("Atlas"),
+                 "Late worker progress moved the loading stage backwards")) return 1;
+    document.finishLoading(false);
     return 0;
 }

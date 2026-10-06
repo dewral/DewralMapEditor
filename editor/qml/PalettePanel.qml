@@ -6,6 +6,7 @@ import Tibia 1.0
 import "style"
 import "components"
 import "themes/github"
+import "themes/fluent/Colors.js" as FluentColors
 
 Rectangle {
     id: paletteRoot
@@ -26,6 +27,12 @@ Rectangle {
 
     function selectKind(kind) {
         paletteCol.selectKind(kind);
+    }
+
+    function profilePage(index) {
+        clearPaletteSearch();
+        paletteCol.selectKind("All Items");
+        grid.positionViewAtIndex(Math.max(0, Math.min(index, grid.count - 1)), GridView.Beginning);
     }
 
     function clearPaletteSearch() {
@@ -181,7 +188,17 @@ Rectangle {
 
     DmePanel {
         anchors.fill: parent
-        visible: !paletteRoot.githubUi
+        visible: !paletteRoot.githubUi && !paletteRoot.fluentUi
+    }
+
+    Rectangle {
+        visible: paletteRoot.fluentUi
+        x: 6; y: 6; width: parent.width - 12
+        height: parent.height - 12
+        color: FluentColors.c("surface"); border.color: FluentColors.c("border"); radius: 6
+        Rectangle { x: 1; y: 30; width: parent.width - 2; height: 1; color: FluentColors.c("border") }
+        Rectangle { x: 10; y: paletteCol.y + fluentTools.y - 14; width: parent.width - 20; height: 1; color: FluentColors.c("separator") }
+        Rectangle { x: 10; y: paletteCol.y + brushSizeBox.y - 14; width: parent.width - 20; height: 1; color: FluentColors.c("separator") }
     }
 
     GithubActivityRail {
@@ -211,11 +228,11 @@ Rectangle {
     Column {
         id: paletteCol
         anchors.fill: parent
-        anchors.leftMargin: paletteRoot.modernLayout ? 88 : (paletteRoot.githubUi ? 16 : 6)
-        anchors.rightMargin: paletteRoot.githubUi ? 16 : 6
-        anchors.topMargin: paletteRoot.githubUi ? 8 : 6
-        anchors.bottomMargin: paletteRoot.githubUi ? 16 : 6
-        spacing: paletteRoot.githubUi ? 10 : 4
+        anchors.leftMargin: paletteRoot.modernLayout ? 88 : (paletteRoot.githubUi || paletteRoot.fluentUi ? 16 : 6)
+        anchors.rightMargin: paletteRoot.githubUi || paletteRoot.fluentUi ? 16 : 6
+        anchors.topMargin: paletteRoot.fluentUi ? 16 : paletteRoot.githubUi ? 8 : 6
+        anchors.bottomMargin: paletteRoot.githubUi || paletteRoot.fluentUi ? 16 : 6
+        spacing: paletteRoot.fluentUi ? 16 : paletteRoot.githubUi ? 10 : 4
 
         property var kinds: ["Recent", "Favorites", "All Items", "Terrain Palette", "Doodad Palette", "Collection Palette", "Door Palette", "Item Palette", "RAW Palette", "Creature Palette", "House Palette", "My Palettes"]
         property bool creatureMode: currentKind === "Creature Palette"
@@ -624,11 +641,11 @@ Rectangle {
             visible: !paletteRoot.githubUi
             width: parent.width
             height: visible ? implicitHeight : 0
-            spacing: 4
+            spacing: paletteRoot.fluentUi ? 8 : 4
 
             Item {
                 visible: paletteRoot.fluentUi; width: parent.width; height: visible ? 22 : 0
-                Text { text: "Palette"; color: "#D8DADD"; font.pixelSize: 12 }
+                Text { text: "Palette"; color: FluentColors.c("heading"); font.family: "Segoe UI"; font.pixelSize: 12 }
                 Text { anchors.right: parent.right; text: "\u00d7"; color: "#ddd"; font.pixelSize: 16
                     MouseArea { anchors.fill: parent; anchors.margins: -3; onClicked: paletteRoot.collapseRequested() }
                 }
@@ -638,9 +655,9 @@ Rectangle {
                 id: kindCombo
                 objectName: "paletteKindCombo"
                 width: parent.width
-                height: 23
+                height: paletteRoot.fluentUi ? 29 : 23
                 model: paletteCol.kinds
-                currentIndex: paletteRoot.fluentUi ? paletteCol.kinds.indexOf("Terrain Palette") : paletteRoot.githubUi ? paletteCol.kinds.indexOf("Item Palette") : 0
+                currentIndex: paletteRoot.fluentUi ? paletteCol.kinds.indexOf("All Items") : paletteRoot.githubUi ? paletteCol.kinds.indexOf("Item Palette") : 0
             }
 
             Text {
@@ -673,21 +690,64 @@ Rectangle {
                 }
             }
 
-            DmeTextField {
-                id: palSearch
-                width: parent.width - 4
-                height: 22
-                placeholderText: "Search..."
-                onTextChanged: paletteCol.queueSearch(text)
+            Row {
+                width: parent.width
+                spacing: 4
+                DmeTextField {
+                    id: palSearch
+                    width: paletteRoot.fluentUi ? parent.width - 36 : parent.width - 4
+                    height: paletteRoot.fluentUi ? 29 : 22
+                    placeholderText: paletteRoot.fluentUi ? "Search items or ID…" : "Search..."
+                    onTextChanged: paletteCol.queueSearch(text)
+                }
+                ToolButton {
+                    id: fluentFilterButton
+                    objectName: "fluentFilterButton"
+                    visible: paletteRoot.fluentUi
+                    width: 32; height: 29
+                    Accessible.name: "Palette filters"
+                    onClicked: fluentFilterMenu.popup()
+                    background: Rectangle {
+                        radius: 4; border.color: FluentColors.c("border")
+                        color: paletteRoot.app.settings.hideInvisibleSprites || paletteRoot.app.settings.hideNamedItems ? FluentColors.c("selected") : fluentFilterButton.down ? FluentColors.c("pressed") : fluentFilterButton.hovered ? FluentColors.c("hover") : FluentColors.c("button")
+                    }
+                    contentItem: Canvas {
+                        onPaint: {
+                            const ctx = getContext("2d");
+                            ctx.reset(); ctx.strokeStyle = FluentColors.c("muted"); ctx.lineWidth = 1.5;
+                            const x = width / 2, y = height / 2;
+                            ctx.beginPath(); ctx.moveTo(x - 9, y - 8); ctx.lineTo(x + 9, y - 8);
+                            ctx.lineTo(x + 3, y - 1); ctx.lineTo(x + 3, y + 8);
+                            ctx.lineTo(x - 3, y + 5); ctx.lineTo(x - 3, y - 1); ctx.closePath(); ctx.stroke();
+                        }
+                    }
+                    DmeMenu {
+                        id: fluentFilterMenu
+                        objectName: "fluentFilterMenu"
+                        DmeMenuItem {
+                            objectName: "fluentHideInvisibleSprites"
+                            text: "Hide invisible sprites"; checkable: true
+                            checked: paletteRoot.app.settings.hideInvisibleSprites
+                            onTriggered: paletteRoot.app.settings.hideInvisibleSprites = checked
+                        }
+                        DmeMenuItem {
+                            objectName: "fluentHideNamedItems"
+                            text: "Hide named items"; checkable: true
+                            checked: paletteRoot.app.settings.hideNamedItems
+                            onTriggered: paletteRoot.app.settings.hideNamedItems = checked
+                        }
+                    }
+                }
             }
 
             Flow {
                 width: parent.width
-                visible: !paletteCol.creatureMode && !paletteCol.houseMode
-                spacing: 12
+                visible: !paletteRoot.fluentUi && !paletteCol.creatureMode && !paletteCol.houseMode
+                spacing: paletteRoot.fluentUi ? 8 : 12
 
                 DmeCheckBox {
                     objectName: "paletteHideInvisibleSprites"
+                    width: paletteRoot.fluentUi ? parent.width : implicitWidth
                     text: "Hide invisible sprites"
                     checked: paletteRoot.app.settings.hideInvisibleSprites
                     onClicked: paletteRoot.app.settings.hideInvisibleSprites = !checked
@@ -695,7 +755,8 @@ Rectangle {
 
                 DmeCheckBox {
                     objectName: "paletteHideNamedItems"
-                    text: "Hide Named Items"
+                    width: paletteRoot.fluentUi ? parent.width : implicitWidth
+                    text: paletteRoot.fluentUi ? "Hide named items" : "Hide Named Items"
                     checked: paletteRoot.app.settings.hideNamedItems
                     onClicked: paletteRoot.app.settings.hideNamedItems = !checked
                 }
@@ -703,9 +764,10 @@ Rectangle {
 
             Text {
                 text: (paletteCol.showSub && paletteCol.currentSubName !== "" ? paletteCol.currentSubName : paletteCol.currentKind) + "  (" + paletteCol.displayedCount + ")"
-                color: paletteRoot.windowsClassicUi ? "#202020" : "#ddd"
+                color: paletteRoot.fluentUi ? FluentColors.c("heading") : paletteRoot.windowsClassicUi ? "#202020" : "#ddd"
                 font.pixelSize: 12
                 font.bold: true
+                font.family: paletteRoot.fluentUi ? "Segoe UI" : Qt.application.font.family
                 elide: Text.ElideRight
                 width: parent.width
             }
@@ -713,7 +775,7 @@ Rectangle {
 
         Item {
             width: parent.width
-            height: parent.height - controlsColumn.height - githubControlsColumn.height - brushSizeBox.height - fluentTools.height - paletteCol.spacing * (paletteRoot.fluentUi ? 4 : 3)
+            height: parent.height - controlsColumn.height - githubControlsColumn.height - brushSizeBox.height - fluentTools.height - paletteCol.spacing * 3
 
             PaletteItemGrid {
                 id: grid
@@ -1049,4 +1111,5 @@ Rectangle {
             }
         }
     }
+    ColorHighlight { targetItem: paletteRoot; colorKeys: ["surface", "border", "heading", "separator"] }
 }

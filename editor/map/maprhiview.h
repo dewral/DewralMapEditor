@@ -52,6 +52,7 @@ public:
     bool previewLighting() const { return m_previewLighting; }
     void setPreviewLighting(bool enabled);
     void markFramePending() { m_framePending.store(true, std::memory_order_relaxed); }
+    void markCompleteFrame(quint64 token);
 
 signals:
     void sourceChanged();
@@ -68,6 +69,8 @@ private:
     void updateRenderDriver();
     MapView *m_source = nullptr;
     QMetaObject::Connection m_frameConn;
+    QMetaObject::Connection m_readyFrameConn;
+    std::atomic<quint64> m_completeFrameToken{0};
     std::atomic<int> m_frameCount{0};
     int m_fps = 0;
     QElapsedTimer m_fpsClock;

@@ -128,6 +128,12 @@ public:
     bool houseExitMode() const { return m_houseExitMode; }
     QSet<int> &houseDoorIds() { return m_houseDoorIds; }
     bool &houseDoorIdsInitialized() { return m_houseDoorIdsInitialized; }
+    static int firstFreeHouseDoorId(const QSet<int> &usedIds)
+    {
+        for (int id = 1; id <= 255; ++id)
+            if (!usedIds.contains(id)) return id;
+        return 0;
+    }
     bool &automagic() { return m_automagic; }
     bool automagic() const { return m_automagic; }
     bool &optionalBorderBrush() { return m_optionalBorderBrush; }

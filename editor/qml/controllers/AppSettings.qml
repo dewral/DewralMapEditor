@@ -1,7 +1,7 @@
 import QtCore
 
 Settings {
-    property int fluentPaletteWidth: 225
+    property int fluentPaletteWidth: 285
     property bool showWorkTimer: true
     property bool showFps: true
     property string clientFolder: ""
@@ -27,6 +27,11 @@ Settings {
     property bool showSpawns: true
     property bool showHouses: true
     property bool showZones: true
+    property int visibleZoneMask: 29
+    property double houseOpacity: 0.25
+    property double tilesOpacity: 1.0
+    property double itemsOpacity: 1.0
+    property var zoneOpacities: [0.25, 0.25, 0.25, 0.25]
     property bool showZonesAlways: true
     property bool showAnimations: false
     property bool torchOn: false

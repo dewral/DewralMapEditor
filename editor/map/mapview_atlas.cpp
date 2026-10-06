@@ -1,12 +1,29 @@
 
 #include "mapview.h"
 #include "mapview_p.h"
+#include "loadprofile.h"
 
 #include <QCoreApplication>
 #include <QMetaObject>
 #include <algorithm>
 #include <exception>
 #include <thread>
+
+void MapView::setClientAtlasIdentity(const QString &identity)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    if (identity == m_clientAtlasIdentity) return;
+    m_clientAtlasIdentity = identity;
+    m_atlasBuildGeneration.fetch_add(1, std::memory_order_acq_rel);
+    m_pendingAtlasSpriteIds.clear();
+    if (m_atlasBuilding) {
+        m_atlasBuilding = false;
+        emit atlasBuildingChanged();
+    }
+    resetAtlas();
+    clearChunkQuadCache();
+    emit atlasChanged();
+}
 
 void MapView::resetAtlas()
 {
@@ -41,7 +58,24 @@ void MapView::buildAtlasImage()
                                             m_creatureStore, kPlaceEffectId)
         : MapAtlasService::collectSpriteIds(m_otbm, m_otb, m_dat,
                                             m_creatureStore, kPlaceEffectId);
-    startAtlasJob(spriteIds, true);
+    // Estimate final capacity including the existing 1024-slot headroom.
+    QSet<uint32_t> missing;
+    for (uint32_t id : spriteIds)
+        if (id && m_atlasService.slotForSprite(id) < 0) missing.insert(id);
+    LoadProfile::record(QStringLiteral("map_sprite_counts"), -1,
+        QStringLiteral("unique_sprites=%1 retained_sprites=%2 atlas_bytes=%3")
+            .arg(spriteIds.size()).arg(m_atlasService.spriteCount())
+            .arg(m_atlasService.image().sizeInBytes()));
+    const qint64 slotCount = qint64(m_atlasService.spriteCount()) + missing.size() + 1024;
+    const qint64 bytes = ((slotCount + 127) / 128) * 128 * 32 * 32 * 4;
+    if (m_clientAtlasIdentity.isEmpty() || bytes > 256LL * 1024 * 1024) {
+        startAtlasJob(spriteIds, true);
+    } else if (!missing.isEmpty()) {
+        // Chunks may have been requested before the initial atlas was ready.
+        // Rebuild their missing quads after adding this document's sprites.
+        m_refreshCreaturesAfterAtlas = true;
+        startAtlasJob(std::move(missing), false);
+    }
 }
 
 void MapView::queueAtlasSprites(const QSet<uint32_t> &spriteIds)
@@ -112,6 +146,7 @@ void MapView::startAtlasJob(QSet<uint32_t> spriteIds, bool replaceAtlas)
     std::thread([lifetime, self, dispatcher, generation, sprPath, extended,
                  useAlpha, replaceAtlas, patchOnly, spriteIds = std::move(spriteIds),
                  base = std::move(base), result]() mutable {
+        LoadProfile::Scope timing(QStringLiteral("atlas_decode"));
         try {
             SprReader decoder;
             if (!decoder.loadFile(sprPath, 0, extended, useAlpha)) {
@@ -178,6 +213,9 @@ void MapView::startAtlasJob(QSet<uint32_t> spriteIds, bool replaceAtlas)
                     } else {
                         self->m_atlasService.adoptBuilt(std::move(result->atlas));
                     }
+                    LoadProfile::record(QStringLiteral("atlas_counts"), -1,
+                        QStringLiteral("sprites=%1 atlas_bytes=%2").arg(self->spriteCount())
+                            .arg(self->m_atlasService.image().sizeInBytes()));
                 }
                 if (success) {
                     std::lock_guard<std::recursive_mutex> lock(self->m_dataMutex);

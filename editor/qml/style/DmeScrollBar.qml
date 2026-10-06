@@ -1,3 +1,5 @@
+import "../themes/fluent/Colors.js" as Colors
+import "../components"
 import QtQuick
 import Tibia 1.0
 
@@ -89,7 +91,7 @@ Item {
     }
     Component {
         id: githubTrack
-        Item { Rectangle { anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 4; radius: root.fluentTheme ? 0 : 2; color: root.fluentTheme ? "#252729" : root.grayTheme ? "#242424" : "#161B22" } }
+        Item { Rectangle { anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 4; radius: root.fluentTheme ? 4 : 2; color: root.fluentTheme ? Colors.c("scrollTrack") : root.grayTheme ? "#242424" : "#161B22" } }
     }
     Component {
         id: classicUp
@@ -113,6 +115,7 @@ Item {
     }
     Component {
         id: githubThumb
-        Item { Rectangle { anchors.fill: parent; anchors.leftMargin: 3; anchors.rightMargin: 3; radius: root.fluentTheme ? 0 : 3; color: thumbArea.containsMouse || root.dragging ? (root.grayTheme ? "#A0A0A0" : "#8B949E") : (root.fluentTheme ? "#777C80" : root.grayTheme ? "#666666" : "#57606A") } }
+        Item { Rectangle { anchors.fill: parent; anchors.leftMargin: 3; anchors.rightMargin: 3; radius: root.fluentTheme ? 0 : 3; color: thumbArea.containsMouse || root.dragging ? (root.grayTheme ? "#A0A0A0" : "#8B949E") : (root.fluentTheme ? Colors.c("scrollThumb") : root.grayTheme ? "#666666" : "#57606A") } }
     }
+    ColorHighlight { targetItem: root; colorKeys: ["scrollTrack", "scrollThumb"] }
 }

@@ -180,12 +180,19 @@ Item {
             const itemGrid = findChild(panel, "paletteItemGrid");
             verify(itemGrid.directAllItems);
             compare(itemGrid.count, 80);
-            const prefix = panel.githubUi ? "github" : "palette";
+            const prefix = panel.fluentUi ? "fluent" : panel.githubUi ? "github" : "palette";
             const hideNamed = findChild(panel, prefix + "HideNamedItems");
             const hideInvisible = findChild(panel, prefix + "HideInvisibleSprites");
-            verify(hideNamed.visible);
-            tryVerify(() => hideNamed.x >= hideInvisible.x + hideInvisible.width);
-            compare(hideNamed.y, hideInvisible.y, "Filters must appear side by side");
+            if (data.theme === "fluent-dark") {
+                verify(!findChild(panel, "paletteHideNamedItems").visible);
+                verify(!findChild(panel, "paletteHideInvisibleSprites").visible);
+                wait(50);
+                mouseClick(findChild(panel, "fluentFilterButton"));
+                tryCompare(findChild(panel, "fluentFilterMenu"), "visible", true);
+            } else {
+                tryVerify(() => hideNamed.x >= hideInvisible.x + hideInvisible.width);
+                compare(hideNamed.y, hideInvisible.y, "Filters must appear side by side");
+            }
             mouseClick(hideNamed, 7, 7);
             compare(prefs.hideNamedItems, true);
             verify(!itemGrid.directAllItems, "All Items must use the filter when names are hidden");
@@ -196,6 +203,10 @@ Item {
             tryCompare(itemGrid, "count", 1);
             compare(itemGrid.filterModel.serverIdAtRow(0), 509);
             itemGrid.filterModel.searchText = "";
+            if (panel.fluentUi) {
+                mouseClick(findChild(panel, "fluentFilterButton"));
+                tryCompare(findChild(panel, "fluentFilterMenu"), "visible", true);
+            }
             mouseClick(hideNamed, 7, 7);
             compare(prefs.hideNamedItems, false);
             tryCompare(itemGrid, "count", 80);

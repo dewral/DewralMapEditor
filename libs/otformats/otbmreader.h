@@ -304,6 +304,7 @@ public:
     const OtbmTile *tileAt(int x, int y, int z) const;
     const std::vector<OtbmTown> &towns() const { return m_towns; }
     const std::vector<OtbmWaypoint> &waypoints() const { return m_waypoints; }
+    const std::vector<OtbmHouse> &houses() const { return m_houses; }
 
     Q_INVOKABLE QVariantList townsList() const;
     Q_INVOKABLE QVariantList waypointsList() const;
@@ -497,9 +498,16 @@ private:
     };
     struct UndoAction {
         std::vector<TileSnapshot> tiles;
+        struct HouseSnapshot {
+            uint32_t id;
+            int entryX, entryY, entryZ;
+        };
+        std::vector<HouseSnapshot> houses;
         qsizetype bytes = 0;
     };
     void recordTile(int x, int y, int z);
+    void recordHouse(uint32_t id);
+    void restoreHouseSnapshots(const std::vector<UndoAction::HouseSnapshot> &snapshots);
     void pushUndo(UndoAction &&action);
     void restoreSnapshots(const std::vector<TileSnapshot> &snapshots);
     static qsizetype estimateItemDynamicBytes(const OtbmMapItem &item);
@@ -559,6 +567,7 @@ private:
     bool m_dirty = false;
     QString m_filePath;
     bool m_detachedLoading = false;
+    bool m_backgroundLoading = false;
     std::function<void(int, const QString &)> m_detachedProgress;
     std::function<bool()> m_detachedCancelled;
 };

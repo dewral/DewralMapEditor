@@ -62,6 +62,10 @@ Item {
             }
             controller.finalizeLoadedMap(path);
         }
+        function onInitialViewReady() {
+            if (Backend.otbmReader.loading)
+                Backend.otbmReader.finishLoading(true);
+        }
     }
 
     function initialize() {
@@ -221,13 +225,8 @@ Item {
         addRecent(mapPath);
         started = true;
         if (Backend.otbmReader.loading) {
-            Backend.otbmReader.reportLoadingProgress(100, "Map ready");
-            // Let the main window complete one scene-graph turn before the
-            // startup loading window is removed.
-            Qt.callLater(function () {
-                if (Backend.otbmReader.loading)
-                    Backend.otbmReader.finishLoading(true);
-            });
+            Backend.otbmReader.reportLoadingProgress(99, "Rendering initial view...");
+            mapView.awaitInitialView();
         }
         return true;
     }

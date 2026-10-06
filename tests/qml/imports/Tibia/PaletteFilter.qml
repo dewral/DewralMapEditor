@@ -6,6 +6,7 @@ ListModel {
     property var sprReader
     property var brushStore
     property bool hideInvisibleSprites: false
+    property bool hideNamedItems: false
     property string searchText: ""
     property string mode: "all"
     property var ids: []
@@ -16,6 +17,8 @@ ListModel {
             return;
         for (let i = 0; i < sourceModel.count; ++i) {
             const item = sourceModel.get(i);
+            if (hideNamedItems && item.itemName.trim().length > 0)
+                continue;
             if (mode === "ids" && ids.indexOf(item.serverId) < 0)
                 continue;
             if (searchText !== "" && String(item.serverId).indexOf(searchText) < 0
@@ -37,4 +40,5 @@ ListModel {
     onSourceModelChanged: rebuild()
     onModeChanged: rebuild()
     onSearchTextChanged: rebuild()
+    onHideNamedItemsChanged: rebuild()
 }

@@ -53,6 +53,7 @@ Settings {
     property int iconSize: 66
     property string paletteViewMode: "grid"
     property bool hideInvisibleSprites: true
+    property bool hideNamedItems: false
     property int undoLimit: 1000
     property bool githubLayoutV2Initialized: false
 }

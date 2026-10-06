@@ -24,6 +24,7 @@ Item {
                                                    && currentKind === "All Items"
                                                    && filterModel.searchText === ""
                                                    && !filterModel.hideInvisibleSprites
+                                                   && !filterModel.hideNamedItems
     readonly property int count: grid.count
     property alias currentIndex: grid.currentIndex
     readonly property var selectedServerIds: selection.selectedServerIds

@@ -91,6 +91,18 @@ DmeDialog {
         slots[bt] = variants;
         selectedBorderType = bt;
         setCurrentBorderSlots(slots);
+        selectNextEmptyBorderSlot(bt);
+    }
+
+    function selectNextEmptyBorderSlot(bt) {
+        // Follow the border type order, wrapping and skipping occupied slots.
+        for (var offset = 1; offset < 12; ++offset) {
+            var next = (bt - 1 + offset) % 12 + 1;
+            if ((borderSlots[next] || []).length === 0) {
+                selectedBorderType = next;
+                break;
+            }
+        }
     }
 
     function removeBorderVariant(bt, index) {
@@ -1610,15 +1622,20 @@ DmeDialog {
                         Row {
                             spacing: 6
                             DmeButton {
+                                objectName: "addSelectedBorderItems"
                                 text: root.selectedServerIds.length > 1
                                       ? "Add selected (" + root.selectedServerIds.length + ")"
                                       : "Add selected item"
                                 width: 148
                                 enabled: root.selectedServerIds.length > 0
                                 onClicked: {
+                                    var bt = root.selectedBorderType;
+                                    var previousCount = root.borderVariants.length;
                                     for (var i = 0; i < root.selectedServerIds.length; ++i)
-                                        root.addBorderVariant(root.selectedBorderType,
+                                        root.addBorderVariant(bt,
                                                               root.selectedServerIds[i]);
+                                    if ((root.borderSlots[bt] || []).length > previousCount)
+                                        root.selectNextEmptyBorderSlot(bt);
                                 }
                             }
                             DmeButton {

@@ -3,9 +3,6 @@ name: Windows stable release
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -17,6 +14,7 @@ concurrency:
 
 jobs:
   windows:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: windows-2022
     timeout-minutes: 60
 

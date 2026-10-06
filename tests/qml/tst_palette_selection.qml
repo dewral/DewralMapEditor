@@ -16,6 +16,7 @@ Item {
         property string paletteViewMode: "grid"
         property int iconSize: 50
         property bool hideInvisibleSprites: false
+        property bool hideNamedItems: false
         property string customPalettesJson: "{}"
     }
     Controllers.PaletteController { id: palettes; settings: prefs }
@@ -67,6 +68,7 @@ Item {
         property bool loaded: true
         property string searchText: "filtered"
         property bool hideInvisibleSprites: false
+        property bool hideNamedItems: false
         // Exercise the direct All Items path, whose reader exposes detailsAt.
         function detailsAt(row) {
             const item = get(row);
@@ -139,6 +141,9 @@ Item {
             Backend.tilesetStore = tilesets;
             Backend.uiTheme.style = "gray-dark";
             prefs.paletteViewMode = "grid";
+            prefs.hideInvisibleSprites = false;
+            prefs.hideNamedItems = false;
+            items.hideNamedItems = false;
             mockMap.brushServerId = 0;
             mockMap.creatureBrush = "";
             mockMap.creatureBrushIsNpc = false;
@@ -160,6 +165,66 @@ Item {
             tryVerify(() => grid.itemAtIndex(row) !== null);
             mouseClick(grid.itemAtIndex(row), 8, 8, button || Qt.LeftButton,
                        modifiers || Qt.NoModifier);
+        }
+        function test_hideNamedItems_data() {
+            return ["classic", "windows-classic", "github", "gray-dark",
+                    "gray-modern", "fluent-dark"].map(theme => ({tag: theme, theme}));
+        }
+        function test_hideNamedItems(data) {
+            Backend.uiTheme.style = data.theme;
+            items.setProperty(1, "itemName", "");
+            items.setProperty(3, "itemName", "  ");
+            const panel = createTemporaryObject(panelComponent, testRoot);
+            verify(panel);
+            panel.selectKind("All Items");
+            const itemGrid = findChild(panel, "paletteItemGrid");
+            verify(itemGrid.directAllItems);
+            compare(itemGrid.count, 80);
+            const prefix = panel.githubUi ? "github" : "palette";
+            const hideNamed = findChild(panel, prefix + "HideNamedItems");
+            const hideInvisible = findChild(panel, prefix + "HideInvisibleSprites");
+            verify(hideNamed.visible);
+            tryVerify(() => hideNamed.x >= hideInvisible.x + hideInvisible.width);
+            compare(hideNamed.y, hideInvisible.y, "Filters must appear side by side");
+            mouseClick(hideNamed, 7, 7);
+            compare(prefs.hideNamedItems, true);
+            verify(!itemGrid.directAllItems, "All Items must use the filter when names are hidden");
+            tryCompare(itemGrid, "count", 2);
+            compare(itemGrid.filterModel.serverIdAtRow(0), 503);
+            compare(itemGrid.filterModel.serverIdAtRow(1), 509);
+            itemGrid.filterModel.searchText = "509";
+            tryCompare(itemGrid, "count", 1);
+            compare(itemGrid.filterModel.serverIdAtRow(0), 509);
+            itemGrid.filterModel.searchText = "";
+            mouseClick(hideNamed, 7, 7);
+            compare(prefs.hideNamedItems, false);
+            tryCompare(itemGrid, "count", 80);
+            verify(itemGrid.directAllItems);
+
+            panel.width = 225;
+            tryVerify(() => hideNamed.y > hideInvisible.y);
+            verify(hideNamed.x + hideNamed.width <= hideNamed.parent.width,
+                   "Narrow palettes must keep the checkbox within the panel");
+            panel.selectKind("Creature Palette");
+            verify(!hideNamed.visible);
+            panel.selectKind("House Palette");
+            verify(!hideNamed.visible);
+        }
+        function test_hideNamedDoodads() {
+            items.setProperty(1, "itemName", "");
+            items.setProperty(3, "itemName", "  ");
+            const panel = createTemporaryObject(doodadComponent, testRoot);
+            verify(panel);
+            panel.categoryName = "Structures";
+            compare(panel.count, 7);
+            items.hideNamedItems = true;
+            compare(panel.count, 2, "Hide named doodad items and named prefabs");
+            compare(panel.entries.map(entry => entry.serverId), [503, 509]);
+            panel.searchText = "509";
+            compare(panel.count, 1);
+            panel.searchText = "";
+            items.hideNamedItems = false;
+            compare(panel.count, 7);
         }
         function test_shiftCtrlAndRightClick() {
             const panel = createTemporaryObject(gridComponent, testRoot);

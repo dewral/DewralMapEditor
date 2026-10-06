@@ -28,6 +28,7 @@ Item {
         const brushRevision = Backend.brushStore.revision;
         const imageRevision = Backend.sprReader.itemImagesRevision;
         const hideInvisible = filterModel.hideInvisibleSprites;
+        const hideNamed = filterModel.hideNamedItems;
         const query = searchText.trim().toLowerCase();
         const result = [];
 
@@ -40,6 +41,8 @@ Item {
                 continue;
             const details = Backend.otbReader.detailsAt(row);
             const name = details.name || "";
+            if (hideNamed && name.trim().length > 0)
+                continue;
             if (query !== "" && name.toLowerCase().indexOf(query) < 0
                     && String(sid).indexOf(query) !== 0)
                 continue;
@@ -59,6 +62,8 @@ Item {
                 ? [] : Backend.brushStore.prefabsForPalette(categoryName);
         for (let j = 0; j < prefabs.length; ++j) {
             const prefab = prefabs[j];
+            if (hideNamed && prefab.name.trim().length > 0)
+                continue;
             if (hideInvisible && !filterModel.doodadHasVisibleSprite(prefab.name))
                 continue;
             if (query !== "" && prefab.name.toLowerCase().indexOf(query) < 0

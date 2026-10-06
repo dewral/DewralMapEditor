@@ -47,6 +47,9 @@ DmeDialog {
         if (dirty) { pendingAction = fn; discardDialog.open() }
         else fn()
     }
+    function requestClose() {
+        guarded(function() { root.close() })
+    }
     function reset(nextKind) {
         kind = nextKind
         originalName = ""
@@ -123,6 +126,11 @@ DmeDialog {
     }
 
     contentItem: ColumnLayout {
+        focus: true
+        Keys.onEscapePressed: event => {
+            event.accepted = true
+            root.requestClose()
+        }
         implicitWidth: 940
         implicitHeight: 690
         spacing: 8
@@ -276,7 +284,7 @@ DmeDialog {
                     status.text = "Saved. Add this brush to a tileset if it is new."
                 }
             }
-            DmeButton { text: "Close"; onClicked: root.guarded(function() { root.close() }) }
+            DmeButton { text: "Close"; onClicked: root.requestClose() }
         }
     }
     DmeDialog {

@@ -158,7 +158,7 @@ endif()
 if(WIN32)
     enable_language(RC)
     target_sources(DewralMapEditor PRIVATE editor/windows/DME.rc)
-    target_link_libraries(DewralMapEditor PRIVATE user32)
+    target_link_libraries(DewralMapEditor PRIVATE user32 dwmapi)
 endif()
 
 qt_add_qml_module(DewralMapEditor
@@ -223,7 +223,7 @@ if(BUILD_TESTING)
         target_compile_definitions(dme_window_test PRIVATE
             DME_QML_SOURCE_DIR="${CMAKE_SOURCE_DIR}/editor/qml"
             DME_QT_QML_DIR="${Qt6_DIR}/../../Qt6/qml")
-        target_link_libraries(dme_window_test PRIVATE Qt6::Quick user32)
+        target_link_libraries(dme_window_test PRIVATE Qt6::Quick user32 dwmapi)
         add_test(NAME dme_window COMMAND dme_window_test)
         add_test(NAME dme_window_scaled COMMAND dme_window_test)
         set_tests_properties(dme_window dme_window_scaled PROPERTIES

@@ -35,7 +35,23 @@ DmeWindow {
 
     flags: Qt.FramelessWindowHint | Qt.Window
     maximizeButton: maximizeWindowButton
-    color: "transparent"
+    // An opaque native surface lets DWM apply the same window corners as
+    // OTEditor's standard ApplicationWindow, including correct maximization.
+    color: root.fluentUi && Qt.platform.os === "windows" ? FluentColors.c("background") : "transparent"
+
+    // Custom caption contents cover the native frame's client pixels. Keep
+    // the subtle OTEditor-style outline visible above those contents.
+    Rectangle {
+        anchors.fill: parent
+        visible: root.fluentUi && root.visibility !== Window.Maximized
+                 && root.visibility !== Window.FullScreen
+        z: 1000
+        color: "transparent"
+        radius: Qt.platform.os === "windows" ? 8 : 6
+        antialiasing: true
+        border.width: 1
+        border.color: "#505050"
+    }
 
     onClosing: function (close) {
         if (app.appCloseAllowed) {

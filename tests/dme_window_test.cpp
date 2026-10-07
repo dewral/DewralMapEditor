@@ -5,6 +5,7 @@
 #include <QQmlEngine>
 #include <QtCore/qt_windows.h>
 #include <windowsx.h>
+#include <dwmapi.h>
 
 #include <cstdlib>
 #include <iostream>
@@ -70,6 +71,15 @@ int main(int argc, char **argv)
     app.processEvents();
 
     auto hwnd = reinterpret_cast<HWND>(window.winId());
+    int cornerPreference = 0;
+    if (SUCCEEDED(DwmGetWindowAttribute(hwnd, 33, &cornerPreference, sizeof(cornerPreference)))) {
+        expect(cornerPreference == 2, "Windows 11 must use standard rounded window corners");
+        COLORREF borderColor = 0;
+        // DWM may return the resolved system color rather than COLOR_DEFAULT.
+        if (SUCCEEDED(DwmGetWindowAttribute(hwnd, 34, &borderColor, sizeof(borderColor))))
+            expect(borderColor != 0xfffffffe,
+                   "the native window border must not be suppressed");
+    }
     const LONG_PTR snapStyles = WS_THICKFRAME | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU;
     expect((GetWindowLongPtrW(hwnd, GWL_STYLE) & snapStyles) == snapStyles,
            "the native window must advertise snapping, resizing and caption actions");

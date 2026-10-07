@@ -5,6 +5,7 @@
 #ifdef Q_OS_WIN
 #include <QtCore/qt_windows.h>
 #include <windowsx.h>
+#include <dwmapi.h>
 #endif
 
 DmeWindow::DmeWindow(QWindow *parent) : QQuickWindow(parent)
@@ -52,6 +53,17 @@ bool DmeWindow::event(QEvent *event)
                          style | WS_THICKFRAME | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU);
         SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+        // Match a normal dark Windows window (as used by OTEditor), while
+        // retaining our QML caption and native Snap support. Unsupported
+        // Windows versions simply ignore the Windows 11 corner attributes.
+        const BOOL darkFrame = TRUE;
+        DwmSetWindowAttribute(hwnd, 20, &darkFrame, sizeof(darkFrame));
+        const int roundCorners = 2; // DWMWCP_ROUND
+        DwmSetWindowAttribute(hwnd, 33, &roundCorners, sizeof(roundCorners));
+        const COLORREF systemBorder = 0xffffffff; // DWMWA_COLOR_DEFAULT
+        DwmSetWindowAttribute(hwnd, 34, &systemBorder, sizeof(systemBorder));
+        const MARGINS frameMargins{1, 1, 1, 1};
+        DwmExtendFrameIntoClientArea(hwnd, &frameMargins);
     }
 #endif
     return handled;

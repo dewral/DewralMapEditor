@@ -12,7 +12,7 @@ Item {
     ListModel {
         id: items
         property bool loaded: true
-        function clientIdForServerId(id) { return 0 }
+        function clientIdForServerId(id) { return id - 10000 }
         function rowForServerId(id) {
             for (let i = 0; i < count; ++i) {
                 if (get(i).serverId === id) return i
@@ -20,6 +20,13 @@ Item {
             return -1
         }
         function detailsAt(row) { return {name: get(row).itemName, spriteIds: []} }
+    }
+    QtObject {
+        id: sprites
+        property var visibleIds: [3618]
+        signal itemImagesChanged()
+        function itemHasVisibleSprite(id) { return visibleIds.indexOf(id) >= 0 }
+        function itemImageSource(spriteIds, width, height, layers) { return "" }
     }
     QtObject {
         id: tilesets
@@ -43,14 +50,18 @@ Item {
         property var manager
         property var previousTilesets
         property var previousReader
+        property var previousSprites
         property string previousTheme
 
         function init() {
             previousTilesets = Backend.tilesetStore
             previousReader = Backend.otbReader
+            previousSprites = Backend.sprReader
             previousTheme = Backend.uiTheme.style
             Backend.tilesetStore = tilesets
             Backend.otbReader = items
+            Backend.sprReader = sprites
+            sprites.visibleIds = [3618]
             Backend.uiTheme.style = "gray-dark"
             tilesets.deleteCount = 0
             tilesets.addedIds = []
@@ -69,6 +80,7 @@ Item {
             wait(0)
             Backend.tilesetStore = previousTilesets
             Backend.otbReader = previousReader
+            Backend.sprReader = previousSprites
             Backend.uiTheme.style = previousTheme
         }
         function dialogWithTitle(host, title) {
@@ -90,6 +102,57 @@ Item {
             verify(grid)
             tryVerify(() => grid.itemAtIndex(row) !== null)
             mouseDoubleClickSequence(grid.itemAtIndex(row), 8, 8)
+        }
+
+        function test_hideInvisibleSprites_data() {
+            return ["classic", "windows-classic", "github", "gray-dark",
+                    "gray-modern", "fluent-dark"].map(theme => ({tag: theme, theme}))
+        }
+        function test_hideInvisibleSprites(data) {
+            Backend.uiTheme.style = data.theme
+            const grid = findChild(manager.contentItem, "brushManagerPickerGrid")
+            const checkbox = findChild(manager.contentItem, "brushManagerHideInvisibleSprites")
+            const search = findChild(manager.contentItem, "brushManagerPickerSearch")
+            verify(checkbox.visible)
+            compare(checkbox.checked, false)
+            compare(grid.count, 3)
+            verify(waitForRendering(checkbox))
+            verify(checkbox.y >= search.y + search.height)
+            verify(grid.parent.y >= checkbox.y + checkbox.height)
+            verify(grid.parent.y + grid.parent.height <= grid.parent.parent.height)
+
+            manager.selectPickerItem(13618, 2, Qt.NoModifier)
+            mouseClick(checkbox, 7, 7)
+            compare(checkbox.checked, true)
+            compare(grid.count, 1)
+            compare(grid.model.serverIdAtRow(0), 13618)
+            compare(manager.pickerSelectionAnchor, -1)
+            tryVerify(() => grid.itemAtIndex(0) !== null && grid.itemAtIndex(0).sid === 13618)
+            mouseClick(grid.itemAtIndex(0), 8, 8, Qt.LeftButton, Qt.ShiftModifier)
+            compare(manager.selectedServerIds, [13618])
+
+            search.text = "13610"
+            compare(grid.count, 0)
+            mouseClick(checkbox, 7, 7)
+            compare(checkbox.checked, false)
+            compare(grid.count, 1)
+            compare(grid.model.serverIdAtRow(0), 13610)
+            search.text = ""
+            compare(grid.count, 3)
+        }
+        function test_spriteReloadRefreshesFilter() {
+            const grid = findChild(manager.contentItem, "brushManagerPickerGrid")
+            const checkbox = findChild(manager.contentItem, "brushManagerHideInvisibleSprites")
+            mouseClick(checkbox, 7, 7)
+            compare(grid.count, 1)
+            sprites.visibleIds = [3614]
+            sprites.itemImagesChanged()
+            compare(grid.count, 1)
+            compare(grid.model.serverIdAtRow(0), 13614)
+            manager.tab = "ground"
+            compare(checkbox.visible, true)
+            compare(checkbox.checked, true)
+            compare(grid.count, 1)
         }
 
         function test_doubleClickBorder_data() {

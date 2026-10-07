@@ -571,7 +571,10 @@ DmeDialog {
         id: pf
         sourceModel: Backend.otbReader
         brushStore: Backend.brushStore
+        sprReader: Backend.sprReader
+        useDoodadPreviews: false // The picker displays individual item sprites.
         mode: "all"
+        onHideInvisibleSpritesChanged: root.pickerSelectionAnchor = -1
     }
 
     contentItem: Item {
@@ -590,6 +593,8 @@ DmeDialog {
             spacing: 6
 
             DmeTextField {
+                id: pickerSearch
+                objectName: "brushManagerPickerSearch"
                 width: parent.width
                 placeholderText: "Search by name or ID..."
                 onTextChanged: {
@@ -598,10 +603,20 @@ DmeDialog {
                 }
             }
 
+            DmeCheckBox {
+                id: hideInvisibleCheckBox
+                objectName: "brushManagerHideInvisibleSprites"
+                text: "Hide invisible sprites"
+                checked: pf.hideInvisibleSprites
+                onClicked: pf.hideInvisibleSprites = !checked
+            }
+
             DmePanel {
                 id: pickerPanel
                 width: parent.width
-                height: Math.max(140, pickerCol.height - 76)
+                height: Math.max(140, pickerCol.height - pickerSearch.height
+                                 - hideInvisibleCheckBox.height - pickerSizeRow.height
+                                 - pickerCol.spacing * 3)
 
                 GridView {
                     id: pickerGrid
@@ -698,6 +713,7 @@ DmeDialog {
             }
 
             Row {
+                id: pickerSizeRow
                 width: parent.width
                 height: 32
                 spacing: 7

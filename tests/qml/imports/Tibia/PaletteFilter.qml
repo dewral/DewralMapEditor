@@ -6,6 +6,7 @@ ListModel {
     property var sprReader
     property var brushStore
     property bool hideInvisibleSprites: false
+    property bool useDoodadPreviews: true
     property bool hideNamedItems: false
     property string searchText: ""
     property string mode: "all"
@@ -17,6 +18,8 @@ ListModel {
             return;
         for (let i = 0; i < sourceModel.count; ++i) {
             const item = sourceModel.get(i);
+            if (hideInvisibleSprites && !itemHasVisibleSprite(item.serverId))
+                continue;
             if (hideNamedItems && item.itemName.trim().length > 0)
                 continue;
             if (mode === "ids" && ids.indexOf(item.serverId) < 0)
@@ -35,10 +38,20 @@ ListModel {
             if (get(i).serverId === id) return i;
         return -1;
     }
-    function itemHasVisibleSprite(id) { return true; }
+    function itemHasVisibleSprite(id) {
+        return !sprReader || typeof sprReader.itemHasVisibleSprite !== "function"
+                || sprReader.itemHasVisibleSprite(sourceModel.clientIdForServerId(id));
+    }
     function doodadHasVisibleSprite(name) { return true; }
     onSourceModelChanged: rebuild()
     onModeChanged: rebuild()
     onSearchTextChanged: rebuild()
     onHideNamedItemsChanged: rebuild()
+    onHideInvisibleSpritesChanged: rebuild()
+    onSprReaderChanged: rebuild()
+    property Connections spriteConnections: Connections {
+        target: filter.sprReader
+        ignoreUnknownSignals: true
+        function onItemImagesChanged() { filter.rebuild(); }
+    }
 }

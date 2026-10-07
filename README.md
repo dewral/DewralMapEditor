@@ -25,7 +25,7 @@ multi-floor Tibia maps.
   zone tools, spawns, creatures, houses, and towns.
 - Supports selection, multi-floor selection, moving items between floors,
   cut/copy/paste, undo/redo, item properties, search, and replacement tools.
-- Includes a configurable In-game Preview window. [ WIP ]
+- Includes a configurable In-game Preview window (work in progress).
 - Loads maps even when optional house and spawn sidecar files are absent.
 - Offers Fluent Dark, GitHub Dark, gray themes, Windows Classic and the
   Tibia-inspired Classic UI through the theme settings.
@@ -39,6 +39,26 @@ Fluent Dark provides a compact file toolbar, a resizable palette with larger
 item previews, fixed-width drawing tools and a full-width status bar. Select
 **Fluent Dark** in the theme settings. FPS and work timer visibility can be
 changed from the View menu.
+
+#### Palette layout
+
+Drag the **Palette** header to move the entire panel, including Tools and Brush
+size. Drop near the left or right edge to dock it; a blue preview shows the drop
+target. Docking follows the panel edge, so you can grab any part of the header.
+Drop elsewhere to keep the palette floating **inside the editor window**.
+
+- Drag the divider to resize a docked palette. Drag the bottom-right corner to
+  resize a floating palette. Tool buttons keep their size and wrap into rows.
+- Click the lock icon to freeze the panel's position and size. Click again to
+  unlock it; editing tools and palette items remain usable while locked.
+- Click **×** to close the panel. Use **View → Show palette** or **Ctrl+B** to
+  restore it at the saved position. Hiding a docked palette frees space for the map.
+- Position, dock side, floating size, lock state and visibility are saved between
+  sessions. Floating panels stay within the editor when the window is resized.
+
+These docking controls are available in **Fluent Dark**.
+See [palette docking and OTBM validation](docs/palette-docking-and-otbm.md) for
+behavior details, file-format safeguards and test commands.
 
 The theme uses custom Qt Quick controls with a shared Fluent Dark palette.
 **Preferences → Interface → UI Colorize** lets you edit interface colors,
@@ -281,6 +301,7 @@ the editor's minimum size (720 × 480).
 | Copy / cut / paste | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` |
 | Rotate doodad variant | `R` |
 | Go to position | `Ctrl+G` |
+| Show / hide palette | `Ctrl+B` or **View → Show palette** |
 
 While dragging an item, changing floors keeps the item attached to the cursor
 and drops it on the active floor.

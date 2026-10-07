@@ -24,6 +24,14 @@ Window {
 
     Component.onCompleted: Backend.updateService.checkForUpdates()
 
+    function selectClientProfile(key) {
+        settings.selectedClientKey = key;
+        // Activation assigns currentIndex, so restore the binding to the saved key.
+        verCombo.currentIndex = Qt.binding(function () {
+            return Math.max(0, app.allProfileKeys().indexOf(settings.selectedClientKey));
+        });
+    }
+
     function beginLoadMap(path, profileKey) {
         if (!path || loadingMap)
             return;
@@ -213,13 +221,15 @@ Window {
                         spacing: 6
                         DmeComboBox {
                             id: verCombo
+                            objectName: "startupClientVersion"
                             width: 150
                             height: startupScreen.fluentTheme ? 28 : 23
 
                             model: app.allProfileKeys().map(function (k) {
                                 return app.profileLabel(k);
                             })
-                            currentIndex: 0
+                            currentIndex: Math.max(0, app.allProfileKeys().indexOf(settings.selectedClientKey))
+                            onActivated: startupScreen.selectClientProfile(selKey)
                             readonly property string selKey: {
                                 var keys = app.allProfileKeys();
                                 return currentIndex >= 0 && currentIndex < keys.length ? keys[currentIndex] : "772";
@@ -255,7 +265,7 @@ Window {
                                 if (app.addCustomProfile(name, base)) {
                                     newProfileField.text = "";
 
-                                    verCombo.currentIndex = app.allProfileKeys().indexOf(name);
+                                    startupScreen.selectClientProfile(name);
                                 }
                             }
                         }
@@ -268,7 +278,7 @@ Window {
                         text: "Remove profile " + verCombo.selKey
                         onClicked: {
                             app.removeCustomProfile(verCombo.selKey);
-                            verCombo.currentIndex = 0;
+                            startupScreen.selectClientProfile(app.allProfileKeys()[0]);
                         }
                     }
 

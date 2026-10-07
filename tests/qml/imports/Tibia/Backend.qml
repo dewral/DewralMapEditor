@@ -2,10 +2,24 @@ pragma Singleton
 import QtQuick
 QtObject {
     property QtObject otbmReader: QtObject {
+        property string filePath: ""
+        property bool loading: false
+        property int loadingProgress: 0
+        property string loadingStage: ""
         property bool loaded: true
         property int undoCount: 0
         property int redoCount: 0
         signal mapChanged()
+    }
+    property QtObject docMgr: QtObject {
+        property int recoveryCount: 0
+        property var recoveries: []
+    }
+    property QtObject updateService: QtObject {
+        property string currentVersion: "test"
+        property string state: "upToDate"
+        property bool updateAvailable: false
+        function checkForUpdates() {}
     }
     property QtObject uiTheme: QtObject {
         property string style: "gray-dark"
@@ -22,6 +36,7 @@ QtObject {
     }
     property QtObject fileTools: QtObject {
         property string text: ""
+        function fileName(path) { return path.split(/[\\/]/).pop(); }
         function clipboardText() { return text }
         function setClipboard(value) { text = value }
     }

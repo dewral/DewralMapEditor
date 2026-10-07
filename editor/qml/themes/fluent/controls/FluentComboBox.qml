@@ -11,9 +11,15 @@ Item {
     Text { id: arrow; anchors.right: parent.right; anchors.rightMargin: 7; anchors.verticalCenter: parent.verticalCenter; text: "\u25BE"; color: Colors.c("placeholder"); font.pixelSize: 11 }
     MouseArea { id: mouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: popup.visible = !popup.visible }
     Popup { id: popup; y: root.height; width: root.width; height: Math.min(200, list.contentHeight + 2); padding: 1; closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape; modal: true; dim: false
+        focus: true
         background: Rectangle { radius: 4; color: Colors.c("surface"); border.width: 1; border.color: Colors.c("border") }
         contentItem: ListView { id: list; model: root.model; clip: true
-            delegate: Rectangle { width: list.width; height: 22; radius: 4; color: entry.containsMouse ? Colors.c("hover") : "transparent"
+            focus: true
+            currentIndex: root.currentIndex
+            keyNavigationEnabled: false
+            Keys.forwardTo: [typeAhead]
+            ComboBoxTypeAhead { id: typeAhead; comboBox: root; popup: popup; view: list }
+            delegate: Rectangle { width: list.width; height: 22; radius: 4; color: entry.containsMouse || list.currentIndex === index ? Colors.c("hover") : "transparent"
                 Text { anchors.left: parent.left; anchors.leftMargin: 6; anchors.verticalCenter: parent.verticalCenter; text: modelData; color: Colors.c("text"); font.family: "Segoe UI"; font.pixelSize: 12 }
                 MouseArea { id: entry; anchors.fill: parent; hoverEnabled: true; onClicked: { root.currentIndex = index; root.activated(index); popup.close(); } }
             }

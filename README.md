@@ -415,11 +415,11 @@ native multi-size Windows icon.
 
 - DME is inspired by
   [Remere's Map Editor](https://github.com/hampusborgos/rme).
-- Portions of the binary-format I/O implementation are derived from
+- Earlier binary-format I/O and lighting implementations included code from
   [Tibia ImGui Map Editor](https://github.com/Open-Tibia-Tools/tibia-imgui-map-editor),
   which is licensed under the GNU Affero General Public License v3.0.
-- Lighting and in-game visualization ideas were also informed by Tibia ImGui
-  Map Editor.
+- The identified DAT metadata, binary stream and light sampling implementations
+  have been replaced. Historical attribution remains in `NOTICE`; AGPL is unchanged.
 - Some brush, border, tileset, and creature definitions are derived from
   OpenTibia/RME-compatible data.
 - Tibia is a trademark of CipSoft GmbH. Client data and artwork are not

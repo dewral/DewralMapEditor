@@ -237,6 +237,10 @@ if(BUILD_TESTING)
                 "-DTEST_ROOT=${CMAKE_BINARY_DIR}/tmp/release-manifest-test"
                 -P "${CMAKE_SOURCE_DIR}/tests/release_manifest_test.cmake")
 
+    add_executable(lightfield_test EXCLUDE_FROM_ALL tests/lightfield_test.cpp)
+    target_include_directories(lightfield_test PRIVATE editor/map)
+    add_test(NAME lightfield COMMAND lightfield_test)
+
     add_executable(otformats_reader_test EXCLUDE_FROM_ALL tests/otformats_reader_test.cpp)
     target_link_libraries(otformats_reader_test PRIVATE OTFormats Qt6::Core)
     add_test(NAME otformats_reader COMMAND otformats_reader_test)

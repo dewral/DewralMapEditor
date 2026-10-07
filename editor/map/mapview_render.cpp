@@ -1,3 +1,4 @@
+#include "lightfield.h"
 
 #include "mapview.h"
 #include "mapview_p.h"
@@ -255,8 +256,7 @@ void MapView::computeLightChunk(int floor, int cx, int cy, std::vector<uint32_t>
 
     if (!m_otbm || !m_otb || !m_dat) return;
 
-    struct Light { int x, y; uint8_t color, level; };
-    std::vector<Light> lights;
+    std::vector<LightField::Source> lights;
     const auto &tileIndex = m_chunkStore.tiles();
     auto zit = tileIndex.constFind(floor);
     if (zit != tileIndex.cend()) {
@@ -271,7 +271,7 @@ void MapView::computeLightChunk(int floor, int cx, int cy, std::vector<uint32_t>
                         if (cid <= 0) continue;
                         const ClientItem *ci = m_dat->itemByClientId(static_cast<uint16_t>(cid));
                         if (!ci || !ci->has(ClientProperty::Light) || ci->light_level == 0) continue;
-                        lights.push_back({ t->x, t->y,
+                        lights.push_back({ double(t->x), double(t->y),
                                            static_cast<uint8_t>(ci->light_color),
                                            static_cast<uint8_t>(std::min<int>(ci->light_level, 255)) });
                     }
@@ -279,34 +279,8 @@ void MapView::computeLightChunk(int floor, int cx, int cy, std::vector<uint32_t>
             }
     }
 
-    for (const Light &l : lights) {
-        const float lr = ((l.color / 36) % 6) * 51 / 255.0f;
-        const float lg = ((l.color / 6) % 6) * 51 / 255.0f;
-        const float lb = (l.color % 6) * 51 / 255.0f;
-        const int radius = l.level;
-        const int x0 = std::max(0, l.x - radius - base_x);
-        const int x1 = std::min(kChunkTiles - 1, l.x + radius - base_x);
-        const int y0 = std::max(0, l.y - radius - base_y);
-        const int y1 = std::min(kChunkTiles - 1, l.y + radius - base_y);
-        for (int y = y0; y <= y1; ++y)
-            for (int x = x0; x <= x1; ++x) {
-                const float dx = float(x + base_x) - float(l.x);
-                const float dy = float(y + base_y) - float(l.y);
-                const float distSq = dx * dx + dy * dy;
-                if (distSq > float(radius * radius)) continue;
-                float inten = (-std::sqrt(distSq) + float(l.level)) * 0.2f;
-                if (inten < 0.01f) continue;
-                if (inten > 1.0f) inten = 1.0f;
-                uint32_t &px = out[static_cast<size_t>(y) * kChunkTiles + x];
-                const int r = std::max<int>(px & 0xFF, int(lr * inten * 255.0f));
-                const int g = std::max<int>((px >> 8) & 0xFF, int(lg * inten * 255.0f));
-                const int b = std::max<int>((px >> 16) & 0xFF, int(lb * inten * 255.0f));
-                px = static_cast<uint32_t>(std::min(r, 255))
-                     | (static_cast<uint32_t>(std::min(g, 255)) << 8)
-                     | (static_cast<uint32_t>(std::min(b, 255)) << 16)
-                     | (255u << 24);
-            }
-    }
+    out = LightField::sample(kChunkTiles, kChunkTiles, base_x, base_y, ambient, lights);
+
 }
 
 void MapView::invalidateLightAround(int x, int y, int z)
@@ -412,8 +386,7 @@ void MapView::renderBuildPreviewLightGrid(int firstFloor, int lastFloor,
     firstFloor = qBound(0, firstFloor, 15);
     lastFloor = qBound(firstFloor, lastFloor, 15);
 
-    struct Light { qreal x, y; int color, level; };
-    std::vector<Light> lights;
+    std::vector<LightField::Source> lights;
     std::vector<size_t> lightStarts(cellCount, 0);
     const auto &tileIndex = m_chunkStore.tiles();
 
@@ -500,40 +473,8 @@ void MapView::renderBuildPreviewLightGrid(int firstFloor, int lastFloor,
         }
     }
 
-    for (size_t lightIndex = 0; lightIndex < lights.size(); ++lightIndex) {
-        const Light &light = lights[lightIndex];
-        const float red = ((light.color / 36) % 6) * 51 / 255.0f;
-        const float green = ((light.color / 6) % 6) * 51 / 255.0f;
-        const float blue = (light.color % 6) * 51 / 255.0f;
-        const int x0 = qMax(tx, static_cast<int>(std::floor(light.x - light.level)));
-        const int x1 = qMin(tx + tw - 1,
-                            static_cast<int>(std::ceil(light.x + light.level)));
-        const int y0 = qMax(ty, static_cast<int>(std::floor(light.y - light.level)));
-        const int y1 = qMin(ty + th - 1,
-                            static_cast<int>(std::ceil(light.y + light.level)));
-        for (int y = y0; y <= y1; ++y) {
-            for (int x = x0; x <= x1; ++x) {
-                const float dx = static_cast<float>(x - light.x);
-                const float dy = static_cast<float>(y - light.y);
-                const float distanceSquared = dx * dx + dy * dy;
-                if (distanceSquared > static_cast<float>(light.level * light.level)) continue;
-                const size_t pixelIndex = static_cast<size_t>(y - ty) * tw + (x - tx);
-                if (lightIndex < lightStarts[pixelIndex]) continue;
-                const float intensity = qBound(
-                    0.0f, (-std::sqrt(distanceSquared) + light.level) * 0.2f, 1.0f);
-                if (intensity < 0.01f) continue;
+    out = LightField::sample(tw, th, tx, ty, ambient, lights, &lightStarts);
 
-                uint32_t &pixel = out[pixelIndex];
-                const int r = qMax<int>(pixel & 0xff, red * intensity * 255.0f);
-                const int g = qMax<int>((pixel >> 8) & 0xff, green * intensity * 255.0f);
-                const int b = qMax<int>((pixel >> 16) & 0xff, blue * intensity * 255.0f);
-                pixel = static_cast<uint32_t>(qMin(r, 255))
-                      | (static_cast<uint32_t>(qMin(g, 255)) << 8)
-                      | (static_cast<uint32_t>(qMin(b, 255)) << 16)
-                      | (255u << 24);
-            }
-        }
-    }
 }
 
 void MapView::renderCollectSpawnMarkInstances(std::vector<float> &out, std::vector<float> &outSel, std::vector<float> *fill)

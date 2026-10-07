@@ -49,6 +49,7 @@ QtObject {
         property int revision: 1
         property string errorString: ""
         function namesFor(kind) { return kind === "doodad" ? ["Structures"] : [] }
+        function itemsFor(kind, name) { return [] }
         function newTileset(kind, name) { return true }
         function deleteTileset(kind, name) { return true }
     }

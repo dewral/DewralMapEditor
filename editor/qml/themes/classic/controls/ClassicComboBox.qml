@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import Tibia 1.0
+import "../../../components"
 
 Item {
     id: root
@@ -24,12 +25,18 @@ Item {
         id: popup
         y: root.height; width: root.width; height: Math.min(200, list.contentHeight + 2); padding: 1
         closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape; modal: true; dim: false
+        focus: true
         background: Rectangle { color: root.windowsClassic ? "#ffffff" : "#2b2b2b"; border.width: 1; border.color: root.windowsClassic ? "#7a7a7a" : "#555" }
         contentItem: ListView {
             id: list; model: root.model; clip: true
+            focus: true
+            currentIndex: root.currentIndex
+            keyNavigationEnabled: false
+            Keys.forwardTo: [typeAhead]
+            ComboBoxTypeAhead { id: typeAhead; comboBox: root; popup: popup; view: list }
             delegate: Rectangle {
-                width: list.width; height: 22; color: entry.containsMouse ? (root.windowsClassic ? "#0a64ad" : "#20ffffff") : "transparent"
-                Text { anchors.left: parent.left; anchors.leftMargin: 6; anchors.verticalCenter: parent.verticalCenter; text: modelData; color: root.windowsClassic ? (entry.containsMouse ? "#ffffff" : "#202020") : "#e8e8e8"; font.pixelSize: 12 }
+                width: list.width; height: 22; color: entry.containsMouse || list.currentIndex === index ? (root.windowsClassic ? "#0a64ad" : "#20ffffff") : "transparent"
+                Text { anchors.left: parent.left; anchors.leftMargin: 6; anchors.verticalCenter: parent.verticalCenter; text: modelData; color: root.windowsClassic ? (entry.containsMouse || list.currentIndex === index ? "#ffffff" : "#202020") : "#e8e8e8"; font.pixelSize: 12 }
                 MouseArea { id: entry; anchors.fill: parent; hoverEnabled: true; onClicked: { root.currentIndex = index; root.activated(index); popup.close(); } }
             }
         }

@@ -267,13 +267,16 @@ Item {
             compare(manager.selectedBorderType, 6)
 
             doubleClickPickerItem(0)
-            compare(manager.borderVariants, [{id: 13610, chance: 100}])
+            compare(manager.borderSlots[6], [{id: 13610, chance: 100}])
+            compare(manager.selectedBorderType, 7)
             compare(manager.borderSlots[1].length, 0)
             manager.setBorderVariantChance(6, 0, 45)
+            mouseClick(slot, slot.width / 2, slot.height / 2)
             doubleClickPickerItem(0)
             compare(manager.borderVariants, [{id: 13610, chance: 45}])
             doubleClickPickerItem(1)
-            compare(manager.borderVariants, [{id: 13610, chance: 45}, {id: 13614, chance: 100}])
+            compare(manager.borderSlots[6], [{id: 13610, chance: 45}, {id: 13614, chance: 100}])
+            compare(manager.selectedBorderType, 7)
             if (data.optional)
                 compare(manager.borderSets["inner|"][6].length, 0)
             else
@@ -537,6 +540,219 @@ Item {
                 compare(manager.selectedTilesetItems, [Number(manager.tilesetItems[1])])
                 compare(manager.tilesetSelectionAnchor, 1)
             }
+        }
+
+        function test_revealTilesetSprite_data() {
+            return ["classic", "windows-classic", "github", "gray-dark",
+                    "gray-modern", "fluent-dark"].map(theme => ({tag: theme, theme}))
+        }
+        function test_revealTilesetSprite(data) {
+            Backend.uiTheme.style = data.theme
+            tilesets.changeSaved({terrain: {Test: [13614]}})
+            manager.selectPickerItem(13610, 0, Qt.NoModifier)
+            manager.selectPickerItem(13618, 2, Qt.ControlModifier)
+            const grid = findChild(manager, "brushManagerPickerGrid")
+            const search = findChild(manager, "brushManagerPickerSearch")
+            const checkbox = findChild(manager, "brushManagerHideInvisibleSprites")
+            search.text = "13610"
+            mouseClick(checkbox, 7, 7)
+            compare(grid.count, 0)
+
+            const tilesetGrid = findChild(manager, "brushManagerTilesetGrid")
+            tryVerify(() => tilesetGrid.itemAtIndex(0) !== null)
+            verify(waitForRendering(tilesetGrid.itemAtIndex(0)))
+            mouseDoubleClickSequence(tilesetGrid.itemAtIndex(0), 8, 8)
+
+            compare(search.text, "")
+            compare(checkbox.checked, false)
+            compare(manager.selectedServerIds, [13614])
+            compare(manager.selectedServerId, 13614)
+            compare(manager.pickerSelectionAnchor, 1)
+            compare(grid.currentIndex, 1)
+            compare(pickerCell(1).selected, true)
+            compare(manager.selectedTilesetItems, [13614])
+            verify(grid.activeFocus)
+            keyClick(Qt.Key_Delete)
+            compare(tilesets.removedIds, [])
+            compare(tilesets.itemsFor("terrain", "Test"), [13614])
+            compare(tilesets.addedIds, [])
+        }
+        function test_revealPreservesMatchingFilters_data() {
+            return [
+                {tag: "matching-search", search: "13618", target: 13618, expectedSearch: "13618", hidden: true},
+                {tag: "only-search-blocks", search: "13614", target: 13618, expectedSearch: "", hidden: true},
+                {tag: "only-visibility-blocks", search: "13614", target: 13614, expectedSearch: "13614", hidden: false}
+            ]
+        }
+        function test_revealThenDeleteMultipleTilesetItems() {
+            const tilesetGrid = loadSelectionTileset()
+            mouseDoubleClickSequence(tilesetGrid.itemAtIndex(2), 8, 8)
+            compare(manager.selectedServerIds, [13614])
+            compare(manager.selectedTilesetItems, [13614])
+            verify(findChild(manager, "brushManagerPickerGrid").activeFocus)
+            keyClick(Qt.Key_Delete)
+            compare(tilesets.removedIds, [])
+
+            clickTilesetItem(1, Qt.ControlModifier)
+            compare(manager.selectedTilesetItems, [13614, 13610])
+            verify(tilesetGrid.activeFocus)
+            keyClick(Qt.Key_Delete)
+            compare(tilesets.removedIds, [13614, 13610])
+            compare(manager.tilesetItems, selectionIds.filter(id => id !== 13614 && id !== 13610))
+            compare(manager.selectedServerIds, [13614])
+        }
+        function test_revealPreservesMatchingFilters(data) {
+            const search = findChild(manager, "brushManagerPickerSearch")
+            const checkbox = findChild(manager, "brushManagerHideInvisibleSprites")
+            search.text = data.search
+            mouseClick(checkbox, 7, 7)
+            verify(manager.revealPickerItem(data.target))
+            compare(search.text, data.expectedSearch)
+            compare(checkbox.checked, data.hidden)
+            compare(manager.selectedServerIds, [data.target])
+        }
+        function test_revealScrollsToSprite() {
+            for (let id = 13620; id < 13820; ++id)
+                items.append({serverId: id, itemName: "Test item " + id})
+            const grid = findChild(manager, "brushManagerPickerGrid")
+            grid.model.rebuild()
+            grid.forceLayout()
+            compare(grid.contentY, 0)
+            tilesets.changeSaved({terrain: {Test: [13819]}})
+            const tilesetGrid = findChild(manager, "brushManagerTilesetGrid")
+            tryVerify(() => tilesetGrid.itemAtIndex(0) !== null)
+            verify(waitForRendering(tilesetGrid.itemAtIndex(0)))
+            mouseDoubleClickSequence(tilesetGrid.itemAtIndex(0), 8, 8)
+            tryVerify(() => grid.currentItem !== null && grid.currentItem.sid === 13819)
+            verify(grid.contentY > 0)
+            const position = grid.currentItem.mapToItem(grid, 0, 0)
+            verify(position.y >= 0)
+            verify(position.y + grid.currentItem.height <= grid.height)
+            compare(manager.selectedServerIds, [13819])
+        }
+        function test_emptyOrMissingSpriteKeepsPicker() {
+            const search = findChild(manager, "brushManagerPickerSearch")
+            const checkbox = findChild(manager, "brushManagerHideInvisibleSprites")
+            manager.selectPickerItem(13618, 2, Qt.NoModifier)
+            search.text = "13618"
+            mouseClick(checkbox, 7, 7)
+            for (const id of [0, -1, 65535])
+                compare(manager.revealPickerItem(id), false)
+            compare(search.text, "13618")
+            compare(checkbox.checked, true)
+            compare(manager.selectedServerIds, [13618])
+        }
+        function test_revealBrushSprite_data() {
+            return [
+                {tag: "ground-item", tab: "ground", name: "brushManagerGroundItem0"},
+                {tag: "ground-preview", tab: "ground", name: "brushManagerGroundPreview"},
+                {tag: "border-slot", tab: "ground", name: "brushManagerBorderSlot6"},
+                {tag: "border-variant", tab: "ground", name: "brushManagerBorderVariant1"},
+                {tag: "wall-slot", tab: "wall", name: "brushManagerWallSlot0"},
+                {tag: "doodad-stack", tab: "doodad", name: "brushManagerDoodadCell0"}
+            ]
+        }
+        function test_revealBrushSprite(data) {
+            manager.tab = data.tab
+            const groundItems = findChild(manager, "brushManagerGroundItems")
+            groundItems.append({sid: 13614, chance: 10})
+            const slots = manager.emptyBorderSlots()
+            slots[6] = [{id: 13614, chance: 45}, {id: 13618, chance: 100}]
+            manager.setCurrentBorderSlots(slots)
+            manager.selectedBorderType = 6
+            manager.wallIds = [13614]
+            manager.setDoodadCell(0, 13610, false)
+            manager.setDoodadCell(0, 13614, true)
+            const draft = JSON.stringify({borders: manager.borderSets, wall: manager.wallIds, doodad: manager.doodadCellItems})
+            tryVerify(() => findChild(manager.contentItem, data.name) !== null)
+            const sprite = findChild(manager.contentItem, data.name)
+            verify(sprite)
+            wait(50)
+            mouseDoubleClickSequence(sprite, 8, 8)
+            compare(manager.selectedServerIds, [data.tag === "border-variant" ? 13618 : 13614])
+            compare(JSON.stringify({borders: manager.borderSets, wall: manager.wallIds, doodad: manager.doodadCellItems}), draft)
+            compare(groundItems.count, 1)
+            compare(groundItems.get(0).chance, 10)
+        }
+        function test_rightClickStillClearsBrushSprites() {
+            manager.tab = "ground"
+            const groundItems = findChild(manager, "brushManagerGroundItems")
+            groundItems.append({sid: 13614, chance: 10})
+            tryVerify(() => findChild(manager.contentItem, "brushManagerGroundItem0") !== null)
+            const ground = findChild(manager.contentItem, "brushManagerGroundItem0")
+            wait(50)
+            mouseClick(ground, 8, 8, Qt.RightButton)
+            compare(groundItems.count, 0)
+
+            manager.tab = "doodad"
+            manager.setDoodadCell(0, 13614, false)
+            const doodad = findChild(manager.contentItem, "brushManagerDoodadCell0")
+            wait(50)
+            mouseClick(doodad, 8, 8, Qt.RightButton)
+            compare(manager.doodadCellItems[0], [])
+
+            manager.tab = "wall"
+            manager.wallIds = [13614]
+            const wall = findChild(manager.contentItem, "brushManagerWallSlot0")
+            wait(50)
+            mouseClick(wall, 8, 8, Qt.RightButton)
+            compare(manager.wallIds[0], 0)
+            compare(manager.selectedServerIds, [])
+        }
+        function test_revealAdvancedSprite_data() {
+            return [
+                {tag: "wall", kind: "walls", name: "advancedBrushVariant0", dirty: true},
+                {tag: "clean-wall", kind: "walls", name: "advancedBrushVariant0", dirty: false},
+                {tag: "carpet", kind: "carpets", name: "advancedBrushVariant0", dirty: true},
+                {tag: "resume-carpet-from-wall-button", kind: "carpets", reopenKind: "walls", name: "advancedBrushVariant0", dirty: true},
+                {tag: "single", kind: "doodads", name: "advancedBrushVariant0", dirty: true},
+                {tag: "unassigned", kind: "walls", name: "advancedBrushUnassigned0", dirty: true},
+                {tag: "composite", kind: "doodads", name: "advancedBrushCompositeTile0", dirty: true}
+            ]
+        }
+        function test_revealAdvancedSprite(data) {
+            const editor = advancedEditor(data.kind)
+            editor.addIds([13614])
+            editor.unassigned = [[13614, 1]]
+            if (data.kind === "doodads") {
+                editor.addComposite(false)
+                editor.change(value => { value.alternates[0].composites[0].tiles[0].items = [13610, 13614] })
+            }
+            editor.dirty = data.dirty
+            const draft = JSON.stringify(editor.draft)
+            tryVerify(() => findChild(editor.contentItem, data.name) !== null)
+            const sprite = findChild(editor.contentItem, data.name)
+            verify(sprite)
+            wait(50)
+            mouseDoubleClickSequence(sprite, 8, 8)
+            tryCompare(editor, "visible", false)
+            compare(manager.opened, true)
+            compare(manager.selectedServerIds, [13614])
+            compare(JSON.stringify(editor.draft), draft)
+            compare(editor.dirty, data.dirty)
+            editor.kind = data.reopenKind || data.kind
+            editor.open()
+            tryCompare(editor, "opened", true)
+            compare(editor.kind, data.kind)
+            compare(JSON.stringify(editor.draft), draft)
+            compare(editor.unassigned, [[13614, 1]])
+            compare(editor.dirty, data.dirty)
+            editor.dirty = false
+            editor.close()
+        }
+        function test_missingAdvancedSpriteKeepsDraft() {
+            const editor = advancedEditor("walls")
+            editor.addIds([65535])
+            const draft = JSON.stringify(editor.draft)
+            tryVerify(() => findChild(editor.contentItem, "advancedBrushVariant0") !== null)
+            wait(50)
+            mouseDoubleClickSequence(findChild(editor.contentItem, "advancedBrushVariant0"), 8, 8)
+            compare(editor.opened, true)
+            compare(editor.dirty, true)
+            compare(JSON.stringify(editor.draft), draft)
+            compare(manager.selectedServerIds, [])
+            editor.dirty = false
+            editor.close()
         }
 
         function test_manager() {

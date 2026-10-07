@@ -846,6 +846,7 @@ DmeDialog {
                     DmeButton {
                         text: "New"
                         width: 70
+                        height: tilesetCombo.height
                         onClicked: {
                             root.curTileset = "";
                             tilesetCombo.currentIndex = -1;
@@ -868,12 +869,14 @@ DmeDialog {
                     DmeButton {
                         text: root.curTileset === "" ? "Create" : "Rename"
                         width: 90
+                        height: tilesetNameField.height
                         enabled: tilesetNameField.text.trim() !== ""
                         onClicked: root.saveTilesetName()
                     }
                     DmeButton {
                         text: "Delete tileset"
                         width: 110
+                        height: tilesetNameField.height
                         variant: "danger"
                         enabled: root.curTileset !== ""
                         onClicked: {

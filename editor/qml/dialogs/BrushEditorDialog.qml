@@ -838,6 +838,7 @@ DmeDialog {
                     Text { text: "Tileset"; color: root.mutedColor; anchors.verticalCenter: parent.verticalCenter }
                     DmeComboBox {
                         id: tilesetCombo
+                        objectName: "brushManagerTilesetCombo"
                         width: 220
                         model: root.tilesetNames
                         onActivated: index => root.loadTileset(index >= 0 ? root.tilesetNames[index] : "")

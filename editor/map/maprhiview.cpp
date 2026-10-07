@@ -369,6 +369,10 @@ public:
                 light.enabled = true;
                 ++m_lightVer;
             } else if (!light.enabled) {
+                // Floor grids are cached separately, but the backend has one
+                // shared light texture. Restore this floor's pixels when it
+                // becomes active again even if its grid key has not changed.
+                light.upload = true;
                 light.enabled = true;
                 ++m_lightVer;
             }

@@ -33,6 +33,7 @@ Item {
         property int revision: 0
         property int deleteCount: 0
         property var addedIds: []
+        property var removedIds: []
         property var saved: ({})
         signal tilesetsChanged()
         function namesFor(category) { return Object.keys(saved[category] || {}).sort() }
@@ -64,6 +65,7 @@ Item {
             return true
         }
         function removeItem(category, name, id) {
+            removedIds = removedIds.concat([id])
             const copy = JSON.parse(JSON.stringify(saved))
             copy[category][name] = copy[category][name].filter(value => value !== id)
             changeSaved(copy)
@@ -96,6 +98,7 @@ Item {
             Backend.uiTheme.style = "gray-dark"
             tilesets.deleteCount = 0
             tilesets.addedIds = []
+            tilesets.removedIds = []
             tilesets.saved = ({})
             items.clear()
             for (const id of [13610, 13614, 13618])
@@ -285,6 +288,260 @@ Item {
             compare(tilesets.addedIds, [13610])
         }
 
+        // Deliberately unsorted IDs: Shift follows the displayed grid order.
+        readonly property var selectionIds: [13618, 13610, 13614, 13630, 13622, 13626,
+                                            13642, 13634, 13638, 13654, 13646, 13650]
+        function loadSelectionTileset() {
+            tilesets.changeSaved({terrain: {Test: selectionIds.slice(), Other: [13610, 13614]},
+                                  raw: {Test: [13618, 13610]}})
+            manager.refreshTilesets("Test")
+            const grid = findChild(manager, "brushManagerTilesetGrid")
+            verify(grid)
+            grid.forceLayout()
+            verify(waitForRendering(grid))
+            return grid
+        }
+        function clickTilesetItem(index, modifiers) {
+            const grid = findChild(manager, "brushManagerTilesetGrid")
+            tryVerify(() => grid.itemAtIndex(index) !== null)
+            mouseClick(grid.itemAtIndex(index), 8, 8, Qt.LeftButton, modifiers || Qt.NoModifier)
+        }
+        function verifyTilesetHighlights() {
+            const grid = findChild(manager, "brushManagerTilesetGrid")
+            for (let i = 0; i < grid.count; ++i) {
+                const cell = grid.itemAtIndex(i)
+                verify(cell)
+                const selected = manager.selectedTilesetItems.indexOf(selectionIds[i]) >= 0
+                compare(cell.selected, selected)
+                compare(cell.border.width, selected ? 2 : 1)
+                compare(cell.border.color, selected ? manager.accentColor : manager.borderColor)
+            }
+        }
+        function test_tilesetCtrlSelection_data() {
+            return ["classic", "windows-classic", "github", "gray-dark",
+                    "gray-modern", "fluent-dark"].map(theme => ({tag: theme, theme}))
+        }
+        function test_tilesetCtrlSelection(data) {
+            Backend.uiTheme.style = data.theme
+            loadSelectionTileset()
+            const remove = findChild(manager, "brushManagerRemoveSelected")
+            compare(remove.enabled, false)
+            clickTilesetItem(1)
+            compare(manager.selectedTilesetItems, [13610])
+            compare(remove.enabled, true)
+            clickTilesetItem(3, Qt.ControlModifier)
+            compare(manager.selectedTilesetItems, [13610, 13630])
+            compare(remove.text, "Remove selected (2)")
+            verifyTilesetHighlights()
+            clickTilesetItem(1, Qt.ControlModifier)
+            compare(manager.selectedTilesetItems, [13630])
+            compare(remove.text, "Remove selected")
+            clickTilesetItem(3, Qt.ControlModifier)
+            compare(manager.selectedTilesetItems, [])
+            compare(remove.enabled, false)
+            verifyTilesetHighlights()
+            clickTilesetItem(2)
+            clickTilesetItem(4, Qt.ControlModifier)
+            clickTilesetItem(0)
+            compare(manager.selectedTilesetItems, [13618])
+            verifyTilesetHighlights()
+            compare(manager.selectedServerIds, [])
+        }
+        function test_tilesetShiftSelection_data() {
+            return [
+                {tag: "forward", anchor: 1, end: 11},
+                {tag: "reverse", anchor: 11, end: 1}
+            ]
+        }
+        function test_tilesetShiftSelection(data) {
+            loadSelectionTileset()
+            clickTilesetItem(data.anchor)
+            clickTilesetItem(data.end, Qt.ShiftModifier)
+            compare(manager.selectedTilesetItems, selectionIds.slice(1, 12))
+            compare(manager.tilesetSelectionAnchor, data.anchor)
+            verifyTilesetHighlights()
+            // The original anchor remains fixed when adjusting the range.
+            clickTilesetItem(4, Qt.ShiftModifier)
+            compare(manager.selectedTilesetItems,
+                    selectionIds.slice(Math.min(data.anchor, 4), Math.max(data.anchor, 4) + 1))
+            compare(manager.tilesetSelectionAnchor, data.anchor)
+            verifyTilesetHighlights()
+        }
+        function test_tilesetCtrlShiftSelection() {
+            loadSelectionTileset()
+            clickTilesetItem(0)
+            clickTilesetItem(3, Qt.ControlModifier)
+            clickTilesetItem(5, Qt.ControlModifier | Qt.ShiftModifier)
+            compare(manager.selectedTilesetItems, [13618, 13630, 13622, 13626])
+            compare(manager.tilesetSelectionAnchor, 3)
+            verifyTilesetHighlights()
+            clickTilesetItem(4, Qt.ShiftModifier)
+            compare(manager.selectedTilesetItems, [13630, 13622])
+            verifyTilesetHighlights()
+        }
+        function test_tilesetShiftWithoutAnchor() {
+            loadSelectionTileset()
+            clickTilesetItem(2, Qt.ShiftModifier)
+            compare(manager.selectedTilesetItems, [13614])
+            compare(manager.tilesetSelectionAnchor, 2)
+            clickTilesetItem(4, Qt.ShiftModifier)
+            compare(manager.selectedTilesetItems, [13614, 13630, 13622])
+        }
+        function test_removeSelectedTilesetItems_data() {
+            return [{tag: "ctrl", modifiers: Qt.ControlModifier, removed: [13610, 13630]},
+                    {tag: "shift", modifiers: Qt.ShiftModifier, removed: [13610, 13614, 13630]}]
+        }
+        function test_removeSelectedTilesetItems(data) {
+            loadSelectionTileset()
+            manager.selectPickerItem(13618, 2, Qt.NoModifier)
+            clickTilesetItem(1)
+            clickTilesetItem(3, data.modifiers)
+            const remove = findChild(manager, "brushManagerRemoveSelected")
+            mouseClick(remove, remove.width / 2, remove.height / 2)
+            // The mock emits tilesetsChanged synchronously for every removal.
+            compare(tilesets.removedIds, data.removed)
+            const remaining = selectionIds.filter(id => data.removed.indexOf(id) < 0)
+            compare(tilesets.itemsFor("terrain", "Test"), remaining)
+            compare(manager.tilesetItems, remaining)
+            compare(tilesets.itemsFor("terrain", "Other"), [13610, 13614])
+            compare(tilesets.itemsFor("raw", "Test"), [13618, 13610])
+            compare(manager.selectedServerIds, [13618])
+            compare(manager.selectedTilesetItems, [])
+            compare(manager.tilesetSelectionAnchor, -1)
+            compare(remove.enabled, false)
+            manager.removeSelectedFromTileset()
+            compare(tilesets.removedIds, data.removed)
+        }
+        function test_removeAllTilesetItems() {
+            loadSelectionTileset()
+            clickTilesetItem(0)
+            clickTilesetItem(selectionIds.length - 1, Qt.ShiftModifier)
+            manager.removeSelectedFromTileset()
+            compare(tilesets.removedIds, selectionIds)
+            compare(manager.tilesetItems, [])
+            compare(manager.selectedTilesetItems, [])
+            compare(manager.curTileset, "Test")
+            compare(findChild(manager, "brushManagerRemoveSelected").enabled, false)
+        }
+
+        function test_deleteSelectedTilesetItems_data() {
+            return [
+                {tag: "single", modifiers: Qt.NoModifier, removed: [13610]},
+                {tag: "ctrl", modifiers: Qt.ControlModifier, removed: [13610, 13630]},
+                {tag: "shift", modifiers: Qt.ShiftModifier, removed: [13610, 13614, 13630]}
+            ]
+        }
+        function test_deleteSelectedTilesetItems(data) {
+            const grid = loadSelectionTileset()
+            clickTilesetItem(1)
+            if (data.modifiers !== Qt.NoModifier)
+                clickTilesetItem(3, data.modifiers)
+            verify(grid.activeFocus)
+            keyClick(Qt.Key_Delete)
+            compare(tilesets.removedIds, data.removed)
+            compare(manager.tilesetItems, selectionIds.filter(id => data.removed.indexOf(id) < 0))
+            compare(tilesets.itemsFor("terrain", "Other"), [13610, 13614])
+            compare(tilesets.itemsFor("raw", "Test"), [13618, 13610])
+            compare(manager.selectedTilesetItems, [])
+            compare(manager.tilesetSelectionAnchor, -1)
+            compare(findChild(manager, "brushManagerRemoveSelected").enabled, false)
+            verify(grid.activeFocus)
+            keyClick(Qt.Key_Delete)
+            compare(tilesets.removedIds, data.removed)
+        }
+        function test_deleteWithoutTilesetSelection() {
+            const grid = loadSelectionTileset()
+            clickTilesetItem(1)
+            clickTilesetItem(1, Qt.ControlModifier)
+            verify(grid.activeFocus)
+            keyClick(Qt.Key_Delete)
+            compare(tilesets.removedIds, [])
+            compare(manager.tilesetItems, selectionIds)
+        }
+        function test_deleteEditsText_data() {
+            const rows = []
+            for (const theme of ["classic", "windows-classic", "github", "gray-dark",
+                                 "gray-modern", "fluent-dark"])
+                for (const field of ["brushManagerTilesetName", "brushManagerPickerSearch"])
+                    rows.push({tag: theme + "-" + field, theme, field})
+            return rows
+        }
+        function test_deleteEditsText(data) {
+            Backend.uiTheme.style = data.theme
+            const grid = loadSelectionTileset()
+            clickTilesetItem(1)
+            clickTilesetItem(3, Qt.ControlModifier)
+            const field = findChild(manager, data.field)
+            field.text = "Test"
+            mouseClick(field, field.width / 2, field.height / 2)
+            verify(!grid.activeFocus)
+            keyClick(Qt.Key_Home)
+            keyClick(Qt.Key_Delete)
+            compare(field.text, "est")
+            compare(tilesets.removedIds, [])
+            compare(manager.tilesetItems, selectionIds)
+            compare(manager.selectedTilesetItems, [13610, 13630])
+        }
+        function test_deleteIsScopedToTilesetGrid_data() {
+            return [{tag: "picker"}, {tag: "other-tab"}, {tag: "child-dialog"}]
+        }
+        function test_deleteIsScopedToTilesetGrid(data) {
+            const grid = loadSelectionTileset()
+            clickTilesetItem(1)
+            verify(grid.activeFocus)
+            if (data.tag === "picker") {
+                mouseClick(pickerCell(0), 8, 8)
+                verify(findChild(manager, "brushManagerPickerGrid").activeFocus)
+                verify(!grid.activeFocus)
+            } else if (data.tag === "other-tab") {
+                manager.tab = "ground"
+            } else {
+                const dialog = dialogWithTitle(manager, "New Doodad Palette")
+                dialog.open()
+                tryCompare(dialog, "opened", true)
+            }
+            keyClick(Qt.Key_Delete)
+            compare(tilesets.removedIds, [])
+            compare(manager.tilesetItems, selectionIds)
+            compare(manager.selectedTilesetItems, [13610])
+        }
+        function test_tilesetSelectionReset_data() {
+            return [{tag: "switch"}, {tag: "reload"}, {tag: "new"}, {tag: "category"}]
+        }
+        function test_tilesetSelectionReset(data) {
+            loadSelectionTileset()
+            clickTilesetItem(0)
+            clickTilesetItem(3, Qt.ShiftModifier)
+            switch (data.tag) {
+            case "switch":
+                manager.loadTileset("Other")
+                break
+            case "reload":
+                tilesets.addItems("terrain", "Test", [13658])
+                break
+            case "new": {
+                const button = findChild(manager, "brushManagerNewTileset")
+                mouseClick(button, button.width / 2, button.height / 2)
+                compare(manager.curTileset, "")
+                compare(manager.tilesetItems, [])
+                break
+            }
+            case "category":
+                findChild(manager, "brushManagerTilesetCategoryCombo").activated(3)
+                compare(manager.tilesetCategory, "raw")
+                compare(manager.tilesetItems, [13618, 13610])
+                break
+            }
+            compare(manager.selectedTilesetItems, [])
+            compare(manager.tilesetSelectionAnchor, -1)
+            compare(findChild(manager, "brushManagerRemoveSelected").enabled, false)
+            if (data.tag !== "new") {
+                clickTilesetItem(1, Qt.ShiftModifier)
+                compare(manager.selectedTilesetItems, [Number(manager.tilesetItems[1])])
+                compare(manager.tilesetSelectionAnchor, 1)
+            }
+        }
+
         function test_revealTilesetSprite_data() {
             return ["classic", "windows-classic", "github", "gray-dark",
                     "gray-modern", "fluent-dark"].map(theme => ({tag: theme, theme}))
@@ -313,7 +570,10 @@ Item {
             compare(manager.pickerSelectionAnchor, 1)
             compare(grid.currentIndex, 1)
             compare(pickerCell(1).selected, true)
-            compare(manager.selectedTilesetItem, 13614)
+            compare(manager.selectedTilesetItems, [13614])
+            verify(grid.activeFocus)
+            keyClick(Qt.Key_Delete)
+            compare(tilesets.removedIds, [])
             compare(tilesets.itemsFor("terrain", "Test"), [13614])
             compare(tilesets.addedIds, [])
         }
@@ -323,6 +583,23 @@ Item {
                 {tag: "only-search-blocks", search: "13614", target: 13618, expectedSearch: "", hidden: true},
                 {tag: "only-visibility-blocks", search: "13614", target: 13614, expectedSearch: "13614", hidden: false}
             ]
+        }
+        function test_revealThenDeleteMultipleTilesetItems() {
+            const tilesetGrid = loadSelectionTileset()
+            mouseDoubleClickSequence(tilesetGrid.itemAtIndex(2), 8, 8)
+            compare(manager.selectedServerIds, [13614])
+            compare(manager.selectedTilesetItems, [13614])
+            verify(findChild(manager, "brushManagerPickerGrid").activeFocus)
+            keyClick(Qt.Key_Delete)
+            compare(tilesets.removedIds, [])
+
+            clickTilesetItem(1, Qt.ControlModifier)
+            compare(manager.selectedTilesetItems, [13614, 13610])
+            verify(tilesetGrid.activeFocus)
+            keyClick(Qt.Key_Delete)
+            compare(tilesets.removedIds, [13614, 13610])
+            compare(manager.tilesetItems, selectionIds.filter(id => id !== 13614 && id !== 13610))
+            compare(manager.selectedServerIds, [13614])
         }
         function test_revealPreservesMatchingFilters(data) {
             const search = findChild(manager, "brushManagerPickerSearch")

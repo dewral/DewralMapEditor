@@ -41,7 +41,8 @@ DmeDialog {
     property var tilesetNames: []
     property var tilesetItems: []
     property string curTileset: ""
-    property int selectedTilesetItem: 0
+    property var selectedTilesetItems: []
+    property int tilesetSelectionAnchor: -1
 
     // Cache memberships for the current tileset revision.
     readonly property var pickerTilesetsByItem: {
@@ -211,7 +212,8 @@ DmeDialog {
         tilesetNameField.text = curTileset;
         tilesetItems = curTileset === "" ? []
                                            : Backend.tilesetStore.itemsFor(tilesetCategory, curTileset);
-        selectedTilesetItem = 0;
+        selectedTilesetItems = [];
+        tilesetSelectionAnchor = -1;
     }
 
     function saveTilesetName() {
@@ -298,11 +300,48 @@ DmeDialog {
                            ? serverId : (selection.length > 0 ? selection[selection.length - 1] : 0);
     }
 
-    function removeSelectedFromTileset() {
-        if (curTileset === "" || selectedTilesetItem <= 0)
+    function selectTilesetItem(index, modifiers) {
+        if (index < 0 || index >= tilesetItems.length)
             return;
-        if (Backend.tilesetStore.removeItem(tilesetCategory, curTileset, selectedTilesetItem))
-            loadTileset(curTileset);
+        var serverId = Number(tilesetItems[index]);
+        var ctrl = (modifiers & Qt.ControlModifier) !== 0;
+        var shift = (modifiers & Qt.ShiftModifier) !== 0;
+        var selection = ctrl ? selectedTilesetItems.slice() : [];
+
+        if (shift && tilesetSelectionAnchor >= 0 && tilesetSelectionAnchor < tilesetItems.length) {
+            var first = Math.min(tilesetSelectionAnchor, index);
+            var last = Math.max(tilesetSelectionAnchor, index);
+            for (var i = first; i <= last; ++i) {
+                var rangeId = Number(tilesetItems[i]);
+                if (selection.indexOf(rangeId) < 0)
+                    selection.push(rangeId);
+            }
+        } else if (ctrl) {
+            var existing = selection.indexOf(serverId);
+            if (existing >= 0)
+                selection.splice(existing, 1);
+            else
+                selection.push(serverId);
+            tilesetSelectionAnchor = index;
+        } else {
+            selection = [serverId];
+            tilesetSelectionAnchor = index;
+        }
+
+        selectedTilesetItems = selection;
+    }
+
+    function removeSelectedFromTileset() {
+        if (curTileset === "" || selectedTilesetItems.length === 0)
+            return;
+        // Each removal emits tilesetsChanged and clears the grid selection.
+        var selection = selectedTilesetItems.slice();
+        var category = tilesetCategory;
+        var name = curTileset;
+        for (var i = 0; i < selection.length; ++i) {
+            if (!Backend.tilesetStore.removeItem(category, name, selection[i]))
+                break;
+        }
     }
 
     function refreshDoodads(preferredPalette, preferredName) {
@@ -780,6 +819,7 @@ DmeDialog {
                             hoverEnabled: true
                             drag.target: dragGhost
                             onPressed: mouse => {
+                                pickerGrid.forceActiveFocus();
                                 root.selectPickerItem(parent.sid, index, mouse.modifiers);
                                 dragGhost.sid = parent.sid;
                                 dragGhost.source = parent.children[0].source;
@@ -941,7 +981,7 @@ DmeDialog {
                 }
                 Text {
                     width: parent.width
-                    text: "Organize the categories shown in every palette. Use Ctrl to select individual items and Shift to select a range, then double-click or use Add selected."
+                    text: "Organize the categories shown in every palette. Use Ctrl to select individual items and Shift to select a range in either grid. Double-click picker items or use Add selected to add them; press Delete or use Remove selected to remove tileset items."
                     color: root.mutedColor
                     font.pixelSize: 11
                     wrapMode: Text.WordWrap
@@ -952,6 +992,7 @@ DmeDialog {
                     Text { text: "Palette"; color: root.mutedColor; anchors.verticalCenter: parent.verticalCenter }
                     DmeComboBox {
                         id: tilesetCategoryCombo
+                        objectName: "brushManagerTilesetCategoryCombo"
                         width: 150
                         model: root.tilesetCategoryLabels
                         currentIndex: 0
@@ -971,13 +1012,12 @@ DmeDialog {
                     }
                     DmeButton {
                         text: "New"
+                        objectName: "brushManagerNewTileset"
                         width: 70
                         height: tilesetCombo.height
                         onClicked: {
-                            root.curTileset = "";
+                            root.loadTileset("");
                             tilesetCombo.currentIndex = -1;
-                            tilesetNameField.text = "";
-                            root.tilesetItems = [];
                             tilesetNameField.forceActiveFocus();
                         }
                     }
@@ -988,6 +1028,7 @@ DmeDialog {
                     Text { text: root.curTileset === "" ? "New name" : "Name"; color: root.mutedColor; anchors.verticalCenter: parent.verticalCenter }
                     DmeTextField {
                         id: tilesetNameField
+                        objectName: "brushManagerTilesetName"
                         width: 260
                         placeholderText: "Tileset name"
                         onAccepted: root.saveTilesetName()
@@ -1040,17 +1081,23 @@ DmeDialog {
                             cellWidth: 76
                             cellHeight: 82
                             model: root.tilesetItems
+                            Keys.enabled: root.tab === "tilesets"
+                            Keys.onDeletePressed: event => {
+                                root.removeSelectedFromTileset();
+                                event.accepted = true;
+                            }
 
                             delegate: Rectangle {
                                 required property var modelData
                                 required property int index
+                                readonly property bool selected: root.selectedTilesetItems.indexOf(Number(modelData)) >= 0
                                 width: 70
                                 height: 76
                                 radius: root.modernUi ? 5 : 0
-                                color: root.selectedTilesetItem === Number(modelData)
+                                color: selected
                                        ? (root.grayUi ? "#4A3A1F" : "#163B2C") : root.cellColor
-                                border.width: root.selectedTilesetItem === Number(modelData) ? 2 : 1
-                                border.color: root.selectedTilesetItem === Number(modelData)
+                                border.width: selected ? 2 : 1
+                                border.color: selected
                                               ? root.accentColor : root.borderColor
                                 Image {
                                     anchors.horizontalCenter: parent.horizontalCenter
@@ -1074,7 +1121,10 @@ DmeDialog {
                                 MouseArea {
                                     anchors.fill: parent
                                     hoverEnabled: true
-                                    onClicked: root.selectedTilesetItem = Number(modelData)
+                                    onClicked: mouse => {
+                                        tilesetGrid.forceActiveFocus();
+                                        root.selectTilesetItem(index, mouse.modifiers);
+                                    }
                                     onDoubleClicked: root.revealPickerItem(modelData)
                                     ToolTip.visible: containsMouse
                                     ToolTip.delay: 500
@@ -1105,9 +1155,12 @@ DmeDialog {
                                 onClicked: root.addSelectedToTileset()
                             }
                             DmeButton {
-                                text: "Remove selected"
-                                width: 130
-                                enabled: root.selectedTilesetItem > 0
+                                objectName: "brushManagerRemoveSelected"
+                                text: root.selectedTilesetItems.length > 1
+                                      ? "Remove selected (" + root.selectedTilesetItems.length + ")"
+                                      : "Remove selected"
+                                width: root.selectedTilesetItems.length > 1 ? 155 : 130
+                                enabled: root.curTileset !== "" && root.selectedTilesetItems.length > 0
                                 onClicked: root.removeSelectedFromTileset()
                             }
                             Text {

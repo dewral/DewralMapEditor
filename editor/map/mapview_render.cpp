@@ -270,7 +270,7 @@ void MapView::computeLightChunk(int floor, int cx, int cy, std::vector<uint32_t>
                         const int cid = m_otb->clientIdForServerId(it.server_id);
                         if (cid <= 0) continue;
                         const ClientItem *ci = m_dat->itemByClientId(static_cast<uint16_t>(cid));
-                        if (!ci || !ci->has_light || ci->light_level == 0) continue;
+                        if (!ci || !ci->has(ClientProperty::Light) || ci->light_level == 0) continue;
                         lights.push_back({ t->x, t->y,
                                            static_cast<uint8_t>(ci->light_color),
                                            static_cast<uint8_t>(std::min<int>(ci->light_level, 255)) });
@@ -464,7 +464,7 @@ void MapView::renderBuildPreviewLightGrid(int firstFloor, int lastFloor,
                         if (client
                             && (item.is_ground
                                 || m_otb->isClientGroundForServerId(item.server_id))
-                            && !client->is_translucent) {
+                            && !client->has(ClientProperty::Translucent)) {
                             lightStarts[static_cast<size_t>(screenY - ty) * tw
                                         + (screenX - tx)] = floorLightStart;
                             break;
@@ -485,7 +485,7 @@ void MapView::renderBuildPreviewLightGrid(int firstFloor, int lastFloor,
                         const ClientItem *client = clientId > 0
                             ? m_dat->itemByClientId(static_cast<uint16_t>(clientId))
                             : nullptr;
-                        if (client && client->has_light && client->light_level > 0) {
+                        if (client && client->has(ClientProperty::Light) && client->light_level > 0) {
                             lights.push_back({tile->x + floorOffset,
                                               tile->y + floorOffset, client->light_color,
                                               qMin<int>(client->light_level, 255)});
@@ -745,15 +745,15 @@ void MapView::renderCollectWallOutlineInstances(std::vector<float> &out)
         const int clientId = m_otb->clientIdForServerId(serverId);
         const ClientItem *item = clientId > 0
             ? m_dat->itemByClientId(static_cast<uint16_t>(clientId)) : nullptr;
-        if (!item || item->is_ground || item->is_pickupable) return 0;
+        if (!item || item->has(ClientProperty::Ground) || item->has(ClientProperty::Pickup)) return 0;
 
         uint8_t axes = 0;
-        if (item->is_vertical) axes |= horizontalAxis;
-        if (item->is_horizontal) axes |= verticalAxis;
+        if (item->has(ClientProperty::SouthHook)) axes |= horizontalAxis;
+        if (item->has(ClientProperty::EastHook)) axes |= verticalAxis;
         if (axes != 0) return axes;
 
-        if (item->is_unpassable && item->is_unmoveable
-            && (item->blocks_missiles || item->blocks_pathfinder)) {
+        if (item->has(ClientProperty::Solid) && item->has(ClientProperty::Fixed)
+            && (item->has(ClientProperty::MissileBlock) || item->has(ClientProperty::PathBlock))) {
             return inferredAxes;
         }
         return 0;

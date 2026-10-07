@@ -127,8 +127,8 @@ void MapView::appendItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out,
 
         const bool isTop = (idx == topIdx) && tile->creature_name.isEmpty();
 
-        const int ox = ci->has_offset ? ci->offset_x : 0;
-        const int oy = ci->has_offset ? ci->offset_y : 0;
+        const int ox = ci->has(ClientProperty::Offset) ? ci->offset_x : 0;
+        const int oy = ci->has(ClientProperty::Offset) ? ci->offset_y : 0;
 
         if (animated && ci->frames > 1) *animated = true;
         const int fr = itemFrame(ci);
@@ -152,7 +152,7 @@ void MapView::appendItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out,
                                  : 0 });
                 }
 
-        if (ci->has_elevation) elevation += ci->elevation;
+        if (ci->has(ClientProperty::Elevation)) elevation += ci->elevation;
     }
 
     if (m_showCreatures && !tile->creature_name.isEmpty() && m_creatureStore && m_dat) {
@@ -203,10 +203,10 @@ void MapView::appendTopItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out
         const int w = std::max<int>(1, ci->width);
         const int h = std::max<int>(1, ci->height);
         const int layers = std::max<int>(1, ci->layers);
-        const int ox = ci->has_offset ? ci->offset_x : 0;
-        const int oy = ci->has_offset ? ci->offset_y : 0;
+        const int ox = ci->has(ClientProperty::Offset) ? ci->offset_x : 0;
+        const int oy = ci->has(ClientProperty::Offset) ? ci->offset_y : 0;
         const int elev = elevation;
-        if (ci->has_elevation) elevation += ci->elevation;
+        if (ci->has(ClientProperty::Elevation)) elevation += ci->elevation;
 
         const int fr = itemFrame(ci);
 

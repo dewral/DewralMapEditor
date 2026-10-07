@@ -4,13 +4,14 @@
 #include <QFile>
 #include <QString>
 #include <QByteArray>
+#include <QDataStream>
 #include <cstdint>
 #include <vector>
 
 class BinaryReader
 {
 public:
-    BinaryReader() = default;
+    BinaryReader();
     explicit BinaryReader(const QString &path);
     ~BinaryReader();
 
@@ -43,15 +44,18 @@ public:
     size_t remaining() const;
     bool eof() const;
 
-    bool good() const { return !m_error && m_file.isOpen() && !m_file.error(); }
+    bool good() const { return !m_error && m_file.isOpen() && m_stream.status() == QDataStream::Ok; }
     bool hasError() const { return m_error; }
     const QString &getError() const { return m_errorMessage; }
     void clearError();
 
 private:
+    template<typename T> T readNumber();
+    QByteArray readBlock(size_t length);
     void setError(const QString &message);
 
     QFile m_file;
+    QDataStream m_stream;
     size_t m_fileSize = 0;
     bool m_error = false;
     QString m_errorMessage;

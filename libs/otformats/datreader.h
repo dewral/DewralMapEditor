@@ -29,7 +29,24 @@ struct ClientSpriteGroup {
     }
 };
 
+enum class ClientProperty : uint8_t {
+    Ground, Bottom, Top, Container, Stackable, Useable, Writable,
+    FluidContainer, Fluid, Solid, Fixed, MissileBlock, PathBlock, Pickup,
+    Hangable, EastHook, SouthHook, Rotatable, Light, AlwaysVisible,
+    Translucent, Offset, Elevation, Lying, Animated, Minimap, FullGround,
+    IgnoreLook, FloorChange,
+    Count
+};
+static_assert(uint8_t(ClientProperty::Count) <= 32, "Client properties must fit their bit mask");
+
 struct ClientItem {
+    uint32_t properties = 0;
+    bool has(ClientProperty property) const {
+        return (properties & (uint32_t(1) << uint8_t(property))) != 0;
+    }
+    void enable(ClientProperty property) {
+        properties |= uint32_t(1) << uint8_t(property);
+    }
     uint16_t id = 0;
 
     uint8_t width = 1;
@@ -43,44 +60,15 @@ struct ClientItem {
     std::vector<uint32_t> sprite_ids;
     std::vector<ClientSpriteGroup> sprite_groups;
 
-    bool is_ground = false;
     uint16_t ground_speed = 0;
-    bool is_on_bottom = false;
-    bool is_on_top = false;
-    bool is_container = false;
-    bool is_stackable = false;
-    bool is_useable = false;
-    bool is_writable = false;
     uint16_t max_text_length = 0;
-    bool is_fluid_container = false;
-    bool is_fluid = false;
-    bool is_unpassable = false;
-    bool is_unmoveable = false;
-    bool blocks_missiles = false;
-    bool blocks_pathfinder = false;
-    bool is_pickupable = false;
-    bool is_hangable = false;
-    bool is_horizontal = false;
-    bool is_vertical = false;
-    bool is_rotatable = false;
-    bool has_light = false;
     uint16_t light_level = 0;
     uint16_t light_color = 0;
-    bool dont_hide = false;
-    bool is_translucent = false;
-    bool has_offset = false;
     int16_t offset_x = 0;
     int16_t offset_y = 0;
-    bool has_elevation = false;
     uint16_t elevation = 0;
-    bool is_lying_object = false;
-    bool animate_always = false;
-    bool has_minimap_color = false;
     uint16_t minimap_color = 0;
-    bool full_ground = false;
-    bool ignore_look = false;
     uint16_t lens_help = 0;
-    bool floor_change = false;
 
     uint32_t previewSpriteId() const {
         return sprite_ids.empty() ? 0 : sprite_ids.front();
@@ -173,9 +161,6 @@ private:
 
     void readItemFlags(ClientItem &item, BinaryReader &reader);
     void readSpriteData(ClientItem &item, BinaryReader &reader, bool outfits);
-
-    uint8_t transformFlag(uint8_t raw) const;
-
     bool extendedSprites() const { return m_otfiActive ? m_otfiExtended : m_clientVersion >= 960; }
     bool frameDurations() const  { return m_otfiActive ? m_otfiFrameDurations : m_clientVersion >= 1050; }
     bool frameGroups() const     { return m_otfiActive ? m_otfiFrameGroups : m_clientVersion >= 1057; }

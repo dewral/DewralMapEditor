@@ -1,8 +1,7 @@
 #include "datreader.h"
-#include "canonicalflags.h"
+#include "datattributes.h"
 #include <algorithm>
 
-using namespace CanonicalFlags;
 
 namespace {
 
@@ -27,60 +26,38 @@ void addRow(QVariantList &rows, const QString &name, const QVariant &value)
 QStringList collectDatFlags(const ClientItem &item)
 {
     QStringList flags;
-    if (item.is_ground) flags << QStringLiteral("Ground");
-    if (item.is_on_bottom) flags << QStringLiteral("On bottom");
-    if (item.is_on_top) flags << QStringLiteral("On top");
-    if (item.is_container) flags << QStringLiteral("Container");
-    if (item.is_stackable) flags << QStringLiteral("Stackable");
-    if (item.is_useable) flags << QStringLiteral("Useable");
-    if (item.is_writable) flags << QStringLiteral("Writable");
-    if (item.is_fluid_container) flags << QStringLiteral("Fluid container");
-    if (item.is_fluid) flags << QStringLiteral("Fluid");
-    if (item.is_unpassable) flags << QStringLiteral("Unpassable");
-    if (item.is_unmoveable) flags << QStringLiteral("Unmoveable");
-    if (item.blocks_missiles) flags << QStringLiteral("Blocks missiles");
-    if (item.blocks_pathfinder) flags << QStringLiteral("Blocks pathfinder");
-    if (item.is_pickupable) flags << QStringLiteral("Pickupable");
-    if (item.is_hangable) flags << QStringLiteral("Hangable");
-    if (item.is_horizontal) flags << QStringLiteral("Hook east");
-    if (item.is_vertical) flags << QStringLiteral("Hook south");
-    if (item.is_rotatable) flags << QStringLiteral("Rotatable");
-    if (item.has_light) flags << QStringLiteral("Light");
-    if (item.dont_hide) flags << QStringLiteral("Dont hide");
-    if (item.is_translucent) flags << QStringLiteral("Translucent");
-    if (item.has_offset) flags << QStringLiteral("Offset");
-    if (item.has_elevation) flags << QStringLiteral("Elevation");
-    if (item.is_lying_object) flags << QStringLiteral("Lying object");
-    if (item.animate_always) flags << QStringLiteral("Animate always");
-    if (item.has_minimap_color) flags << QStringLiteral("Minimap color");
-    if (item.full_ground) flags << QStringLiteral("Full ground");
-    if (item.ignore_look) flags << QStringLiteral("Ignore look");
-    if (item.floor_change) flags << QStringLiteral("Floor change");
+    if (item.has(ClientProperty::Ground)) flags << QStringLiteral("Ground");
+    if (item.has(ClientProperty::Bottom)) flags << QStringLiteral("On bottom");
+    if (item.has(ClientProperty::Top)) flags << QStringLiteral("On top");
+    if (item.has(ClientProperty::Container)) flags << QStringLiteral("Container");
+    if (item.has(ClientProperty::Stackable)) flags << QStringLiteral("Stackable");
+    if (item.has(ClientProperty::Useable)) flags << QStringLiteral("Useable");
+    if (item.has(ClientProperty::Writable)) flags << QStringLiteral("Writable");
+    if (item.has(ClientProperty::FluidContainer)) flags << QStringLiteral("Fluid container");
+    if (item.has(ClientProperty::Fluid)) flags << QStringLiteral("Fluid");
+    if (item.has(ClientProperty::Solid)) flags << QStringLiteral("Unpassable");
+    if (item.has(ClientProperty::Fixed)) flags << QStringLiteral("Unmoveable");
+    if (item.has(ClientProperty::MissileBlock)) flags << QStringLiteral("Blocks missiles");
+    if (item.has(ClientProperty::PathBlock)) flags << QStringLiteral("Blocks pathfinder");
+    if (item.has(ClientProperty::Pickup)) flags << QStringLiteral("Pickupable");
+    if (item.has(ClientProperty::Hangable)) flags << QStringLiteral("Hangable");
+    if (item.has(ClientProperty::EastHook)) flags << QStringLiteral("Hook east");
+    if (item.has(ClientProperty::SouthHook)) flags << QStringLiteral("Hook south");
+    if (item.has(ClientProperty::Rotatable)) flags << QStringLiteral("Rotatable");
+    if (item.has(ClientProperty::Light)) flags << QStringLiteral("Light");
+    if (item.has(ClientProperty::AlwaysVisible)) flags << QStringLiteral("Dont hide");
+    if (item.has(ClientProperty::Translucent)) flags << QStringLiteral("Translucent");
+    if (item.has(ClientProperty::Offset)) flags << QStringLiteral("Offset");
+    if (item.has(ClientProperty::Elevation)) flags << QStringLiteral("Elevation");
+    if (item.has(ClientProperty::Lying)) flags << QStringLiteral("Lying object");
+    if (item.has(ClientProperty::Animated)) flags << QStringLiteral("Animate always");
+    if (item.has(ClientProperty::Minimap)) flags << QStringLiteral("Minimap color");
+    if (item.has(ClientProperty::FullGround)) flags << QStringLiteral("Full ground");
+    if (item.has(ClientProperty::IgnoreLook)) flags << QStringLiteral("Ignore look");
+    if (item.has(ClientProperty::FloorChange)) flags << QStringLiteral("Floor change");
     return flags;
 }
 
-}
-
-uint8_t DatReader::transformFlag(uint8_t raw) const
-{
-
-    if (m_clientVersion >= 1010) {
-
-        if (raw == 16) return NO_MOVE_ANIMATION;
-        if (raw > 16)  return raw - 1;
-        return raw;
-    }
-    if (m_clientVersion >= 860) {
-        return raw;
-    }
-    if (m_clientVersion >= 780) {
-
-        if (raw == 8) return CHARGEABLE;
-        if (raw > 8)  return raw - 1;
-        return raw;
-    }
-
-    return (raw == 23) ? FLOOR_CHANGE : raw;
 }
 
 void DatReader::setClientVersion(int v)
@@ -160,6 +137,10 @@ bool DatReader::loadFile(const QString &path, quint32 expectedSignature)
     readCategory(reader, &outfits, 1, maxOutfitId, true);
     readCategory(reader, &effects, 1, maxEffectId);
     readCategory(reader, nullptr, 1, maxMissileId);
+    if (!reader.good()) {
+        setError(QStringLiteral("Failed to parse DAT categories: %1").arg(reader.getError()));
+        return false;
+    }
 
     beginResetModel();
     m_items = std::move(items);
@@ -199,138 +180,32 @@ void DatReader::readCategory(BinaryReader &reader,
 
 void DatReader::readItemFlags(ClientItem &item, BinaryReader &reader)
 {
-    while (true) {
-        const uint8_t rawFlag = reader.readU8();
-        if (!reader.good()) break;
-        if (rawFlag == LAST) break;
-
-        const uint8_t flag = transformFlag(rawFlag);
-
-        switch (flag) {
-        case GROUND:
-            item.is_ground = true;
-            item.ground_speed = reader.readU16();
-            break;
-        case GROUND_BORDER:
-        case ON_BOTTOM:
-            item.is_on_bottom = true;
-            break;
-        case ON_TOP:
-            item.is_on_top = true;
-            break;
-        case CONTAINER:
-            item.is_container = true;
-            break;
-        case STACKABLE:
-            item.is_stackable = true;
-            break;
-        case FORCE_USE:
-            break;
-        case MULTI_USE:
-            item.is_useable = true;
-            break;
-        case WRITABLE:
-        case WRITABLE_ONCE:
-            item.is_writable = true;
-            item.max_text_length = reader.readU16();
-            break;
-        case FLUID_CONTAINER:
-            item.is_fluid_container = true;
-            break;
-        case FLUID:
-            item.is_fluid = true;
-            break;
-        case UNPASSABLE:
-            item.is_unpassable = true;
-            break;
-        case UNMOVEABLE:
-            item.is_unmoveable = true;
-            break;
-        case BLOCK_MISSILE:
-            item.blocks_missiles = true;
-            break;
-        case BLOCK_PATHFINDER:
-            item.blocks_pathfinder = true;
-            break;
-        case PICKUPABLE:
-            item.is_pickupable = true;
-            break;
-        case HANGABLE:
-            item.is_hangable = true;
-            break;
-        case HOOK_SOUTH:
-            item.is_vertical = true;
-            break;
-        case HOOK_EAST:
-            item.is_horizontal = true;
-            break;
-        case ROTATABLE:
-            item.is_rotatable = true;
-            break;
-        case HAS_LIGHT:
-            item.has_light = true;
+    using namespace DatAttributes;
+    while (reader.good()) {
+        const auto wire = reader.readU8();
+        if (!reader.good() || wire == 255) return;
+        const auto &rule = schema()[canonicalCode(wire, m_clientVersion)];
+        if (rule.property != ClientProperty::Count) item.enable(rule.property);
+        switch (rule.payload) {
+        case Payload::None: break;
+        case Payload::Speed: item.ground_speed = reader.readU16(); break;
+        case Payload::Text: item.max_text_length = reader.readU16(); break;
+        case Payload::Light:
             item.light_level = reader.readU16();
             item.light_color = reader.readU16();
             break;
-        case DONT_HIDE:
-            item.dont_hide = true;
+        case Payload::Offset:
+            item.offset_x = reader.readS16();
+            item.offset_y = reader.readS16();
             break;
-        case TRANSLUCENT:
-            item.is_translucent = true;
-            break;
-        case HAS_OFFSET:
-            item.has_offset = true;
-            item.offset_x = static_cast<int16_t>(reader.readU16());
-            item.offset_y = static_cast<int16_t>(reader.readU16());
-            break;
-        case HAS_ELEVATION:
-            item.has_elevation = true;
-            item.elevation = reader.readU16();
-            break;
-        case LYING_OBJECT:
-            item.is_lying_object = true;
-            break;
-        case ANIMATE_ALWAYS:
-            item.animate_always = true;
-            break;
-        case MINI_MAP:
-            item.has_minimap_color = true;
-            item.minimap_color = reader.readU16();
-            break;
-        case LENS_HELP:
-            item.lens_help = reader.readU16();
-            break;
-        case FULL_GROUND:
-            item.full_ground = true;
-            break;
-        case IGNORE_LOOK:
-            item.ignore_look = true;
-            break;
-        case FLOOR_CHANGE:
-            item.floor_change = true;
-            break;
-
-        case CLOTH:
-            reader.readU16();
-            break;
-        case MARKET_ITEM: {
-            reader.readBytes(6);
+        case Payload::Elevation: item.elevation = reader.readU16(); break;
+        case Payload::Minimap: item.minimap_color = reader.readU16(); break;
+        case Payload::Lens: item.lens_help = reader.readU16(); break;
+        case Payload::Word: reader.readU16(); break;
+        case Payload::Market:
+            reader.skip(6);
             reader.readString();
-            reader.readBytes(4);
-            break;
-        }
-        case DEFAULT_ACTION:
-            reader.readU16();
-            break;
-        case WRAPPABLE:
-        case UNWRAPPABLE:
-        case TOP_EFFECT:
-        case CHARGEABLE:
-        case NO_MOVE_ANIMATION:
-            break;
-
-        default:
-
+            reader.skip(4);
             break;
         }
     }
@@ -598,12 +473,12 @@ QVariantMap DatReader::detailsAt(int row) const
     addRow(rows, QStringLiteral("Sprites"),      static_cast<int>(item.sprite_ids.size()));
     addRow(rows, QStringLiteral("First sprite"), static_cast<quint32>(item.previewSpriteId()));
 
-    if (item.is_ground)         addRow(rows, QStringLiteral("Ground speed"),  item.ground_speed);
-    if (item.is_writable)       addRow(rows, QStringLiteral("Max text"),       item.max_text_length);
-    if (item.has_light)         addRow(rows, QStringLiteral("Light"),          QStringLiteral("%1 / %2").arg(item.light_level).arg(item.light_color));
-    if (item.has_offset)        addRow(rows, QStringLiteral("Offset"),         QStringLiteral("%1, %2").arg(item.offset_x).arg(item.offset_y));
-    if (item.has_elevation)     addRow(rows, QStringLiteral("Elevation"),      item.elevation);
-    if (item.has_minimap_color) addRow(rows, QStringLiteral("Minimap color"),  item.minimap_color);
+    if (item.has(ClientProperty::Ground))         addRow(rows, QStringLiteral("Ground speed"),  item.ground_speed);
+    if (item.has(ClientProperty::Writable))       addRow(rows, QStringLiteral("Max text"),       item.max_text_length);
+    if (item.has(ClientProperty::Light))         addRow(rows, QStringLiteral("Light"),          QStringLiteral("%1 / %2").arg(item.light_level).arg(item.light_color));
+    if (item.has(ClientProperty::Offset))        addRow(rows, QStringLiteral("Offset"),         QStringLiteral("%1, %2").arg(item.offset_x).arg(item.offset_y));
+    if (item.has(ClientProperty::Elevation))     addRow(rows, QStringLiteral("Elevation"),      item.elevation);
+    if (item.has(ClientProperty::Minimap)) addRow(rows, QStringLiteral("Minimap color"),  item.minimap_color);
     if (item.lens_help != 0)    addRow(rows, QStringLiteral("Lens help"),      item.lens_help);
     addRow(rows, QStringLiteral("Flags"), details.value(QStringLiteral("flagsText")));
 
@@ -632,10 +507,10 @@ QVariant DatReader::data(const QModelIndex &index, int role) const
     case ItemWidthRole:      return item.width;
     case ItemHeightRole:     return item.height;
     case LayersRole:         return item.layers;
-    case IsGroundRole:       return item.is_ground;
-    case IsStackableRole:    return item.is_stackable;
-    case IsContainerRole:    return item.is_container;
-    case IsUnpassableRole:   return item.is_unpassable;
+    case IsGroundRole:       return item.has(ClientProperty::Ground);
+    case IsStackableRole:    return item.has(ClientProperty::Stackable);
+    case IsContainerRole:    return item.has(ClientProperty::Container);
+    case IsUnpassableRole:   return item.has(ClientProperty::Solid);
     default:                 return QVariant();
     }
 }

@@ -1,156 +1,114 @@
 #include "binaryreader.h"
+#include <limits>
 
-BinaryReader::BinaryReader(const QString &path)
+// QDataStream handles little-endian decoding; this adapter bounds every read.
+BinaryReader::BinaryReader() : m_stream(&m_file)
 {
-    open(path);
+    m_stream.setByteOrder(QDataStream::LittleEndian);
 }
-
-BinaryReader::~BinaryReader()
-{
-    close();
-}
+BinaryReader::BinaryReader(const QString &path) : BinaryReader() { open(path); }
+BinaryReader::~BinaryReader() = default;
 
 bool BinaryReader::open(const QString &path)
 {
     close();
-
     m_file.setFileName(path);
     if (!m_file.open(QIODevice::ReadOnly)) {
-        setError(QStringLiteral("Failed to open file: %1").arg(path));
+        setError(m_file.errorString());
         return false;
     }
-
-    m_fileSize = static_cast<size_t>(m_file.size());
+    m_fileSize = size_t(m_file.size());
     return true;
 }
-
 void BinaryReader::close()
 {
-    if (m_file.isOpen()) {
-        m_file.close();
-    }
+    m_file.close();
     m_fileSize = 0;
     clearError();
 }
-
-uint8_t BinaryReader::readU8()
+template<typename T> T BinaryReader::readNumber()
 {
-    uint8_t value = 0;
-    qint64 n = m_file.read(reinterpret_cast<char *>(&value), 1);
-    if (n != 1) setError(QStringLiteral("Failed to read U8"));
-    return value;
-}
-
-uint16_t BinaryReader::readU16()
-{
-    uint16_t value = 0;
-    qint64 n = m_file.read(reinterpret_cast<char *>(&value), 2);
-    if (n != 2) setError(QStringLiteral("Failed to read U16"));
-    return value;
-}
-
-uint32_t BinaryReader::readU32()
-{
-    uint32_t value = 0;
-    qint64 n = m_file.read(reinterpret_cast<char *>(&value), 4);
-    if (n != 4) setError(QStringLiteral("Failed to read U32"));
-    return value;
-}
-
-uint64_t BinaryReader::readU64()
-{
-    uint64_t value = 0;
-    qint64 n = m_file.read(reinterpret_cast<char *>(&value), 8);
-    if (n != 8) setError(QStringLiteral("Failed to read U64"));
-    return value;
-}
-
-int8_t BinaryReader::readS8() { return static_cast<int8_t>(readU8()); }
-int16_t BinaryReader::readS16() { return static_cast<int16_t>(readU16()); }
-int32_t BinaryReader::readS32() { return static_cast<int32_t>(readU32()); }
-
-QString BinaryReader::readString()
-{
-    uint16_t length = readU16();
-    if (m_error) return QString();
-    return readString(length);
-}
-
-QString BinaryReader::readString(size_t length)
-{
-    if (length == 0) return QString();
-
-    size_t rem = remaining();
-    if (length > rem) {
-        setError(QStringLiteral("String length %1 exceeds remaining file size %2").arg(length).arg(rem));
-        return QString();
+    if (!good() || sizeof(T) > remaining()) {
+        setError(QStringLiteral("Truncated integer at byte %1").arg(tell()));
+        return T{};
     }
-
-    QByteArray buf(static_cast<int>(length), Qt::Uninitialized);
-    qint64 n = m_file.read(buf.data(), static_cast<qint64>(length));
-    if (n != static_cast<qint64>(length)) {
-        setError(QStringLiteral("Failed to read string"));
-        return QString();
-    }
-    return QString::fromLatin1(buf);
-}
-
-std::vector<uint8_t> BinaryReader::readBytes(size_t count)
-{
-    size_t rem = remaining();
-    if (count > rem) {
-        setError(QStringLiteral("Byte count %1 exceeds remaining file size %2").arg(count).arg(rem));
-        return {};
-    }
-
-    std::vector<uint8_t> result(count);
-    if (count > 0) {
-        qint64 n = m_file.read(reinterpret_cast<char *>(result.data()), static_cast<qint64>(count));
-        if (n != static_cast<qint64>(count)) {
-            setError(QStringLiteral("Failed to read bytes"));
-            result.clear();
-        }
+    T result{};
+    m_stream >> result;
+    if (m_stream.status() != QDataStream::Ok) {
+        setError(QStringLiteral("Binary read failed at byte %1").arg(tell()));
+        return T{};
     }
     return result;
 }
+uint8_t BinaryReader::readU8() { return readNumber<quint8>(); }
+uint16_t BinaryReader::readU16() { return readNumber<quint16>(); }
+uint32_t BinaryReader::readU32() { return readNumber<quint32>(); }
+uint64_t BinaryReader::readU64() { return readNumber<quint64>(); }
+int8_t BinaryReader::readS8() { return readNumber<qint8>(); }
+int16_t BinaryReader::readS16() { return readNumber<qint16>(); }
+int32_t BinaryReader::readS32() { return readNumber<qint32>(); }
 
-size_t BinaryReader::tell() const
+QByteArray BinaryReader::readBlock(size_t length)
 {
-    qint64 pos = m_file.pos();
-    if (pos < 0) return static_cast<size_t>(-1);
-    return static_cast<size_t>(pos);
+    if (!good() || length > remaining()
+        || length > size_t(std::numeric_limits<qsizetype>::max())) {
+        setError(QStringLiteral("Invalid binary block of %1 bytes at %2").arg(length).arg(tell()));
+        return {};
+    }
+    const auto data = m_file.read(qint64(length));
+    if (size_t(data.size()) != length) {
+        setError(QStringLiteral("Incomplete binary block at byte %1").arg(tell()));
+        return {};
+    }
+    return data;
 }
-
-bool BinaryReader::seek(size_t position)
+QString BinaryReader::readString()
 {
-    return m_file.seek(static_cast<qint64>(position));
+    const auto length = readU16();
+    return good() ? readString(length) : QString{};
 }
-
-bool BinaryReader::skip(size_t bytes)
+QString BinaryReader::readString(size_t length)
 {
-    return m_file.seek(m_file.pos() + static_cast<qint64>(bytes));
+    return QString::fromLatin1(readBlock(length));
 }
-
+std::vector<uint8_t> BinaryReader::readBytes(size_t count)
+{
+    const auto bytes = readBlock(count);
+    if (bytes.isEmpty()) return {};
+    const auto *start = reinterpret_cast<const uint8_t *>(bytes.constData());
+    return {start, start + bytes.size()};
+}
+size_t BinaryReader::tell() const { return isOpen() ? size_t(m_file.pos()) : 0; }
 size_t BinaryReader::remaining() const
 {
-    size_t pos = tell();
-    if (pos == static_cast<size_t>(-1) || pos > m_fileSize) return 0;
-    return m_fileSize - pos;
+    const auto offset = tell();
+    return offset <= size() ? size() - offset : 0;
 }
-
-bool BinaryReader::eof() const
+bool BinaryReader::seek(size_t position)
 {
-    return m_file.atEnd() || remaining() == 0;
+    if (!good() || position > size() || !m_file.seek(qint64(position))) {
+        setError(QStringLiteral("Invalid binary position %1").arg(position));
+        return false;
+    }
+    return true;
 }
-
+bool BinaryReader::skip(size_t bytes)
+{
+    if (bytes > remaining()) {
+        setError(QStringLiteral("Cannot skip %1 bytes past end of stream").arg(bytes));
+        return false;
+    }
+    return seek(tell() + bytes);
+}
+bool BinaryReader::eof() const { return !isOpen() || remaining() == 0; }
 void BinaryReader::setError(const QString &message)
 {
+    if (!m_error) m_errorMessage = message;
     m_error = true;
-    m_errorMessage = message;
 }
-
 void BinaryReader::clearError()
 {
     m_error = false;
     m_errorMessage.clear();
+    m_stream.resetStatus();
 }

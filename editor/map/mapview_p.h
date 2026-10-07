@@ -24,7 +24,7 @@ inline uint32_t cellSpriteId(const ClientItem *ci, int ww, int hh, int layer, in
     const int layers = std::max(1, static_cast<int>(ci->layers));
     int px, py;
 
-    if (ci->is_stackable && patX == 4 && patY == 2) {
+    if (ci->has(ClientProperty::Stackable) && patX == 4 && patY == 2) {
         if (count <= 1)      { px = 0;         py = 0; }
         else if (count < 5)  { px = count - 1; py = 0; }
         else if (count < 10) { px = 0;         py = 1; }

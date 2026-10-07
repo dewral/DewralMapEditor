@@ -497,10 +497,10 @@ QString MapView::doodadPreviewSourceForName(const QString &name) const
             const int h = std::max<int>(1, ci->height);
             const int layers = std::max<int>(1, ci->layers);
 
-            const int ox = ci->has_offset ? ci->offset_x : 0;
-            const int oy = ci->has_offset ? ci->offset_y : 0;
+            const int ox = ci->has(ClientProperty::Offset) ? ci->offset_x : 0;
+            const int oy = ci->has(ClientProperty::Offset) ? ci->offset_y : 0;
             const int elev = elevation;
-            if (ci->has_elevation) elevation += ci->elevation;
+            if (ci->has(ClientProperty::Elevation)) elevation += ci->elevation;
             for (int l = 0; l < layers; ++l)
                 for (int hh = 0; hh < h; ++hh)
                     for (int ww = 0; ww < w; ++ww) {

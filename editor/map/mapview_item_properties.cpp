@@ -127,15 +127,15 @@ bool MapView::setContextItemCount(int count)
         const OtbmMapItem &item =
             t->items[static_cast<size_t>(m_itemController.contextItemIndex())];
         const int group = m_otb ? m_otb->groupForServerId(item.server_id) : 0;
-        const bool editable = (ci && ci->is_stackable)
+        const bool editable = (ci && ci->has(ClientProperty::Stackable))
                               || group == static_cast<int>(OtbItemGroup::Splash)
                               || group == static_cast<int>(OtbItemGroup::Fluid)
                               || item.has_subtype_attribute;
         if (!editable) return false;
         const bool charges =
             item.subtype_attribute == static_cast<uint8_t>(OtbmAttribute::Charges);
-        const int minimum = ci && ci->is_stackable ? 1 : 0;
-        const int maximum = charges ? 65535 : (ci && ci->is_stackable ? 100 : 255);
+        const int minimum = ci && ci->has(ClientProperty::Stackable) ? 1 : 0;
+        const int maximum = charges ? 65535 : (ci && ci->has(ClientProperty::Stackable) ? 100 : 255);
         count = std::clamp(count, minimum, maximum);
 
         changed = m_otbm->setItemCountAt(m_itemController.contextX(), m_itemController.contextY(), m_navigationController.floor(),
@@ -237,16 +237,16 @@ bool MapView::applyContextItemProperties(const QVariantMap &props)
                     ? &t->items[static_cast<size_t>(selectedIndex)] : nullptr;
             const int group = item && m_otb
                                   ? m_otb->groupForServerId(item->server_id) : 0;
-            const bool editable = item && ((ci && ci->is_stackable)
+            const bool editable = item && ((ci && ci->has(ClientProperty::Stackable))
                 || group == static_cast<int>(OtbItemGroup::Splash)
                 || group == static_cast<int>(OtbItemGroup::Fluid)
                 || item->has_subtype_attribute);
             if (editable) {
                 const bool charges = item->subtype_attribute
                                      == static_cast<uint8_t>(OtbmAttribute::Charges);
-                const int minimum = ci && ci->is_stackable ? 1 : 0;
+                const int minimum = ci && ci->has(ClientProperty::Stackable) ? 1 : 0;
                 const int maximum =
-                    charges ? 65535 : (ci && ci->is_stackable ? 100 : 255);
+                    charges ? 65535 : (ci && ci->has(ClientProperty::Stackable) ? 100 : 255);
                 const int v = std::clamp(
                     props.value(QStringLiteral("count")).toInt(),
                     minimum, maximum);

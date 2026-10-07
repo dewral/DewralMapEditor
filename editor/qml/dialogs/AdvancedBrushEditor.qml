@@ -18,6 +18,7 @@ DmeDialog {
     property int compositeIndex: 0
     property bool dirty: false
     property var pendingAction: null
+    property string pickerReturnKind: ""
     readonly property var slotKeys: kind === "walls"
         ? ["0","1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16"]
         : ["n","e","s","w","cnw","cne","cse","csw","dnw","dne","dse","dsw","center"]
@@ -49,6 +50,12 @@ DmeDialog {
     }
     function requestClose() {
         guarded(function() { root.close() })
+    }
+    function revealPickerItem(serverId) {
+        if (editorHost && editorHost.revealPickerItem(serverId)) {
+            pickerReturnKind = kind
+            close()
+        }
     }
     function reset(nextKind) {
         kind = nextKind
@@ -114,7 +121,11 @@ DmeDialog {
             if (value.lookid <= 1) value.lookid = tiles[0].items[0]
         })
     }
-    onOpened: { if (!dirty) reset(kind) }
+    onOpened: {
+        if (dirty && pickerReturnKind !== "") kind = pickerReturnKind
+        if (!dirty && pickerReturnKind !== kind) reset(kind)
+        pickerReturnKind = ""
+    }
 
     DmeDialog {
         id: discardDialog
@@ -150,9 +161,10 @@ DmeDialog {
         }
         Label {
             Layout.fillWidth: true; wrapMode: Text.WordWrap; color: "#aaaaaa"
-            text: root.kind === "doodads"
+            text: (root.kind === "doodads"
                 ? "Alternates are picked equally; singles and composites within each alternate use weights. Scan captures tile stacks and floor offsets, not item attributes or creatures."
-                : "Each alignment can contain multiple weighted IDs. Scan learns known, unambiguous slots from loaded brushes; unknown IDs require manual assignment."
+                : "Each alignment can contain multiple weighted IDs. Scan learns known, unambiguous slots from loaded brushes; unknown IDs require manual assignment.")
+                + " Double-click a preview sprite to return to the picker. Reopen this editor to continue your draft."
         }
         RowLayout {
             DmeComboBox {
@@ -204,7 +216,16 @@ DmeDialog {
                             required property var modelData
                             required property int index
                             spacing: 8
-                            Image { width: 36; height: 36; source: root.editorHost ? root.editorHost.iconSrc(modelData[0]) : ""; fillMode: Image.PreserveAspectFit }
+                            Image {
+                                objectName: "advancedBrushVariant" + index
+                                width: 36; height: 36
+                                source: root.editorHost ? root.editorHost.iconSrc(modelData[0]) : ""
+                                fillMode: Image.PreserveAspectFit
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onDoubleClicked: root.revealPickerItem(modelData[0])
+                                }
+                            }
                             Label { width: 70; text: modelData[0]; color: root.ink; anchors.verticalCenter: parent.verticalCenter }
                             DmeSpinBox { from: 0; to: 1000000; value: modelData[1]; editable: true; onValueModified: root.change(function(v) { root.pairArray(v)[index][1] = value }) }
                             DmeButton { text: "Remove"; onClicked: root.change(function(v) { root.pairArray(v).splice(index, 1) }) }
@@ -218,7 +239,15 @@ DmeDialog {
                             required property var modelData
                             required property int index
                             spacing: 8
-                            Image { width: 32; height: 32; source: root.editorHost ? root.editorHost.iconSrc(modelData[0]) : "" }
+                            Image {
+                                objectName: "advancedBrushUnassigned" + index
+                                width: 32; height: 32
+                                source: root.editorHost ? root.editorHost.iconSrc(modelData[0]) : ""
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onDoubleClicked: root.revealPickerItem(modelData[0])
+                                }
+                            }
                             Label { text: modelData[0] + " (" + modelData[1] + " occurrences)"; color: root.ink }
                             DmeButton {
                                 text: "Assign"
@@ -259,7 +288,15 @@ DmeDialog {
                                 required property var modelData
                                 required property int index
                                 spacing: 6
-                                Image { width: 36; height: 36; source: root.editorHost ? root.editorHost.iconSrc(modelData.items[modelData.items.length - 1]) : "" }
+                                Image {
+                                    objectName: "advancedBrushCompositeTile" + index
+                                    width: 36; height: 36
+                                    source: root.editorHost ? root.editorHost.iconSrc(modelData.items[modelData.items.length - 1]) : ""
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onDoubleClicked: root.revealPickerItem(modelData.items[modelData.items.length - 1])
+                                    }
+                                }
                                 Label { width: 100; text: modelData.dx + " / " + modelData.dy + " / " + modelData.dz; color: root.ink }
                                 Label { width: 155; elide: Text.ElideRight; text: modelData.items.join(", "); color: root.ink }
                                 DmeButton { text: "Edit"; onClicked: tileDialog.edit(index, modelData) }

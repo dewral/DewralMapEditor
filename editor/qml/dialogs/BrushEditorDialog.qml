@@ -239,6 +239,31 @@ DmeDialog {
         return selectedServerIds.indexOf(serverId) >= 0;
     }
 
+    function revealPickerItem(serverId) {
+        var sid = Number(serverId);
+        if (sid <= 0 || Backend.otbReader.rowForServerId(sid) < 0)
+            return false;
+
+        var row = pf.rowForServerId(sid);
+        if (row < 0 && pf.hideInvisibleSprites && !pf.itemHasVisibleSprite(sid)) {
+            pf.hideInvisibleSprites = false;
+            row = pf.rowForServerId(sid);
+        }
+        if (row < 0) {
+            pickerSearch.text = "";
+            row = pf.rowForServerId(sid);
+        }
+        if (row < 0)
+            return false;
+
+        selectPickerItem(sid, row, Qt.NoModifier);
+        pickerGrid.currentIndex = row;
+        pickerGrid.forceLayout();
+        pickerGrid.positionViewAtIndex(row, GridView.Center);
+        pickerGrid.forceActiveFocus();
+        return true;
+    }
+
     function selectPickerItem(serverId, row, modifiers) {
         if (serverId <= 0)
             return;
@@ -898,6 +923,12 @@ DmeDialog {
 
             DmeSeparator { width: parent.width }
 
+            Text {
+                text: "Double-click a preview sprite to find it in the picker on the left."
+                color: root.mutedColor
+                font.pixelSize: 11
+            }
+
             Column {
                 visible: root.tab === "tilesets"
                 spacing: 10
@@ -1002,6 +1033,7 @@ DmeDialog {
 
                         GridView {
                             id: tilesetGrid
+                            objectName: "brushManagerTilesetGrid"
                             anchors.fill: parent
                             anchors.bottomMargin: 42
                             clip: true
@@ -1043,6 +1075,7 @@ DmeDialog {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     onClicked: root.selectedTilesetItem = Number(modelData)
+                                    onDoubleClicked: root.revealPickerItem(modelData)
                                     ToolTip.visible: containsMouse
                                     ToolTip.delay: 500
                                     ToolTip.text: root.itemName(Number(modelData)) + " (sid " + Number(modelData) + ")"
@@ -1195,6 +1228,7 @@ DmeDialog {
                                 model: root.doodadWidth * root.doodadHeight
                                 delegate: Rectangle {
                                     required property int index
+                                    objectName: "brushManagerDoodadCell" + index
                                     readonly property var ids: root.doodadCellItems[index] || []
                                     width: 70
                                     height: 70
@@ -1245,9 +1279,16 @@ DmeDialog {
                                     }
                                     MouseArea {
                                         anchors.fill: parent
-                                        acceptedButtons: Qt.RightButton
+                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
                                         hoverEnabled: true
-                                        onClicked: root.setDoodadCell(index, 0, false)
+                                        onClicked: mouse => {
+                                            if (mouse.button === Qt.RightButton)
+                                                root.setDoodadCell(index, 0, false);
+                                        }
+                                        onDoubleClicked: mouse => {
+                                            if (mouse.button === Qt.LeftButton && parent.ids.length > 0)
+                                                root.revealPickerItem(parent.ids[parent.ids.length - 1]);
+                                        }
                                         ToolTip.visible: containsMouse && parent.ids.length > 0
                                         ToolTip.delay: 500
                                         ToolTip.text: parent.ids.map(function(id) {
@@ -1377,10 +1418,12 @@ DmeDialog {
                         clip: true
                         model: ListModel {
                             id: gItems
+                            objectName: "brushManagerGroundItems"
                         }
                         delegate: Column {
                             spacing: 1
                             Image {
+                                objectName: "brushManagerGroundItem" + index
                                 width: 32
                                 height: 32
                                 smooth: false
@@ -1389,8 +1432,15 @@ DmeDialog {
                                 source: root.iconSrc(sid)
                                 MouseArea {
                                     anchors.fill: parent
-                                    acceptedButtons: Qt.RightButton
-                                    onClicked: gItems.remove(index)
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                    onClicked: mouse => {
+                                        if (mouse.button === Qt.RightButton)
+                                            gItems.remove(index);
+                                    }
+                                    onDoubleClicked: mouse => {
+                                        if (mouse.button === Qt.LeftButton)
+                                            root.revealPickerItem(sid);
+                                    }
                                 }
                             }
                             DmeSpinBox {
@@ -1472,6 +1522,7 @@ DmeDialog {
                     height: 5 * 50 - 6
 
                     Rectangle {
+                        objectName: "brushManagerGroundPreview"
                         x: 2 * 50
                         y: 2 * 50
                         width: 44
@@ -1494,6 +1545,13 @@ DmeDialog {
                             text: "Ground"
                             color: root.mutedColor
                             font.pixelSize: 9
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onDoubleClicked: {
+                                if (gItems.count > 0)
+                                    root.revealPickerItem(gItems.get(0).sid);
+                            }
                         }
                     }
 
@@ -1631,6 +1689,10 @@ DmeDialog {
                                     if (mouse.button === Qt.RightButton)
                                         root.clearBorderSlot(modelData.bt);
                                 }
+                                onDoubleClicked: mouse => {
+                                    if (mouse.button === Qt.LeftButton)
+                                        root.revealPickerItem(root.borderPrimaryId(modelData.bt));
+                                }
                             }
                         }
                     }
@@ -1680,12 +1742,17 @@ DmeDialog {
                                     spacing: 6
                                     height: 38
                                     Image {
+                                        objectName: "brushManagerBorderVariant" + index
                                         width: 32
                                         height: 32
                                         smooth: false
                                         cache: false
                                         fillMode: Image.PreserveAspectFit
                                         source: root.iconSrc(Number(modelData.id))
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            onDoubleClicked: root.revealPickerItem(modelData.id)
+                                        }
                                     }
                                     Text {
                                         width: 76
@@ -1836,6 +1903,7 @@ DmeDialog {
                         delegate: Rectangle {
                             required property string modelData
                             required property int index
+                            objectName: "brushManagerWallSlot" + index
                             width: 44
                             height: 52
                             color: wDrop.containsDrag ? Qt.darker(root.accentColor, 2.3) : root.cellColor
@@ -1876,11 +1944,17 @@ DmeDialog {
                             }
                             MouseArea {
                                 anchors.fill: parent
-                                acceptedButtons: Qt.RightButton
-                                onClicked: {
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                onClicked: mouse => {
+                                    if (mouse.button !== Qt.RightButton)
+                                        return;
                                     var w = root.wallIds.slice();
                                     w[index] = 0;
                                     root.wallIds = w;
+                                }
+                                onDoubleClicked: mouse => {
+                                    if (mouse.button === Qt.LeftButton)
+                                        root.revealPickerItem(root.wallIds[index]);
                                 }
                             }
                         }

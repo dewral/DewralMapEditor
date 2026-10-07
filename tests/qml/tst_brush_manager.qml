@@ -420,6 +420,88 @@ Item {
             compare(manager.curTileset, "Test")
             compare(findChild(manager, "brushManagerRemoveSelected").enabled, false)
         }
+
+        function test_deleteSelectedTilesetItems_data() {
+            return [
+                {tag: "single", modifiers: Qt.NoModifier, removed: [13610]},
+                {tag: "ctrl", modifiers: Qt.ControlModifier, removed: [13610, 13630]},
+                {tag: "shift", modifiers: Qt.ShiftModifier, removed: [13610, 13614, 13630]}
+            ]
+        }
+        function test_deleteSelectedTilesetItems(data) {
+            const grid = loadSelectionTileset()
+            clickTilesetItem(1)
+            if (data.modifiers !== Qt.NoModifier)
+                clickTilesetItem(3, data.modifiers)
+            verify(grid.activeFocus)
+            keyClick(Qt.Key_Delete)
+            compare(tilesets.removedIds, data.removed)
+            compare(manager.tilesetItems, selectionIds.filter(id => data.removed.indexOf(id) < 0))
+            compare(tilesets.itemsFor("terrain", "Other"), [13610, 13614])
+            compare(tilesets.itemsFor("raw", "Test"), [13618, 13610])
+            compare(manager.selectedTilesetItems, [])
+            compare(manager.tilesetSelectionAnchor, -1)
+            compare(findChild(manager, "brushManagerRemoveSelected").enabled, false)
+            verify(grid.activeFocus)
+            keyClick(Qt.Key_Delete)
+            compare(tilesets.removedIds, data.removed)
+        }
+        function test_deleteWithoutTilesetSelection() {
+            const grid = loadSelectionTileset()
+            clickTilesetItem(1)
+            clickTilesetItem(1, Qt.ControlModifier)
+            verify(grid.activeFocus)
+            keyClick(Qt.Key_Delete)
+            compare(tilesets.removedIds, [])
+            compare(manager.tilesetItems, selectionIds)
+        }
+        function test_deleteEditsText_data() {
+            const rows = []
+            for (const theme of ["classic", "windows-classic", "github", "gray-dark",
+                                 "gray-modern", "fluent-dark"])
+                for (const field of ["brushManagerTilesetName", "brushManagerPickerSearch"])
+                    rows.push({tag: theme + "-" + field, theme, field})
+            return rows
+        }
+        function test_deleteEditsText(data) {
+            Backend.uiTheme.style = data.theme
+            const grid = loadSelectionTileset()
+            clickTilesetItem(1)
+            clickTilesetItem(3, Qt.ControlModifier)
+            const field = findChild(manager, data.field)
+            field.text = "Test"
+            mouseClick(field, field.width / 2, field.height / 2)
+            verify(!grid.activeFocus)
+            keyClick(Qt.Key_Home)
+            keyClick(Qt.Key_Delete)
+            compare(field.text, "est")
+            compare(tilesets.removedIds, [])
+            compare(manager.tilesetItems, selectionIds)
+            compare(manager.selectedTilesetItems, [13610, 13630])
+        }
+        function test_deleteIsScopedToTilesetGrid_data() {
+            return [{tag: "picker"}, {tag: "other-tab"}, {tag: "child-dialog"}]
+        }
+        function test_deleteIsScopedToTilesetGrid(data) {
+            const grid = loadSelectionTileset()
+            clickTilesetItem(1)
+            verify(grid.activeFocus)
+            if (data.tag === "picker") {
+                mouseClick(pickerCell(0), 8, 8)
+                verify(findChild(manager, "brushManagerPickerGrid").activeFocus)
+                verify(!grid.activeFocus)
+            } else if (data.tag === "other-tab") {
+                manager.tab = "ground"
+            } else {
+                const dialog = dialogWithTitle(manager, "New Doodad Palette")
+                dialog.open()
+                tryCompare(dialog, "opened", true)
+            }
+            keyClick(Qt.Key_Delete)
+            compare(tilesets.removedIds, [])
+            compare(manager.tilesetItems, selectionIds)
+            compare(manager.selectedTilesetItems, [13610])
+        }
         function test_tilesetSelectionReset_data() {
             return [{tag: "switch"}, {tag: "reload"}, {tag: "new"}, {tag: "category"}]
         }

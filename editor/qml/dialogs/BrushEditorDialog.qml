@@ -794,6 +794,7 @@ DmeDialog {
                             hoverEnabled: true
                             drag.target: dragGhost
                             onPressed: mouse => {
+                                pickerGrid.forceActiveFocus();
                                 root.selectPickerItem(parent.sid, index, mouse.modifiers);
                                 dragGhost.sid = parent.sid;
                                 dragGhost.source = parent.children[0].source;
@@ -949,7 +950,7 @@ DmeDialog {
                 }
                 Text {
                     width: parent.width
-                    text: "Organize the categories shown in every palette. Use Ctrl to select individual items and Shift to select a range in either grid. Double-click picker items or use Add selected to add them; use Remove selected to remove tileset items."
+                    text: "Organize the categories shown in every palette. Use Ctrl to select individual items and Shift to select a range in either grid. Double-click picker items or use Add selected to add them; press Delete or use Remove selected to remove tileset items."
                     color: root.mutedColor
                     font.pixelSize: 11
                     wrapMode: Text.WordWrap
@@ -996,6 +997,7 @@ DmeDialog {
                     Text { text: root.curTileset === "" ? "New name" : "Name"; color: root.mutedColor; anchors.verticalCenter: parent.verticalCenter }
                     DmeTextField {
                         id: tilesetNameField
+                        objectName: "brushManagerTilesetName"
                         width: 260
                         placeholderText: "Tileset name"
                         onAccepted: root.saveTilesetName()
@@ -1048,6 +1050,11 @@ DmeDialog {
                             cellWidth: 76
                             cellHeight: 82
                             model: root.tilesetItems
+                            Keys.enabled: root.tab === "tilesets"
+                            Keys.onDeletePressed: event => {
+                                root.removeSelectedFromTileset();
+                                event.accepted = true;
+                            }
 
                             delegate: Rectangle {
                                 required property var modelData
@@ -1083,7 +1090,10 @@ DmeDialog {
                                 MouseArea {
                                     anchors.fill: parent
                                     hoverEnabled: true
-                                    onClicked: mouse => root.selectTilesetItem(index, mouse.modifiers)
+                                    onClicked: mouse => {
+                                        tilesetGrid.forceActiveFocus();
+                                        root.selectTilesetItem(index, mouse.modifiers);
+                                    }
                                     ToolTip.visible: containsMouse
                                     ToolTip.delay: 500
                                     ToolTip.text: root.itemName(Number(modelData)) + " (sid " + Number(modelData) + ")"

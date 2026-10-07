@@ -148,6 +148,15 @@ void PaletteFilter::setHideNamedItems(bool hide)
     emit hideNamedItemsChanged();
 }
 
+void PaletteFilter::setUseDoodadPreviews(bool use)
+{
+    if (m_useDoodadPreviews == use) return;
+    beginFilterChange();
+    m_useDoodadPreviews = use;
+    endFilterChange(Direction::Rows);
+    emit useDoodadPreviewsChanged();
+}
+
 bool PaletteFilter::doodadHasVisibleSprite(const QString &name) const
 {
     auto *otb = qobject_cast<OtbReader *>(sourceModel());
@@ -166,7 +175,7 @@ bool PaletteFilter::itemHasVisibleSprite(int serverId) const
 {
     auto *otb = qobject_cast<OtbReader *>(sourceModel());
     if (!m_sprReader || !otb) return true;
-    if (m_brushStore) {
+    if (m_useDoodadPreviews && m_brushStore) {
         const QString doodad = m_brushStore->doodadBrushForServerId(serverId);
         if (!doodad.isEmpty() && !m_brushStore->doodadPreviewTiles(doodad).isEmpty())
             return doodadHasVisibleSprite(doodad);

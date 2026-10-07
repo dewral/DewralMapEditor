@@ -32,6 +32,8 @@ DmeDialog {
     readonly property color cellColor: windowsClassicUi ? "#ffffff" : (grayUi ? "#2D2D2D" : (modernUi ? "#161B22" : "#252525"))
     readonly property color borderColor: windowsClassicUi ? "#ababab" : (grayUi ? "#494949" : (modernUi ? "#30363D" : "#3A3A3A"))
     readonly property color accentColor: windowsClassicUi ? "#0a64ad" : (grayUi ? "#C79A3B" : (modernUi ? "#2EA043" : "#7FDC8F"))
+    readonly property color membershipColor: windowsClassicUi ? "#0a64ad" : "#58A6FF"
+    readonly property color membershipTextColor: windowsClassicUi ? "#FFFFFF" : "#0D1117"
 
     property var tilesetCategoryCodes: ["terrain", "doodad", "item", "raw", "collection", "door"]
     property var tilesetCategoryLabels: ["Terrain", "Doodads", "Items", "RAW", "Collections", "Doors"]
@@ -40,6 +42,28 @@ DmeDialog {
     property var tilesetItems: []
     property string curTileset: ""
     property int selectedTilesetItem: 0
+
+    // Cache memberships for the current tileset revision.
+    readonly property var pickerTilesetsByItem: {
+        var revision = Backend.tilesetStore.revision;
+        var memberships = {};
+        for (var categoryIndex = 0; categoryIndex < tilesetCategoryCodes.length; ++categoryIndex) {
+            var category = tilesetCategoryCodes[categoryIndex];
+            var names = Backend.tilesetStore.namesFor(category);
+            for (var nameIndex = 0; nameIndex < names.length; ++nameIndex) {
+                var label = tilesetCategoryLabels[categoryIndex] + " / " + names[nameIndex];
+                var ids = Backend.tilesetStore.itemsFor(category, names[nameIndex]);
+                for (var itemIndex = 0; itemIndex < ids.length; ++itemIndex) {
+                    var sid = Number(ids[itemIndex]);
+                    var labels = memberships[sid] || [];
+                    if (labels.indexOf(label) < 0)
+                        labels.push(label);
+                    memberships[sid] = labels;
+                }
+            }
+        }
+        return memberships;
+    }
 
     property var doodadPaletteNames: []
     property var doodadNames: []
@@ -571,7 +595,10 @@ DmeDialog {
         id: pf
         sourceModel: Backend.otbReader
         brushStore: Backend.brushStore
+        sprReader: Backend.sprReader
+        useDoodadPreviews: false // The picker displays individual item sprites.
         mode: "all"
+        onHideInvisibleSpritesChanged: root.pickerSelectionAnchor = -1
     }
 
     contentItem: Item {
@@ -590,6 +617,8 @@ DmeDialog {
             spacing: 6
 
             DmeTextField {
+                id: pickerSearch
+                objectName: "brushManagerPickerSearch"
                 width: parent.width
                 placeholderText: "Search by name or ID..."
                 onTextChanged: {
@@ -598,10 +627,48 @@ DmeDialog {
                 }
             }
 
+            DmeCheckBox {
+                id: hideInvisibleCheckBox
+                objectName: "brushManagerHideInvisibleSprites"
+                text: "Hide invisible sprites"
+                checked: pf.hideInvisibleSprites
+                onClicked: pf.hideInvisibleSprites = !checked
+            }
+
+            Row {
+                id: membershipLegend
+                objectName: "brushManagerMembershipLegend"
+                visible: root.tab === "tilesets"
+                height: 14
+                spacing: 6
+                Rectangle {
+                    width: 14
+                    height: 14
+                    radius: root.modernUi ? 3 : 0
+                    color: root.membershipColor
+                    Text {
+                        anchors.centerIn: parent
+                        text: "\u2713"
+                        color: root.membershipTextColor
+                        font.pixelSize: 11
+                        font.bold: true
+                    }
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "In a tileset (hover for details)"
+                    color: root.mutedColor
+                    font.pixelSize: 10
+                }
+            }
+
             DmePanel {
                 id: pickerPanel
                 width: parent.width
-                height: Math.max(140, pickerCol.height - 76)
+                height: Math.max(140, pickerCol.height - pickerSearch.height
+                                 - hideInvisibleCheckBox.height - pickerSizeRow.height
+                                 - pickerCol.spacing * 3
+                                 - (membershipLegend.visible ? membershipLegend.height + pickerCol.spacing : 0))
 
                 GridView {
                     id: pickerGrid
@@ -614,8 +681,20 @@ DmeDialog {
                     model: pf
 
                     delegate: Rectangle {
+                        id: pickerCell
                         readonly property int sid: typeof serverId !== "undefined" ? serverId : 0
                         readonly property bool selected: root.pickerItemSelected(sid)
+                        readonly property var tilesetMemberships: root.pickerTilesetsByItem[sid] || []
+                        readonly property bool inTileset: root.tab === "tilesets" && tilesetMemberships.length > 0
+                        readonly property string itemTooltip: {
+                            var aliases = Backend.brushStore.searchAliasesForServerId(sid);
+                            var text = root.itemName(sid) + " (sid " + sid + ")";
+                            if (aliases.length > 0)
+                                text += "\nBrush: " + aliases.join(", ");
+                            if (inTileset)
+                                text += "\nTilesets:\n" + tilesetMemberships.join("\n");
+                            return text;
+                        }
                         width: root.pickerCellSize - 4
                         height: root.pickerCellSize - 4
                         color: cellMa.containsMouse ? Qt.lighter(root.cellColor, 1.18) : root.cellColor
@@ -651,6 +730,25 @@ DmeDialog {
                             }
                         }
 
+                        Rectangle {
+                            objectName: "brushManagerMembershipBadge"
+                            visible: pickerCell.inTileset
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.margins: 3
+                            width: 14
+                            height: 14
+                            radius: root.modernUi ? 3 : 0
+                            color: root.membershipColor
+                            Text {
+                                anchors.centerIn: parent
+                                text: "\u2713"
+                                color: root.membershipTextColor
+                                font.pixelSize: 11
+                                font.bold: true
+                            }
+                        }
+
                         MouseArea {
                             id: cellMa
                             anchors.fill: parent
@@ -678,11 +776,7 @@ DmeDialog {
                             }
                             ToolTip.visible: containsMouse
                             ToolTip.delay: 450
-                            ToolTip.text: {
-                                var aliases = Backend.brushStore.searchAliasesForServerId(parent.sid);
-                                var base = root.itemName(parent.sid) + " (sid " + parent.sid + ")";
-                                return aliases.length > 0 ? base + "\nBrush: " + aliases.join(", ") : base;
-                            }
+                            ToolTip.text: pickerCell.itemTooltip
                         }
                     }
                 }
@@ -698,6 +792,7 @@ DmeDialog {
             }
 
             Row {
+                id: pickerSizeRow
                 width: parent.width
                 height: 32
                 spacing: 7

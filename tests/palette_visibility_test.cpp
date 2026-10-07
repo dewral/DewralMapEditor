@@ -223,6 +223,21 @@ int main(int argc, char **argv)
     if (!require(filter.doodadHasVisibleSprite(QStringLiteral("prefab"))
                      && !filter.doodadHasVisibleSprite(QStringLiteral("empty")),
                  "Prefab visibility must check all preview contents")) return 1;
+    filter.setUseDoodadPreviews(false);
+    if (!require(filter.rowCount() == 3 && filter.rowForServerId(1000) < 0
+                     && filter.rowForServerId(1005) >= 0,
+                 "Item pickers must filter the displayed sprite instead of its doodad preview")) return 1;
+    filter.setSearchText(QStringLiteral("visible"));
+    if (!require(filter.rowCount() == 0,
+                 "Brush aliases must still honor individual sprite visibility")) return 1;
+    filter.setHideInvisibleSprites(false);
+    if (!require(filter.rowCount() == 1 && filter.serverIdAtRow(0) == 1000,
+                 "Item pickers must retain brush alias search when visibility is disabled")) return 1;
+    filter.setSearchText(QString());
+    filter.setHideInvisibleSprites(true);
+    filter.setUseDoodadPreviews(true);
+    if (!require(filter.rowForServerId(1000) >= 0 && filter.rowForServerId(1005) < 0,
+                 "Restoring doodad previews must refresh visibility")) return 1;
     store.loadForDir(directory.filePath(QStringLiteral("missing")));
     if (!require(filter.rowForServerId(1000) < 0 && filter.rowForServerId(1005) >= 0,
                  "Brush changes must refresh visibility")) return 1;

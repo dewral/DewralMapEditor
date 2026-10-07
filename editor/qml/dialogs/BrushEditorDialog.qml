@@ -838,6 +838,7 @@ DmeDialog {
                     Text { text: "Tileset"; color: root.mutedColor; anchors.verticalCenter: parent.verticalCenter }
                     DmeComboBox {
                         id: tilesetCombo
+                        objectName: "brushManagerTilesetCombo"
                         width: 220
                         model: root.tilesetNames
                         onActivated: index => root.loadTileset(index >= 0 ? root.tilesetNames[index] : "")
@@ -845,6 +846,7 @@ DmeDialog {
                     DmeButton {
                         text: "New"
                         width: 70
+                        height: tilesetCombo.height
                         onClicked: {
                             root.curTileset = "";
                             tilesetCombo.currentIndex = -1;
@@ -867,12 +869,14 @@ DmeDialog {
                     DmeButton {
                         text: root.curTileset === "" ? "Create" : "Rename"
                         width: 90
+                        height: tilesetNameField.height
                         enabled: tilesetNameField.text.trim() !== ""
                         onClicked: root.saveTilesetName()
                     }
                     DmeButton {
                         text: "Delete tileset"
                         width: 110
+                        height: tilesetNameField.height
                         variant: "danger"
                         enabled: root.curTileset !== ""
                         onClicked: {

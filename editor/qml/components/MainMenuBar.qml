@@ -470,6 +470,12 @@ DmeMenuBar {
     DmeMenu {
         title: "View"
         Action {
+            text: "Show palette"
+            checkable: true
+            checked: !menuBar.settings.paletteCollapsed
+            onTriggered: menuBar.settings.paletteCollapsed = !checked
+        }
+        Action {
             text: "Show FPS"
             checkable: true
             checked: menuBar.settings.showFps

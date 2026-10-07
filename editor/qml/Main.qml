@@ -343,7 +343,7 @@ DmeWindow {
 
     Shortcut {
         sequence: "Ctrl+B"
-        enabled: root.githubUi && app.started
+        enabled: app.started
         onActivated: prefs.paletteCollapsed = !prefs.paletteCollapsed
     }
 
@@ -383,16 +383,40 @@ DmeWindow {
         onSaveAsRequested: saveDialog.open()
     }
 
+    PaletteDockController {
+        id: paletteDock
+        settings: prefs
+        availableWidth: root.contentItem.width - 12
+        availableHeight: Math.max(0, root.contentItem.height - paletteTop - 28)
+        panelWidth: Math.max(root.minimumPaletteWidth, Math.min(prefs.fluentPaletteWidth, root.maximumPaletteWidth))
+    }
+    readonly property real paletteTop: root.fluentUi ? fluentFileBar.y + fluentFileBar.height : titleBar.y + titleBar.height
+    readonly property real mapLeft: root.fluentUi
+        ? (!prefs.paletteCollapsed && paletteDock.side === "left" ? palette.width + 12 : 6) : paletteSplitter.x + paletteSplitter.width
+    readonly property real mapRight: root.fluentUi && !prefs.paletteCollapsed && paletteDock.side === "right" ? palette.width + 12 : 8
+
+    Rectangle {
+        visible: root.fluentUi && paletteDock.dragging && paletteDock.target !== ""
+        x: paletteDock.target === "right" ? root.contentItem.width - paletteDock.panelWidth - 6 : 6
+        y: root.paletteTop
+        width: paletteDock.panelWidth; height: paletteDock.availableHeight
+        color: FluentColors.c("accent"); opacity: 0.2; z: 40
+    }
+
     PalettePanel {
         id: palette
-        anchors.top: root.fluentUi ? fluentFileBar.bottom : titleBar.bottom
-        anchors.topMargin: 0
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.leftMargin: root.githubUi ? 1 : 6
-        anchors.bottomMargin: root.fluentUi ? 28 : root.githubUi ? 1 : 6
+        x: root.fluentUi ? 6 + paletteDock.x : (root.githubUi ? 1 : 6)
+        y: root.paletteTop + (root.fluentUi ? paletteDock.y : 0)
+        height: root.fluentUi ? paletteDock.panelHeight : root.contentItem.height - y - (root.githubUi ? 1 : 6)
+        z: root.fluentUi && paletteDock.side === "floating" ? 50 : 2
+        positionLocked: prefs.palettePositionLocked
+        onLockRequested: prefs.palettePositionLocked = !prefs.palettePositionLocked
+        onDragStarted: (sx, sy) => paletteDock.begin(sx - 6, sy - root.paletteTop)
+        onDragMoved: (sx, sy) => paletteDock.move(sx - 6, sy - root.paletteTop)
+        onDragFinished: paletteDock.finish()
+        onDragCanceled: paletteDock.cancel()
         width: {
-            if (prefs.paletteCollapsed)
+            if (!root.fluentUi && prefs.paletteCollapsed)
                 return 0;
             return Math.max(root.minimumPaletteWidth,
                             Math.min(root.fluentUi ? prefs.fluentPaletteWidth : prefs.paletteWidth, root.maximumPaletteWidth));
@@ -403,16 +427,35 @@ DmeWindow {
         modernLayout: root.modernGrayUi
         onCollapseRequested: prefs.paletteCollapsed = true
         onRevealRequested: prefs.paletteCollapsed = false
+
+        MouseArea {
+            visible: root.fluentUi && paletteDock.side === "floating" && !prefs.palettePositionLocked
+            anchors.right: parent.right; anchors.bottom: parent.bottom
+            width: 16; height: 16; cursorShape: Qt.SizeFDiagCursor
+            property point startPointer
+            property real startWidth
+            property real startHeight
+            onPressed: mouse => {
+                startPointer = mapToItem(root.contentItem, mouse.x, mouse.y);
+                startWidth = palette.width; startHeight = palette.height;
+            }
+            onPositionChanged: mouse => {
+                if (!pressed) return;
+                const p = mapToItem(root.contentItem, mouse.x, mouse.y);
+                prefs.fluentPaletteWidth = Math.max(root.minimumPaletteWidth, Math.min(root.maximumPaletteWidth, startWidth + p.x - startPointer.x));
+                prefs.paletteFloatingHeight = Math.max(320, Math.min(paletteDock.availableHeight - paletteDock.y, startHeight + p.y - startPointer.y));
+            }
+        }
     }
 
     Item {
         id: paletteSplitter
         anchors.top: palette.top
         anchors.bottom: palette.bottom
-        anchors.left: palette.right
+        x: root.fluentUi && paletteDock.side === "right" ? palette.x - width : palette.x + palette.width
         width: root.githubUi ? 4 : 6
         z: 10
-        visible: !prefs.paletteCollapsed
+        visible: !prefs.paletteCollapsed && (!root.fluentUi || paletteDock.side !== "floating")
 
         Rectangle {
             anchors.centerIn: parent
@@ -425,6 +468,7 @@ DmeWindow {
 
         MouseArea {
             id: splitterArea
+            enabled: !root.fluentUi || !prefs.palettePositionLocked
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.SizeHorCursor
@@ -438,7 +482,7 @@ DmeWindow {
             onPositionChanged: mouse => {
                 if (pressed) {
                     const value = Math.max(root.minimumPaletteWidth, Math.min(root.maximumPaletteWidth,
-                        startWidth + (mapToItem(root.contentItem, mouse.x, 0).x - startX)));
+                        startWidth + (root.fluentUi && paletteDock.side === "right" ? -1 : 1) * (mapToItem(root.contentItem, mouse.x, 0).x - startX)));
                     if (root.fluentUi) prefs.fluentPaletteWidth = value;
                     else prefs.paletteWidth = value;
                 }
@@ -455,7 +499,7 @@ DmeWindow {
 
         x: prefs.paletteCollapsed ? 2 : (palette.x + palette.width)
         z: 20
-        visible: !root.githubUi
+        visible: !root.githubUi && !root.fluentUi
 
         Rectangle {
             anchors.fill: parent
@@ -526,10 +570,10 @@ DmeWindow {
         id: toolBar
         anchors.top: root.fluentUi ? fluentFileBar.bottom : titleBar.bottom
         anchors.topMargin: 0
-        anchors.left: paletteSplitter.right
+        anchors.left: parent.left
+        anchors.leftMargin: root.mapLeft
         anchors.right: parent.right
-        anchors.leftMargin: root.fluentUi ? 0 : root.githubUi ? 0 : 4
-        anchors.rightMargin: root.githubUi ? 1 : 8
+        anchors.rightMargin: root.githubUi ? 1 : root.mapRight
 
         sourceComponent: root.fluentUi ? null : root.githubUi
                          ? githubToolBarComponent
@@ -557,10 +601,10 @@ DmeWindow {
         id: tabBar
         anchors.top: toolBar.bottom
         anchors.topMargin: 0
-        anchors.left: paletteSplitter.right
+        anchors.left: parent.left
+        anchors.leftMargin: root.mapLeft
         anchors.right: parent.right
-        anchors.leftMargin: root.fluentUi ? 0 : root.githubUi ? 0 : 4
-        anchors.rightMargin: root.githubUi ? 1 : 8
+        anchors.rightMargin: root.githubUi ? 1 : root.mapRight
         height: app.started ? (root.fluentUi ? 36 : root.githubUi ? 42 : 22) : 0
         visible: app.started
 
@@ -640,10 +684,10 @@ DmeWindow {
         anchors.top: tabBar.bottom
         anchors.topMargin: 0
         anchors.bottom: parent.bottom
-        anchors.left: paletteSplitter.right
+        anchors.left: parent.left
+        anchors.leftMargin: root.mapLeft
         anchors.right: parent.right
-        anchors.leftMargin: root.fluentUi ? 0 : root.githubUi ? 0 : 4
-        anchors.rightMargin: root.githubUi ? 1 : 8
+        anchors.rightMargin: root.githubUi ? 1 : root.mapRight
         anchors.bottomMargin: root.fluentUi ? 28 : root.githubUi ? 1 : 6
         visible: app.started
         app: app

@@ -1,6 +1,7 @@
 <RCC>
     <qresource prefix="/">
         <file alias="qml/components/ImplicitHeightLoader.qml">qml/components/ImplicitHeightLoader.qml</file>
+        <file alias="qml/components/ComboBoxTypeAhead.qml">qml/components/ComboBoxTypeAhead.qml</file>
         <!-- Wymusza styl Basic Qt Quick Controls (Qt czyta :/qtquickcontrols2.conf
              automatycznie). Bez tego Windows uzywa stylu natywnego, ktory ignoruje
              wlasne delegaty menu (zolte podswietlenie, centrowany tekst). -->
@@ -11,6 +12,7 @@
         <file alias="qml/PalettePanel.qml">qml/PalettePanel.qml</file>
         <file alias="qml/StartupWindow.qml">qml/StartupWindow.qml</file>
         <file alias="qml/controllers/AppSettings.qml">qml/controllers/AppSettings.qml</file>
+        <file alias="qml/controllers/PaletteDockController.qml">qml/controllers/PaletteDockController.qml</file>
         <file alias="qml/controllers/MapViewSettings.qml">qml/controllers/MapViewSettings.qml</file>
         <file alias="qml/controllers/AppController.qml">qml/controllers/AppController.qml</file>
         <file alias="qml/controllers/ClientProfileController.qml">qml/controllers/ClientProfileController.qml</file>

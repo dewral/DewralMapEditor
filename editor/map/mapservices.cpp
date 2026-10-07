@@ -531,7 +531,7 @@ int MapMinimapService::colorIndexForTile(const OtbmTile *tile, const OtbReader *
             tile->items[static_cast<size_t>(i)].server_id);
         if (clientId <= 0) continue;
         const ClientItem *item = dat->itemByClientId(static_cast<uint16_t>(clientId));
-        if (item && item->has_minimap_color)
+        if (item && item->has(ClientProperty::Minimap))
             return static_cast<int>(item->minimap_color);
     }
     return 0;

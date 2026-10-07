@@ -1,6 +1,7 @@
 #include "otbmreader.h"
 
 #include <QCoreApplication>
+#include <QFile>
 #include <QTemporaryDir>
 
 #include <cstdlib>
@@ -171,5 +172,39 @@ int main(int argc, char **argv)
                  "Interleaved tile areas did not survive streaming save/load"))
         return EXIT_FAILURE;
 
+    QFile saved(path);
+    if (!require(saved.open(QIODevice::ReadOnly), "Could not read saved fixture"))
+        return EXIT_FAILURE;
+    const QByteArray original = saved.readAll();
+    saved.close();
+
+    const QString corruptPath = directory.filePath(QStringLiteral("trailing-data.otbm"));
+    QFile corrupt(corruptPath);
+    if (!corrupt.open(QIODevice::WriteOnly)
+        || corrupt.write(original + QByteArray(1, '\0')) != original.size() + 1)
+        return EXIT_FAILURE;
+    corrupt.close();
+    OtbmReader rejected;
+    if (!require(!rejected.loadFile(corruptPath),
+                 "Trailing data after the root node was accepted"))
+        return EXIT_FAILURE;
+
+    // Reserved marker bytes must be escaped and survive the round trip.
+    const QString markers = QString::fromLatin1(QByteArray::fromHex("fdfeff"));
+    if (!source.setItemTextAt(100, 100, 7, 0, markers) || !source.saveFile(path)
+        || !loaded.loadFile(path)
+        || !require(loaded.tileAt(100, 100, 7)->items.front().extra->text == markers,
+                    "Reserved marker bytes did not survive save/load"))
+        return EXIT_FAILURE;
+    if (!saved.open(QIODevice::ReadOnly)) return EXIT_FAILURE;
+    const QByteArray beforeFailedSave = saved.readAll();
+    saved.close();
+    if (!source.setItemTextAt(100, 100, 7, 0, QString(65536, QLatin1Char('x')))
+        || !require(!source.saveFile(path), "Oversized OTBM text was saved"))
+        return EXIT_FAILURE;
+    if (!saved.open(QIODevice::ReadOnly)
+        || !require(saved.readAll() == beforeFailedSave,
+                    "Failed save overwrote the existing map"))
+        return EXIT_FAILURE;
     return EXIT_SUCCESS;
 }

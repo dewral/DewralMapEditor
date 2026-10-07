@@ -181,6 +181,10 @@ bool NodeFileReader::loadFile(const QString &path,
     if (!parseNode(data, pos, m_root, 0)) {
         return false;
     }
+    if (pos != data.size()) {
+        setError(QStringLiteral("Unexpected data after the root node"));
+        return false;
+    }
 
     m_ok = true;
     reportProgress(data.size(), data.size());

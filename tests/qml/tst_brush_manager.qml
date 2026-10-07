@@ -12,7 +12,7 @@ Item {
     ListModel {
         id: items
         property bool loaded: true
-        function clientIdForServerId(id) { return 0 }
+        function clientIdForServerId(id) { return id - 10000 }
         function rowForServerId(id) {
             for (let i = 0; i < count; ++i) {
                 if (get(i).serverId === id) return i
@@ -22,15 +22,53 @@ Item {
         function detailsAt(row) { return {name: get(row).itemName, spriteIds: []} }
     }
     QtObject {
+        id: sprites
+        property var visibleIds: [3618]
+        signal itemImagesChanged()
+        function itemHasVisibleSprite(id) { return visibleIds.indexOf(id) >= 0 }
+        function itemImageSource(spriteIds, width, height, layers) { return "" }
+    }
+    QtObject {
         id: tilesets
         property int revision: 0
         property int deleteCount: 0
         property var addedIds: []
+        property var saved: ({})
         signal tilesetsChanged()
-        function namesFor(category) { return [] }
-        function itemsFor(category, name) { return [] }
-        function deleteTileset(category, name) { ++deleteCount; return true }
-        function addItems(category, name, ids) { addedIds = ids.slice(); return true }
+        function namesFor(category) { return Object.keys(saved[category] || {}).sort() }
+        function itemsFor(category, name) { return (saved[category] || {})[name] || [] }
+        function changeSaved(copy) { saved = copy; ++revision; tilesetsChanged() }
+        function deleteTileset(category, name) {
+            ++deleteCount
+            const copy = JSON.parse(JSON.stringify(saved))
+            delete copy[category][name]
+            changeSaved(copy)
+            return true
+        }
+        function renameTileset(category, name, newName) {
+            const copy = JSON.parse(JSON.stringify(saved))
+            copy[category][newName] = copy[category][name]
+            delete copy[category][name]
+            changeSaved(copy)
+            return true
+        }
+        function addItems(category, name, ids) {
+            addedIds = ids.slice()
+            const copy = JSON.parse(JSON.stringify(saved))
+            if (!copy[category]) copy[category] = {}
+            const members = copy[category][name] || []
+            for (const id of ids)
+                if (members.indexOf(id) < 0) members.push(id)
+            copy[category][name] = members
+            changeSaved(copy)
+            return true
+        }
+        function removeItem(category, name, id) {
+            const copy = JSON.parse(JSON.stringify(saved))
+            copy[category][name] = copy[category][name].filter(value => value !== id)
+            changeSaved(copy)
+            return true
+        }
     }
     Component {
         id: managerComponent
@@ -43,17 +81,22 @@ Item {
         property var manager
         property var previousTilesets
         property var previousReader
+        property var previousSprites
         property string previousTheme
 
         function init() {
             previousTilesets = Backend.tilesetStore
             previousReader = Backend.otbReader
+            previousSprites = Backend.sprReader
             previousTheme = Backend.uiTheme.style
             Backend.tilesetStore = tilesets
             Backend.otbReader = items
+            Backend.sprReader = sprites
+            sprites.visibleIds = [3618]
             Backend.uiTheme.style = "gray-dark"
             tilesets.deleteCount = 0
             tilesets.addedIds = []
+            tilesets.saved = ({})
             items.clear()
             for (const id of [13610, 13614, 13618])
                 items.append({serverId: id, itemName: "Test item " + id})
@@ -69,6 +112,7 @@ Item {
             wait(0)
             Backend.tilesetStore = previousTilesets
             Backend.otbReader = previousReader
+            Backend.sprReader = previousSprites
             Backend.uiTheme.style = previousTheme
         }
         function dialogWithTitle(host, title) {
@@ -90,6 +134,115 @@ Item {
             verify(grid)
             tryVerify(() => grid.itemAtIndex(row) !== null)
             mouseDoubleClickSequence(grid.itemAtIndex(row), 8, 8)
+        }
+
+        function test_hideInvisibleSprites_data() {
+            return ["classic", "windows-classic", "github", "gray-dark",
+                    "gray-modern", "fluent-dark"].map(theme => ({tag: theme, theme}))
+        }
+
+        function pickerCell(row) {
+            const grid = findChild(manager.contentItem, "brushManagerPickerGrid")
+            tryVerify(() => grid.itemAtIndex(row) !== null)
+            return grid.itemAtIndex(row)
+        }
+        function membershipBadge(row) {
+            return findChild(pickerCell(row), "brushManagerMembershipBadge")
+        }
+        function test_tilesetMembership_data() {
+            return ["classic", "windows-classic", "github", "gray-dark",
+                    "gray-modern", "fluent-dark"].map(theme => ({tag: theme, theme}))
+        }
+        function test_tilesetMembership(data) {
+            Backend.uiTheme.style = data.theme
+            tilesets.changeSaved({terrain: {Cliffs: [13614], Rocks: [13614]}, item: {Supplies: [13618]}})
+            compare(membershipBadge(0).visible, false)
+            compare(membershipBadge(1).visible, true)
+            compare(membershipBadge(2).visible, true)
+            compare(pickerCell(1).tilesetMemberships, ["Terrain / Cliffs", "Terrain / Rocks"])
+            verify(pickerCell(1).itemTooltip.indexOf("Tilesets:\nTerrain / Cliffs\nTerrain / Rocks") >= 0)
+            verify(pickerCell(2).itemTooltip.indexOf("Items / Supplies") >= 0)
+            manager.selectPickerItem(13614, 1, Qt.NoModifier)
+            compare(pickerCell(1).border.color, manager.accentColor)
+            compare(membershipBadge(1).visible, true)
+            verify(membershipBadge(1).color !== pickerCell(1).border.color || data.theme === "windows-classic")
+            verify(waitForRendering(membershipBadge(1)))
+            verify(membershipBadge(1).x >= 0 && membershipBadge(1).y >= 0)
+            verify(membershipBadge(1).x + membershipBadge(1).width <= pickerCell(1).width)
+            verify(membershipBadge(1).y + membershipBadge(1).height <= pickerCell(1).height)
+            manager.tilesetCategory = "item"
+            compare(membershipBadge(1).visible, true)
+            manager.tab = "ground"
+            compare(membershipBadge(1).visible, false)
+            compare(findChild(manager, "brushManagerMembershipLegend").visible, false)
+            manager.tab = "tilesets"
+            compare(membershipBadge(1).visible, true)
+        }
+        function test_tilesetMembershipChanges() {
+            compare(membershipBadge(0).visible, false)
+            manager.curTileset = "Test"
+            doubleClickPickerItem(0)
+            compare(membershipBadge(0).visible, true)
+            compare(pickerCell(0).tilesetMemberships, ["Terrain / Test"])
+            tilesets.addItems("raw", "Other", [13610])
+            tilesets.renameTileset("terrain", "Test", "Renamed")
+            compare(pickerCell(0).tilesetMemberships, ["Terrain / Renamed", "RAW / Other"])
+            tilesets.removeItem("terrain", "Renamed", 13610)
+            compare(membershipBadge(0).visible, true)
+            compare(pickerCell(0).tilesetMemberships, ["RAW / Other"])
+            tilesets.deleteTileset("raw", "Other")
+            compare(membershipBadge(0).visible, false)
+            verify(pickerCell(0).itemTooltip.indexOf("Tilesets:") < 0)
+            // Switching/reloading the profile replaces the complete membership map.
+            tilesets.changeSaved({door: {Doors: [13614]}})
+            compare(membershipBadge(0).visible, false)
+            compare(pickerCell(1).tilesetMemberships, ["Doors / Doors"])
+        }
+        function test_hideInvisibleSprites(data) {
+            Backend.uiTheme.style = data.theme
+            const grid = findChild(manager.contentItem, "brushManagerPickerGrid")
+            const checkbox = findChild(manager.contentItem, "brushManagerHideInvisibleSprites")
+            const search = findChild(manager.contentItem, "brushManagerPickerSearch")
+            verify(checkbox.visible)
+            compare(checkbox.checked, false)
+            compare(grid.count, 3)
+            verify(waitForRendering(checkbox))
+            verify(checkbox.y >= search.y + search.height)
+            verify(grid.parent.y >= checkbox.y + checkbox.height)
+            verify(grid.parent.y + grid.parent.height <= grid.parent.parent.height)
+
+            manager.selectPickerItem(13618, 2, Qt.NoModifier)
+            mouseClick(checkbox, 7, 7)
+            compare(checkbox.checked, true)
+            compare(grid.count, 1)
+            compare(grid.model.serverIdAtRow(0), 13618)
+            compare(manager.pickerSelectionAnchor, -1)
+            tryVerify(() => grid.itemAtIndex(0) !== null && grid.itemAtIndex(0).sid === 13618)
+            mouseClick(grid.itemAtIndex(0), 8, 8, Qt.LeftButton, Qt.ShiftModifier)
+            compare(manager.selectedServerIds, [13618])
+
+            search.text = "13610"
+            compare(grid.count, 0)
+            mouseClick(checkbox, 7, 7)
+            compare(checkbox.checked, false)
+            compare(grid.count, 1)
+            compare(grid.model.serverIdAtRow(0), 13610)
+            search.text = ""
+            compare(grid.count, 3)
+        }
+        function test_spriteReloadRefreshesFilter() {
+            const grid = findChild(manager.contentItem, "brushManagerPickerGrid")
+            const checkbox = findChild(manager.contentItem, "brushManagerHideInvisibleSprites")
+            mouseClick(checkbox, 7, 7)
+            compare(grid.count, 1)
+            sprites.visibleIds = [3614]
+            sprites.itemImagesChanged()
+            compare(grid.count, 1)
+            compare(grid.model.serverIdAtRow(0), 13614)
+            manager.tab = "ground"
+            compare(checkbox.visible, true)
+            compare(checkbox.checked, true)
+            compare(grid.count, 1)
         }
 
         function test_doubleClickBorder_data() {

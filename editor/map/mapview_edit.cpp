@@ -385,7 +385,7 @@ int MapView::itemCategory(uint16_t serverId) const
     const int cid = m_otb ? m_otb->clientIdForServerId(serverId) : 0;
     const ClientItem *ci = (m_dat && cid > 0) ? m_dat->itemByClientId(static_cast<uint16_t>(cid)) : nullptr;
     if (!ci) return 2;
-    if (ci->is_on_bottom) return 1;
+    if (ci->has(ClientProperty::Bottom)) return 1;
     return 2;
 }
 

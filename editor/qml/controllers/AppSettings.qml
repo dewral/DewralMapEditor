@@ -2,6 +2,11 @@ import QtCore
 
 Settings {
     property int fluentPaletteWidth: 285
+    property string paletteDockSide: "left"
+    property bool palettePositionLocked: false
+    property real paletteFloatingX: 40
+    property real paletteFloatingY: 20
+    property int paletteFloatingHeight: 600
     property bool showWorkTimer: true
     property bool showFps: true
     property string clientFolder: ""

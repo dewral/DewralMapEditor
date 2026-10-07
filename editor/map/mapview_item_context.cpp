@@ -42,19 +42,19 @@ QVariantMap MapView::itemContextInfo(const OtbmMapItem &item, int index,
     m.insert(QStringLiteral("groupName"),
              m_otb ? m_otb->groupNameForServerId(item.server_id) : QString());
     m.insert(QStringLiteral("ground"), item.is_ground);
-    m.insert(QStringLiteral("stackable"), ci && ci->is_stackable);
+    m.insert(QStringLiteral("stackable"), ci && ci->has(ClientProperty::Stackable));
     m.insert(QStringLiteral("count"), item.count);
     const int group = m_otb ? m_otb->groupForServerId(item.server_id) : 0;
     const bool charges =
         item.subtype_attribute == static_cast<uint8_t>(OtbmAttribute::Charges);
-    const bool subtypeEditable = (ci && ci->is_stackable)
+    const bool subtypeEditable = (ci && ci->has(ClientProperty::Stackable))
         || group == static_cast<int>(OtbItemGroup::Splash)
         || group == static_cast<int>(OtbItemGroup::Fluid)
         || item.has_subtype_attribute;
     m.insert(QStringLiteral("subtypeEditable"), subtypeEditable);
-    m.insert(QStringLiteral("subtypeMinimum"), ci && ci->is_stackable ? 1 : 0);
+    m.insert(QStringLiteral("subtypeMinimum"), ci && ci->has(ClientProperty::Stackable) ? 1 : 0);
     m.insert(QStringLiteral("subtypeMaximum"),
-             charges ? 65535 : (ci && ci->is_stackable ? 100 : 255));
+             charges ? 65535 : (ci && ci->has(ClientProperty::Stackable) ? 100 : 255));
     m.insert(QStringLiteral("subtypeLabel"),
              charges ? QStringLiteral("Charges")
                      : (group == static_cast<int>(OtbItemGroup::Fluid)
@@ -73,7 +73,7 @@ QVariantMap MapView::itemContextInfo(const OtbmMapItem &item, int index,
              item.extra ? item.extra->description : QString());
     m.insert(QStringLiteral("doorId"), item.extra ? item.extra->door_id : 0);
     m.insert(QStringLiteral("tier"), item.extra ? item.extra->tier : 0);
-    m.insert(QStringLiteral("writable"), (ci && ci->is_writable) || !text.isEmpty());
+    m.insert(QStringLiteral("writable"), (ci && ci->has(ClientProperty::Writable)) || !text.isEmpty());
 
     const bool isTele = m_otb && m_otb->isTeleportItem(item.server_id);
     const bool hasTele = item.extra && item.extra->has_teleport;

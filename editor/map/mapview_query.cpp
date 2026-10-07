@@ -118,7 +118,7 @@ int MapView::previewFirstVisibleFloor(int x, int y, int z) const
         if (!tile) return false;
         for (const OtbmMapItem &item : tile->items) {
             const ClientItem *client = clientItem(item);
-            if (client && client->blocks_missiles) return false;
+            if (client && client->has(ClientProperty::MissileBlock)) return false;
         }
         return true;
     };
@@ -129,10 +129,10 @@ int MapView::previewFirstVisibleFloor(int x, int y, int z) const
         // OTClient checks the first thing on a tile. OTBM stores the ground or
         // bottom-order item first, which is also the order used by our renderer.
         const ClientItem *first = clientItem(tile->items.front());
-        if (!first || first->dont_hide) return false;
+        if (!first || first->has(ClientProperty::AlwaysVisible)) return false;
         if (freeView)
-            return first->is_ground || first->is_on_bottom;
-        return first->is_ground || (first->is_on_bottom && first->blocks_missiles);
+            return first->has(ClientProperty::Ground) || first->has(ClientProperty::Bottom);
+        return first->has(ClientProperty::Ground) || (first->has(ClientProperty::Bottom) && first->has(ClientProperty::MissileBlock));
     };
 
     int firstFloor = z > 7 ? qMax(z - 2, 8) : 0;

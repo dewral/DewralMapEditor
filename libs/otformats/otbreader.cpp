@@ -423,7 +423,7 @@ bool OtbReader::isClientUnpassableForServerId(int serverId) const
     const OtbItem &item = m_items[static_cast<size_t>(it.value())];
     if (m_datReader) {
         if (const ClientItem *clientItem = m_datReader->itemByClientId(item.client_id))
-            return clientItem->is_unpassable;
+            return clientItem->has(ClientProperty::Solid);
     }
     return item.is_unpassable;
 }
@@ -439,7 +439,7 @@ bool OtbReader::isClientGroundForServerId(int serverId) const
     if (item.group == static_cast<uint8_t>(OtbItemGroup::Ground)) return true;
     if (m_datReader) {
         if (const ClientItem *clientItem = m_datReader->itemByClientId(item.client_id))
-            return clientItem->is_ground;
+            return clientItem->has(ClientProperty::Ground);
     }
     return false;
 }

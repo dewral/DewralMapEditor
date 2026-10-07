@@ -1,7 +1,8 @@
 Dewral Map Editor
 Third-party notices
 
-Portions of the binary-format I/O implementation are derived from:
+Historical attribution retained for earlier DME implementations of
+binary-format I/O and lighting, which included portions derived from:
 
     Tibia ImGui Map Editor
     https://github.com/Open-Tibia-Tools/tibia-imgui-map-editor
@@ -9,6 +10,10 @@ Portions of the binary-format I/O implementation are derived from:
     License: GNU Affero General Public License v3.0
 
 The complete license text is provided in LICENSE.
+
+The identified DAT property model, DAT attribute dispatch, binary stream
+implementation, and chunk light sampler have since been replaced. This
+does not revoke attribution or licensing terms for earlier versions.
 
 Dewral Map Editor is inspired by Remere's Map Editor:
 

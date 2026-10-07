@@ -24,6 +24,12 @@ Rectangle {
 
     signal collapseRequested
     signal revealRequested
+    property bool positionLocked: false
+    signal lockRequested
+    signal dragStarted(real sceneX, real sceneY)
+    signal dragMoved(real sceneX, real sceneY)
+    signal dragFinished
+    signal dragCanceled
 
     function selectKind(kind) {
         paletteCol.selectKind(kind);
@@ -646,8 +652,37 @@ Rectangle {
             Item {
                 visible: paletteRoot.fluentUi; width: parent.width; height: visible ? 22 : 0
                 Text { text: "Palette"; color: FluentColors.c("heading"); font.family: "Segoe UI"; font.pixelSize: 12 }
-                Text { anchors.right: parent.right; text: "\u00d7"; color: "#ddd"; font.pixelSize: 16
-                    MouseArea { anchors.fill: parent; anchors.margins: -3; onClicked: paletteRoot.collapseRequested() }
+                MouseArea {
+                    anchors.fill: parent; anchors.rightMargin: 52
+                    cursorShape: paletteRoot.positionLocked ? Qt.ArrowCursor : Qt.SizeAllCursor
+                    onPressed: mouse => {
+                        const p = mapToItem(null, mouse.x, mouse.y);
+                        paletteRoot.dragStarted(p.x, p.y);
+                    }
+                    onPositionChanged: mouse => {
+                        if (!pressed) return;
+                        const p = mapToItem(null, mouse.x, mouse.y);
+                        paletteRoot.dragMoved(p.x, p.y);
+                    }
+                    onReleased: paletteRoot.dragFinished()
+                    onCanceled: paletteRoot.dragCanceled()
+                    onDoubleClicked: paletteRoot.lockRequested()
+                }
+                Text { anchors.right: parent.right; anchors.rightMargin: 24; text: paletteRoot.positionLocked ? "\uD83D\uDD12" : "\uD83D\uDD13"; color: FluentColors.c("text"); font.pixelSize: 12
+                    MouseArea { id: lockArea; anchors.fill: parent; anchors.margins: -3; hoverEnabled: true; onClicked: paletteRoot.lockRequested() }
+                    ToolTip.visible: lockArea.containsMouse
+                    ToolTip.text: paletteRoot.positionLocked ? "Unlock palette position" : "Lock palette position"
+                }
+                Text {
+                    anchors.right: parent.right; text: "\u00d7"
+                    color: FluentColors.c("text"); font.pixelSize: 16
+                    MouseArea {
+                        id: closePaletteArea
+                        anchors.fill: parent; anchors.margins: -3; hoverEnabled: true
+                        onClicked: paletteRoot.collapseRequested()
+                    }
+                    ToolTip.visible: closePaletteArea.containsMouse
+                    ToolTip.text: "Close palette (Ctrl+B)"
                 }
             }
 

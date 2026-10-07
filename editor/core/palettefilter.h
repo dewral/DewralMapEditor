@@ -21,6 +21,7 @@ class PaletteFilter : public QSortFilterProxyModel
     Q_PROPERTY(BrushStore *brushStore READ brushStore WRITE setBrushStore NOTIFY brushStoreChanged)
     Q_PROPERTY(SprReader *sprReader READ sprReader WRITE setSprReader NOTIFY sprReaderChanged)
     Q_PROPERTY(bool hideInvisibleSprites READ hideInvisibleSprites WRITE setHideInvisibleSprites NOTIFY hideInvisibleSpritesChanged)
+    Q_PROPERTY(bool useDoodadPreviews READ useDoodadPreviews WRITE setUseDoodadPreviews NOTIFY useDoodadPreviewsChanged)
     Q_PROPERTY(bool hideNamedItems READ hideNamedItems WRITE setHideNamedItems NOTIFY hideNamedItemsChanged)
 
 public:
@@ -36,6 +37,8 @@ public:
     void setSprReader(SprReader *reader);
     bool hideInvisibleSprites() const { return m_hideInvisibleSprites; }
     void setHideInvisibleSprites(bool hide);
+    bool useDoodadPreviews() const { return m_useDoodadPreviews; }
+    void setUseDoodadPreviews(bool use);
     bool hideNamedItems() const { return m_hideNamedItems; }
     void setHideNamedItems(bool hide);
     Q_INVOKABLE bool itemHasVisibleSprite(int serverId) const;
@@ -53,6 +56,7 @@ signals:
     void brushStoreChanged();
     void sprReaderChanged();
     void hideInvisibleSpritesChanged();
+    void useDoodadPreviewsChanged();
     void hideNamedItemsChanged();
 
 protected:
@@ -67,6 +71,7 @@ private:
     BrushStore *m_brushStore = nullptr;
     SprReader *m_sprReader = nullptr;
     bool m_hideInvisibleSprites = false;
+    bool m_useDoodadPreviews = true;
     bool m_hideNamedItems = false;
 };
 

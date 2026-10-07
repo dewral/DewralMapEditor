@@ -1,5 +1,9 @@
 # Audyt pochodzenia kodu DME — 12 września 2026
 
+> Dokument historyczny: opisuje stan sprzed wymiany modelu właściwości DAT,
+> czytnika binarnego, obsługi atrybutów DAT i samplera oświetlenia na gałęzi
+> `codex/independent-otformats`. Nie opisuje ich aktualnej implementacji.
+
 W DME są rzeczywiste zapożyczenia z TIME i RME. Najmocniejsze dowody dotyczą modelu danych przedmiotów, parsera DAT, silnika automatycznych borderów, tablic ścian, obliczania oświetlenia oraz wbudowanych danych. Nie ma podstaw z tego badania, aby nazwać cały edytor kopią tych projektów.
 
 ## Zakres i metoda

@@ -72,6 +72,7 @@ struct NodeWriter {
     bool finish() { return flush(); }
     bool ok() const { return m_ok; }
     QString errorString() const {
+        if (!m_error.isEmpty()) return m_error;
         return m_device ? m_device->errorString() : QStringLiteral("No output device");
     }
 
@@ -91,6 +92,11 @@ struct NodeWriter {
     }
     void str(const QString &s) {
         const QByteArray b = s.toLatin1();
+        if (b.size() > std::numeric_limits<uint16_t>::max()) {
+            m_error = QStringLiteral("OTBM text exceeds the 65535-byte limit");
+            m_ok = false;
+            return;
+        }
         u16(static_cast<uint16_t>(b.size()));
         for (char c : b) data(static_cast<uint8_t>(c));
     }
@@ -111,6 +117,7 @@ private:
 
     QIODevice *m_device = nullptr;
     QByteArray m_buffer;
+    QString m_error;
     bool m_ok = true;
 };
 

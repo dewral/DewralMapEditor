@@ -283,6 +283,31 @@ material directories for Tibia 7.72, 7.80, or 7.92, so those profiles use the
 conservative RME 7.60 material set. All other profiles use their matching RME
 directory.
 
+For a custom server with a standalone material folder, update only its named
+profile with:
+
+```powershell
+python scripts/import-rme-profile.py --materials C:\path\to\760 --destination C:\path\to\DME\data\Midhem --dry-run
+python scripts/import-rme-profile.py --materials C:\path\to\760 --destination C:\path\to\DME\data\Midhem
+```
+
+Close DME before importing and open it again afterwards. The custom importer
+backs up files it replaces, supports legacy `border` terrain brushes and
+additional palette/wall XML files, and writes `material-import-report.json`
+with counts and missing source references. Existing `items.xml` and
+`creatures.xml` are retained when the material folder has no replacements.
+Use `--items-xml C:\path\to\server\data\items\items.xml` to import the server's
+item names when its metadata lives outside the material folder. RME-only
+metaitems are omitted because DME cannot place those placeholders.
+
+Create a custom client profile named exactly `Midhem`, select the appropriate
+base client version, and configure its DAT/SPR/OTB folder. Select **Midhem**
+before opening a map from the start window, including a recent map. For a
+compatible map, this selection overrides its remembered profile and loads
+`data/Midhem` beside the running executable. The DAT/SPR/OTB folder and editor
+data folder serve different purposes. Check **Map Properties → Client profile**
+or the checked entry in **Client profile** to confirm the active profile.
+
 ## Useful controls
 
 The editor supports Windows Snap: drag its title bar to the top or sides of the

@@ -158,6 +158,7 @@ QtObject {
     function switchMapProfile(key) {
         if (!ensureClientVersion(key))
             return false;
+        settings.selectedClientKey = String(key);
         if (Backend.otbmReader.filePath !== "")
             rememberMapProfile(Backend.otbmReader.filePath, key);
         return true;

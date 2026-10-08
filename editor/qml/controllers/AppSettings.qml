@@ -13,6 +13,7 @@ Settings {
     property bool showWorkTimer: true
     property bool showFps: true
     property string clientFolder: ""
+    property string selectedClientKey: ""
     property string clientPathsJson: "{}"
     property string customProfilesJson: "[]"
     property string mapProfilesJson: "{}"

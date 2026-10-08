@@ -54,6 +54,8 @@ class MapView : public QQuickItem
     Q_PROPERTY(int tileSize READ tileSize WRITE setTileSize NOTIFY tileSizeChanged)
     Q_PROPERTY(int spriteCount READ spriteCount NOTIFY atlasChanged)
     Q_PROPERTY(bool atlasBuilding READ atlasBuilding NOTIFY atlasBuildingChanged)
+    Q_PROPERTY(QVariantMap hotkeyBindings MEMBER m_hotkeyBindings NOTIFY hotkeyBindingsChanged)
+    Q_PROPERTY(bool commandHotkeysEnabled MEMBER m_commandHotkeysEnabled NOTIFY hotkeyBindingsChanged)
 
     Q_PROPERTY(bool showLowerFloors READ showLowerFloors WRITE setShowLowerFloors NOTIFY showLowerFloorsChanged)
 
@@ -693,6 +695,7 @@ public:
     void refreshUndoRedoTilesLocked();
 
 signals:
+    void hotkeyBindingsChanged();
     void readersChanged();
     void floorChanged();
     void tileSizeChanged();
@@ -758,6 +761,8 @@ private slots:
     void refreshCreatures();
 
 private:
+    QVariantMap m_hotkeyBindings;
+    bool m_commandHotkeysEnabled = true;
     static constexpr int kSprite = 32;
     // Keep a single atlas compatible with the 16K texture limit while allowing
     // all sprites from post-10.98 clients to fit vertically.

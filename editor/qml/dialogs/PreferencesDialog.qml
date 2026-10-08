@@ -30,6 +30,7 @@ DmeDialog {
 
         DmePanel {
             Layout.preferredWidth: 145
+            Layout.minimumHeight: 0
             Layout.fillHeight: true
 
             Column {
@@ -41,13 +42,15 @@ DmeDialog {
                         { name: "Interface", icon: "▣" },
                         { name: "Performance", icon: "◫" },
                         { name: "Editor", icon: "✎" },
-                        { name: "Zone display", icon: "◈" }
+                        { name: "Zone display", icon: "◈" },
+                        { name: "Hotkeys", icon: "⌨" }
                     ]
                     delegate: Rectangle {
                         required property var modelData
                         required property int index
+                        objectName: "preferencesTab" + modelData.name.replace(/ /g, "")
                         width: parent.width
-                        height: 58
+                        height: Math.min(58, (parent.height - 5 * parent.spacing) / 6)
                         radius: dialog.fluentUi ? 0 : 5
                         color: dialog.page === index ? (dialog.fluentUi ? "#414447" : "#493A1D") : navMouse.containsMouse ? "#252A31" : "transparent"
                         border { width: dialog.page === index ? 1 : 0; color: dialog.fluentUi ? "#B8BDC2" : "#C89B3C" }
@@ -67,6 +70,8 @@ DmeDialog {
             currentIndex: dialog.page
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.minimumWidth: 0
+            Layout.minimumHeight: 0
 
             PrefPage {
                 title: "General"
@@ -155,6 +160,14 @@ DmeDialog {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 mapView: dialog.mapView
+            }
+
+            HotkeysPage {
+                objectName: "preferencesHotkeys"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumWidth: 0
+                Layout.minimumHeight: 0
             }
         }
     }

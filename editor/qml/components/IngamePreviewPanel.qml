@@ -137,10 +137,10 @@ Item {
         }
         var dx = 0;
         var dy = 0;
-        if (event.key === Qt.Key_Left || event.key === Qt.Key_A) dx = -1;
-        else if (event.key === Qt.Key_Right || event.key === Qt.Key_D) dx = 1;
-        else if (event.key === Qt.Key_Up || event.key === Qt.Key_W) dy = -1;
-        else if (event.key === Qt.Key_Down || event.key === Qt.Key_S) dy = 1;
+        if (event.key === Qt.Key_Left || Backend.hotkeys.matches("preview_left", event.key, event.modifiers)) dx = -1;
+        else if (event.key === Qt.Key_Right || Backend.hotkeys.matches("preview_right", event.key, event.modifiers)) dx = 1;
+        else if (event.key === Qt.Key_Up || Backend.hotkeys.matches("preview_up", event.key, event.modifiers)) dy = -1;
+        else if (event.key === Qt.Key_Down || Backend.hotkeys.matches("preview_down", event.key, event.modifiers)) dy = 1;
         else return;
         movePlayer(dx, dy);
         event.accepted = true;
@@ -156,14 +156,14 @@ Item {
 
     // The map view normally owns keyboard focus. Window shortcuts keep offline
     // walking responsive after clicking or hovering the editor canvas.
-    Shortcut { sequence: "Left"; context: Qt.WindowShortcut; enabled: panel.visible; autoRepeat: true; onActivated: panel.movePlayer(-1, 0) }
-    Shortcut { sequence: "Right"; context: Qt.WindowShortcut; enabled: panel.visible; autoRepeat: true; onActivated: panel.movePlayer(1, 0) }
-    Shortcut { sequence: "Up"; context: Qt.WindowShortcut; enabled: panel.visible; autoRepeat: true; onActivated: panel.movePlayer(0, -1) }
-    Shortcut { sequence: "Down"; context: Qt.WindowShortcut; enabled: panel.visible; autoRepeat: true; onActivated: panel.movePlayer(0, 1) }
-    Shortcut { sequence: "A"; context: Qt.WindowShortcut; enabled: panel.visible; autoRepeat: true; onActivated: panel.movePlayer(-1, 0) }
-    Shortcut { sequence: "D"; context: Qt.WindowShortcut; enabled: panel.visible; autoRepeat: true; onActivated: panel.movePlayer(1, 0) }
-    Shortcut { sequence: "W"; context: Qt.WindowShortcut; enabled: panel.visible; autoRepeat: true; onActivated: panel.movePlayer(0, -1) }
-    Shortcut { sequence: "S"; context: Qt.WindowShortcut; enabled: panel.visible; autoRepeat: true; onActivated: panel.movePlayer(0, 1) }
+    Shortcut { sequence: "Left"; context: Qt.WindowShortcut; enabled: panel.visible && !Backend.hotkeys.capturing; autoRepeat: true; onActivated: panel.movePlayer(-1, 0) }
+    Shortcut { sequence: "Right"; context: Qt.WindowShortcut; enabled: panel.visible && !Backend.hotkeys.capturing; autoRepeat: true; onActivated: panel.movePlayer(1, 0) }
+    Shortcut { sequence: "Up"; context: Qt.WindowShortcut; enabled: panel.visible && !Backend.hotkeys.capturing; autoRepeat: true; onActivated: panel.movePlayer(0, -1) }
+    Shortcut { sequence: "Down"; context: Qt.WindowShortcut; enabled: panel.visible && !Backend.hotkeys.capturing; autoRepeat: true; onActivated: panel.movePlayer(0, 1) }
+    Shortcut { sequence: Backend.hotkeys.bindings.preview_left; context: Qt.WindowShortcut; enabled: panel.visible && !Backend.hotkeys.capturing; autoRepeat: true; onActivated: panel.movePlayer(-1, 0) }
+    Shortcut { sequence: Backend.hotkeys.bindings.preview_right; context: Qt.WindowShortcut; enabled: panel.visible && !Backend.hotkeys.capturing; autoRepeat: true; onActivated: panel.movePlayer(1, 0) }
+    Shortcut { sequence: Backend.hotkeys.bindings.preview_up; context: Qt.WindowShortcut; enabled: panel.visible && !Backend.hotkeys.capturing; autoRepeat: true; onActivated: panel.movePlayer(0, -1) }
+    Shortcut { sequence: Backend.hotkeys.bindings.preview_down; context: Qt.WindowShortcut; enabled: panel.visible && !Backend.hotkeys.capturing; autoRepeat: true; onActivated: panel.movePlayer(0, 1) }
 
     Rectangle {
         anchors.fill: parent

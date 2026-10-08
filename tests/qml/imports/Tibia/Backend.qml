@@ -1,6 +1,7 @@
 pragma Singleton
 import QtQuick
 QtObject {
+    property var hotkeys: null
     property QtObject otbmReader: QtObject {
         property string filePath: ""
         property bool loading: false
@@ -23,6 +24,7 @@ QtObject {
     }
     property QtObject uiTheme: QtObject {
         property string style: "gray-dark"
+        property var styles: [{id: "gray-dark", name: "Gray Dark"}]
         property var colorOverrides: ({})
         property string highlightedColor: ""
         signal colorsChanged()

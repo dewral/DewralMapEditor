@@ -27,6 +27,7 @@
         <file alias="qml/themes/github/ModernMapToolRail.qml">qml/themes/github/ModernMapToolRail.qml</file>
         <file alias="qml/components/MapWorkspace.qml">qml/components/MapWorkspace.qml</file>
         <file alias="qml/components/ZoneDisplayPanel.qml">qml/components/ZoneDisplayPanel.qml</file>
+        <file alias="qml/components/HotkeysPage.qml">qml/components/HotkeysPage.qml</file>
         <file alias="qml/components/ZoneLabels.qml">qml/components/ZoneLabels.qml</file>
         <file alias="qml/components/WorkTimerStatus.qml">qml/components/WorkTimerStatus.qml</file>
         <file alias="qml/components/MapOverlay.qml">qml/components/MapOverlay.qml</file>

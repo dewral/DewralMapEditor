@@ -105,6 +105,9 @@ class MapView : public QQuickItem
     Q_PROPERTY(bool showHouses READ showHouses WRITE setShowHouses NOTIFY viewFlagsChanged)
     Q_PROPERTY(bool showZones READ showZones WRITE setShowZones NOTIFY viewFlagsChanged)
     Q_PROPERTY(bool modernZones READ modernZones WRITE setModernZones NOTIFY viewFlagsChanged)
+    Q_PROPERTY(QColor selectionColor READ selectionColor WRITE setSelectionColor NOTIFY viewFlagsChanged)
+    Q_PROPERTY(double selectionOpacity READ selectionOpacity WRITE setSelectionOpacity NOTIFY viewFlagsChanged)
+    Q_PROPERTY(QVariantList zoneColors READ zoneColors WRITE setZoneColors NOTIFY viewFlagsChanged)
     Q_PROPERTY(QVariantList zoneOpacities READ zoneOpacities WRITE setZoneOpacities NOTIFY viewFlagsChanged)
     Q_PROPERTY(int visibleZoneMask READ visibleZoneMask WRITE setVisibleZoneMask NOTIFY viewFlagsChanged)
     Q_PROPERTY(double tilesOpacity READ tilesOpacity WRITE setTilesOpacity NOTIFY viewFlagsChanged)
@@ -278,6 +281,35 @@ public:
     void setTilesOpacity(double value) { setLayerOpacity(m_tilesOpacity, value); }
     void setItemsOpacity(double value) { setLayerOpacity(m_itemsOpacity, value); }
     void setModernZones(bool on) { setBakedViewFlag(m_modernZones, on); }
+    QColor selectionColor() const { return m_selectionColor; }
+    void setSelectionColor(const QColor &color) {
+        if (!color.isValid() || color == m_selectionColor) return;
+        m_selectionColor = QColor(color.red(), color.green(), color.blue());
+        emit viewFlagsChanged(); emit contentUpdated(); update();
+    }
+    double selectionOpacity() const { return m_selectionOpacity; }
+    void setSelectionOpacity(double value) {
+        if (!std::isfinite(value)) return;
+        value = qBound(0.0, value, 1.0);
+        if (value == m_selectionOpacity) return;
+        m_selectionOpacity = value;
+        emit viewFlagsChanged(); emit contentUpdated(); update();
+    }
+    QVariantList zoneColors() const { return m_zoneColors; }
+    void setZoneColors(const QVariantList &values) {
+        if (values.size() != 5) return;
+        QVariantList clean;
+        for (const auto &value : values) {
+            const QColor color(value.toString());
+            if (!color.isValid()) return;
+            clean.append(color.name(QColor::HexRgb));
+        }
+        if (clean == m_zoneColors) return;
+        m_zoneColors = clean;
+        m_zoneLabelCacheVersion = ~quint64(0);
+        ++m_metadataOverlayVersion;
+        emit viewFlagsChanged(); emit contentUpdated(); update();
+    }
     QVariantList zoneOpacities() const { return m_zoneOpacities; }
     void setZoneOpacities(const QVariantList &values) {
         if (values.size() != 4) return;
@@ -670,6 +702,10 @@ public:
 
     Q_INVOKABLE int countItemOnSelection(int serverId) const;
     Q_INVOKABLE bool isPreviewWalkable(int x, int y, int z) const;
+    Q_INVOKABLE int previewStepDurationAt(int x, int y, int z, int speed, bool diagonal = false) const;
+    Q_INVOKABLE int previewOutfitWalkPhases(int lookType) const;
+    Q_INVOKABLE QVector3D previewStepAt(int x, int y, int z, int dx, int dy) const;
+    Q_INVOKABLE QVector3D previewTransitionAt(int x, int y, int z, bool useItem = false) const;
     Q_INVOKABLE int previewWalkableFloorAt(int x, int y, int preferredZ) const;
     Q_INVOKABLE QVector3D previewWalkablePositionAt(int x, int y, int preferredZ) const;
     Q_INVOKABLE QString previewBlockReasonAt(int x, int y, int z) const;
@@ -1026,6 +1062,9 @@ private:
         emit viewFlagsChanged(); emit contentUpdated(); update();
     }
     int m_visibleZoneMask = 29;
+    QColor m_selectionColor {"#4a9ec7"};
+    double m_selectionOpacity = 0.25;
+    QVariantList m_zoneColors {"#399ee8", "#48b883", "#dfa65a", "#d46b79", "#9173be"};
     QVariantList m_zoneOpacities {0.25, 0.25, 0.25, 0.25};
     bool m_showZones = true;
     bool m_showZonesAlways = true;
@@ -1044,7 +1083,8 @@ private:
 
     int itemFrame(const ClientItem *ci) const {
         const int f = std::max(1, static_cast<int>(ci->frames));
-        return (m_showAnimations && f > 1) ? (m_animFrame % f) : 0;
+        if (!m_showAnimations || f <= 1) return 0;
+        return ci->animationFrameAt(static_cast<quint64>(m_animFrame) * 16);
     }
 
     std::vector<uint32_t> m_lightPixels;

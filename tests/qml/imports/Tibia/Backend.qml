@@ -9,6 +9,7 @@ QtObject {
     }
     property QtObject uiTheme: QtObject {
         property string style: "gray-dark"
+        property var styles: [{ id: "fluent-dark", name: "Fluent Dark" }, { id: "gray-dark", name: "Gray Dark" }]
         property var colorOverrides: ({})
         property string highlightedColor: ""
         signal colorsChanged()

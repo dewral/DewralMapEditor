@@ -115,6 +115,8 @@ public:
     Q_INVOKABLE int rowForServerId(int serverId) const;
 
     int topOrderForServerId(int serverId) const;
+    uint32_t rawFlagsForServerId(int serverId) const;
+    uint32_t floorChangeFlagsForServerId(int serverId) const;
 
     Q_INVOKABLE int groupForServerId(int serverId) const;
 

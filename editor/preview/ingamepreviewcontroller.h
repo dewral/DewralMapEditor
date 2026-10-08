@@ -67,8 +67,11 @@ public:
 
     Q_INVOKABLE void setPosition(int x, int y, int z);
     Q_INVOKABLE bool walk(int dx, int dy);
+    Q_INVOKABLE bool useNearbyTransition();
+    Q_INVOKABLE bool useTransitionAt(int x, int y);
     Q_INVOKABLE void changeFloor(int delta);
     Q_INVOKABLE void stop();
+    Q_INVOKABLE void clearQueuedWalk() { m_directionQueue.clear(); }
 
 signals:
     void sourceChanged();
@@ -101,6 +104,9 @@ private:
     qreal m_fromY = -1;
     qreal m_progress = 0;
     int m_walkAnimationTick = 0;
+    int m_stepDuration = 750;
+    int m_straightDuration = 750;
+    int m_walkPhases = 0;
     int m_direction = 2;
     int m_speed = 200;
     int m_lookType = 128;

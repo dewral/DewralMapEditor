@@ -20,6 +20,12 @@ Rectangle {
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
     property bool modernLayout: false
+    property var brushDockSettings
+    signal toolsDockDragStarted()
+    signal brushDockDragStarted()
+    signal brushDockDragMoved(real sceneX, real sceneY)
+    signal brushDockDragFinished(real sceneX, real sceneY)
+    signal brushDockDragCanceled()
     readonly property string currentKind: paletteCol.currentKind
 
     signal collapseRequested
@@ -874,14 +880,24 @@ Rectangle {
         FluentTools {
             id: fluentTools
             width: parent.width
-            visible: paletteRoot.fluentUi
+            visible: paletteRoot.fluentUi && (!paletteRoot.brushDockSettings || paletteRoot.brushDockSettings.toolsDock !== "topbar")
             height: visible ? implicitHeight : 0
+            onDockDragStarted: paletteRoot.toolsDockDragStarted()
+            onDockDragMoved: (x,y) => paletteRoot.brushDockDragMoved(x,y)
+            onDockDragFinished: (x,y) => paletteRoot.brushDockDragFinished(x,y)
+            onDockDragCanceled: paletteRoot.brushDockDragCanceled()
             mapView: paletteRoot.mapCtrl
             onDoorsRequested: paletteRoot.selectKind("Door Palette")
         }
 
         PaletteBrushSizeSelector {
             id: brushSizeBox
+            visible: !paletteRoot.fluentUi || !paletteRoot.brushDockSettings || paletteRoot.brushDockSettings.brushSizeDock !== "topbar"
+            height: visible ? implicitHeight : 0
+            onDockDragStarted: paletteRoot.brushDockDragStarted()
+            onDockDragMoved: (x,y) => paletteRoot.brushDockDragMoved(x,y)
+            onDockDragFinished: (x,y) => paletteRoot.brushDockDragFinished(x,y)
+            onDockDragCanceled: paletteRoot.brushDockDragCanceled()
             width: parent.width
             mapCtrl: paletteRoot.mapCtrl
             githubUi: paletteRoot.githubUi

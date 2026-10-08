@@ -6,6 +6,7 @@ Item {
     QtObject {
         id: map
         property int visibleZoneMask: 29
+        property var zoneColors: ["#399ee8", "#48b883", "#dfa65a", "#d46b79", "#9173be"]
         property var zoneOpacities: [0.25,0.25,0.25,0.25]
         property bool showZonesAlways: true
         property bool showHouses: true
@@ -33,6 +34,16 @@ Item {
             map.zoneOpacities = [0.75,0.15,0.4,0.6];
             tryCompare(findChild(panel,"zoneOpacity0"),"value",0.75);
             tryCompare(findChild(panel,"zoneOpacity1"),"value",0.15);
+        }
+        function test_colorChangesOnlySelectedZone() {
+            const previous = map.zoneColors.slice();
+            panel.setZoneColor(0, "#ff8800");
+            compare(map.zoneColors[0], "#ff8800");
+            compare(map.zoneColors[1], previous[1]);
+            tryCompare(findChild(panel, "zoneColor0"), "color", "#ff8800");
+            panel.setZoneColor(4, "#00aaee");
+            tryCompare(findChild(panel, "zoneColor4"), "color", "#00aaee");
+            map.zoneColors = previous;
         }
         function test_houseControls() {
             const house = findChild(panel,"zoneVisible4");

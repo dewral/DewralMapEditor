@@ -1560,6 +1560,8 @@ bool OtbmReader::buildSpawnsXml(const QString &mapPath, QString &targetPath,
     xml.writeStartDocument();
     xml.writeStartElement(QStringLiteral("spawns"));
 
+    // Overlapping spawn areas must not export the same creature more than once.
+    QSet<quint64> emittedCreatures;
     for (const OtbmTile &c : m_tiles) {
         if (c.spawn_radius <= 0) continue;
         xml.writeStartElement(QStringLiteral("spawn"));
@@ -1574,6 +1576,8 @@ bool OtbmReader::buildSpawnsXml(const QString &mapPath, QString &targetPath,
                 if (it == m_posIndex.end()) continue;
                 const OtbmTile &t = m_tiles[static_cast<size_t>(it.value())];
                 if (t.creature_name.isEmpty()) continue;
+                const quint64 creatureKey = posKey3d(t.x, t.y, t.z);
+                if (emittedCreatures.contains(creatureKey)) continue;
                 xml.writeStartElement(t.creature_is_npc ? QStringLiteral("npc")
                                                         : QStringLiteral("monster"));
                 xml.writeAttribute(QStringLiteral("name"), t.creature_name);
@@ -1583,6 +1587,7 @@ bool OtbmReader::buildSpawnsXml(const QString &mapPath, QString &targetPath,
                 xml.writeAttribute(QStringLiteral("spawntime"),
                                    QString::number(t.creature_spawntime));
                 xml.writeEndElement();
+                emittedCreatures.insert(creatureKey);
             }
         xml.writeEndElement();
     }

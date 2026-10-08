@@ -9,6 +9,7 @@ Item {
         id: prefs
         property bool showClientBox: false
         property bool showTooltips: false
+        property int tooltipMinimumZoom: 0
         property bool showWaypoints: false
         property bool showHouses: false
         property bool showLightSources: false
@@ -18,10 +19,13 @@ Item {
         property int floor: 7
         property int tileSize: 32
         property int exitX: 1
+        property real origin: 0
+        property int scans: 0
         signal contentUpdated()
-        function renderOriginX() { return 0; }
+        function renderOriginX() { return origin; }
         function renderOriginY() { return 0; }
         function mapOverlayData(tooltips, waypoints, houses, lights) {
+            ++scans;
             return lights ? [{kind: "light_source", x: exitX, y: 1, name: "", text: "", intensity: 7, red: 255, green: 153, blue: 0}] : [];
         }
     }
@@ -56,6 +60,35 @@ Item {
             map.exitX = 2;
             overlay.refreshData(true);
             compare(overlay.entries[0].x, 2);
+        }
+        function test_motion_keeps_labels_and_batches_queries() {
+            prefs.showLightSources = true;
+            overlay.refreshData(true);
+            const original = overlay.entries;
+            const before = map.scans;
+            for (let i = 0; i < 200; ++i) {
+                map.origin = i / 200;
+                map.contentUpdated();
+            }
+            compare(map.scans, before);
+            compare(overlay.currentOriginX, map.origin);
+            wait(130);
+            compare(map.scans, before + 1);
+            verify(overlay.entries === original);
+            map.origin = 0;
+        }
+        function test_configurable_tooltip_zoom_limit() {
+            prefs.showTooltips = true;
+            prefs.tooltipMinimumZoom = 25;
+            map.tileSize = 4;
+            compare(overlay.tooltipsVisible, false);
+            map.tileSize = 8;
+            compare(overlay.tooltipsVisible, true);
+            prefs.tooltipMinimumZoom = 0;
+            map.tileSize = 1;
+            compare(overlay.tooltipsVisible, true);
+            map.tileSize = 32;
+            prefs.tooltipMinimumZoom = 0;
         }
         function test_source_badge() {
             let labels = [];

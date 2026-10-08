@@ -15,6 +15,17 @@ Item {
     property Item targetItem
     property bool targetHovered: false
     property string message: ""
+    property int delay: 350
+    property bool ready: false
+    function schedule() {
+        ready = false;
+        reveal.stop();
+        if (targetHovered && message.length > 0) reveal.start();
+    }
+    onTargetHoveredChanged: schedule()
+    onMessageChanged: schedule()
+    onTargetItemChanged: schedule()
+    Timer { id: reveal; interval: root.delay; onTriggered: root.ready = true }
 
     readonly property Item hostItem: {
         if (!targetItem)
@@ -25,12 +36,12 @@ Item {
         return targetItem.parent;
     }
 
-    visible: targetHovered && message.length > 0 && hostItem !== null
+    visible: ready && targetHovered && message.length > 0 && hostItem !== null
     parent: hostItem
     z: 1000
 
-    width: Math.max(40, tooltipText.implicitWidth + 20)
-    height: Math.max(24, tooltipText.implicitHeight + 12)
+    width: Math.min(hostItem ? Math.max(40, hostItem.width - 16) : 360, 360, Math.max(40, tooltipText.implicitWidth + 30))
+    height: Math.max(24, tooltipText.contentHeight + 12)
 
     readonly property bool hasCursorPosition: targetItem
                                                && typeof targetItem.mouseX === "number"
@@ -62,32 +73,32 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: root.fluentTheme ? 0 : 6
-        color: root.fluentTheme ? FluentColors.c("popup") : root.grayTheme ? "#242424" : "#161B22"
+        radius: 4
+        color: "#e6191d1f"
         border.width: 1
-        border.color: root.fluentTheme ? FluentColors.c("border") : root.grayTheme ? "#484848" : "#30363D"
+        border.color: FluentColors.c("accent")
+    }
 
-        Rectangle {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            width: 2
-            radius: root.fluentTheme ? 0 : 1
-            color: root.fluentTheme ? FluentColors.c("accent") : root.grayTheme ? "#C79A3B" : "#2EA043"
-        }
+    Rectangle {
+        x: 9
+        anchors.verticalCenter: parent.verticalCenter
+        width: 6; height: 6; radius: 3
+        color: FluentColors.c("accent")
     }
 
     Text {
         id: tooltipText
         anchors.fill: parent
-        leftPadding: 10
+        leftPadding: 21
         rightPadding: 10
         topPadding: 6
         bottomPadding: 6
         text: root.message
         color: root.fluentTheme ? FluentColors.c("text") : root.grayTheme ? "#F0F0F0" : "#E6EDF3"
         font.pixelSize: 12
-        elide: Text.ElideRight
+        textFormat: Text.PlainText
+        wrapMode: Text.Wrap
+        font.family: FluentColors.fontFamily
         verticalAlignment: Text.AlignVCenter
     }
 }

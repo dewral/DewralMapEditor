@@ -176,6 +176,7 @@ Item {
             id: mapRenderer
             anchors.fill: parent
             source: mapView
+            lightingMinimumZoom: workspace.settings.lightingMinimumZoom
             Component.onCompleted: {
                 if (!workspace.settings.renderMaxFpsConfigured) {
                     workspace.settings.renderMaxFps = 60;

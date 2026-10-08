@@ -6,6 +6,19 @@ import Tibia 1.0
 Rectangle {
     id: root
     required property var mapView
+    property var settings
+    property bool brushDragActive: false
+    signal toolsDockDragStarted()
+    signal toolsDoorsRequested()
+    signal brushDockDragStarted()
+    signal brushDockDragMoved(real sceneX, real sceneY)
+    signal brushDockDragFinished(real sceneX, real sceneY)
+    signal brushDockDragCanceled()
+    readonly property bool brushDocked: settings && settings.brushSizeDock === "topbar"
+    readonly property bool toolsDocked: settings && settings.toolsDock === "topbar"
+    readonly property bool hasDockedPanels: brushDocked || toolsDocked
+    readonly property int dockedWidth: (brushDocked ? 280 : 0) + (toolsDocked ? 489 : 0) + (brushDocked && toolsDocked ? 12 : 0)
+    readonly property bool secondRow: hasDockedPanels && width < commands.width + lightSwitch.width + previewButton.width + dockedWidth + 62
     signal newRequested()
     signal openRequested()
     signal saveRequested()
@@ -13,11 +26,12 @@ Rectangle {
     color: Colors.c("toolbar")
     Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Colors.c("separator") }
     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Colors.c("separator") }
-    implicitHeight: 42
+    implicitHeight: secondRow ? 78 : 42
     Row {
+        id: commands
+        y: 5
         anchors.left: parent.left
         anchors.leftMargin: 10
-        anchors.verticalCenter: parent.verticalCenter
         spacing: 2
         Repeater {
             model: [
@@ -91,39 +105,104 @@ Rectangle {
             }
         }
     }
-    Switch {
-        id: lightSwitch
-        objectName: "fluentLightSwitch"
-        anchors.right: parent.right; anchors.rightMargin: 18
-        anchors.verticalCenter: parent.verticalCenter
-        text: "Lighting"
-        enabled: Backend.otbmReader.loaded
-        checked: root.mapView.torchOn
-        onToggled: root.mapView.torchOn = checked
-        implicitWidth: lightingLabel.implicitWidth + 8; implicitHeight: 27
-        padding: 0; spacing: 7
-        opacity: enabled ? 1 : 0.45
-        indicator: Rectangle {
-            implicitWidth: 30; implicitHeight: 16
-            y: Math.round((lightSwitch.height - height) / 2); radius: 8
-            color: lightSwitch.checked ? Colors.c("lightingOn") : Colors.c("lightingOff")
-            border.color: lightSwitch.checked ? Colors.c("lightingBorder") : Colors.c("muted")
-            Rectangle {
-                width: 12; height: 12; radius: 6; y: 2
-                x: lightSwitch.checked ? 16 : 2
-                color: Colors.c("lightingKnob")
-                border.color: Colors.c("lightingKnob")
-                Behavior on x { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
+    Flickable {
+        x: root.secondRow ? 10 : lightSwitch.x + lightSwitch.width + 14
+        y: root.secondRow ? 43 : 6
+        width: Math.max(0, root.width - 10 - x)
+        height: 30
+        visible: root.hasDockedPanels
+        clip: true
+        contentWidth: dockedPanels.width; contentHeight: 30
+        boundsBehavior: Flickable.StopAtBounds
+        Row {
+            id: dockedPanels
+            spacing: 12
+        PaletteBrushSizeSelector {
+            visible: root.brushDocked
+            width: 280; height: 30; compact: true
+            mapCtrl: root.mapView; githubUi: false
+            onDockDragStarted: root.brushDockDragStarted()
+            onDockDragMoved: (x,y) => root.brushDockDragMoved(x,y)
+            onDockDragFinished: (x,y) => root.brushDockDragFinished(x,y)
+            onDockDragCanceled: root.brushDockDragCanceled()
+        }
+        FluentTools {
+            visible: root.toolsDocked
+            width: 489; height: 30; compact: true
+            mapView: root.mapView
+            onDoorsRequested: root.toolsDoorsRequested()
+            onDockDragStarted: root.toolsDockDragStarted()
+            onDockDragMoved: (x,y) => root.brushDockDragMoved(x,y)
+            onDockDragFinished: (x,y) => root.brushDockDragFinished(x,y)
+            onDockDragCanceled: root.brushDockDragCanceled()
+        }
+        }
+    }
+    Rectangle {
+        anchors.fill: parent
+        visible: root.brushDragActive
+        color: "#304a9ec7"; border.color: Colors.c("accent"); border.width: 2
+    }
+    ToolButton {
+        id: previewButton
+        objectName: "fluentIngamePreviewButton"
+        anchors.left: commands.right
+        anchors.leftMargin: 12
+        y: 5
+        width: 40
+        height: 32
+
+        enabled: Backend.otbmReader.loaded && !!root.settings
+        checkable: true
+        checked: !!root.settings && root.settings.showIngamePreviewWindow
+        onClicked: root.settings.showIngamePreviewWindow = !root.settings.showIngamePreviewWindow
+        contentItem: Item {
+            Image {
+                anchors.centerIn: parent
+                width: 20; height: 20
+                source: "image://tibiaui/fluent-icon/preview/" + String(Colors.c("buttonText")).replace("#", "")
+                sourceSize: Qt.size(20, 20)
+                opacity: previewButton.enabled ? 1 : 0.35
             }
         }
-        contentItem: Text {
-            id: lightingLabel
-            text: lightSwitch.text; leftPadding: 37; color: Colors.c("lightingText")
-            font.family: Colors.fontFamily; font.pixelSize: Colors.fontSize; font.weight: Font.Normal
-            renderType: Text.NativeRendering; verticalAlignment: Text.AlignVCenter
+        background: Rectangle {
+            radius: 4
+            color: previewButton.down ? Colors.c("selectedHover")
+                   : previewButton.checked || previewButton.hovered ? Colors.c("selected") : "transparent"
+        }
+        Accessible.name: "In-game Preview"
+        ToolTip.visible: hovered
+        ToolTip.delay: 650
+        ToolTip.text: checked ? "Close In-game Preview" : "Open In-game Preview"
+    }
+    ToolButton {
+        id: lightSwitch
+        objectName: "fluentLightSwitch"
+        anchors.left: previewButton.right; anchors.leftMargin: 2
+        y: 5
+        width: 40; height: 32
+        enabled: Backend.otbmReader.loaded
+        checkable: true
+        checked: root.mapView.torchOn
+        onClicked: root.mapView.torchOn = !root.mapView.torchOn
+        contentItem: Item {
+            Image {
+                anchors.centerIn: parent
+                width: 20; height: 20
+                source: "image://tibiaui/fluent-icon/lighting/" + String(Colors.c("buttonText")).replace("#", "")
+                sourceSize: Qt.size(20, 20)
+                opacity: lightSwitch.enabled ? 1 : 0.35
+            }
+        }
+        background: Rectangle {
+            radius: 4
+            color: lightSwitch.down ? Colors.c("selectedHover")
+                   : lightSwitch.checked || lightSwitch.hovered ? Colors.c("selected") : "transparent"
         }
         Accessible.name: "Lighting"
-        ToolTip.visible: hovered; ToolTip.text: "Toggle map lighting"; ToolTip.delay: 650
+        ToolTip.visible: hovered
+        ToolTip.text: checked ? "Disable map lighting" : "Enable map lighting"
+        ToolTip.delay: 650
     }
     ColorHighlight { targetItem: lightSwitch; colorKeys: ["lightingOn", "lightingOff", "lightingBorder", "lightingKnob", "lightingText", "selected", "selectedBorder"] }
     ColorHighlight { targetItem: root; colorKeys: ["toolbar", "separator", "button", "buttonText", "muted"] }

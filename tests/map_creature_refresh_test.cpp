@@ -1,5 +1,7 @@
+#include "../editor/preview/ingamepreviewcontroller.h"
 #include "mapview.h"
 #include "dmedatadir.h"
+#include "itemsxmlreader.h"
 
 #include <QDebug>
 #include <QElapsedTimer>
@@ -87,17 +89,21 @@ bool writeAssets(const QTemporaryDir &directory)
     dat.append(QByteArray(4, '\0')); // No effects or missiles.
     for (int category = 0; category < 2; ++category) {
         for (quint16 sprite = 1; sprite <= 3; ++sprite) {
+            if (category == 0 && sprite == 3) { dat.append(char(25)); appendU16(dat, 8); }
             dat.append(static_cast<char>(0xff));
-            dat.append(QByteArray(7, '\1'));
+            dat.append(QByteArray(6, '\1'));
+            dat.append(char(category == 0 && sprite == 1 ? 2 : 1));
             appendU16(dat, sprite);
+            if (category == 0 && sprite == 1) appendU16(dat, sprite);
         }
     }
 
     QByteArray otb("OTBI");
     otb.append(static_cast<char>(0xfe));
     otb.append(QByteArray(5, '\0'));
-    for (const auto &ids : {qMakePair(1000, 100), qMakePair(5710, 102)}) {
-        QByteArray item(5, '\0');
+    for (const auto &ids : {qMakePair(1000, 100), qMakePair(5710, 102), qMakePair(1001, 100), qMakePair(1002, 100), qMakePair(1003, 100), qMakePair(1004, 100)}) {
+        QByteArray item(1, '\0');
+        appendU32(item, ids.first == 1001 ? (1u << 9) : ids.first == 1002 ? (1u << 8) : ids.first == 1003 ? ((1u << 9) | (1u << 4)) : 0);
         item.append(static_cast<char>(0x10));
         appendU16(item, 2);
         appendU16(item, ids.first);
@@ -248,6 +254,128 @@ int main(int argc, char **argv)
     view.setOtbm(&map);
     view.setTileSize(48);
     if (!expectOutfits(view, red, red)) return 1;
+    const quint64 stationaryContent = view.renderContentVersion();
+    if (!require(waitUntil([&] { view.animTick(); return view.renderContentVersion() != stationaryContent; }),
+                 "Stationary preview content did not refresh on item animation")) return 1;
+    const quint64 tickContent = view.renderContentVersion();
+    view.animTick();
+    if (!require(view.renderContentVersion() == tickContent,
+                 "A second preview timer advanced the same animation phase twice")) return 1;
+
+    {
+        ItemsXmlReader transitionItems;
+        QFile xmlFile(directory.filePath("transitions.xml"));
+        if (!xmlFile.open(QIODevice::WriteOnly)) return 1;
+        xmlFile.write(R"(<items><item id="1000"><attribute key="floorchange" value="east"/></item><item id="1003" name="ladder"><attribute key="floorchange" value="north"/></item><item id="1004" name="ladder"/></items>)");
+        xmlFile.close();
+        if (!transitionItems.loadFile(xmlFile.fileName())) return 1;
+        otb.setItemsXml(&transitionItems);
+        ClientItem animatedItem;
+        animatedItem.frames = 3;
+        if (!require(animatedItem.animationFrameAt(499) == 0
+                     && animatedItem.animationFrameAt(500) == 1
+                     && animatedItem.animationFrameAt(1500) == 0,
+                     "Legacy item animation did not use 500 ms frames")) return 1;
+        animatedItem.frame_durations = {100, 200, 300};
+        if (!require(animatedItem.animationFrameAt(99) == 0
+                     && animatedItem.animationFrameAt(100) == 1
+                     && animatedItem.animationFrameAt(299) == 1
+                     && animatedItem.animationFrameAt(300) == 2
+                     && animatedItem.animationFrameAt(600) == 0,
+                     "DAT item animation ignored individual frame durations")) return 1;
+        OtbmReader transitions;
+        transitions.newMap(64, 64, 860, 2, 22);
+        transitions.placeItem(10, 10, 7, 1001, 0, false, true);
+        transitions.placeItem(10, 9, 6, 1002, 0, false, true);
+        transitions.placeItem(10, 11, 7, 1000, 0, false, true);
+        transitions.placeItem(20, 20, 7, 1003, 0, false, true);
+        transitions.placeItem(20, 19, 6, 1000, 0, false, true);
+        transitions.placeItem(15, 15, 7, 1000, 0, false, true);
+        transitions.placeItem(16, 15, 6, 1001, 0, false, true);
+        MapView transitionView;
+        transitionView.setOtb(&otb);
+        transitionView.setDat(&dat);
+        transitionView.setOtbm(&transitions);
+        if (!require(transitionView.previewStepAt(14, 15, 7, 1, 0) == QVector3D(16, 15, 6),
+                     "XML-only stairs did not resolve a floor change")) return 1;
+        if (!require(transitionView.previewTransitionAt(10, 10, 7) == QVector3D(10, 9, 6),
+                     "North stairs did not lead upstairs")) return 1;
+        transitions.placeItem(9, 10, 7, 1000, 0, false, true);
+        if (!require(transitionView.previewStepAt(9, 10, 7, 1, 0) == QVector3D(10, 9, 6),
+                     "Walk did not resolve stairs from a normal tile")) return 1;
+        if (!require(transitionView.previewStepAt(9, 10, 7, 0, -1).z() < 0,
+                     "Walk accepted a missing tile without a valid floor transition")) return 1;
+        transitions.placeItem(40, 40, 7, 1000, 0, false, true);
+        transitions.placeItem(41, 40, 6, 1000, 0, false, true);
+        for (int i = 0; i < 2; ++i) transitions.addItem(40, 40, 7, 5710);
+        if (!require(transitionView.previewStepAt(40, 40, 7, 1, 0).z() < 0,
+                     "Two elevated objects incorrectly allowed a climb")) return 1;
+        transitions.addItem(40, 40, 7, 5710);
+        if (!require(transitionView.previewStepAt(40, 40, 7, 1, 0) == QVector3D(41, 40, 6),
+                     "Three elevated objects did not allow climbing upstairs")) return 1;
+        transitions.placeItem(50, 50, 8, 1000, 0, false, true);
+        for (int i = 0; i < 3; ++i) transitions.addItem(50, 50, 8, 5710);
+        if (!require(transitionView.previewStepAt(49, 50, 7, 1, 0) == QVector3D(50, 50, 8),
+                     "Elevated lower tile did not allow descending")) return 1;
+        if (!require(transitionView.previewStepDurationAt(9, 10, 7, 200) == 750
+                     && transitionView.previewStepDurationAt(9, 10, 7, 200, true) == 2250,
+                     "OTClient classic step timing or diagonal multiplier differs")) return 1;
+        transitions.placeItem(5, 5, 7, 1000, 0, false, true);
+        transitions.placeItem(6, 5, 7, 1000, 0, false, true);
+        transitions.placeItem(5, 6, 7, 1000, 0, false, true);
+        transitions.placeItem(6, 6, 7, 1000, 0, false, true);
+        if (!require(transitionView.previewStepAt(5, 5, 7, 1, 1) == QVector3D(6, 6, 7),
+                     "Diagonal walking did not resolve an open target")) return 1;
+        IngamePreviewController walker;
+        walker.setSource(&transitionView);
+        walker.setSpeed(2000);
+        walker.setPosition(5, 5, 7);
+        if (!require(walker.walk(1, 0) && walker.x() == 6 && walker.walking(),
+                     "Offline prewalk did not update logical position")) return 1;
+        walker.walk(0, 1);
+        walker.clearQueuedWalk();
+        if (!require(waitUntil([&] { return !walker.walking(); })
+                     && walker.x() == 6 && walker.y() == 5 && walker.visualX() == 6,
+                     "Releasing movement did not clear queued steps")) return 1;
+        // Down stairs reverse the directional flag on the landing below.
+        transitions.placeItem(10, 9, 7, 1001, 0, false, true);
+        if (!require(transitionView.previewTransitionAt(10, 9, 6) == QVector3D(10, 10, 7),
+                     "Down stairs did not reverse the lower floor direction")) return 1;
+        if (!require(transitionView.previewTransitionAt(20, 20, 7).z() < 0
+                     && transitionView.previewTransitionAt(20, 20, 7, true) == QVector3D(20, 19, 6),
+                     "Usable transition must require explicit use")) return 1;
+        walker.setPosition(18, 20, 7);
+        if (!require(!walker.useTransitionAt(20, 20), "Remote ladder use was accepted")) return 1;
+        walker.setPosition(19, 20, 7);
+        if (!require(!walker.useTransitionAt(19, 19) && walker.useTransitionAt(20, 20)
+                     && walker.x() == 20 && walker.y() == 19 && walker.z() == 6,
+                     "Mouse use did not target only the adjacent clicked ladder")) return 1;
+        transitions.placeItem(25, 25, 7, 1004, 0, false, true);
+        transitions.placeItem(25, 26, 6, 1001, 0, false, true);
+        transitions.placeItem(24, 25, 7, 1001, 0, false, true);
+        walker.setPosition(24, 25, 7);
+        if (!require(transitionView.previewTransitionAt(25, 25, 7).z() < 0
+                     && walker.useTransitionAt(25, 25) && walker.y() == 26 && walker.z() == 6,
+                     "Scripted ladder without floor-change flags did not require mouse use")) return 1;
+        transitions.placeItem(30, 30, 7, 1003, 0, false, true);
+        if (!require(transitionView.previewTransitionAt(30, 30, 7, true).z() < 0,
+                     "Transition accepted a missing landing")) return 1;
+        otb.setItemsXml(nullptr);
+    }
+    if (!require(map.setTopItemActionId(1, 1, 7, 1234), "Could not prepare zoomed-out tooltip")) return 1;
+    const int tooltipTileSize = view.tileSize();
+    view.setWidth(320); view.setHeight(320);
+    for (int size : {1, 4, 8, 11, 12, 32}) {
+        view.setTileSize(size);
+        bool foundTooltip = false;
+        for (const auto &entry : view.mapOverlayData(true, false, false, false)) {
+            const auto tooltip = entry.toMap();
+            if (tooltip.value("kind").toString() == "tooltip"
+                && tooltip.value("text").toString().contains("aid: 1234")) foundTooltip = true;
+        }
+        if (!require(foundTooltip, "Item tooltip disappeared at a small zoom level")) return 1;
+    }
+    view.setTileSize(tooltipTileSize);
     const double originX = view.renderOriginX();
     const double originY = view.renderOriginY();
 

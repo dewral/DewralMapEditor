@@ -38,11 +38,20 @@ public:
         m_view = view;
         m_previewWindow = view->previewWindow();
         m_previewLighting = view->previewLighting();
+        m_lightingMinimumZoom = view->lightingMinimumZoom();
         MapView *src = view->source();
         m_modernZones = src && src->modernZones();
         m_tilesOpacity = src && !m_previewWindow ? src->tilesOpacity() : 1.0f;
         m_itemsOpacity = src && !m_previewWindow ? src->itemsOpacity() : 1.0f;
         m_houseOpacity = src ? float(src->houseOpacity()) : 0.25f;
+        if (src) {
+            const QColor color = src->selectionColor();
+            m_selectionColor = QVector4D(color.redF(), color.greenF(), color.blueF(), src->selectionOpacity());
+        }
+        if (src) for (int i = 0; i < 5; ++i) {
+            const QColor color(src->zoneColors()[i].toString());
+            m_zoneColors[i] = QVector4D(color.redF(), color.greenF(), color.blueF(), 1.0f);
+        }
         if (src) for (int i = 0; i < 4; ++i) m_zoneAlpha[i] = src->zoneOpacities()[i].toFloat();
         const quint64 initialToken = src && !m_previewWindow ? src->initialViewToken() : 0;
         if (initialToken != m_waitingInitialToken) {
@@ -314,7 +323,7 @@ public:
         const int lightTH = static_cast<int>(std::ceil(h / ts)) + 3;
         for (int z = 0; z < 16; ++z) {
             FloorLight &light = m_floorLights[z];
-            const bool floorEnabled = lightingEnabled && ts >= 4
+            const bool floorEnabled = lightingEnabled && (m_previewWindow || ts * 100 >= m_lightingMinimumZoom * 32)
                                    && z == m_curFloor;
             if (!floorEnabled) {
                 if (light.enabled) {
@@ -549,6 +558,7 @@ public:
         u.atlasAndOffset[2] = offset; u.atlasAndOffset[3] = offset;
         const auto &light = m_floorLights[m_curFloor];
         u.options[0] = lighting && light.enabled ? 1.0f : 0.0f;
+        for (int i = 0; i < 4; ++i) u.selection[i] = m_selectionColor[i];
         u.options[1] = m_tilesOpacity;
         u.options[3] = m_itemsOpacity;
         u.lightRect[0] = light.tx; u.lightRect[1] = light.ty;
@@ -583,12 +593,11 @@ public:
         rectangles(draws, m_zoneHouseVbo, m_zoneHouseCount,
                        m_modernZones ? QVector4D(0.569f,0.451f,0.745f,m_houseOpacity) : QVector4D(0.34f, 0.18f, 0.56f, 0.24f), matrix);
         rectangles(draws, m_zoneSelectedHouseVbo, m_zoneSelectedHouseCount,
-                       m_modernZones ? QVector4D(0.569f,0.451f,0.745f,std::min(1.0f, m_houseOpacity * 1.4f)) : QVector4D(0.10f, 0.52f, 0.25f, 0.34f), matrix);
+                       m_modernZones ? QVector4D(m_zoneColors[4].toVector3D(), std::min(1.0f, m_houseOpacity * 1.4f)) : QVector4D(0.10f, 0.52f, 0.25f, 0.34f), matrix);
         if (m_modernZones) {
-            rectangles(draws, m_zoneBorderVbo[4], m_zoneBorderCount[4], {0.569f,0.451f,0.745f,0.85f}, matrix);
-            rectangles(draws, m_zoneBorderVbo[5], m_zoneBorderCount[5], {0.569f,0.451f,0.745f,1.0f}, matrix);
-            QVector4D colors[] {{0.376f,0.804f,1.0f,1}, {0.282f,0.722f,0.514f,1},
-                                {0.875f,0.651f,0.353f,1}, {0.831f,0.420f,0.475f,1}};
+            rectangles(draws, m_zoneBorderVbo[4], m_zoneBorderCount[4], QVector4D(m_zoneColors[4].toVector3D(), 0.85f), matrix);
+            rectangles(draws, m_zoneBorderVbo[5], m_zoneBorderCount[5], m_zoneColors[4], matrix);
+            QVector4D colors[] {m_zoneColors[0], m_zoneColors[1], m_zoneColors[2], m_zoneColors[3]};
             MapRenderBuffer *fills[] {&m_zonePzVbo,&m_zoneNoPvpVbo,&m_zoneNoLogoutVbo,&m_zonePvpVbo};
             const int counts[] {m_zonePzCount,m_zoneNoPvpCount,m_zoneNoLogoutCount,m_zonePvpCount};
             for (int i = 0; i < 4; ++i) {
@@ -647,13 +656,13 @@ public:
         const auto &matrix = m_pointerMatrix;
         sprite(draws, m_ghostVbo, m_ghostCount, matrix, {0.5f,0.5f,0.5f,0.55f});
         if (m_rubberActive) {
-            auto u = uniforms(matrix, m_modernZones ? QVector4D(0.376f,0.804f,1.0f,0.18f) : QVector4D(0.6f,0.6f,0.6f,0.18f));
+            auto u = uniforms(matrix, m_selectionColor);
             for (int i = 0; i < 4; ++i) u.rect[i] = float(m_rubberRect[i]);
             draws.push_back({nullptr, 1, u, MapRhiBackend::Flat});
             const float x0 = u.rect[0], y0 = u.rect[1], x1 = u.rect[2], y1 = u.rect[3];
             const float border[]{x0,y0, x1,y0, x1,y0, x1,y1, x1,y1, x0,y1, x0,y1, x0,y0};
             m_rubberLines.assign(border, sizeof(border));
-            draws.push_back({&m_rubberLines, 8, uniforms(matrix, m_modernZones ? QVector4D(0.376f,0.804f,1.0f,0.85f) : QVector4D(0.75f,0.75f,0.75f,0.85f)), MapRhiBackend::Lines});
+            draws.push_back({&m_rubberLines, 8, uniforms(matrix, QVector4D(m_selectionColor.toVector3D(), 0.85f)), MapRhiBackend::Lines});
         }
         if (m_lassoActive && m_lassoVertexCount > 0) {
             const QVector4D color = m_lassoOperation == 2
@@ -858,6 +867,8 @@ public:
     bool m_modernZones = false;
     float m_tilesOpacity = 1.0f, m_itemsOpacity = 1.0f;
     float m_houseOpacity = 0.25f;
+    QVector4D m_selectionColor {0.2902f, 0.6196f, 0.7804f, 0.25f};
+    QVector4D m_zoneColors[5];
     float m_zoneAlpha[4] {0.25f, 0.25f, 0.25f, 0.25f};
     std::array<std::vector<float>, 6> m_zoneBorders;
     MapRenderBuffer m_zoneBorderVbo[6];
@@ -914,6 +925,7 @@ public:
     bool m_showShade = true;
     bool m_previewWindow = false;
     bool m_previewLighting = true;
+    int m_lightingMinimumZoom = 25;
     quint64 m_previewContentVersion = std::numeric_limits<quint64>::max();
 
 };
@@ -944,7 +956,8 @@ MapRhiView::MapRhiView(QQuickItem *parent)
     connect(&m_renderTimer, &QTimer::timeout, this, [this] { driverTick(); });
 
     // Animation invalidates only chunks that contain animated items.
-    m_animTimer.setInterval(500);
+    m_animTimer.setInterval(16);
+    m_animTimer.setTimerType(Qt::PreciseTimer);
     connect(&m_animTimer, &QTimer::timeout, this, [this] {
         if (m_source && m_source->showAnimations() && isVisible())
             m_source->animTick();
@@ -986,7 +999,7 @@ void MapRhiView::driverTick()
     if (!m_previewWindow && m_source && m_source->navigationActive())
         m_source->advanceNavigationFrame();
     // Request a frame only for an actual change or an active magic effect.
-    // Item animations are advanced by m_animTimer every 500 ms; the resulting
+    // Item animations sample the shared clock; the resulting
     // contentUpdated signal marks the next frame as pending.
     const bool animating = m_source && m_source->hasActiveEffects();
     const bool pending = m_framePending.exchange(false, std::memory_order_relaxed);
@@ -1091,4 +1104,14 @@ void MapRhiView::updateRenderDriver()
         m_renderTimer.setInterval(qMax(1, 1000 / m_maxFps));
         m_renderTimer.start();
     }
+}
+
+void MapRhiView::setLightingMinimumZoom(int value)
+{
+    value = qBound(0, value, 100);
+    if (m_lightingMinimumZoom == value) return;
+    m_lightingMinimumZoom = value;
+    emit lightingMinimumZoomChanged();
+    markFramePending();
+    update();
 }

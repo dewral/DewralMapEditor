@@ -65,47 +65,43 @@ void MapView::setShowAnimations(bool on)
 
 void MapView::animTick()
 {
-    ++m_animFrame;
+    // Multiple render windows share this clock: callbacks must not advance it twice.
+    const int frame = static_cast<int>(m_effectClock.elapsed() / 16);
+    if (frame == m_animFrame) return;
+    bool phaseChanged = false;
+    if (m_dat) for (const auto &item : m_dat->items()) {
+        if (item.animationFrameAt(static_cast<quint64>(frame) * 16)
+            != item.animationFrameAt(static_cast<quint64>(m_animFrame) * 16)) {
+            phaseChanged = true;
+            break;
+        }
+    }
+    m_animFrame = frame;
+    if (!phaseChanged) return;
 
-    const int tileSize = std::max(1, m_navigationController.tileSize());
-    constexpr int spillTiles = 4;
-    const int minChunkX = floorDiv(
-        static_cast<int>(std::floor(m_navigationController.originX())) - spillTiles, kChunkTiles);
-    const int minChunkY = floorDiv(
-        static_cast<int>(std::floor(m_navigationController.originY())) - spillTiles, kChunkTiles);
-    const int maxChunkX = floorDiv(
-        static_cast<int>(std::ceil(m_navigationController.originX() + width() / tileSize)) + 1, kChunkTiles);
-    const int maxChunkY = floorDiv(
-        static_cast<int>(std::ceil(m_navigationController.originY() + height() / tileSize)) + 1, kChunkTiles);
-    const int bottomFloor = renderBottomFloor();
-
-    // Only invalidate animated chunks that can contribute to the current view.
-    // Keeping off-screen floors cached prevents a full asynchronous rebuild when
-    // returning from underground to the surface.
+    // The editor and detached previews can show different floors and regions.
+    // Invalidate cached animated chunks for every view, not only the editor viewport.
+    ++m_dataVersion;
     bool any = false;
     {
         std::lock_guard<std::mutex> lk(m_chunkStore.cacheMutex());
-        for (int z = m_navigationController.floor(); z <= bottomFloor; ++z) {
-            auto &animatedChunks = m_chunkStore.animatedChunks();
-            auto animatedIt = animatedChunks.constFind(z);
+        for (int z = 0; z < 16; ++z) {
+            const auto &animatedChunks = m_chunkStore.animatedChunks();
+            const auto animatedIt = animatedChunks.constFind(z);
             if (animatedIt == animatedChunks.cend()) continue;
-
             auto &versions = m_chunkStore.versions();
             auto versionIt = versions.find(z);
-            for (int cy = minChunkY; cy <= maxChunkY; ++cy) {
-                for (int cx = minChunkX; cx <= maxChunkX; ++cx) {
-                    const quint64 key = chunkKey(cx, cy);
-                    if (!animatedIt->contains(key)) continue;
+            for (const quint64 key : *animatedIt) {
                     if (m_chunkStore.removeChunkLocked(z, key)) {
                         if (versionIt != versions.end()) versionIt->remove(key);
                         m_chunkStore.dirtyChunks().insert({z, key});
                         any = true;
                     }
-                }
             }
         }
     }
-    if (!any) return;
+    // Detached preview can display animated tiles outside the editor viewport.
+    if (!any) { emit contentUpdated(); update(); return; }
 
     m_chunkStore.cacheVersion().fetch_add(1, std::memory_order_relaxed);
     emit contentUpdated(); update();

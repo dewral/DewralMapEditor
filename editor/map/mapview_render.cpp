@@ -882,7 +882,7 @@ QVariantList MapView::visibleZoneLabels() const
     QSet<int> shownRegions;
     const QString names[] {QStringLiteral("Protection Zone"), QStringLiteral("Non-PvP"), QStringLiteral("No Logout"), QStringLiteral("PvP")};
     const QString shortNames[] {QStringLiteral("PZ"), QStringLiteral("NP"), QStringLiteral("NL"), QStringLiteral("PvP")};
-    const QString colors[] {QStringLiteral("#399ee8"),QStringLiteral("#48b883"),QStringLiteral("#dfa65a"),QStringLiteral("#d46b79")};
+    const QString colors[] {m_zoneColors[0].toString(), m_zoneColors[1].toString(), m_zoneColors[2].toString(), m_zoneColors[3].toString()};
     auto addLabel = [&](double x, double y, const QString &name, const QString &color, uint32_t flags = 0) {
         if (labels.size() < 64) labels.append(QVariantMap{{"x", (x + .5 - ox) * ts}, {"y", (y + .5 - oy) * ts}, {"name",name}, {"color",color}, {"flags",flags}, {"worldX",x + .5}, {"worldY",y + .5}});
     };
@@ -932,7 +932,7 @@ QVariantList MapView::visibleZoneLabels() const
         if (house) {
             name = QStringLiteral("House · #%1").arg(house);
             for (const auto &entry : m_otbm->houses()) if (entry.id == house && !entry.name.isEmpty()) { name = QStringLiteral("House · ") + entry.name; break; }
-            color = QStringLiteral("#9173be");
+            color = m_zoneColors[4].toString();
         }
         const int region = m_zoneLabelAnchors.size();
         double worldX = sx / queue.size() + .5, worldY = sy / queue.size() + .5;

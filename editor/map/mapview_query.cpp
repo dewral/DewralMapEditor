@@ -25,6 +25,115 @@
 #include <vector>
 #include <unordered_map>
 
+int MapView::previewStepDurationAt(int x, int y, int z, int speed, bool diagonal) const
+{
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    int groundSpeed = 150;
+    if (m_otbm && m_otb && m_dat) {
+        if (const auto *tile = m_otbm->tileAt(x, y, z)) {
+            for (const auto &item : tile->items) {
+                const int cid = m_otb->clientIdForServerId(item.server_id);
+                const auto *client = cid > 0 ? m_dat->itemByClientId(static_cast<uint16_t>(cid)) : nullptr;
+                if (client && (item.is_ground || client->has(ClientProperty::Ground))) {
+                    groundSpeed = client->ground_speed ? client->ground_speed : 150;
+                    break;
+                }
+            }
+        }
+    }
+    int interval = std::max(50, 1000 * groundSpeed / std::max(1, speed));
+    const int version = m_dat ? m_dat->clientVersion() : 860;
+    if (version >= 900) interval = ((interval + 49) / 50) * 50;
+    return interval * (diagonal ? (version <= 810 ? 2 : 3) : 1);
+}
+
+int MapView::previewOutfitWalkPhases(int lookType) const
+{
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    const auto *outfit = m_dat ? m_dat->outfitByLookType(static_cast<uint16_t>(lookType)) : nullptr;
+    if (!outfit) return 0;
+    for (const auto &group : outfit->sprite_groups)
+        if (group.type == 1) return std::max(0, int(group.frames));
+    return std::max(0, int(outfit->frames) - 1);
+}
+
+QVector3D MapView::previewStepAt(int x, int y, int z, int dx, int dy) const
+{
+    if (!m_otbm || !m_otb || std::abs(dx) > 1 || std::abs(dy) > 1 || (dx == 0 && dy == 0))
+        return QVector3D(x, y, -1);
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    const int tx = x + dx, ty = y + dy;
+    if (dx != 0 && dy != 0) {
+        // Diagonal floor changes are not valid; do not cut blocked corners.
+        return isPreviewWalkable(tx, ty, z) && isPreviewWalkable(x + dx, y, z)
+               && isPreviewWalkable(x, y + dy, z) ? QVector3D(tx, ty, z) : QVector3D(tx, ty, -1);
+    }
+    // Resolve server floor-change metadata before testing entrance collision.
+    const QVector3D transition = previewTransitionAt(tx, ty, z);
+    if (transition.z() >= 0) return transition;
+    if (isPreviewWalkable(tx, ty, z)) return QVector3D(tx, ty, z);
+    auto hasElevation = [&](int px, int py, int pz) {
+        if (!m_dat || pz < 0 || pz > 15) return false;
+        const auto *tile = m_otbm->tileAt(px, py, pz);
+        if (!tile) return false;
+        int count = 0;
+        for (const auto &item : tile->items) {
+            const int cid = m_otb->clientIdForServerId(item.server_id);
+            const auto *client = cid > 0 ? m_dat->itemByClientId(static_cast<uint16_t>(cid)) : nullptr;
+            if (client && client->elevation > 0) ++count;
+        }
+        return count >= 3;
+    };
+    // OTClient counts elevated objects, rather than summing their pixel heights.
+    if (z > 0 && hasElevation(x, y, z) && isPreviewWalkable(tx, ty, z - 1))
+        return QVector3D(tx, ty, z - 1);
+    if (z < 15 && hasElevation(tx, ty, z + 1) && isPreviewWalkable(tx, ty, z + 1))
+        return QVector3D(tx, ty, z + 1);
+    return QVector3D(tx, ty, -1);
+}
+
+QVector3D MapView::previewTransitionAt(int x, int y, int z, bool useItem) const
+{
+    if (!m_otbm || !m_otb || z < 0 || z > 15) return QVector3D(x, y, -1);
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    auto flagsAt = [&](int tx, int ty, int tz) {
+        uint32_t flags = 0;
+        const auto *tile = m_otbm->tileAt(tx, ty, tz);
+        if (tile) for (const auto &item : tile->items)
+            flags |= m_otb->floorChangeFlagsForServerId(item.server_id);
+        return flags;
+    };
+    const uint32_t flags = flagsAt(x, y, z);
+    constexpr uint32_t down = 1u << 8, north = 1u << 9, east = 1u << 10,
+                       south = 1u << 11, west = 1u << 12, southAlt = 1u << 13, eastAlt = 1u << 14;
+    bool ladder = false;
+    if (const auto *tile = m_otbm->tileAt(x, y, z)) {
+        for (const auto &item : tile->items) {
+            const QString name = m_otb->nameForServerId(item.server_id);
+            ladder |= name.contains(QStringLiteral("ladder"), Qt::CaseInsensitive);
+        }
+    }
+    if (!useItem && ladder && !(flags & down))
+        return QVector3D(x, y, -1);
+    if (!(flags & (down | north | east | south | west | southAlt | eastAlt)) && !(useItem && ladder))
+        return QVector3D(x, y, -1);
+    int tz = z + ((flags & down) ? 1 : -1);
+    if (tz < 0 || tz > 15) return QVector3D(x, y, -1);
+    const uint32_t directions = (flags & down) ? flagsAt(x, y, tz) : flags;
+    const int sign = (flags & down) ? -1 : 1;
+    int tx = x + sign * ((directions & east ? 1 : 0) - (directions & west ? 1 : 0));
+    int ty = y + sign * ((directions & south ? 1 : 0) - (directions & north ? 1 : 0));
+    if (directions & southAlt) ty += sign * 2;
+    if (directions & eastAlt) tx += sign * 2;
+    if (flags & down) {
+        if (flagsAt(x, y - 1, tz) & southAlt) ty = y - 2;
+        else if (flagsAt(x - 1, y, tz) & eastAlt) tx = x - 2;
+    }
+    // Scripted ladder actions conventionally land one tile south upstairs.
+    if (ladder && !(flags & (down | north | east | south | west | southAlt | eastAlt))) ++ty;
+    return isPreviewWalkable(tx, ty, tz) ? QVector3D(tx, ty, tz) : QVector3D(x, y, -1);
+}
+
 bool MapView::isPreviewWalkable(int x, int y, int z) const
 {
     if (!m_otbm || !m_otb || z < 0 || z > 15) return false;
@@ -634,7 +743,7 @@ QVariantList MapView::mapOverlayData(bool includeTooltips,
         }
     }
 
-    if (!includeTooltips || tileSize < 12) return output;
+    if (!includeTooltips) return output;
 
     const int minChunkX = floorDiv(minX, kChunkTiles);
     const int minChunkY = floorDiv(minY, kChunkTiles);

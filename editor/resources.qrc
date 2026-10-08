@@ -1,5 +1,7 @@
 <RCC>
     <qresource prefix="/">
+        <file alias="qml/components/OtclientName.qml">qml/components/OtclientName.qml</file>
+        <file alias="qml/components/fonts/otclient-name.png">qml/components/fonts/otclient-name.png</file>
         <file alias="qml/components/ImplicitHeightLoader.qml">qml/components/ImplicitHeightLoader.qml</file>
         <file alias="qml/components/ComboBoxTypeAhead.qml">qml/components/ComboBoxTypeAhead.qml</file>
         <!-- Wymusza styl Basic Qt Quick Controls (Qt czyta :/qtquickcontrols2.conf
@@ -31,6 +33,7 @@
         <file alias="qml/components/ZoneLabels.qml">qml/components/ZoneLabels.qml</file>
         <file alias="qml/components/WorkTimerStatus.qml">qml/components/WorkTimerStatus.qml</file>
         <file alias="qml/components/MapOverlay.qml">qml/components/MapOverlay.qml</file>
+        <file alias="qml/components/PreviewMovement.js">qml/components/PreviewMovement.js</file>
         <file alias="qml/components/IngamePreviewPanel.qml">qml/components/IngamePreviewPanel.qml</file>
         <file alias="qml/components/IngamePlayerOverlay.qml">qml/components/IngamePlayerOverlay.qml</file>
         <file alias="qml/components/GithubPaletteCombo.qml">qml/components/GithubPaletteCombo.qml</file>
@@ -85,6 +88,7 @@
         <file alias="qml/style/DmeDialogBackground.qml">qml/style/DmeDialogBackground.qml</file>
         <file alias="qml/style/DmeDialog.qml">qml/style/DmeDialog.qml</file>
         <file alias="qml/style/DmeConfirmDialog.qml">qml/style/DmeConfirmDialog.qml</file>
+        <file alias="qml/style/DmeColorPicker.qml">qml/style/DmeColorPicker.qml</file>
         <file alias="qml/style/DmeMenuItem.qml">qml/style/DmeMenuItem.qml</file>
         <file alias="qml/style/DmeMenu.qml">qml/style/DmeMenu.qml</file>
         <file alias="qml/style/DmeMenuBar.qml">qml/style/DmeMenuBar.qml</file>
@@ -280,6 +284,8 @@
             <file alias="qml/themes/fluent/icons/save.svg">qml/themes/fluent/icons/save.svg</file>
             <file alias="qml/themes/fluent/icons/open.svg">qml/themes/fluent/icons/open.svg</file>
             <file alias="qml/themes/fluent/icons/paste.svg">qml/themes/fluent/icons/paste.svg</file>
+            <file alias="qml/themes/fluent/icons/preview.svg">qml/themes/fluent/icons/preview.svg</file>
+            <file alias="qml/themes/fluent/icons/lighting.svg">qml/themes/fluent/icons/lighting.svg</file>
             <file alias="qml/themes/fluent/icons/undo.svg">qml/themes/fluent/icons/undo.svg</file>
             <file alias="qml/themes/fluent/icons/new.svg">qml/themes/fluent/icons/new.svg</file>
             <file alias="qml/themes/fluent/icons/copy.svg">qml/themes/fluent/icons/copy.svg</file>

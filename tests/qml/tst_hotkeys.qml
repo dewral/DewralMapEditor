@@ -49,6 +49,10 @@ Item {
     }
     QtObject {
         id: map
+        property color selectionColor: "#4a9ec7"
+        property real selectionOpacity: 0.25
+        property var zoneColors: ["#399ee8", "#48b883", "#dfa65a", "#d46b79", "#9173be"]
+        property bool showZones: true
         property int maxFps: 60
         property int visibleZoneMask: 29
         property var zoneOpacities: [0.25, 0.25, 0.25, 0.25]

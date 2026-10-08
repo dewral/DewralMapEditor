@@ -15,6 +15,7 @@ class MapRhiView : public QQuickRhiItem
     Q_PROPERTY(MapView *source READ source WRITE setSource NOTIFY sourceChanged)
     Q_PROPERTY(int fps READ fps NOTIFY fpsChanged)
 
+    Q_PROPERTY(int lightingMinimumZoom READ lightingMinimumZoom WRITE setLightingMinimumZoom NOTIFY lightingMinimumZoomChanged)
     Q_PROPERTY(int maxFps READ maxFps WRITE setMaxFps NOTIFY maxFpsChanged)
     Q_PROPERTY(bool previewWindow READ previewWindow WRITE setPreviewWindow NOTIFY previewWindowChanged)
     Q_PROPERTY(qreal previewCenterX READ previewCenterX WRITE setPreviewCenterX NOTIFY previewCameraChanged)
@@ -39,6 +40,8 @@ public:
         m_mapFrameRequested.store(true, std::memory_order_relaxed);
     }
 
+    int lightingMinimumZoom() const { return m_lightingMinimumZoom; }
+    void setLightingMinimumZoom(int value);
     int maxFps() const { return m_maxFps; }
     void setMaxFps(int v);
     bool previewWindow() const { return m_previewWindow; }
@@ -58,6 +61,7 @@ signals:
     void sourceChanged();
     void fpsChanged();
     void maxFpsChanged();
+    void lightingMinimumZoomChanged();
     void previewWindowChanged();
     void previewCameraChanged();
     void previewLightingChanged();
@@ -75,6 +79,7 @@ private:
     int m_fps = 0;
     QElapsedTimer m_fpsClock;
     int m_maxFps = 0;
+    int m_lightingMinimumZoom = 25;
     bool m_previewWindow = false;
     qreal m_previewCenterX = 0.0;
     qreal m_previewCenterY = 0.0;

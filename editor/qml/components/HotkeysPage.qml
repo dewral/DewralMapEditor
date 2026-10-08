@@ -148,7 +148,7 @@ ColumnLayout {
 
     Text {
         Layout.fillWidth: true
-        text: "Preview walking keys apply while the in-game preview is open. Fixed controls handle navigation and cancelling."
+        text: "Preview walking keys apply while the in-game preview has focus. Fixed controls handle navigation and cancelling."
         wrapMode: Text.WordWrap
         color: "#8B949E"
         font.pixelSize: 10

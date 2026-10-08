@@ -9,6 +9,7 @@ layout(std140, binding = 0) uniform DrawUniforms {
     vec4 rect;
     vec4 atlasAndOffset;
     vec4 lightRect;
+    vec4 selection;
     vec4 options;
 };
 layout(binding = 1) uniform sampler2D atlas;
@@ -35,7 +36,7 @@ void main()
         vec3 base = c.rgb * tint.rgb;
         if (spriteFlags.x > 0.5) {
             bool fluent = (int(spriteFlags.y + 0.5) & (128 | 256)) != 0;
-            base = fluent ? mix(base, vec3(0.376, 0.804, 1.0), 0.25) : base * 0.5;
+            base = fluent ? mix(base, selection.rgb, selection.a) : base * 0.5;
         }
         vec3 color = zoneColor(base, spriteFlags.y);
         if (options.x > 0.5) {

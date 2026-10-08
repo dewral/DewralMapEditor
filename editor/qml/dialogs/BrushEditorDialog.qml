@@ -5,6 +5,8 @@ import "../style"
 
 DmeDialog {
     id: root
+    modal: false
+    dim: false
     property var mapCtrl: null
     AdvancedBrushEditor {
         id: advancedEditor

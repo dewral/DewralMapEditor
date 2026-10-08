@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Dialogs
 import Tibia 1.0
 import "../style"
 import "../themes/fluent/Colors.js" as Colors
@@ -74,7 +73,7 @@ DmeDialog {
             DmeButton { text: "Close"; onClicked: root.close() }
         }
     }
-    ColorDialog {
+    DmeColorPicker {
         id: picker
         title: "Choose UI color"
         onAccepted: Backend.uiTheme.setUiColor(root.selectedKey, selectedColor)

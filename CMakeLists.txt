@@ -377,6 +377,7 @@ if(BUILD_TESTING)
     list(FILTER _dme_creature_refresh_sources INCLUDE REGEX
         "^editor/map/(mapview[^/]*|mapservices|mappathbuilder|mapgroundclustergenerator|mapterraingenerator|mapterrainprofile|mapdungeongenerator)\\.(cpp|h)$")
     add_executable(map_creature_refresh_test EXCLUDE_FROM_ALL
+        editor/preview/ingamepreviewcontroller.cpp
         tests/map_creature_refresh_test.cpp
         editor/core/brushstore.cpp
         editor/core/creaturestore.cpp

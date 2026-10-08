@@ -30,6 +30,7 @@ public:
     QString typeForServerId(int serverId) const;
     int rotateToForServerId(int serverId) const;
     bool isTeleport(int serverId) const;
+    uint32_t floorChangeFlagsForServerId(int serverId) const;
 
 signals:
     void loadedChanged();
@@ -39,6 +40,7 @@ private:
         QString name;
         QString type;
         int rotateTo = 0;
+        uint32_t floorChangeFlags = 0;
     };
 
     QHash<int, Entry> m_items;

@@ -29,6 +29,9 @@ int main(int argc, char **argv)
     expect(defaults.value("redo_alternative") == "Ctrl+Y", "Keep alternative bindings");
     expect(defaults.value("floor_up") == "+", "Keep map input defaults");
     expect(defaults.value("preview_left") == "A", "Keep preview walking defaults");
+    expect(defaults.value("preview_fullscreen") == "F11", "Keep the new fullscreen default");
+    expect(defaults.value("preview_northeast") == "PgUp", "List the new fixed diagonal controls");
+    expect(defaults.contains("show_light_sources"), "Include the new lighting command");
     QSet<QString> ids;
     for (const auto &value : hotkeys.commands()) {
         const auto command = value.toMap();
@@ -71,6 +74,8 @@ int main(int argc, char **argv)
     hotkeys.setPreviewActive(false);
     expect(hotkeys.activeBindings().value("show_creatures") == "F", "Editor keys resume when preview closes");
     expect(!hotkeys.setShortcut("preview_left", "Ctrl+S").isEmpty(), "Window commands must work in all scopes");
+    expect(!hotkeys.setShortcut("preview_left", "Home").isEmpty(), "Protect diagonal movement keys");
+    expect(!hotkeys.setShortcut("preview_left", "F11").isEmpty(), "Protect the fullscreen binding");
     hotkeys.setCapturing(true);
     expect(hotkeys.activeBindings().value("save").toString().isEmpty(), "Recording suspends window shortcuts too");
     expect(!hotkeys.matches("preview_left", Qt::Key_F, 0), "Capture must suspend command dispatch");

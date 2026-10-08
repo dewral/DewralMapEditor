@@ -1,21 +1,124 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import Tibia 1.0
 import "../style"
+import "PreviewMovement.js" as Movement
+import "../themes/fluent/Colors.js" as Fluent
 
-Item {
-    id: panel
-    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
-
+Window {
+    id: previewWindow
     required property var mapView
     required property var settings
     required property bool githubUi
+    title: "In-game Preview - Dewral Map Editor"
+    visible: settings.showIngamePreviewWindow
+    flags: Qt.Window
+    transientParent: null
+    width: settings.ingamePreviewWidthTiles * 32 + 2
+    height: settings.ingamePreviewHeightTiles * 32 + 108
+    minimumWidth: 1000
+    minimumHeight: 360
+    color: Fluent.c("background")
+    function toggleFullscreen() {
+        visibility === Window.FullScreen ? showNormal() : showFullScreen();
+    }
+    onClosing: settings.showIngamePreviewWindow = false
+    Binding {
+        target: Backend.hotkeys
+        property: "previewActive"
+        value: previewWindow.visible && previewWindow.active
+    }
+    Shortcut {
+        sequence: Backend.hotkeys.activeBindings.preview_fullscreen
+        context: Qt.WindowShortcut
+        onActivated: previewWindow.toggleFullscreen()
+    }
+    Item {
+    id: panel
+    anchors.fill: parent
+    anchors.margins: 12
+    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
-    readonly property int headerHeight: 34
-    readonly property int footerHeight: 30
+    readonly property var mapView: previewWindow.mapView
+    readonly property var settings: previewWindow.settings
+    readonly property bool githubUi: previewWindow.githubUi
+
+    readonly property int headerHeight: 110
+    readonly property int footerHeight: 56
     readonly property int contentWidth: settings.ingamePreviewWidthTiles * 32
     readonly property int contentHeight: settings.ingamePreviewHeightTiles * 32
+    component PreviewButton: Button {
+        id: control
+        font.family: Fluent.fontFamily
+        font.pixelSize: Fluent.fontSize
+        background: Rectangle {
+            radius: 4
+            color: control.down ? Fluent.c("pressed") : control.hovered ? Fluent.c("hover")
+                   : control.checked ? Fluent.c("selected") : Fluent.c("button")
+            border.width: 1
+            border.color: control.checked ? Fluent.c("accent") : Fluent.c("border")
+        }
+        contentItem: Text {
+            text: control.text
+            font: control.font
+            color: control.enabled ? Fluent.c("buttonText") : Fluent.c("disabled")
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+    }
+    component PreviewSwitch: Switch {
+        id: toggle
+        width: implicitWidth
+        implicitWidth: label.contentWidth + 52
+        indicator: Rectangle {
+            x: toggle.width - width; y: (toggle.height - height) / 2
+            width: 36; height: 20; radius: 10
+            color: toggle.checked ? Fluent.c("accent") : Fluent.c("lightingOff")
+            border.width: 1; border.color: Fluent.c("border")
+            Rectangle {
+                x: toggle.checked ? 19 : 3; y: 3; width: 14; height: 14; radius: 7
+                color: Fluent.c("lightingKnob")
+            }
+        }
+        contentItem: Text {
+            id: label
+            text: toggle.text; rightPadding: 48
+            font.family: Fluent.fontFamily; font.pixelSize: 12
+            color: Fluent.c("text"); verticalAlignment: Text.AlignVCenter
+        }
+    }
     property int selectedOutfitPart: 0
+    readonly property var savedOutfits: {
+        try { const entries = JSON.parse(settings.ingamePreviewOutfitsJson); return Array.isArray(entries) ? entries : []; }
+        catch (error) { return []; }
+    }
+    function outfitSource(lookType, head, body, legs, feet) {
+        const frame = Backend.datReader.outfitFramePreview(lookType, 2, false, 0);
+        return frame.ids && frame.ids.length > 0 ? Backend.sprReader.outfitImageSource(
+            frame.ids, frame.maskIds || [], frame.width, frame.height, head, body, legs, feet) : "";
+    }
+    function saveOutfit() {
+        const entries = savedOutfits.slice();
+        entries.push({name: settings.ingamePreviewPlayerName.trim(), lookType: settings.ingamePreviewLookType,
+                      head: settings.ingamePreviewLookHead, body: settings.ingamePreviewLookBody,
+                      legs: settings.ingamePreviewLookLegs, feet: settings.ingamePreviewLookFeet});
+        settings.ingamePreviewOutfitsJson = JSON.stringify(entries);
+    }
+    function applyOutfit(entry) {
+        settings.ingamePreviewLookType = entry.lookType;
+        settings.ingamePreviewLookHead = entry.head;
+        settings.ingamePreviewLookBody = entry.body;
+        settings.ingamePreviewLookLegs = entry.legs;
+        settings.ingamePreviewLookFeet = entry.feet;
+        settings.ingamePreviewPlayerName = entry.name;
+    }
+    function removeOutfit(index) {
+        const entries = savedOutfits.slice();
+        entries.splice(index, 1);
+        settings.ingamePreviewOutfitsJson = JSON.stringify(entries);
+    }
 
     function selectedOutfitColor() {
         if (selectedOutfitPart === 0) return settings.ingamePreviewLookHead;
@@ -31,10 +134,7 @@ Item {
         else settings.ingamePreviewLookFeet = value;
     }
 
-    width: contentWidth + 2
-    height: headerHeight + contentHeight + footerHeight + 2
-    visible: settings.showIngamePreviewWindow
-    z: 40
+    visible: previewWindow.visible
     focus: visible
 
     IngamePreviewController {
@@ -45,11 +145,6 @@ Item {
         lookBody: panel.settings.ingamePreviewLookBody
         lookLegs: panel.settings.ingamePreviewLookLegs
         lookFeet: panel.settings.ingamePreviewLookFeet
-    }
-
-    function clampPosition() {
-        x = Math.max(0, Math.min(x, parent.width - width));
-        y = Math.max(0, Math.min(y, parent.height - height));
     }
 
     function syncToCursor() {
@@ -107,16 +202,11 @@ Item {
     onVisibleChanged: {
         if (visible) {
             resetToEditorPosition();
-            clampPosition();
             forceActiveFocus();
         }
     }
-    onWidthChanged: if (visible) clampPosition()
-    onHeightChanged: if (visible) clampPosition()
 
     Component.onCompleted: {
-        x = Math.max(8, parent.width - width - 12);
-        y = 12;
         if (visible) resetToEditorPosition();
     }
 
@@ -129,21 +219,42 @@ Item {
         }
     }
 
-    Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape) {
-            settings.showIngamePreviewWindow = false;
+    property var heldKeys: ({})
+    function walkHeldKeys() {
+        const movement = Movement.vector(heldKeys);
+        if (!Backend.hotkeys.capturing && (movement.dx || movement.dy))
+            movePlayer(movement.dx, movement.dy);
+        else explorer.clearQueuedWalk();
+    }
+    function releaseMovement() { heldKeys = ({}); explorer.clearQueuedWalk(); }
+    Keys.onShortcutOverride: event => {
+        if (Movement.direction(event.key, event.modifiers, Backend.hotkeys))
             event.accepted = true;
-            return;
+    }
+    Keys.onPressed: function(event) {
+        if (Backend.hotkeys.capturing) return;
+        if (event.key === Qt.Key_Escape) {
+            releaseMovement();
+            if (previewWindow.visibility === Window.FullScreen) previewWindow.showNormal();
+            else settings.showIngamePreviewWindow = false;
+            event.accepted = true;
+        } else if (Movement.press(heldKeys, event.key, event.modifiers, Backend.hotkeys, event.isAutoRepeat)) {
+            if (!event.isAutoRepeat) walkHeldKeys();
+            event.accepted = true;
         }
-        var dx = 0;
-        var dy = 0;
-        if (event.key === Qt.Key_Left || Backend.hotkeys.matches("preview_left", event.key, event.modifiers)) dx = -1;
-        else if (event.key === Qt.Key_Right || Backend.hotkeys.matches("preview_right", event.key, event.modifiers)) dx = 1;
-        else if (event.key === Qt.Key_Up || Backend.hotkeys.matches("preview_up", event.key, event.modifiers)) dy = -1;
-        else if (event.key === Qt.Key_Down || Backend.hotkeys.matches("preview_down", event.key, event.modifiers)) dy = 1;
-        else return;
-        movePlayer(dx, dy);
-        event.accepted = true;
+    }
+    Keys.onReleased: function(event) {
+        if (Movement.release(heldKeys, event.key, event.isAutoRepeat)) {
+            if (!event.isAutoRepeat) walkHeldKeys();
+            event.accepted = true;
+        }
+    }
+    Timer { interval: 16; running: panel.visible && previewWindow.active && !Backend.hotkeys.capturing; repeat: true; onTriggered: panel.walkHeldKeys() }
+    Connections { target: previewWindow; function onActiveChanged() { if (!previewWindow.active) panel.releaseMovement(); } }
+    Connections {
+        target: Backend.hotkeys
+        function onCapturingChanged() { if (Backend.hotkeys.capturing) panel.releaseMovement(); }
+        function onBindingsChanged() { panel.releaseMovement(); }
     }
 
     Connections {
@@ -154,139 +265,130 @@ Item {
         }
     }
 
-    // The map view normally owns keyboard focus. Window shortcuts keep offline
-    // walking responsive after clicking or hovering the editor canvas.
-    Shortcut { sequence: "Left"; context: Qt.WindowShortcut; enabled: panel.visible && !Backend.hotkeys.capturing; autoRepeat: true; onActivated: panel.movePlayer(-1, 0) }
-    Shortcut { sequence: "Right"; context: Qt.WindowShortcut; enabled: panel.visible && !Backend.hotkeys.capturing; autoRepeat: true; onActivated: panel.movePlayer(1, 0) }
-    Shortcut { sequence: "Up"; context: Qt.WindowShortcut; enabled: panel.visible && !Backend.hotkeys.capturing; autoRepeat: true; onActivated: panel.movePlayer(0, -1) }
-    Shortcut { sequence: "Down"; context: Qt.WindowShortcut; enabled: panel.visible && !Backend.hotkeys.capturing; autoRepeat: true; onActivated: panel.movePlayer(0, 1) }
-    Shortcut { sequence: Backend.hotkeys.bindings.preview_left; context: Qt.WindowShortcut; enabled: panel.visible && !Backend.hotkeys.capturing; autoRepeat: true; onActivated: panel.movePlayer(-1, 0) }
-    Shortcut { sequence: Backend.hotkeys.bindings.preview_right; context: Qt.WindowShortcut; enabled: panel.visible && !Backend.hotkeys.capturing; autoRepeat: true; onActivated: panel.movePlayer(1, 0) }
-    Shortcut { sequence: Backend.hotkeys.bindings.preview_up; context: Qt.WindowShortcut; enabled: panel.visible && !Backend.hotkeys.capturing; autoRepeat: true; onActivated: panel.movePlayer(0, -1) }
-    Shortcut { sequence: Backend.hotkeys.bindings.preview_down; context: Qt.WindowShortcut; enabled: panel.visible && !Backend.hotkeys.capturing; autoRepeat: true; onActivated: panel.movePlayer(0, 1) }
-
     Rectangle {
         anchors.fill: parent
-        color: panel.grayUi ? "#242424" : (panel.githubUi ? "#161B22" : "#242424")
+        color: Fluent.c("surface")
         border.width: 1
-        border.color: panel.grayUi ? "#484848" : (panel.githubUi ? "#3B4654" : "#777")
-        radius: panel.githubUi ? 6 : 0
+        border.color: Fluent.c("border")
+        radius: 6
     }
 
-    DmePanel {
-        anchors.fill: parent
-        visible: !panel.githubUi
-    }
+
 
     Rectangle {
         id: header
-        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 1 }
+        anchors { left: parent.left; right: parent.right; top: parent.top }
         height: panel.headerHeight
-        color: panel.grayUi ? "#202020" : (panel.githubUi ? "#0F141B" : "#303030")
-
-        Text {
-            anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
-            text: "In-game Preview"
-            color: panel.grayUi ? "#E8E8E8" : (panel.githubUi ? "#E6EDF3" : "#E0E0E0")
-            font.pixelSize: 12
-            font.bold: true
-        }
-
+        color: Fluent.c("background")
         Row {
-            anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
-            spacing: 4
-
-            Button {
-                width: 58; height: 24
-                text: "Outfit"
+            x: 10; y: 8; spacing: 12
+            Text { text: "\uE7FC"; font.family: "Segoe Fluent Icons"; font.pixelSize: 24; color: Fluent.c("accent") }
+            Text { text: "In-game Preview"; font.family: Fluent.fontFamily; font.pixelSize: 19; color: Fluent.c("text") }
+        }
+        Rectangle { x: 0; y: 44; width: parent.width; height: 1; color: Fluent.c("separator") }
+        Row {
+            x: 8; y: 58; spacing: 14
+            PreviewButton {
+                width: 150; height: 38
+                text: "Outfit   ▾"
                 checked: outfitPopup.opened
-                onClicked: {
-                    outfitPopup.opened ? outfitPopup.close() : outfitPopup.open();
-                    panel.forceActiveFocus();
+                onClicked: outfitPopup.opened ? outfitPopup.close() : outfitPopup.open()
+                Image {
+                    x: 7; y: 3; width: 32; height: 32; smooth: false
+                    source: panel.outfitSource(panel.settings.ingamePreviewLookType,
+                        panel.settings.ingamePreviewLookHead, panel.settings.ingamePreviewLookBody,
+                        panel.settings.ingamePreviewLookLegs, panel.settings.ingamePreviewLookFeet)
                 }
             }
-
-            Button {
-                width: 72; height: 24
-                text: panel.settings.ingamePreviewFollowCursor ? "Following" : "Locked"
-                checkable: true
+            Rectangle { width: 1; height: 28; y: 5; color: Fluent.c("separator") }
+            PreviewSwitch {
+                text: "Follow"; height: 38
                 checked: panel.settings.ingamePreviewFollowCursor
-                onClicked: {
+                onToggled: {
                     panel.settings.ingamePreviewFollowCursor = checked;
                     if (checked) panel.syncToCursor();
                     panel.forceActiveFocus();
                 }
             }
-            Button {
-                width: 48; height: 24
-                text: panel.settings.ingamePreviewLighting ? "Light" : "Flat"
-                onClicked: {
-                    panel.settings.ingamePreviewLighting = !panel.settings.ingamePreviewLighting;
-                    panel.forceActiveFocus();
-                }
+            PreviewSwitch {
+                text: "Light"; height: 38
+                checked: panel.settings.ingamePreviewLighting
+                onToggled: { panel.settings.ingamePreviewLighting = checked; panel.forceActiveFocus(); }
             }
-            Button {
-                width: 54; height: 24
-                text: explorer.noClip ? "NoClip" : "Collision"
-                checkable: true
-                checked: explorer.noClip
-                onClicked: {
-                    explorer.noClip = checked;
-                    panel.forceActiveFocus();
-                }
-            }
-            Button {
-                width: 26; height: 24
-                text: "×"
-                onClicked: panel.settings.showIngamePreviewWindow = false
+            PreviewSwitch {
+                text: "Collision"; height: 38
+                checked: !explorer.noClip
+                onToggled: { explorer.noClip = !checked; panel.forceActiveFocus(); }
             }
         }
-
-        MouseArea {
-            anchors { left: parent.left; right: parent.right; top: parent.top; bottom: parent.bottom; rightMargin: 278 }
-            cursorShape: Qt.SizeAllCursor
-            property real pressX
-            property real pressY
-            onPressed: function(mouse) {
-                pressX = mouse.x;
-                pressY = mouse.y;
-                panel.forceActiveFocus();
+        Row {
+            anchors.right: parent.right; anchors.rightMargin: 8
+            y: 58; spacing: 6
+            Text { text: "W"; height: 38; verticalAlignment: Text.AlignVCenter; color: Fluent.c("muted"); font.pixelSize: 12 }
+            PreviewButton { width: 34; height: 38; text: "−"; enabled: panel.settings.ingamePreviewWidthTiles > 15; onClicked: panel.changeViewportWidth(-2) }
+            Rectangle {
+                width: 40; height: 38; color: Fluent.c("field"); radius: 4
+                Text { anchors.centerIn: parent; text: panel.settings.ingamePreviewWidthTiles; color: Fluent.c("text"); font.pixelSize: 14 }
             }
-            onPositionChanged: function(mouse) {
-                if (!pressed) return;
-                panel.x += mouse.x - pressX;
-                panel.y += mouse.y - pressY;
-                panel.clampPosition();
+            PreviewButton { width: 34; height: 38; text: "+"; enabled: panel.settings.ingamePreviewWidthTiles < 31; onClicked: panel.changeViewportWidth(2) }
+            Text { text: "H"; height: 38; verticalAlignment: Text.AlignVCenter; color: Fluent.c("muted"); font.pixelSize: 12 }
+            PreviewButton { width: 34; height: 38; text: "−"; enabled: panel.settings.ingamePreviewHeightTiles > 9; onClicked: panel.changeViewportHeight(-2) }
+            Rectangle {
+                width: 40; height: 38; color: Fluent.c("field"); radius: 4
+                Text { anchors.centerIn: parent; text: panel.settings.ingamePreviewHeightTiles; color: Fluent.c("text"); font.pixelSize: 14 }
+            }
+            PreviewButton { width: 34; height: 38; text: "+"; enabled: panel.settings.ingamePreviewHeightTiles < 23; onClicked: panel.changeViewportHeight(2) }
+            PreviewButton {
+                width: 38; height: 38; text: "\uE740"; font.family: "Segoe Fluent Icons"
+                onClicked: previewWindow.toggleFullscreen()
+                ToolTip.visible: hovered; ToolTip.text: "Fullscreen" + (Backend.hotkeys.bindings.preview_fullscreen ? " (" + Backend.hotkeys.bindings.preview_fullscreen + ")" : "")
             }
         }
     }
 
-    Popup {
+    Window {
         id: outfitPopup
-        x: panel.width - width - 8
-        y: panel.headerHeight + 5
-        width: 278
-        height: 192
-        padding: 10
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle {
-            color: panel.grayUi ? "#242424" : "#0F141B"
-            border.width: 1
-            border.color: panel.grayUi ? "#555555" : "#3B4654"
-            radius: 6
-        }
+        title: "Customize Character"
+        transientParent: previewWindow
+        width: 960
+        height: 590
+        minimumWidth: 900
+        minimumHeight: 520
+        color: Fluent.c("popup")
+        readonly property bool opened: visible
+        function open() { show(); raise(); requestActivate(); }
+        onClosing: panel.forceActiveFocus()
 
         Column {
-            anchors.fill: parent
+            x: 18; y: 18
+            width: 278
             spacing: 7
 
+            Label { text: "Character Preview"; font.bold: true }
+            Rectangle {
+                width: 278; height: 190; color: "#111315"; radius: 4
+                Image {
+                    anchors.centerIn: parent
+                    width: 128; height: 128; smooth: false; fillMode: Image.PreserveAspectFit
+                    source: panel.outfitSource(panel.settings.ingamePreviewLookType,
+                        panel.settings.ingamePreviewLookHead, panel.settings.ingamePreviewLookBody,
+                        panel.settings.ingamePreviewLookLegs, panel.settings.ingamePreviewLookFeet)
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter; y: 16
+                    text: panel.settings.ingamePreviewPlayerName
+                    color: "#00bc00"; font.family: "Verdana"; font.pixelSize: 11
+                    style: Text.Outline; styleColor: "black"
+                }
+            }
+            Label { text: "Appearance"; font.bold: true }
             Row {
                 width: parent.width
                 height: 26
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "Look type"
-                    color: panel.githubUi ? "#E6EDF3" : "#E8E8E8"
+                    color: Fluent.c("muted")
                     font.pixelSize: 11
                     font.bold: true
                 }
@@ -333,7 +435,7 @@ Item {
                         Text {
                             anchors { right: parent.right; rightMargin: 5; verticalCenter: parent.verticalCenter }
                             text: modelData
-                            color: panel.githubUi ? "#C9D1D9" : "#E0E0E0"
+                            color: Fluent.c("muted")
                             font.pixelSize: 9
                         }
                         MouseArea {
@@ -368,14 +470,86 @@ Item {
                     }
                 }
             }
+            Label { text: "Player name" }
+            TextField {
+                width: parent.width
+                text: panel.settings.ingamePreviewPlayerName
+                maximumLength: 40
+                placeholderText: "Player name"
+                onTextEdited: panel.settings.ingamePreviewPlayerName = text
+            }
+            PreviewButton { width: parent.width; text: "Save current outfit"; onClicked: panel.saveOutfit() }
+        }
+        Column {
+            x: 316; y: 18; width: outfitPopup.width - 580; height: outfitPopup.height - 36
+            spacing: 8
+            Label { text: "Available outfits"; font.bold: true }
+            ScrollView {
+                width: parent.width; height: parent.height - 30; clip: true
+                GridView {
+                    cellWidth: 104; cellHeight: 110
+                    model: Backend.datReader.outfitCount
+                    delegate: Button {
+                        required property int index
+                        width: 98; height: 104
+                        onClicked: panel.settings.ingamePreviewLookType = index + 1
+                        Column {
+                            anchors.centerIn: parent; spacing: 4
+                            Image {
+                                width: 76; height: 76; smooth: false; fillMode: Image.PreserveAspectFit
+                                source: panel.outfitSource(index + 1, panel.settings.ingamePreviewLookHead,
+                                    panel.settings.ingamePreviewLookBody, panel.settings.ingamePreviewLookLegs,
+                                    panel.settings.ingamePreviewLookFeet)
+                            }
+                            Label { text: "Outfit #" + (index + 1); anchors.horizontalCenter: parent.horizontalCenter }
+                        }
+                    }
+                }
+            }
+        }
+        Column {
+            x: outfitPopup.width - 246; y: 18; width: 228; height: outfitPopup.height - 36
+            spacing: 8
+            Label { text: "Saved outfits"; font.bold: true }
+            Label { text: "No saved outfits yet"; visible: panel.savedOutfits.length === 0 }
+            ScrollView {
+                width: parent.width; height: parent.height - 52; clip: true
+                ListView {
+                    model: panel.savedOutfits; spacing: 6
+                    delegate: Rectangle {
+                        required property var modelData
+                        required property int index
+                        width: 208; height: 100; radius: 4; color: "#303438"
+                        Image {
+                            x: 6; y: 12; width: 64; height: 64; smooth: false; fillMode: Image.PreserveAspectFit
+                            source: panel.outfitSource(modelData.lookType, modelData.head, modelData.body, modelData.legs, modelData.feet)
+                        }
+                        Label { x: 78; y: 12; width: 122; elide: Text.ElideRight; text: modelData.name || "Unnamed" }
+                        Label { x: 78; y: 33; text: "Outfit #" + modelData.lookType }
+                        PreviewButton { x: 78; y: 57; width: 60; text: "Use"; onClicked: panel.applyOutfit(modelData) }
+                        PreviewButton { x: 144; y: 57; width: 58; text: "Delete"; onClicked: panel.removeOutfit(index) }
+                    }
+                }
+            }
         }
     }
 
-    MapRhiView {
-        id: previewRenderer
-        anchors { left: parent.left; top: header.bottom; margins: 1 }
+    Rectangle {
+        id: viewport
+        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
+        color: "black"
+    }
+
+    Item {
+        id: scaledPreview
+        anchors.centerIn: viewport
         width: panel.contentWidth
         height: panel.contentHeight
+        scale: Math.min(viewport.width / width, viewport.height / height)
+
+    MapRhiView {
+        id: previewRenderer
+        anchors.fill: parent
         source: panel.mapView
         previewWindow: true
         previewCenterX: explorer.visualX
@@ -386,6 +560,16 @@ Item {
     }
 
     MouseArea {
+        id: playerHover
+        hoverEnabled: true
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onClicked: function(mouse) {
+            if (mouse.button === Qt.RightButton) {
+                const x = Math.floor(explorer.visualX + 0.5 + (mouse.x - previewRenderer.width / 2) / 32);
+                const y = Math.floor(explorer.visualY + 0.5 + (mouse.y - previewRenderer.height / 2) / 32);
+                explorer.useTransitionAt(x, y);
+            }
+        }
         anchors.fill: previewRenderer
         onPressed: panel.forceActiveFocus()
         onWheel: function(wheel) {
@@ -401,83 +585,36 @@ Item {
         anchors.fill: previewRenderer
         z: 3
         controller: explorer
+        playerName: panel.settings.ingamePreviewPlayerName
+        viewScale: scaledPreview.scale
+    }
+
     }
 
     Rectangle {
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 1 }
+        id: footer
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
         height: panel.footerHeight
-        color: panel.grayUi ? "#202020" : (panel.githubUi ? "#0F141B" : "#303030")
-
-        Text {
-            anchors { left: parent.left; leftMargin: 8; verticalCenter: parent.verticalCenter }
-            text: explorer.lastBlockReason.length > 0
-                  ? explorer.lastBlockReason
-                  : explorer.x + ", " + explorer.y + ", " + explorer.z + "  |  WASD / arrows to walk"
-            color: explorer.lastBlockReason.length > 0 ? "#F85149" : (panel.githubUi ? "#A7B1BC" : "#D0D0D0")
-            font.pixelSize: 11
-            width: parent.width - 252
-            elide: Text.ElideRight
-        }
-
+        color: Fluent.c("background")
+        Rectangle { width: parent.width; height: 1; color: Fluent.c("separator") }
         Row {
-            anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
-            spacing: 4
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "W"
-                color: panel.githubUi ? "#8B949E" : "#B0B0B0"
-                font.pixelSize: 10
-                font.bold: true
-            }
-            Button {
-                width: 24; height: 22; text: "−"
-                enabled: panel.settings.ingamePreviewWidthTiles > 15
-                onClicked: panel.changeViewportWidth(-2)
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                width: 20
-                horizontalAlignment: Text.AlignHCenter
-                text: panel.settings.ingamePreviewWidthTiles
-                color: panel.githubUi ? "#A7B1BC" : "#D0D0D0"
-                font.pixelSize: 11
-            }
-            Button {
-                width: 24; height: 22; text: "+"
-                enabled: panel.settings.ingamePreviewWidthTiles < 31
-                onClicked: panel.changeViewportWidth(2)
-            }
-            Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                width: 1
-                height: 16
-                color: panel.grayUi ? "#484848" : (panel.githubUi ? "#30363D" : "#666")
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "H"
-                color: panel.githubUi ? "#8B949E" : "#B0B0B0"
-                font.pixelSize: 10
-                font.bold: true
-            }
-            Button {
-                width: 24; height: 22; text: "−"
-                enabled: panel.settings.ingamePreviewHeightTiles > 9
-                onClicked: panel.changeViewportHeight(-2)
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                width: 20
-                horizontalAlignment: Text.AlignHCenter
-                text: panel.settings.ingamePreviewHeightTiles
-                color: panel.githubUi ? "#A7B1BC" : "#D0D0D0"
-                font.pixelSize: 11
-            }
-            Button {
-                width: 24; height: 22; text: "+"
-                enabled: panel.settings.ingamePreviewHeightTiles < 23
-                onClicked: panel.changeViewportHeight(2)
-            }
+            x: 10; anchors.verticalCenter: parent.verticalCenter; spacing: 12
+            Text { text: "\uE77B"; font.family: "Segoe Fluent Icons"; font.pixelSize: 22; color: Fluent.c("accent") }
+            Text { text: "Player: " + panel.settings.ingamePreviewPlayerName; color: Fluent.c("text"); font.family: Fluent.fontFamily; font.pixelSize: 12; width: 180; elide: Text.ElideRight }
+            Rectangle { width: 1; height: 22; color: Fluent.c("separator") }
+            Text { text: "\uE707"; font.family: "Segoe Fluent Icons"; font.pixelSize: 22; color: Fluent.c("accent") }
+            Text { text: "Position:  X " + explorer.x + "   Y " + explorer.y + "   Z " + explorer.z; color: Fluent.c("text"); font.family: Fluent.fontFamily; font.pixelSize: 12 }
+        }
+        Text {
+            anchors.right: parent.right; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter
+            text: "View: " + panel.settings.ingamePreviewWidthTiles + " × " + panel.settings.ingamePreviewHeightTiles + " tiles"
+            color: Fluent.c("muted"); font.family: Fluent.fontFamily; font.pixelSize: 12
+        }
+        GithubToolTip {
+            targetItem: playerHover
+            targetHovered: panel.visible && playerHover.containsMouse
+            message: explorer.lastBlockReason
         }
     }
+}
 }

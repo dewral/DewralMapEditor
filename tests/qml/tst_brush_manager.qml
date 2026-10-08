@@ -72,6 +72,12 @@ Item {
             return true
         }
     }
+    MouseArea {
+        id: mapBackground
+        anchors.fill: parent
+        property int clickCount: 0
+        onClicked: ++clickCount
+    }
     Component {
         id: managerComponent
         Dialogs.BrushEditorDialog {}
@@ -137,6 +143,15 @@ Item {
             verify(grid)
             tryVerify(() => grid.itemAtIndex(row) !== null)
             mouseDoubleClickSequence(grid.itemAtIndex(row), 8, 8)
+        }
+
+        function test_mapRemainsInteractive() {
+            compare(manager.modal, false)
+            compare(manager.dim, false)
+            const before = mapBackground.clickCount
+            mouseClick(mapBackground, 5, 5)
+            compare(mapBackground.clickCount, before + 1)
+            verify(manager.opened)
         }
 
         function test_hideInvisibleSprites_data() {

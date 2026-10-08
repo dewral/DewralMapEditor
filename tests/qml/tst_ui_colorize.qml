@@ -19,7 +19,7 @@ Item {
         function test_liveColorsAndInheritance() {
             verify(Backend.uiTheme.setUiColor("selected", "#355066"));
             tryCompare(sample, "color", "#355066");
-            compare(Colors.c("lightingOn"), "#60cdff");
+            compare(Colors.c("lightingOn"), "#4a9ec7");
             Backend.uiTheme.setUiColor("accent", "#287CBD");
             compare(Colors.c("lightingOn"), "#287CBD");
             compare(Colors.c("selectedBorder"), "#287CBD");

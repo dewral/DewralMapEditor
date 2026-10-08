@@ -239,8 +239,9 @@ void DatReader::readSpriteData(ClientItem &item, BinaryReader &reader, bool outf
             reader.readU32();
             reader.readU8();
             for (uint32_t f = 0; f < group.frames; ++f) {
-                reader.readU32();
-                reader.readU32();
+                const uint32_t minimum = reader.readU32();
+                const uint32_t maximum = reader.readU32();
+                group.frame_durations.push_back(std::max<uint32_t>(1, minimum + (maximum - std::min(minimum, maximum)) / 2));
             }
         }
 
@@ -252,6 +253,7 @@ void DatReader::readSpriteData(ClientItem &item, BinaryReader &reader, bool outf
         }
 
         if (g == 0) {
+            item.frame_durations = group.frame_durations;
             item.width = group.width;
             item.height = group.height;
             item.layers = group.layers;
@@ -309,6 +311,9 @@ QVariantMap DatReader::outfitFramePreview(int lookType, int direction,
     const ClientItem *outfit = outfitByLookType(
         static_cast<uint16_t>(std::max(0, lookType)));
     if (!outfit) return out;
+    out.insert(QStringLiteral("offsetX"), outfit->has(ClientProperty::Offset) ? outfit->offset_x : 8);
+    out.insert(QStringLiteral("offsetY"), outfit->has(ClientProperty::Offset) ? outfit->offset_y : 8);
+
 
     const ClientSpriteGroup *group = nullptr;
     if (!outfit->sprite_groups.empty()) {

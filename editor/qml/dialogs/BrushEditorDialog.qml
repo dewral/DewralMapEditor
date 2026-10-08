@@ -665,6 +665,23 @@ DmeDialog {
         onHideInvisibleSpritesChanged: root.pickerSelectionAnchor = -1
     }
 
+    footer: Item {
+        implicitHeight: closeButton.implicitHeight + root.bottomPadding
+
+        DmeButton {
+            id: closeButton
+            objectName: "brushManagerCloseButton"
+            anchors {
+                right: parent.right
+                rightMargin: root.rightPadding
+                top: parent.top
+            }
+            text: "Close"
+            width: 90
+            onClicked: root.close()
+        }
+    }
+
     contentItem: Item {
         id: body
         implicitWidth: 1010
@@ -2019,12 +2036,6 @@ DmeDialog {
                     width: 90
                     onClicked: root.saveWall()
                 }
-            }
-
-            DmeButton {
-                text: "Close"
-                width: 90
-                onClicked: root.close()
             }
         }
 

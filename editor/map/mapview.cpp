@@ -707,6 +707,23 @@ void MapView::setSelectionMode(bool on)
     emit contentUpdated(); update();
 }
 
+void MapView::setBrushStore(BrushStore *store)
+{
+    if (m_brushController.store() == store) return;
+    if (m_brushController.store())
+        disconnect(m_brushController.store(), &BrushStore::advancedBrushRenamed, this, nullptr);
+    m_brushController.store() = store;
+    if (store) {
+        connect(store, &BrushStore::advancedBrushRenamed, this,
+                [this](const QString &kind, const QString &oldName, const QString &newName) {
+            if (!m_brushController.renameBrush(kind, oldName, newName)) return;
+            emit brushChanged();
+            emit contentUpdated();
+            update();
+        });
+    }
+}
+
 void MapView::applyBrushServerId(int serverId, bool asBrush)
 {
     if (serverId < 0) serverId = 0;

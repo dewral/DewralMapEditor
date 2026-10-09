@@ -66,6 +66,8 @@ protected:
 private:
     QString m_mode = QStringLiteral("all");
     QString m_search;
+    int m_searchRangeFrom = -1;
+    int m_searchRangeTo = -1;
     QSet<int> m_ids;
     QHash<int, int> m_order;
     BrushStore *m_brushStore = nullptr;

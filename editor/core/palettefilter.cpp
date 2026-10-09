@@ -3,6 +3,8 @@
 #include "brushstore.h"
 #include "sprreader.h"
 
+#include <QRegularExpression>
+
 #include <utility>
 #include <limits>
 
@@ -30,6 +32,20 @@ void PaletteFilter::setSearchText(const QString &t)
     if (m_search == t) return;
     beginFilterChange();
     m_search = t;
+    m_searchRangeFrom = -1;
+    m_searchRangeTo = -1;
+    static const QRegularExpression rangePattern(QStringLiteral("^\\s*([0-9]+)\\s*-\\s*([0-9]+)\\s*$"));
+    const auto rangeMatch = rangePattern.match(t);
+    if (rangeMatch.hasMatch()) {
+        bool fromOk = false;
+        bool toOk = false;
+        const int from = rangeMatch.captured(1).toInt(&fromOk);
+        const int to = rangeMatch.captured(2).toInt(&toOk);
+        if (fromOk && toOk) {
+            m_searchRangeFrom = qMin(from, to);
+            m_searchRangeTo = qMax(from, to);
+        }
+    }
     endFilterChange(Direction::Rows);
     emit searchTextChanged();
 }
@@ -197,7 +213,11 @@ bool PaletteFilter::filterAcceptsRow(int sourceRow, const QModelIndex &sourcePar
         if (!m_ids.contains(sid)) return false;
     }
 
-    if (!m_search.isEmpty()) {
+    if (m_searchRangeFrom >= 0) {
+        const int sid = idx.data(OtbReader::ServerIdRole).toInt();
+        if (sid < m_searchRangeFrom || sid > m_searchRangeTo)
+            return false;
+    } else if (!m_search.isEmpty()) {
         const QString name = idx.data(OtbReader::NameRole).toString();
         const QString sid = idx.data(OtbReader::ServerIdRole).toString();
         const QStringList aliases = m_brushStore

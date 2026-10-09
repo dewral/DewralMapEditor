@@ -58,6 +58,8 @@ public:
 signals:
 
     void brushesChanged();
+    void advancedBrushRenamed(const QString &kind, const QString &oldName,
+                              const QString &newName);
 
 public:
 

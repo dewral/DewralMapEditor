@@ -194,6 +194,46 @@ int main(int argc, char **argv)
     if (!require(filter.rowCount() == 0, "Search must honor visibility")) return 1;
     filter.setHideInvisibleSprites(false);
     if (!require(filter.rowCount() == 1, "Hidden sprites must be searchable when filtering is off")) return 1;
+
+    const struct {
+        const char *search;
+        QList<int> expectedIds;
+    } searchCases[] = {
+        {"1002-1006", {1002, 1003, 1004, 1005, 1006}},
+        {" 1002 - 1006 ", {1002, 1003, 1004, 1005, 1006}},
+        {"1006-1002", {1002, 1003, 1004, 1005, 1006}},
+        {"1005-1005", {1005}},
+        {"1008-2000", {1008}},
+        {"0-1000", {1000}},
+        {"12000-13000", {}},
+        {"1002-", {}},
+        {"1002-1006-1008", {}},
+        {"1002-99999999999999999999", {}},
+        {"TORCH", {1005}},
+        {"100", {1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008}},
+        {"", {1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008}}
+    };
+    for (const auto &searchCase : searchCases) {
+        filter.setSearchText(QString::fromLatin1(searchCase.search));
+        QList<int> actualIds;
+        for (int row = 0; row < filter.rowCount(); ++row)
+            actualIds.append(filter.serverIdAtRow(row));
+        if (actualIds != searchCase.expectedIds) {
+            qCritical() << "Unexpected results for search" << searchCase.search
+                        << actualIds << "expected" << searchCase.expectedIds;
+            return 1;
+        }
+    }
+    filter.setSearchText(QStringLiteral("1002-1006"));
+    filter.setHideInvisibleSprites(true);
+    if (!require(filter.rowCount() == 2 && filter.serverIdAtRow(0) == 1005
+                     && filter.serverIdAtRow(1) == 1006,
+                 "ID ranges must honor sprite visibility")) return 1;
+    filter.setOrderedIds({1006, 1007, 1005, 1000});
+    if (!require(filter.rowCount() == 2 && filter.serverIdAtRow(0) == 1006
+                     && filter.serverIdAtRow(1) == 1005,
+                 "ID ranges must preserve category membership and ordering")) return 1;
+    filter.setMode(QStringLiteral("all"));
     filter.setSearchText(QString());
     filter.setHideInvisibleSprites(true);
 

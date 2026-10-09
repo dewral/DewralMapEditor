@@ -198,7 +198,7 @@ public:
     Q_INVOKABLE void setDoodadRotation(int quarterTurns);
     Q_INVOKABLE void rotateDoodadBrush();
 
-    Q_INVOKABLE void setBrushStore(BrushStore *bs) { m_brushController.store() = bs; }
+    Q_INVOKABLE void setBrushStore(BrushStore *bs);
 
     Q_INVOKABLE void setCreatureStore(CreatureStore *cs);
 

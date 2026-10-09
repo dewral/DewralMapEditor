@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
     "Disable Qt Creator package-manager auto setup" FORCE)
 
-project(DewralMapEditor VERSION 1.1.12 LANGUAGES CXX)
+project(DewralMapEditor VERSION 1.1.13 LANGUAGES CXX)
 
 set(DME_RELEASE_REPOSITORY "dewral/DewralMapEditor" CACHE STRING
     "GitHub repository hosting the stable update packages")
@@ -279,7 +279,7 @@ if(BUILD_TESTING)
     endif()
     add_executable(brushstore_advanced_test EXCLUDE_FROM_ALL
         tests/brushstore_advanced_test.cpp editor/core/brushstore.cpp)
-    target_include_directories(brushstore_advanced_test PRIVATE editor/core libs/otformats)
+    target_include_directories(brushstore_advanced_test PRIVATE editor/core editor/map libs/otformats)
     target_link_libraries(brushstore_advanced_test PRIVATE Qt6::Core)
     add_test(NAME brushstore_advanced COMMAND brushstore_advanced_test)
     find_program(DME_QML_TEST_RUNNER qmltestrunner HINTS

@@ -50,7 +50,8 @@ Item {
             if (failSave) return {success: false, error: "Write failed"}
             captured = {kind: kind, name: name, originalName: originalName, draft: JSON.parse(JSON.stringify(draft))}
             const copy = JSON.parse(JSON.stringify(stored))
-            copy[name] = JSON.parse(JSON.stringify(draft))
+            if (originalName && originalName !== name.trim()) delete copy[originalName]
+            copy[name.trim()] = JSON.parse(JSON.stringify(draft))
             stored = copy
             brushesChanged()
             return {success: true}
@@ -199,6 +200,37 @@ Item {
             compare(brushes.captured.draft.custom, "keep")
             compare(brushes.captured.draft.lookid, 100)
             compare(findChild(manager.contentItem, "wallBrushCombo").currentText, "stone wall")
+        }
+        function test_saveRenamesSelectedCategory() {
+            manager.wallEditor.load("stone wall")
+            const name = findChild(manager.contentItem, "wallBrushName")
+            name.text = "  lava wall  "
+            verify(manager.wallEditor.dirty)
+            findChild(manager.contentItem, "wallBrushSave").clicked()
+            compare(brushes.captured.originalName, "stone wall")
+            compare(brushes.captured.name, "  lava wall  ")
+            compare(brushes.stored["stone wall"], undefined)
+            compare(brushes.stored["lava wall"], testRoot.originalWall)
+            compare(manager.wallEditor.originalName, "lava wall")
+            compare(name.text, "lava wall")
+            compare(findChild(manager.contentItem, "wallBrushCombo").currentText, "lava wall")
+            compare(manager.wallEditor.dirty, false)
+            compare(manager.wallEditor.status, "Saved.")
+            findChild(manager.contentItem, "wallBrushSave").clicked()
+            compare(brushes.captured.originalName, "lava wall")
+        }
+        function test_failedRenameKeepsOriginalCategoryAndDraft() {
+            manager.wallEditor.load("stone wall")
+            const name = findChild(manager.contentItem, "wallBrushName")
+            name.text = "lava wall"
+            brushes.failSave = true
+            findChild(manager.contentItem, "wallBrushSave").clicked()
+            compare(manager.wallEditor.originalName, "stone wall")
+            compare(name.text, "lava wall")
+            compare(brushes.stored["stone wall"], testRoot.originalWall)
+            compare(brushes.stored["lava wall"], undefined)
+            verify(manager.wallEditor.dirty)
+            compare(manager.wallEditor.status, "Write failed")
         }
         function test_failedSaveAndUnplacedPiecesKeepDraft() {
             manager.wallEditor.load("stone wall")

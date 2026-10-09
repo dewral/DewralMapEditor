@@ -168,7 +168,7 @@ DmeDialog {
         }
         RowLayout {
             DmeComboBox {
-                id: brushCombo; Layout.preferredWidth: 290; model: root.names
+                id: brushCombo; objectName: "advancedBrushCombo"; Layout.preferredWidth: 290; model: root.names
                 onActivated: { let name = currentText; root.guarded(function() { root.load(name) }) }
             }
             DmeButton { text: "New"; onClicked: root.guarded(function() { root.reset(root.kind) }) }
@@ -176,7 +176,7 @@ DmeDialog {
                 text: "Copy as new"
                 onClicked: { root.originalName = ""; nameField.text = nameField.text + " copy"; root.dirty = true }
             }
-            DmeTextField { id: nameField; Layout.fillWidth: true; placeholderText: "Brush name"; onTextChanged: root.dirty = true }
+            DmeTextField { id: nameField; objectName: "advancedBrushName"; Layout.fillWidth: true; placeholderText: "Brush name"; onTextChanged: root.dirty = true }
             Label { text: "Preview ID"; color: root.ink }
             DmeSpinBox {
                 from: 1; to: 65535; value: root.draft.lookid || 1; editable: true
@@ -308,17 +308,22 @@ DmeDialog {
                 DmeButton { text: "Add tile to composite"; enabled: (root.currentAlt.composites || []).length > 0; onClicked: tileDialog.edit(-1, {dx:0,dy:0,dz:0,items:[itemId.value]}) }
             }
         }
-        Label { id: status; Layout.fillWidth: true; wrapMode: Text.WordWrap; color: "#e7ba60" }
+        Label { id: status; objectName: "advancedBrushStatus"; Layout.fillWidth: true; wrapMode: Text.WordWrap; color: "#e7ba60" }
         RowLayout {
             Label { text: root.dirty ? "Unsaved draft" : "Saved / no changes"; color: "#aaaaaa"; Layout.fillWidth: true }
             DmeButton {
+                objectName: "advancedBrushSave"
                 text: "Save brush"; enabled: root.unassigned.length === 0
                 onClicked: {
+                    const isNew = root.originalName === ""
                     let result = Backend.brushStore.saveAdvancedBrush(root.kind, nameField.text, root.originalName, root.draft)
                     if (!result.success) { status.text = result.error; return }
-                    root.originalName = nameField.text.trim(); root.dirty = false
+                    root.originalName = nameField.text.trim()
+                    nameField.text = root.originalName
+                    root.dirty = false
                     root.names = Backend.brushStore.advancedBrushNames(root.kind)
-                    status.text = "Saved. Add this brush to a tileset if it is new."
+                    brushCombo.currentIndex = root.names.indexOf(root.originalName)
+                    status.text = isNew ? "Saved. Add this brush to a tileset if it is new." : "Saved."
                 }
             }
             DmeButton { text: "Close"; onClicked: root.requestClose() }

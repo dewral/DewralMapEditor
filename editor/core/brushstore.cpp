@@ -65,9 +65,6 @@ QVariantMap BrushStore::saveAdvancedBrush(const QString &kind, const QString &na
         return fail("That name already exists. Load it before editing.");
     if (!originalName.isEmpty() && !collection.contains(originalName))
         return fail("The original brush no longer exists. Reload it first.");
-    // Renaming connected brushes can invalidate door/material references. Save a copy instead.
-    if (!originalName.isEmpty() && target != originalName)
-        return fail("Use New to create a copy; renaming may break palette or door references.");
     QJsonObject object = collection.value(originalName).toObject();
     const auto patch = QJsonObject::fromVariantMap(draft);
     for (auto it = patch.begin(); it != patch.end(); ++it) object.insert(it.key(), it.value());
@@ -119,12 +116,28 @@ QVariantMap BrushStore::saveAdvancedBrush(const QString &kind, const QString &na
     }
     if (!active) return fail("Add at least one variant with a positive weight.");
     const auto backup = m_rawRoot;
+    if (!originalName.isEmpty() && target != originalName) {
+        collection.remove(originalName);
+        if (kind == "walls") {
+            auto doors = m_rawRoot.value("doors").toObject();
+            for (auto it = doors.begin(); it != doors.end(); ++it) {
+                auto door = it.value().toObject();
+                if (door.value("brush").toString() == originalName) {
+                    door.insert("brush", target);
+                    it.value() = door;
+                }
+            }
+            m_rawRoot.insert("doors", doors);
+        }
+    }
     collection.insert(target, object);
     m_rawRoot.insert(kind, collection);
     if (!applyRawAndSave()) {
         m_rawRoot = backup;
         return fail("Could not write brushes.json. Your draft has been kept.");
     }
+    if (!originalName.isEmpty() && target != originalName)
+        emit advancedBrushRenamed(kind, originalName, target);
     return {{"success", true}};
 }
 

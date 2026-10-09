@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtTest
+import Tibia 1.0
 import "../../editor/qml/dialogs" as Dialogs
 
 Item {
@@ -14,9 +15,84 @@ Item {
             }
         }
     }
+    QtObject {
+        id: savingStore
+        property var names: ["fiery wall", "other"]
+        property var savedNames: ["other", "lava wall"]
+        property var saveResult: ({success: true})
+        property var savedArguments: null
+        property var storedDraft: ({lookid: 11713, items: {"0": [[11713, 100]]}})
+        function advancedBrushNames(kind) { return names }
+        function advancedBrushEdit(kind, name) { return storedDraft }
+        function saveAdvancedBrush(kind, name, originalName, draft) {
+            savedArguments = {kind, name, originalName, draft: JSON.parse(JSON.stringify(draft))}
+            if (saveResult.success) names = savedNames
+            return saveResult
+        }
+    }
     TestCase {
         name: "AdvancedBrushEditor"
         when: windowShown
+        property var previousBrushStore
+        function init() {
+            previousBrushStore = Backend.brushStore
+            editor.dirty = false
+            editor.reset("walls")
+        }
+        function cleanup() {
+            editor.dirty = false
+            editor.close()
+            Backend.brushStore = previousBrushStore
+        }
+        function prepareRename() {
+            savingStore.names = ["fiery wall", "other"]
+            savingStore.savedNames = ["other", "lava wall"]
+            savingStore.saveResult = {success: true}
+            savingStore.savedArguments = null
+            Backend.brushStore = savingStore
+            editor.open()
+            tryCompare(editor, "opened", true)
+            editor.load("fiery wall")
+            const combo = findChild(editor, "advancedBrushCombo")
+            combo.currentIndex = 0
+            const nameField = findChild(editor, "advancedBrushName")
+            nameField.text = "  lava wall  "
+            compare(editor.dirty, true)
+            return nameField
+        }
+        function test_saveRenamesSelectedBrush() {
+            const nameField = prepareRename()
+            const draft = JSON.stringify(editor.draft)
+            const saveButton = findChild(editor, "advancedBrushSave")
+            mouseClick(saveButton, saveButton.width / 2, saveButton.height / 2)
+            compare(savingStore.savedArguments.kind, "walls")
+            compare(savingStore.savedArguments.originalName, "fiery wall")
+            compare(savingStore.savedArguments.name, "  lava wall  ")
+            compare(JSON.stringify(savingStore.savedArguments.draft), draft)
+            compare(editor.originalName, "lava wall")
+            compare(nameField.text, "lava wall")
+            compare(editor.names, ["other", "lava wall"])
+            compare(findChild(editor, "advancedBrushCombo").currentIndex, 1)
+            compare(findChild(editor, "advancedBrushStatus").text, "Saved.")
+            compare(editor.dirty, false)
+            compare(editor.opened, true)
+            // Subsequent saves must edit the renamed brush.
+            mouseClick(saveButton, saveButton.width / 2, saveButton.height / 2)
+            compare(savingStore.savedArguments.originalName, "lava wall")
+        }
+        function test_failedRenameKeepsDraft() {
+            const nameField = prepareRename()
+            const draft = JSON.stringify(editor.draft)
+            savingStore.saveResult = {success: false, error: "That name already exists."}
+            const saveButton = findChild(editor, "advancedBrushSave")
+            mouseClick(saveButton, saveButton.width / 2, saveButton.height / 2)
+            compare(editor.originalName, "fiery wall")
+            compare(nameField.text, "  lava wall  ")
+            compare(JSON.stringify(editor.draft), draft)
+            compare(editor.names, ["fiery wall", "other"])
+            compare(editor.dirty, true)
+            compare(findChild(editor, "advancedBrushStatus").text, savingStore.saveResult.error)
+        }
         function test_editor() {
             editor.open()
             tryCompare(editor, "opened", true)

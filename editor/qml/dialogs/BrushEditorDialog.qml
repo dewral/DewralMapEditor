@@ -80,7 +80,7 @@ DmeDialog {
             "inner|": [[], [], [], [], [], [], [], [], [], [], [], [], []]
         })
     property string borderTarget: ""
-    property string borderAlign: "inner"
+    property string borderAlign: "outer"
     property bool optionalBorderMode: false
     property var optionalBorderIds: [[], [], [], [], [], [], [], [], [], [], [], [], []]
     property int selectedBorderType: 1
@@ -485,7 +485,7 @@ DmeDialog {
         optionalBorderMode = false;
         selectedBorderType = 1;
         borderTarget = "";
-        borderAlign = sets["inner|"] ? "inner" : "outer";
+        borderAlign = sets["outer|"] ? "outer" : "inner";
         groundNameField.text = name;
         alignCombo.syncFromApp();
         targetCombo.syncFromApp();
@@ -502,7 +502,7 @@ DmeDialog {
         optionalBorderMode = false;
         selectedBorderType = 1;
         borderTarget = "";
-        borderAlign = "inner";
+        borderAlign = "outer";
         alignCombo.syncFromApp();
         targetCombo.syncFromApp();
     }
@@ -1545,15 +1545,15 @@ DmeDialog {
                         id: alignCombo
                         width: 145
                         height: 23
-                        model: ["Inside ground", "Outside ground", "Optional border"]
+                        model: ["Outside ground", "Inside ground", "Optional border"]
                         function syncFromApp() {
                             currentIndex = root.optionalBorderMode ? 2
-                                                                  : (root.borderAlign === "outer" ? 1 : 0);
+                                                                  : (root.borderAlign === "outer" ? 0 : 1);
                         }
                         onActivated: {
                             root.optionalBorderMode = currentIndex === 2;
                             if (!root.optionalBorderMode)
-                                root.borderAlign = currentIndex === 1 ? "outer" : "inner";
+                                root.borderAlign = currentIndex === 0 ? "outer" : "inner";
                         }
                     }
                     Text {

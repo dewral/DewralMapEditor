@@ -82,6 +82,12 @@ bool ItemsXmlReader::loadFile(const QString &path)
                 if (key == QLatin1String("type")) {
                     const QString type = a.value(QLatin1String("value")).toString().toLower();
                     for (int id : currentIds) m_items[id].type = type;
+                } else if (key == QLatin1String("floorchange")) {
+                    const QString value = a.value(QLatin1String("value")).toString().toLower();
+                    const QStringList directions = {"down", "north", "east", "south", "west", "southalt", "eastalt"};
+                    const int direction = directions.indexOf(value);
+                    if (direction >= 0)
+                        for (int id : currentIds) m_items[id].floorChangeFlags |= 1u << (8 + direction);
                 } else if (key == QLatin1String("rotateto")) {
                     const int rotateTo =
                         a.value(QLatin1String("value")).toInt();
@@ -122,4 +128,9 @@ int ItemsXmlReader::rotateToForServerId(int serverId) const
 bool ItemsXmlReader::isTeleport(int serverId) const
 {
     return typeForServerId(serverId) == QLatin1String("teleport");
+}
+
+uint32_t ItemsXmlReader::floorChangeFlagsForServerId(int serverId) const
+{
+    return m_items.value(serverId).floorChangeFlags;
 }

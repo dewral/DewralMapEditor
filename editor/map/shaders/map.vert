@@ -11,6 +11,7 @@ layout(std140, binding = 0) uniform DrawUniforms {
     vec4 rect;
     vec4 atlasAndOffset;
     vec4 lightRect;
+    vec4 selection;
     vec4 options;
 };
 void main()

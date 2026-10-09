@@ -788,3 +788,15 @@ void OtbReader::refreshDatRoles()
     const QModelIndex last = index(static_cast<int>(m_items.size()) - 1, 0);
     emit dataChanged(first, last, {SpriteIdsRole, ItemWidthRole, ItemHeightRole, LayersRole, IsRenderableRole});
 }
+
+uint32_t OtbReader::rawFlagsForServerId(int serverId) const
+{
+    const int row = rowForServerId(serverId);
+    return row >= 0 ? m_items[static_cast<size_t>(row)].flags : 0;
+}
+
+uint32_t OtbReader::floorChangeFlagsForServerId(int serverId) const
+{
+    const uint32_t xmlFlags = m_itemsXml ? m_itemsXml->floorChangeFlagsForServerId(serverId) : 0;
+    return xmlFlags ? xmlFlags : (rawFlagsForServerId(serverId) & (0x1fu << 8));
+}

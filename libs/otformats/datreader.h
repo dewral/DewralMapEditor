@@ -10,6 +10,7 @@
 #include <QVector>
 #include <QtQml/qqmlregistration.h>
 #include <cstdint>
+#include <algorithm>
 #include <vector>
 
 struct ClientSpriteGroup {
@@ -22,6 +23,7 @@ struct ClientSpriteGroup {
     uint8_t pattern_z = 1;
     uint8_t frames = 1;
     std::vector<uint32_t> sprite_ids;
+    std::vector<uint32_t> frame_durations;
 
     uint32_t totalSprites() const {
         return static_cast<uint32_t>(width) * height * layers
@@ -58,6 +60,7 @@ struct ClientItem {
     uint8_t frames = 1;
 
     std::vector<uint32_t> sprite_ids;
+    std::vector<uint32_t> frame_durations;
     std::vector<ClientSpriteGroup> sprite_groups;
 
     uint16_t ground_speed = 0;
@@ -69,6 +72,23 @@ struct ClientItem {
     uint16_t elevation = 0;
     uint16_t minimap_color = 0;
     uint16_t lens_help = 0;
+
+    int animationFrameAt(quint64 elapsedMs) const {
+        const int f = std::max(1, static_cast<int>(frames));
+        if (f <= 1) return 0;
+        const quint64 elapsed = elapsedMs;
+        if (frame_durations.size() != static_cast<size_t>(f))
+            return static_cast<int>((elapsed / 500) % f);
+        quint64 cycle = 0;
+        for (uint32_t duration : frame_durations) cycle += std::max<uint32_t>(1, duration);
+        quint64 phaseTime = elapsed % cycle;
+        for (int phase = 0; phase < f; ++phase) {
+            const uint32_t duration = std::max<uint32_t>(1, frame_durations[phase]);
+            if (phaseTime < duration) return phase;
+            phaseTime -= duration;
+        }
+        return 0;
+    }
 
     uint32_t previewSpriteId() const {
         return sprite_ids.empty() ? 0 : sprite_ids.front();

@@ -31,7 +31,7 @@ DmeDialog {
     readonly property var currentComposite: (currentAlt.composites || [])[compositeIndex] || {tiles: [], chance: 100}
     readonly property var pairs: kind === "doodads" ? (currentAlt.singles || []) : ((draft.items || {})[slotKeys[slotIndex]] || [])
     readonly property color ink: "#eeeeee"
-    title: "Advanced brushes · Wall / Carpet / Doodad"
+    title: editorHost ? "Advanced brushes · Carpet / Doodad" : "Advanced brushes · Wall / Carpet / Doodad"
     width: 1000
     height: 760
     font.family: "Segoe UI"
@@ -147,7 +147,7 @@ DmeDialog {
         spacing: 8
         RowLayout {
             Repeater {
-                model: ["walls", "carpets", "doodads"]
+                model: root.editorHost ? ["carpets", "doodads"] : ["walls", "carpets", "doodads"]
                 DmeButton {
                     required property string modelData
                     text: modelData === "walls" ? "Wall" : modelData === "carpets" ? "Carpet" : "Doodad"

@@ -1,3 +1,4 @@
+#include <QXmlStreamReader>
 #include "otbmreader.h"
 
 #include <QCoreApplication>
@@ -132,6 +133,12 @@ int main(int argc, char **argv)
                                              QStringLiteral("Rat"), 45, false),
                  "Could not configure spawn data"))
         return EXIT_FAILURE;
+    if (!require(source.setSpawnAt(102, 100, 7, 4)
+                     && source.setSpawnAt(100, 100, 8, 3)
+                     && source.setCreatureAt(101, 100, 8, QStringLiteral("Rat"), 90, false)
+                     && source.setCreatureAt(100, 101, 7, QStringLiteral("Guide"), 60, true),
+                 "Could not configure overlapping and multi-floor spawns"))
+        return EXIT_FAILURE;
     // Keep tile areas deliberately non-contiguous in storage. The streaming
     // writer may emit the same area more than once and the reader must merge it.
     if (!require(source.addItem(300, 100, 7, 1990)
@@ -140,6 +147,23 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     if (!require(source.saveFile(path), "Could not save the test map"))
         return EXIT_FAILURE;
+
+    QFile spawnFile(directory.filePath(QStringLiteral("spawns.xml")));
+    if (!require(spawnFile.open(QIODevice::ReadOnly), "Could not read spawn XML"))
+        return EXIT_FAILURE;
+    QXmlStreamReader spawnXml(&spawnFile);
+    int spawnCount = 0, monsterCount = 0, npcCount = 0;
+    while (!spawnXml.atEnd()) {
+        spawnXml.readNext();
+        if (!spawnXml.isStartElement()) continue;
+        if (spawnXml.name() == QLatin1String("spawn")) ++spawnCount;
+        if (spawnXml.name() == QLatin1String("monster")) ++monsterCount;
+        if (spawnXml.name() == QLatin1String("npc")) ++npcCount;
+    }
+    if (!require(!spawnXml.hasError() && spawnCount == 3 && monsterCount == 2 && npcCount == 1,
+                 "Overlapping spawns duplicated creatures or lost spawn centres"))
+        return EXIT_FAILURE;
+    spawnFile.close();
 
     OtbmReader loaded;
     if (!require(loaded.loadFile(path), "Could not reload the test map"))
@@ -170,6 +194,19 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     if (!require(loaded.tileAt(300, 100, 7) && loaded.tileAt(102, 100, 7),
                  "Interleaved tile areas did not survive streaming save/load"))
+        return EXIT_FAILURE;
+
+    const OtbmTile *overlapCenter = loaded.tileAt(102, 100, 7);
+    const OtbmTile *otherFloorCenter = loaded.tileAt(100, 100, 8);
+    const OtbmTile *otherFloorCreature = loaded.tileAt(101, 100, 8);
+    const OtbmTile *npc = loaded.tileAt(100, 101, 7);
+    if (!require(overlapCenter && overlapCenter->spawn_radius == 4
+                     && otherFloorCenter && otherFloorCenter->spawn_radius == 3
+                     && otherFloorCreature && otherFloorCreature->creature_name == QStringLiteral("Rat")
+                     && otherFloorCreature->creature_spawntime == 90
+                     && npc && npc->creature_is_npc && npc->creature_name == QStringLiteral("Guide")
+                     && npc->creature_spawntime == 60,
+                 "Overlapping spawn data did not survive save/load"))
         return EXIT_FAILURE;
 
     QFile saved(path);

@@ -150,6 +150,8 @@ Item {
 
         MapView {
             id: mapView
+            hotkeyBindings: Backend.hotkeys.activeBindings
+            commandHotkeysEnabled: !Backend.hotkeys.capturing
             modernZones: workspace.fluentUi
             anchors.fill: parent
             focus: true
@@ -176,6 +178,7 @@ Item {
             id: mapRenderer
             anchors.fill: parent
             source: mapView
+            lightingMinimumZoom: workspace.settings.lightingMinimumZoom
             Component.onCompleted: {
                 if (!workspace.settings.renderMaxFpsConfigured) {
                     workspace.settings.renderMaxFps = 60;

@@ -25,6 +25,7 @@
 #include "aimapassistant.h"
 #include "updateservice.h"
 #include "worktimerservice.h"
+#include "hotkeysettings.h"
 
 class Backend : public QObject
 {
@@ -46,6 +47,7 @@ class Backend : public QObject
     Q_PROPERTY(AiMapAssistant *aiMapAssistant READ aiMapAssistant CONSTANT)
     Q_PROPERTY(UpdateService *updateService READ updateService CONSTANT)
     Q_PROPERTY(WorkTimerService *workTimer READ workTimer CONSTANT)
+    Q_PROPERTY(HotkeySettings *hotkeys READ hotkeys CONSTANT)
 
 public:
     // An explicit parent makes QML use create() instead of constructing a second singleton.
@@ -68,6 +70,7 @@ public:
     AiMapAssistant *aiMapAssistant() { return &m_aiMapAssistant; }
     UpdateService *updateService() { return &m_updateService; }
     WorkTimerService *workTimer() { return &m_workTimer; }
+    HotkeySettings *hotkeys() { return &m_hotkeys; }
 
     Q_INVOKABLE int preloadPaletteSprites() {
         LoadProfile::Scope timing(QStringLiteral("palette_visibility"));
@@ -112,6 +115,7 @@ private:
     AiMapAssistant m_aiMapAssistant;
     UpdateService m_updateService;
     WorkTimerService m_workTimer;
+    HotkeySettings m_hotkeys;
 };
 
 #endif

@@ -4,6 +4,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../style"
 import "../components"
+import "../themes/fluent/Colors.js" as Colors
 
 DmeDialog {
     id: dialog
@@ -14,7 +15,7 @@ DmeDialog {
 
     title: "Preferences"
     width: Math.min(820, Overlay.overlay ? Overlay.overlay.width - 32 : 820)
-    height: Math.min(570, Overlay.overlay ? Overlay.overlay.height - 32 : 570)
+    height: Math.min(650, Overlay.overlay ? Overlay.overlay.height - 32 : 570)
     property int page: 0
     readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
 
@@ -25,11 +26,20 @@ DmeDialog {
         return 0;
     }
 
+    DmeColorPicker {
+        id: selectionPicker
+        title: "Choose selection color"
+        onAccepted: dialog.mapView.selectionColor = selectedColor
+    }
+
     contentItem: RowLayout {
-        spacing: 10
+        implicitHeight: 0
+        clip: true
+        spacing: 12
 
         DmePanel {
-            Layout.preferredWidth: 145
+            Layout.preferredWidth: 176
+            Layout.minimumHeight: 0
             Layout.fillHeight: true
 
             Column {
@@ -37,25 +47,31 @@ DmeDialog {
                 spacing: 5
                 Repeater {
                     model: [
-                        { name: "General", icon: "⚙" },
-                        { name: "Interface", icon: "▣" },
-                        { name: "Performance", icon: "◫" },
-                        { name: "Editor", icon: "✎" },
-                        { name: "Zone display", icon: "◈" }
+                        { name: "General", icon: "\uE713" },
+                        { name: "Interface", icon: "\uE790" },
+                        { name: "Performance", icon: "\uE9D9" },
+                        { name: "Editor", icon: "\uE70F" },
+                        { name: "Zone display", icon: "\uE81E" },
+                        { name: "Hotkeys", icon: "\uE765" }
                     ]
                     delegate: Rectangle {
                         required property var modelData
                         required property int index
+                        objectName: "preferencesTab" + modelData.name.replace(/ /g, "")
                         width: parent.width
-                        height: 58
-                        radius: dialog.fluentUi ? 0 : 5
-                        color: dialog.page === index ? (dialog.fluentUi ? "#414447" : "#493A1D") : navMouse.containsMouse ? "#252A31" : "transparent"
-                        border { width: dialog.page === index ? 1 : 0; color: dialog.fluentUi ? "#B8BDC2" : "#C89B3C" }
-                        Column {
-                            anchors.centerIn: parent
-                            spacing: 3
-                            Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.icon; color: dialog.page === index ? (dialog.fluentUi ? "#B8BDC2" : "#E3B341") : "#8B949E"; font.pixelSize: 17 }
-                            Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.name; color: dialog.page === index ? "#F0F3F6" : "#C9D1D9"; font.pixelSize: 11 }
+                        height: Math.min(44, (parent.height - 5 * parent.spacing) / 6)
+                        radius: 5
+                        color: dialog.page === index ? Colors.c("selected") : navMouse.containsMouse ? Colors.c("hover") : "transparent"
+                        Rectangle {
+                            x: 0; anchors.verticalCenter: parent.verticalCenter
+                            width: 3; height: 22; radius: 2
+                            visible: dialog.page === index
+                            color: Colors.c("accent")
+                        }
+                        Row {
+                            x: 14; anchors.verticalCenter: parent.verticalCenter; spacing: 12
+                            Text { text: modelData.icon; color: dialog.page === index ? Colors.c("accent") : Colors.c("muted"); font.family: "Segoe Fluent Icons"; font.pixelSize: 19; anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: modelData.name; color: Colors.c("text"); font.family: Colors.fontFamily; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
                         }
                         MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; onClicked: dialog.page = index }
                     }
@@ -65,6 +81,9 @@ DmeDialog {
 
         StackLayout {
             currentIndex: dialog.page
+            Layout.minimumHeight: 0
+            Layout.minimumWidth: 0
+            clip: true
             Layout.fillWidth: true
             Layout.fillHeight: true
 
@@ -102,6 +121,147 @@ DmeDialog {
                     title: "UI Colorize"
                     Text { width: parent.width; text: "Edit Fluent Dark colors, preview changes and locate UI elements."; color: "#8B949E"; font.pixelSize: 11; wrapMode: Text.WordWrap }
                     DmeButton { text: "Open UI Colorize…"; width: 180; enabled: dialog.fluentUi; onClicked: { dialog.colorizeRequested(); dialog.close(); } }
+                }
+                PrefCard {
+                    title: "Selection"
+                    PrefRow {
+                        label: "Color"
+                        DmeButton {
+                            width: 190
+                            text: String(dialog.mapView.selectionColor).toUpperCase()
+                            onClicked: { selectionPicker.selectedColor = dialog.mapView.selectionColor; selectionPicker.open(); }
+                            Rectangle { x: 10; anchors.verticalCenter: parent.verticalCenter; width: 16; height: 16; radius: 4; color: dialog.mapView.selectionColor; border.color: Colors.c("border") }
+                        }
+                    }
+                    PrefRow {
+                        label: "Opacity"
+                        Row {
+                            spacing: 10
+                            Slider {
+                                objectName: "selectionOpacitySlider"
+                                width: 160
+                                from: 0; to: 100; stepSize: 1
+                                value: dialog.mapView.selectionOpacity * 100
+                                background: Rectangle {
+                                    x: parent.leftPadding
+                                    y: parent.topPadding + parent.availableHeight / 2 - height / 2
+                                    width: parent.availableWidth; height: 4; radius: 2
+                                    color: Colors.c("border")
+                                    Rectangle { width: parent.width * parent.parent.visualPosition; height: parent.height; radius: 2; color: Colors.c("accent") }
+                                }
+                                handle: Rectangle {
+                                    x: parent.leftPadding + parent.visualPosition * (parent.availableWidth - width)
+                                    y: parent.topPadding + parent.availableHeight / 2 - height / 2
+                                    width: 16; height: 16; radius: 8
+                                    color: Colors.c("accent")
+                                    border.width: 3; border.color: Colors.c("surface")
+                                }
+                                onMoved: dialog.mapView.selectionOpacity = value / 100
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 64
+                                text: Math.round(dialog.mapView.selectionOpacity * 100) + "%"
+                                color: "#F0F0F0"
+                                font.pixelSize: 12
+                            }
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        text: "Choose the color and fill opacity of selected items and the selection rectangle."
+                        color: "#8B949E"
+                        font.pixelSize: 11
+                        wrapMode: Text.WordWrap
+                    }
+                }
+                PrefCard {
+                    title: "Map tooltips"
+                    PrefRow {
+                        label: "Minimum zoom"
+                        Row {
+                            spacing: 10
+                            Slider {
+                                objectName: "tooltipMinimumZoomSlider"
+                                width: 160
+                                from: 0; to: 100; stepSize: 5
+                                value: dialog.settings.tooltipMinimumZoom
+                                background: Rectangle {
+                                    x: parent.leftPadding
+                                    y: parent.topPadding + parent.availableHeight / 2 - height / 2
+                                    width: parent.availableWidth; height: 4; radius: 2
+                                    color: Colors.c("border")
+                                    Rectangle { width: parent.width * parent.parent.visualPosition; height: parent.height; radius: 2; color: Colors.c("accent") }
+                                }
+                                handle: Rectangle {
+                                    x: parent.leftPadding + parent.visualPosition * (parent.availableWidth - width)
+                                    y: parent.topPadding + parent.availableHeight / 2 - height / 2
+                                    width: 16; height: 16; radius: 8
+                                    color: Colors.c("accent")
+                                    border.width: 3; border.color: Colors.c("surface")
+                                }
+                                onMoved: dialog.settings.tooltipMinimumZoom = Math.round(value)
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 64
+                                text: dialog.settings.tooltipMinimumZoom === 0 ? "No limit" : dialog.settings.tooltipMinimumZoom + "%"
+                                color: "#F0F0F0"
+                                font.pixelSize: 12
+                            }
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        text: "Hide map tooltips below this zoom level. Set 0% to show them at every zoom."
+                        color: "#8B949E"
+                        font.pixelSize: 11
+                        wrapMode: Text.WordWrap
+                    }
+                }
+                PrefCard {
+                    title: "Map lighting"
+                    PrefRow {
+                        label: "Minimum zoom"
+                        Row {
+                            spacing: 10
+                            Slider {
+                                objectName: "lightingMinimumZoomSlider"
+                                width: 160
+                                from: 0; to: 100; stepSize: 5
+                                value: dialog.settings.lightingMinimumZoom
+                                background: Rectangle {
+                                    x: parent.leftPadding
+                                    y: parent.topPadding + parent.availableHeight / 2 - height / 2
+                                    width: parent.availableWidth; height: 4; radius: 2
+                                    color: Colors.c("border")
+                                    Rectangle { width: parent.width * parent.parent.visualPosition; height: parent.height; radius: 2; color: Colors.c("accent") }
+                                }
+                                handle: Rectangle {
+                                    x: parent.leftPadding + parent.visualPosition * (parent.availableWidth - width)
+                                    y: parent.topPadding + parent.availableHeight / 2 - height / 2
+                                    width: 16; height: 16; radius: 8
+                                    color: Colors.c("accent")
+                                    border.width: 3; border.color: Colors.c("surface")
+                                }
+                                onMoved: dialog.settings.lightingMinimumZoom = Math.round(value)
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 64
+                                text: dialog.settings.lightingMinimumZoom === 0 ? "No limit" : dialog.settings.lightingMinimumZoom + "%"
+                                color: "#F0F0F0"
+                                font.pixelSize: 12
+                            }
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        text: "Disable map lighting below this zoom level. Set 0% for lighting at every zoom."
+                        color: "#8B949E"
+                        font.pixelSize: 11
+                        wrapMode: Text.WordWrap
+                    }
                 }
                 PrefCard {
                     title: "Palette style"
@@ -152,9 +312,17 @@ DmeDialog {
 
             ZoneDisplayPanel {
                 objectName: "preferencesZoneDisplay"
+                Layout.minimumHeight: 0
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 mapView: dialog.mapView
+            }
+            HotkeysPage {
+                objectName: "preferencesHotkeys"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumWidth: 0
+                Layout.minimumHeight: 0
             }
         }
     }
@@ -164,7 +332,7 @@ DmeDialog {
         Rectangle {
             anchors { left: parent.left; right: parent.right; top: parent.top }
             height: 1
-            color: "#30363D"
+            color: Colors.c("separator")
         }
         DmeButton {
             anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
@@ -174,26 +342,36 @@ DmeDialog {
         }
     }
 
-    component PrefPage: ColumnLayout {
+    component PrefPage: ScrollView {
+        id: prefPage
         property string title: ""
         property string description: ""
-        spacing: 10
-        Text { text: parent.title; color: "#F0F6FC"; font { pixelSize: 18; bold: true } }
-        Text { text: parent.description; color: "#8B949E"; font.pixelSize: 11 }
+        default property alias cards: pageColumn.data
+        implicitHeight: 0
+        Layout.minimumHeight: 0
+        clip: true
+        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+        Column {
+            id: pageColumn
+            width: prefPage.availableWidth - 12
+            spacing: 12
+            Text { text: prefPage.title; color: Colors.c("text"); font { family: Colors.fontFamily; pixelSize: 20; bold: true } }
+            Text { width: parent.width; text: prefPage.description; color: Colors.c("muted"); font.family: Colors.fontFamily; font.pixelSize: 12; wrapMode: Text.WordWrap }
+        }
     }
 
     component PrefCard: DmePanel {
         id: card
         property string title: ""
         default property alias contents: cardColumn.data
-        Layout.fillWidth: true
+        width: parent ? parent.width : 400
         implicitHeight: cardColumn.implicitHeight + 28
         Column {
             id: cardColumn
-            anchors { fill: parent; margins: 14 }
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14 }
             spacing: 11
             Text { text: card.title; color: "#F0F6FC"; font { pixelSize: 13; bold: true } }
-            Rectangle { width: parent.width; height: 1; color: "#30363D" }
+            Rectangle { width: parent.width; height: 1; color: Colors.c("separator") }
         }
     }
 

@@ -28,6 +28,7 @@ public:
         float rect[4]{0, 0, 1, 1};
         float atlasAndOffset[4]{1, 1, 0, 0};
         float lightRect[4]{0, 0, 1, 1};
+        float selection[4]{};
         float options[4]{}; // light enabled, cache Y flip, mode, reserved
     };
     struct Draw {

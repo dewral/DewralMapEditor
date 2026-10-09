@@ -1,7 +1,10 @@
 import QtCore
+import QtQuick
 
 Settings {
     property int fluentPaletteWidth: 285
+    property string toolsDock: "palette"
+    property string brushSizeDock: "palette"
     property string paletteDockSide: "left"
     property bool palettePositionLocked: false
     property real paletteFloatingX: 40
@@ -25,6 +28,8 @@ Settings {
     property bool vsyncEnabled: true
     property bool showClientBox: false
     property bool showTooltips: true
+    property int tooltipMinimumZoom: 25
+    property int lightingMinimumZoom: 25
     property bool showWaypoints: true
     property bool showWallOutlines: true
     property bool showGrid: false
@@ -34,6 +39,9 @@ Settings {
     property bool showHouses: true
     property bool showZones: true
     property int visibleZoneMask: 29
+    property color selectionColor: "#4a9ec7"
+    property double selectionOpacity: 0.25
+    property var zoneColors: ["#399ee8", "#48b883", "#dfa65a", "#d46b79", "#9173be"]
     property double houseOpacity: 0.25
     property double tilesOpacity: 1.0
     property double itemsOpacity: 1.0
@@ -41,6 +49,7 @@ Settings {
     property bool showZonesAlways: true
     property bool showAnimations: false
     property bool torchOn: false
+    property bool showLightSources: false
     property int lightAmbient: 40
     property bool minimapOn: false
     property bool showShade: true
@@ -54,6 +63,8 @@ Settings {
     property bool ingamePreviewLighting: true
     property int ingamePreviewWidthTiles: 15
     property int ingamePreviewHeightTiles: 11
+    property string ingamePreviewPlayerName: "Dewral"
+    property string ingamePreviewOutfitsJson: "[]"
     property int ingamePreviewLookType: 128
     property int ingamePreviewLookHead: 78
     property int ingamePreviewLookBody: 69

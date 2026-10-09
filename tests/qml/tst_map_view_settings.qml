@@ -31,7 +31,10 @@ TestCase {
                 property bool showHouses: true
                 property bool showZones: true
                 property int visibleZoneMask: 29
-                property var zoneOpacities: [0.25,0.25,0.25,0.25]
+                property color selectionColor: "#4a9ec7"
+        property real selectionOpacity: 0.25
+        property var zoneColors: ["#399ee8", "#48b883", "#dfa65a", "#d46b79", "#9173be"]
+        property var zoneOpacities: [0.25,0.25,0.25,0.25]
                 property double houseOpacity: 0.25
         property double tilesOpacity: 1.0
                 property double itemsOpacity: 1.0
@@ -54,6 +57,9 @@ TestCase {
                 onShowHousesChanged: viewFlagsChanged()
                 onShowZonesChanged: viewFlagsChanged()
                 onVisibleZoneMaskChanged: viewFlagsChanged()
+                onSelectionColorChanged: viewFlagsChanged()
+                onSelectionOpacityChanged: viewFlagsChanged()
+                onZoneColorsChanged: viewFlagsChanged()
                 onZoneOpacitiesChanged: viewFlagsChanged()
                 onTilesOpacityChanged: viewFlagsChanged()
                 onItemsOpacityChanged: viewFlagsChanged()
@@ -88,8 +94,11 @@ TestCase {
         const defaults = {};
         const changed = {};
         for (const name of session.preferenceNames) {
-            defaults[name] = session.mapView[name];
-            changed[name] = name === "zoneOpacities" ? [0.5,0.1,0.75,0.3]
+            defaults[name] = name === "selectionColor" ? String(session.mapView[name]) : session.mapView[name];
+            changed[name] = name === "selectionColor" ? Qt.rgba(1, 0.5, 0, 1)
+                            : name === "selectionOpacity" ? 0.6
+                            : name === "zoneColors" ? ["#123456", "#654321", "#ff8800", "#00ff88", "#aabbcc"]
+                            : name === "zoneOpacities" ? [0.5,0.1,0.75,0.3]
                             : name === "houseOpacity" || name === "tilesOpacity" || name === "itemsOpacity" ? 0.4
                             : typeof defaults[name] === "boolean" ? !defaults[name]
                             : (name === "lightAmbient" ? 128 : 2);

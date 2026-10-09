@@ -19,13 +19,13 @@ var buttonText = "#ffffff";
 var muted = "#c5c5c5";
 var placeholder = "#999999";
 var disabled = "#717171";
-var accent = "#60cdff";
+var accent = "#4a9ec7";
 var selected = "#404040";
 var selectedHover = "#4a4a4a";
 var cell = "#242424";
 var cellBorder = "#3b3b3b";
 var selectedCell = "#404040";
-var selectedBorder = "#60cdff";
+var selectedBorder = accent;
 var scrollTrack = "#252525";
 var scrollThumb = "#777777";
 

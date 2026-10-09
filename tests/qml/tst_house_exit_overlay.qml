@@ -11,6 +11,7 @@ Item {
         property bool showTooltips: false
         property bool showWaypoints: false
         property bool showHouses: false
+        property bool showLightSources: false
     }
     QtObject {
         id: map

@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Tibia 1.0
+import "../themes/fluent/Colors.js" as Colors
 
 Item {
     id: overlay
@@ -11,15 +12,23 @@ Item {
 
     property var entries: []
     property string dataKey: ""
+    property string entriesKey: ""
+    property bool refreshPending: true
+    property bool forcePending: true
+    function scheduleRefresh(force) { refreshPending = true; forcePending = forcePending || force; }
     property real currentOriginX: 0
     property real currentOriginY: 0
     property real paintedOriginX: 0
     property real paintedOriginY: 0
     readonly property real currentTileSize: mapCtrl ? Math.max(1, mapCtrl.tileSize) : 1
+    readonly property int tooltipMinimumZoom: typeof settings.tooltipMinimumZoom === "number" ? settings.tooltipMinimumZoom : 0
+    readonly property bool tooltipsVisible: settings.showTooltips && currentTileSize / 32 * 100 >= tooltipMinimumZoom
+    onTooltipsVisibleChanged: scheduleRefresh(true)
     readonly property real canvasMargin: 64
 
     clip: true
-    visible: settings.showClientBox || settings.showTooltips || settings.showWaypoints || settings.showHouses
+    visible: settings.showClientBox || settings.showTooltips || settings.showWaypoints
+             || settings.showHouses || settings.showLightSources
 
     function refreshData(force) {
         if (!mapCtrl)
@@ -34,14 +43,21 @@ Item {
                 + Math.floor(originX) + ":" + Math.floor(originY) + ":"
                 + Math.ceil(width / currentTileSize) + ":"
                 + Math.ceil(height / currentTileSize) + ":"
-                + currentTileSize + ":" + settings.showTooltips + ":"
-                + settings.showWaypoints + ":" + settings.showHouses;
+                + currentTileSize + ":" + tooltipsVisible + ":"
+                + settings.showWaypoints + ":" + settings.showHouses + ":"
+                + settings.showLightSources;
         if (!force && key === dataKey)
             return;
 
         dataKey = key;
-        entries = mapCtrl.mapOverlayData(settings.showTooltips,
-                                         settings.showWaypoints, settings.showHouses);
+        const next = mapCtrl.mapOverlayData(tooltipsVisible,
+                                         settings.showWaypoints, settings.showHouses,
+                                         settings.showLightSources);
+        const nextKey = JSON.stringify(next);
+        const moved = Math.abs(originX - paintedOriginX) * currentTileSize > canvasMargin / 2
+                   || Math.abs(originY - paintedOriginY) * currentTileSize > canvasMargin / 2;
+        if (!force && nextKey === entriesKey && !moved) return;
+        if (nextKey !== entriesKey) { entriesKey = nextKey; entries = next; }
         paintedOriginX = originX;
         paintedOriginY = originY;
         worldCanvas.requestPaint();
@@ -83,47 +99,36 @@ Item {
         ctx.fillText("EXIT", centerX, centerY);
     }
 
-    function drawTooltip(ctx, text, anchorX, anchorY, waypoint) {
-        if (!text || text.length === 0)
-            return;
+    function drawLightSource(ctx, tileX, tileY, intensity, red, green, blue) {
+        const tileSize = currentTileSize;
+        const x = (tileX * tileSize) + canvasMargin;
+        const y = (tileY * tileSize) + canvasMargin;
+        const inset = Math.max(1, Math.round(tileSize * 0.12));
+        const outerSize = Math.max(2, tileSize - inset * 2);
+        const badgeSize = Math.max(9, Math.min(18, Math.round(tileSize * 0.46)));
+        const badgeX = x + tileSize - badgeSize + 2;
+        const badgeY = y + tileSize - badgeSize + 2;
 
-        const lines = text.split("\n");
-        const lineHeight = 14;
-        ctx.font = "10px sans-serif";
-        ctx.textAlign = "left";
-        ctx.textBaseline = "top";
+        ctx.lineWidth = Math.max(1, Math.round(tileSize / 16));
+        ctx.strokeStyle = "white";
+        ctx.strokeRect(x + inset + 0.5, y + inset + 0.5,
+                       outerSize - 1, outerSize - 1);
 
-        let textWidth = 0;
-        for (let i = 0; i < lines.length; ++i)
-            textWidth = Math.max(textWidth, ctx.measureText(lines[i]).width);
-
-        const boxWidth = Math.min(worldCanvas.width - 8, textWidth + 14);
-        const boxHeight = lines.length * lineHeight + 9;
-        let x = anchorX - boxWidth / 2;
-        let y = anchorY - boxHeight - 6;
-        x = Math.max(2, Math.min(worldCanvas.width - boxWidth - 2, x));
-        if (y < 2)
-            y = anchorY + 8;
-
-        const radius = 4;
-        ctx.beginPath();
-        ctx.roundedRect(x + 2, y + 3, boxWidth, boxHeight, radius, radius);
-        ctx.fillStyle = "rgba(0, 0, 0, 0.38)";
-        ctx.fill();
-
-        ctx.beginPath();
-        ctx.roundedRect(x, y, boxWidth, boxHeight, radius, radius);
-        ctx.fillStyle = "rgba(13, 17, 23, 0.96)";
-        ctx.fill();
+        ctx.fillStyle = Qt.rgba(red / 255, green / 255, blue / 255, 1.0);
+        ctx.fillRect(badgeX, badgeY, badgeSize, badgeSize);
         ctx.lineWidth = 1;
-        ctx.strokeStyle = waypoint ? "#3fb950" : "#59636e";
-        ctx.stroke();
-
-        for (let line = 0; line < lines.length; ++line) {
-            ctx.font = (line === 0 ? "bold " : "") + "10px sans-serif";
-            ctx.fillStyle = line === 0 ? "#f0f3f6" : "#aab3c0";
-            ctx.fillText(lines[line], x + 7, y + 5 + line * lineHeight);
-        }
+        ctx.strokeStyle = "black";
+        ctx.strokeRect(badgeX + 0.5, badgeY + 0.5, badgeSize - 1, badgeSize - 1);
+        ctx.font = "bold " + Math.max(7, Math.min(11, Math.round(badgeSize * 0.62))) + "px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "white";
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 2;
+        ctx.strokeText(String(intensity), badgeX + badgeSize / 2,
+                       badgeY + badgeSize / 2 + 0.5);
+        ctx.fillText(String(intensity), badgeX + badgeSize / 2,
+                     badgeY + badgeSize / 2 + 0.5);
     }
 
     function containerImageSource(item) {
@@ -148,7 +153,8 @@ Item {
            + (overlay.paintedOriginX - overlay.currentOriginX) * overlay.currentTileSize
         y: -overlay.canvasMargin
            + (overlay.paintedOriginY - overlay.currentOriginY) * overlay.currentTileSize
-        visible: overlay.settings.showTooltips || overlay.settings.showWaypoints || overlay.settings.showHouses
+        visible: overlay.settings.showTooltips || overlay.settings.showWaypoints
+                 || overlay.settings.showHouses || overlay.settings.showLightSources
 
         onPaint: {
             const ctx = getContext("2d");
@@ -165,17 +171,49 @@ Item {
                     overlay.drawWaypoint(ctx, centerX, centerY);
                 if (entry.kind === "house_exit" && overlay.settings.showHouses && !overlay.mapCtrl.modernZones)
                     overlay.drawHouseExit(ctx, centerX, centerY);
-                if (overlay.settings.showTooltips && entry.kind !== "container" && entry.kind !== "house_exit"
-                        && entry.text.length > 0)
-                    overlay.drawTooltip(ctx, entry.text, centerX,
-                                        (entry.y - overlay.paintedOriginY) * tileSize + margin,
-                                        entry.kind === "waypoint");
+                if (entry.kind === "light_source" && overlay.settings.showLightSources)
+                    overlay.drawLightSource(ctx, entry.x - overlay.paintedOriginX,
+                                            entry.y - overlay.paintedOriginY,
+                                            entry.intensity, entry.red, entry.green,
+                                            entry.blue);
+
+            }
+        }
+    }
+
+    readonly property var textEntries: entries.filter(function(entry) {
+        return entry.kind !== "container" && entry.kind !== "house_exit" && entry.text.length > 0;
+    })
+    Repeater {
+        model: overlay.tooltipsVisible ? overlay.textEntries : []
+        delegate: Rectangle {
+            required property var modelData
+            readonly property real anchorX: (modelData.x + 0.5 - overlay.currentOriginX) * overlay.currentTileSize
+            readonly property real anchorY: (modelData.y - overlay.currentOriginY) * overlay.currentTileSize
+            x: anchorX - width / 2
+            y: anchorY - height - 6
+            width: Math.min(360, caption.implicitWidth + 18)
+            height: caption.contentHeight + 10
+            radius: 4
+            color: "#e6191d1f"
+            border.width: 1
+            border.color: modelData.kind === "waypoint" ? "#3fb950" : Colors.c("accent")
+            Text {
+                id: caption
+                anchors.fill: parent
+                anchors.margins: 5
+                text: modelData.text
+                textFormat: Text.PlainText
+                wrapMode: Text.Wrap
+                color: Colors.c("text")
+                font.family: Colors.fontFamily
+                font.pixelSize: 12
             }
         }
     }
 
     Repeater {
-        model: overlay.settings.showTooltips ? overlay.containerEntries : []
+        model: overlay.tooltipsVisible ? overlay.containerEntries : []
 
         delegate: Rectangle {
             id: containerTip
@@ -261,7 +299,7 @@ Item {
                                 source: overlay.containerImageSource(containerSlot.modelData)
                                 fillMode: Image.PreserveAspectFit
                                 smooth: false
-                                cache: false
+                                cache: true
                             }
 
                             Text {
@@ -364,12 +402,16 @@ Item {
         }
     }
 
-    onWidthChanged: refreshData(false)
-    onHeightChanged: refreshData(false)
+    onWidthChanged: scheduleRefresh(false)
+    onHeightChanged: scheduleRefresh(false)
 
     Connections {
         target: overlay.mapCtrl
-        function onContentUpdated() { overlay.refreshData(false); }
+        function onContentUpdated() {
+            overlay.currentOriginX = overlay.mapCtrl.renderOriginX();
+            overlay.currentOriginY = overlay.mapCtrl.renderOriginY();
+            overlay.scheduleRefresh(false);
+        }
         function onFloorChanged() { overlay.refreshData(true); }
         function onTileSizeChanged() { overlay.refreshData(true); }
     }
@@ -385,7 +427,20 @@ Item {
         function onShowTooltipsChanged() { overlay.refreshData(true); }
         function onShowWaypointsChanged() { overlay.refreshData(true); }
         function onShowHousesChanged() { overlay.refreshData(true); }
+        function onShowLightSourcesChanged() { overlay.refreshData(true); }
     }
 
+    Timer {
+        interval: 100
+        running: overlay.visible
+        repeat: true
+        onTriggered: {
+            if (!overlay.refreshPending) return;
+            const force = overlay.forcePending;
+            overlay.refreshPending = false;
+            overlay.forcePending = false;
+            overlay.refreshData(force);
+        }
+    }
     Component.onCompleted: refreshData(true)
 }

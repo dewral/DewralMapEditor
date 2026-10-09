@@ -5,7 +5,7 @@
 #include <algorithm>
 
 namespace {
-static_assert(sizeof(MapRhiBackend::Uniforms) == 144,
+static_assert(sizeof(MapRhiBackend::Uniforms) == 160,
               "Uniform layout must match the std140 shader block");
 QShader shader(const char *path)
 {

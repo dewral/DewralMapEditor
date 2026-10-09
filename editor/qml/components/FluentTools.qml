@@ -1,17 +1,53 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Window
 import "../themes/fluent/Colors.js" as Colors
-Column {
+Item {
     id: root
     required property var mapView
     signal doorsRequested()
+    property bool compact: false
+    signal dockDragStarted()
+    signal dockDragMoved(real sceneX, real sceneY)
+    signal dockDragFinished(real sceneX, real sceneY)
+    signal dockDragCanceled()
+    MouseArea {
+        id: dockHandle
+        objectName: "brushDockHandle"
+        z: 5
+        x: 0; y: 0
+        width: root.compact ? 18 : root.width
+        height: root.compact ? root.height : 18
+        cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+        property bool moving: false
+        property point origin
+        function scene(mouse) { return mapToItem(root.Window.window.contentItem, mouse.x, mouse.y); }
+        onPressed: mouse => { moving = false; origin = scene(mouse); }
+        onPositionChanged: mouse => {
+            if (!pressed) return;
+            const p = scene(mouse);
+            if (!moving && Math.abs(p.x - origin.x) + Math.abs(p.y - origin.y) > 6) {
+                moving = true; root.dockDragStarted();
+            }
+            if (moving) root.dockDragMoved(p.x, p.y);
+        }
+        onReleased: mouse => { if (moving) { const p = scene(mouse); root.dockDragFinished(p.x, p.y); } moving = false; }
+        onCanceled: { moving = false; root.dockDragCanceled(); }
+        Text { visible: root.compact; anchors.centerIn: parent; text: "⋮"; color: Colors.c("muted"); font.pixelSize: 20 }
+    }
+    implicitHeight: compact ? 30 : toolsContent.implicitHeight
+    Column {
+    id: toolsContent
+    x: root.compact ? 20 : 0
+    width: root.width - x
+
     spacing: 8
-    Text { text: "Tools"; color: Colors.c("heading"); font.family: "Segoe UI"; font.pixelSize: 12 }
+    Text { visible: !root.compact; height: visible ? implicitHeight : 0; text: "Tools"; color: Colors.c("heading"); font.family: "Segoe UI"; font.pixelSize: 12 }
     Grid {
         id: toolsGrid
-        readonly property int buttonWidth: 62
-        columns: Math.max(1, Math.floor((root.width + spacing) / (buttonWidth + spacing)))
-        spacing: 3; width: root.width
+        readonly property int buttonWidth: root.compact ? 56 : 62
+        columns: root.compact ? 8 : Math.max(1, Math.floor((root.width + spacing) / (buttonWidth + spacing)))
+        spacing: 3; width: toolsContent.width
         Repeater {
             model: ["Lasso", "Border", "PZ", "NP", "NL", "PvP", "Auto", "Doors"]
             delegate: Button {
@@ -19,17 +55,19 @@ Column {
                 required property string modelData
                 objectName: "fluentTool" + modelData
                 width: toolsGrid.buttonWidth
-                height: 38
+                height: root.compact ? 30 : 38
                 text: modelData
                 padding: 3
-                contentItem: Column {
+                contentItem: Grid {
+                    columns: root.compact ? 2 : 1
+                    horizontalItemAlignment: Grid.AlignHCenter
+                    verticalItemAlignment: Grid.AlignVCenter
                     spacing: 2
                     Image {
-                        anchors.horizontalCenter: parent.horizontalCenter
                         width: 16; height: 16
                         source: "image://tibiaui/fluent-icon/" + toolButton.modelData + "/" + String(Colors.c("muted")).replace("#", "")
                     }
-                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: toolButton.modelData; color: Colors.c("buttonText"); font.family: "Segoe UI"; font.pixelSize: 11 }
+                    Text { text: toolButton.modelData; color: Colors.c("buttonText"); font.family: "Segoe UI"; font.pixelSize: 11 }
                 }
                 background: Rectangle {
                     radius: 4
@@ -59,6 +97,7 @@ Column {
                 }
             }
         }
+    }
     }
     ColorHighlight { targetItem: root; colorKeys: ["button", "hover", "pressed", "border", "heading", "buttonText", "muted", "selected", "selectedHover", "selectedBorder"] }
 }

@@ -1,6 +1,17 @@
 pragma Singleton
 import QtQuick
 QtObject {
+    property var hotkeys: QtObject {
+        property var commands: []
+        property var bindings: ({})
+        property var activeBindings: bindings
+        property bool capturing: false
+        function resetAll() {}
+        function resetShortcut(id) { return ""; }
+        function setShortcut(id, shortcut) { return ""; }
+        function shortcutFromKey(key, modifiers) { return ""; }
+        function matches(id, key, modifiers) { return false; }
+    }
     property QtObject otbmReader: QtObject {
         property string filePath: ""
         property bool loading: false
@@ -23,6 +34,7 @@ QtObject {
     }
     property QtObject uiTheme: QtObject {
         property string style: "gray-dark"
+        property var styles: [{ id: "fluent-dark", name: "Fluent Dark" }, { id: "gray-dark", name: "Gray Dark" }]
         property var colorOverrides: ({})
         property string highlightedColor: ""
         signal colorsChanged()

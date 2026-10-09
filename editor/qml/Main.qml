@@ -246,7 +246,6 @@ DmeWindow {
     AppSettings {
         id: prefs
     }
-
     AppController {
         id: app
         settings: prefs
@@ -340,31 +339,25 @@ DmeWindow {
     }
 
     Shortcut {
-        sequence: "Ctrl+Alt+S"
+        sequence: Backend.hotkeys.activeBindings.save_as_alternative
         enabled: Backend.otbmReader.loaded
         onActivated: saveDialog.open()
     }
 
     Shortcut {
-        sequence: "Ctrl+="
+        sequence: Backend.hotkeys.activeBindings.zoom_in_alternative
         enabled: Backend.otbmReader.loaded
         onActivated: workspace.mapView.zoomSteps(1)
     }
 
     Shortcut {
-        sequence: "Ctrl+Y"
+        sequence: Backend.hotkeys.activeBindings.redo_alternative
         enabled: Backend.otbmReader.redoCount > 0
         onActivated: workspace.mapView.redo()
     }
 
     Shortcut {
-        sequence: "Ctrl+B"
-        enabled: app.started
-        onActivated: prefs.paletteCollapsed = !prefs.paletteCollapsed
-    }
-
-    Shortcut {
-        sequence: "Alt+A"
+        sequence: Backend.hotkeys.activeBindings.browse_field
         enabled: Backend.otbmReader.loaded && workspace.mapView.selectionCount === 1
         onActivated: {
             if (workspace.mapView.setContextFromSelection())
@@ -385,13 +378,43 @@ DmeWindow {
         onAccepted: workspace.mapView.randomizeMap()
     }
 
+    property string dockDragKind: "brush"
+    property bool brushDragging: false
+    property real brushDragX: 0
+    property real brushDragY: 0
+    function finishBrushDock(x, y) {
+        const p = fluentFileBar.mapFromItem(root.contentItem, x, y);
+        if (p.x >= 0 && p.x <= fluentFileBar.width && p.y >= 0 && p.y <= fluentFileBar.height)
+            prefs[dockDragKind === "tools" ? "toolsDock" : "brushSizeDock"] = "topbar";
+        else {
+            const q = palette.mapFromItem(root.contentItem, x, y);
+            if (q.x >= 0 && q.x <= palette.width && q.y >= 0 && q.y <= palette.height)
+                prefs[dockDragKind === "tools" ? "toolsDock" : "brushSizeDock"] = "palette";
+        }
+        brushDragging = false;
+    }
+    Rectangle {
+        x: root.brushDragX + 12; y: root.brushDragY + 12
+        z: 1000; visible: root.brushDragging
+        width: 104; height: 30; radius: 4
+        color: "#242424"; border.color: "#4a9ec7"
+        Text { anchors.centerIn: parent; text: root.dockDragKind === "tools" ? "Tools" : "Brush size"; color: "white"; font.pixelSize: 12 }
+    }
     FluentFileBar {
         id: fluentFileBar
         anchors.top: titleBar.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         visible: root.fluentUi
-        height: visible ? 42 : 0
+        height: visible ? implicitHeight : 0
+        settings: prefs
+        brushDragActive: root.brushDragging
+        onToolsDockDragStarted: { root.dockDragKind = "tools"; root.brushDragging = true; }
+        onToolsDoorsRequested: { prefs.paletteCollapsed = false; palette.selectKind("Door Palette"); }
+        onBrushDockDragStarted: { root.dockDragKind = "brush"; root.brushDragging = true; }
+        onBrushDockDragMoved: (x,y) => { root.brushDragX = x; root.brushDragY = y; }
+        onBrushDockDragFinished: (x,y) => root.finishBrushDock(x,y)
+        onBrushDockDragCanceled: root.brushDragging = false
         mapView: workspace.mapView
         onNewRequested: newMapDialog.open()
         onOpenRequested: startupScreen.openMapDialog()
@@ -421,6 +444,12 @@ DmeWindow {
 
     PalettePanel {
         id: palette
+        brushDockSettings: prefs
+        onToolsDockDragStarted: { root.dockDragKind = "tools"; root.brushDragging = true; }
+        onBrushDockDragStarted: { root.dockDragKind = "brush"; root.brushDragging = true; }
+        onBrushDockDragMoved: (x,y) => { root.brushDragX = x; root.brushDragY = y; }
+        onBrushDockDragFinished: (x,y) => root.finishBrushDock(x,y)
+        onBrushDockDragCanceled: root.brushDragging = false
         x: root.fluentUi ? 6 + paletteDock.x : (root.githubUi ? 1 : 6)
         y: root.paletteTop + (root.fluentUi ? paletteDock.y : 0)
         height: root.fluentUi ? paletteDock.panelHeight : root.contentItem.height - y - (root.githubUi ? 1 : 6)

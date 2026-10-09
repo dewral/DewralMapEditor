@@ -5,7 +5,11 @@ import "../style"
 
 DmeDialog {
     id: root
+    modal: false
+    dim: false
+    closePolicy: Popup.NoAutoClose
     property var mapCtrl: null
+    property alias wallEditor: inlineWallEditor
     AdvancedBrushEditor {
         id: advancedEditor
         editorHost: root
@@ -16,7 +20,7 @@ DmeDialog {
 
     property string tab: "tilesets"
     property string curGround: ""
-    property string curWall: ""
+    property string groundSaveError: ""
     property string curDoodad: ""
     property int selectedServerId: 0
     property var selectedServerIds: []
@@ -78,7 +82,7 @@ DmeDialog {
             "inner|": [[], [], [], [], [], [], [], [], [], [], [], [], []]
         })
     property string borderTarget: ""
-    property string borderAlign: "inner"
+    property string borderAlign: "outer"
     property bool optionalBorderMode: false
     property var optionalBorderIds: [[], [], [], [], [], [], [], [], [], [], [], [], []]
     property int selectedBorderType: 1
@@ -88,7 +92,6 @@ DmeDialog {
                                       ? optionalBorderIds
                                       : (borderSets[borderSlotKey] || [[], [], [], [], [], [], [], [], [], [], [], [], []])
     readonly property var borderVariants: borderSlots[selectedBorderType] || []
-    property var wallIds: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
     function emptyBorderSlots() {
         return [[], [], [], [], [], [], [], [], [], [], [], [], []];
@@ -464,6 +467,7 @@ DmeDialog {
 
     function loadGround(name) {
         curGround = name;
+        groundSaveError = "";
         var d = Backend.brushStore.groundBrushEdit(name);
         zorderField.value = d.zorder;
         gItems.clear();
@@ -483,13 +487,15 @@ DmeDialog {
         optionalBorderMode = false;
         selectedBorderType = 1;
         borderTarget = "";
-        borderAlign = sets["inner|"] ? "inner" : "outer";
+        borderAlign = sets["outer|"] ? "outer" : "inner";
         groundNameField.text = name;
+        groundCombo.currentIndex = groundCombo.model.indexOf(name);
         alignCombo.syncFromApp();
         targetCombo.syncFromApp();
     }
     function newGround() {
         curGround = "";
+        groundSaveError = "";
         groundNameField.text = "";
         zorderField.value = 3500;
         gItems.clear();
@@ -500,14 +506,21 @@ DmeDialog {
         optionalBorderMode = false;
         selectedBorderType = 1;
         borderTarget = "";
-        borderAlign = "inner";
+        borderAlign = "outer";
         alignCombo.syncFromApp();
         targetCombo.syncFromApp();
     }
     function saveGround() {
         var name = groundNameField.text.trim();
-        if (name === "" || gItems.count === 0)
+        groundSaveError = "";
+        if (name === "" || gItems.count === 0) {
+            groundSaveError = "Enter a name and add at least one ground item.";
             return false;
+        }
+        if (name !== curGround && Backend.brushStore.groundBrushNames().indexOf(name) >= 0) {
+            groundSaveError = "A ground brush named \"" + name + "\" already exists. Choose another name.";
+            return false;
+        }
         var items = [];
         for (var i = 0; i < gItems.count; ++i)
             items.push({
@@ -527,36 +540,25 @@ DmeDialog {
             });
         }
         if (Backend.brushStore.saveGroundBrush(name, zorderField.value, items, blocks,
-                                               optionalBorderIds)) {
+                                               optionalBorderIds, curGround)) {
             loadGround(name);
             return true;
         }
+        groundSaveError = "Could not save the ground brush. Your changes have been kept.";
         return false;
     }
 
-    function loadWall(name) {
-        curWall = name;
-        wallIds = Backend.brushStore.wallBrushEdit(name);
-        wallNameField.text = name;
-    }
-    function newWall() {
-        curWall = "";
-        wallNameField.text = "";
-        wallIds = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    }
-    function saveWall() {
-        var name = wallNameField.text.trim();
-        if (name === "")
-            return;
-        if (Backend.brushStore.saveWallBrush(name, wallIds))
-            loadWall(name);
+    function requestClose() {
+        inlineWallEditor.guarded(function() {
+            inlineWallEditor.reset();
+            root.close();
+        });
     }
 
     Connections {
         target: Backend.brushStore
         function onBrushesChanged() {
             groundCombo.model = Backend.brushStore.groundBrushNames();
-            wallCombo.model = Backend.brushStore.wallBrushNames();
             root.refreshDoodads(doodadPaletteCombo.currentText, root.curDoodad);
         }
     }
@@ -569,9 +571,8 @@ DmeDialog {
     }
     onOpened: {
         groundCombo.model = Backend.brushStore.groundBrushNames();
-        wallCombo.model = Backend.brushStore.wallBrushNames();
         newGround();
-        newWall();
+        inlineWallEditor.refreshNames();
         refreshTilesets("");
         refreshDoodads("", "");
         selectedServerIds = [];
@@ -665,10 +666,29 @@ DmeDialog {
         onHideInvisibleSpritesChanged: root.pickerSelectionAnchor = -1
     }
 
+    footer: Item {
+        implicitHeight: closeButton.implicitHeight + root.bottomPadding
+
+        DmeButton {
+            id: closeButton
+            objectName: "brushManagerCloseButton"
+            anchors {
+                right: parent.right
+                rightMargin: root.rightPadding
+                top: parent.top
+            }
+            text: "Close"
+            width: 90
+            onClicked: root.requestClose()
+        }
+    }
+
     contentItem: Item {
         id: body
         implicitWidth: 1010
         implicitHeight: 650
+        focus: true
+        Keys.onEscapePressed: event => { event.accepted = true; root.requestClose(); }
 
         Column {
             id: pickerCol
@@ -833,6 +853,10 @@ DmeDialog {
                                     dragGhost.Drag.drop();
                                 dragGhost.visible = false;
                             }
+                            onClicked: mouse => {
+                                if (root.tab === "wall" && !(mouse.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)))
+                                    inlineWallEditor.addPickerIds([parent.sid]);
+                            }
                             onDoubleClicked: {
                                 if (root.tab === "tilesets")
                                     root.addSelectedToTileset();
@@ -942,10 +966,11 @@ DmeDialog {
                 }
                 DmeButton {
                     text: "Wall brush"
+                    objectName: "brushManagerWallTab"
                     width: 110
                     checked: root.tab === "wall"
                     opacity: root.tab === "wall" ? 1.0 : 0.65
-                    onClicked: { advancedEditor.kind = "walls"; advancedEditor.open() }
+                    onClicked: root.tab = "wall"
                 }
                 DmeButton {
                     text: "Doodad composer"
@@ -955,9 +980,16 @@ DmeDialog {
                     onClicked: root.tab = "doodad"
                 }
                 DmeButton {
-                    text: "Advanced / Learn"
+                    text: root.tab === "wall" ? "Learn from map" : "Advanced / Learn"
                     width: 145
-                    onClicked: { advancedEditor.kind = root.tab === "doodad" ? "doodads" : "carpets"; advancedEditor.open() }
+                    onClicked: {
+                        if (root.tab === "wall")
+                            inlineWallEditor.learnSelection();
+                        else {
+                            advancedEditor.kind = root.tab === "doodad" ? "doodads" : "carpets";
+                            advancedEditor.open();
+                        }
+                    }
                 }
             }
 
@@ -1392,6 +1424,7 @@ DmeDialog {
                     spacing: 6
                     DmeComboBox {
                         id: groundCombo
+                        objectName: "brushManagerGroundCombo"
                         width: 150
                         height: 23
                         onActivated: root.loadGround(model[currentIndex])
@@ -1421,6 +1454,7 @@ DmeDialog {
                     }
                     DmeTextField {
                         id: groundNameField
+                        objectName: "brushManagerGroundName"
                         width: 150
                         height: 22
                     }
@@ -1526,15 +1560,15 @@ DmeDialog {
                         id: alignCombo
                         width: 145
                         height: 23
-                        model: ["Inside ground", "Outside ground", "Optional border"]
+                        model: ["Outside ground", "Inside ground", "Optional border"]
                         function syncFromApp() {
                             currentIndex = root.optionalBorderMode ? 2
-                                                                  : (root.borderAlign === "outer" ? 1 : 0);
+                                                                  : (root.borderAlign === "outer" ? 0 : 1);
                         }
                         onActivated: {
                             root.optionalBorderMode = currentIndex === 2;
                             if (!root.optionalBorderMode)
-                                root.borderAlign = currentIndex === 1 ? "outer" : "inner";
+                                root.borderAlign = currentIndex === 0 ? "outer" : "inner";
                         }
                     }
                     Text {
@@ -1874,6 +1908,7 @@ DmeDialog {
                 Row {
                     spacing: 6
                     DmeButton {
+                        objectName: "brushManagerSaveGround"
                         text: "Save"
                         width: 90
                         onClicked: root.saveGround()
@@ -1897,134 +1932,25 @@ DmeDialog {
                         }
                     }
                 }
-            }
-
-            Column {
-                visible: root.tab === "wall"
-                spacing: 6
-                width: parent.width
-
-                Row {
-                    spacing: 6
-                    DmeComboBox {
-                        id: wallCombo
-                        width: 150
-                        height: 23
-                        onActivated: root.loadWall(model[currentIndex])
-                    }
-                    DmeButton {
-                        text: "New"
-                        width: 60
-                        onClicked: root.newWall()
-                    }
-                    DmeButton {
-                        text: "Remove"
-                        width: 60
-                        enabled: root.curWall !== ""
-                        onClicked: {
-                            Backend.brushStore.deleteWallBrush(root.curWall);
-                            root.newWall();
-                        }
-                    }
-                }
-                Row {
-                    spacing: 6
-                    Text {
-                        text: "Name"
-                        color: root.mutedColor
-                        font.pixelSize: 11
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                    DmeTextField {
-                        id: wallNameField
-                        width: 150
-                        height: 22
-                    }
-                }
-
                 Text {
-                    text: "Wall slots by connection (drop; right click clears)"
-                    color: root.mutedColor
+                    objectName: "brushManagerGroundSaveError"
+                    visible: root.groundSaveError !== ""
+                    text: root.groundSaveError
+                    color: root.textColor
                     font.pixelSize: 11
-                }
-                Grid {
-                    columns: 6
-                    spacing: 3
-                    Repeater {
-
-                        model: ["•", "╵", "╴", "┘", "╶", "└", "─", "┴", "╷", "│", "┐", "┤", "┌", "├", "┬", "┼", "✦"]
-                        delegate: Rectangle {
-                            required property string modelData
-                            required property int index
-                            objectName: "brushManagerWallSlot" + index
-                            width: 44
-                            height: 52
-                            color: wDrop.containsDrag ? Qt.darker(root.accentColor, 2.3) : root.cellColor
-                            border.color: wDrop.containsDrag ? root.accentColor : root.borderColor
-                            border.width: 1
-                            Image {
-                                anchors {
-                                    horizontalCenter: parent.horizontalCenter
-                                    top: parent.top
-                                    topMargin: 2
-                                }
-                                width: 32
-                                height: 32
-                                smooth: false
-                                cache: false
-                                fillMode: Image.PreserveAspectFit
-                                source: root.iconSrc(root.wallIds[index])
-                            }
-                            Text {
-                                anchors {
-                                    horizontalCenter: parent.horizontalCenter
-                                    bottom: parent.bottom
-                                    bottomMargin: 1
-                                }
-                                text: modelData
-                                color: root.mutedColor
-                                font.pixelSize: 12
-                                font.bold: true
-                            }
-                            DropArea {
-                                id: wDrop
-                                anchors.fill: parent
-                                onDropped: drop => {
-                                    var w = root.wallIds.slice();
-                                    w[index] = drop.source.sid;
-                                    root.wallIds = w;
-                                }
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                onClicked: mouse => {
-                                    if (mouse.button !== Qt.RightButton)
-                                        return;
-                                    var w = root.wallIds.slice();
-                                    w[index] = 0;
-                                    root.wallIds = w;
-                                }
-                                onDoubleClicked: mouse => {
-                                    if (mouse.button === Qt.LeftButton)
-                                        root.revealPickerItem(root.wallIds[index]);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                DmeButton {
-                    text: "Save"
-                    width: 90
-                    onClicked: root.saveWall()
+                    width: parent.width
+                    wrapMode: Text.WordWrap
                 }
             }
 
-            DmeButton {
-                text: "Close"
-                width: 90
-                onClicked: root.close()
+            WallBrushEditor {
+                id: inlineWallEditor
+                objectName: "brushManagerWallEditor"
+                visible: root.tab === "wall"
+                width: parent.width
+                height: Math.max(360, body.height - editorColumn.y - y)
+                editorHost: root
+                mapCtrl: root.mapCtrl
             }
         }
 

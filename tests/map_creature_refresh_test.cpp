@@ -207,10 +207,12 @@ bool atlasBudget(const QTemporaryDir &directory)
 
 #include "map_house_tool_checks.h"
 #include "map_zone_overlay_checks.h"
+#include "map_hotkey_checks.h"
 
 int main(int argc, char **argv)
 {
     QGuiApplication application(argc, argv);
+    if (!testMapHotkeys()) return 1;
     if (!testZoneOverlays()) return 1;
     if (QCoreApplication::arguments().contains(QStringLiteral("--zone-overlay-only"))) return 0;
     QTemporaryDir directory(QDir(QDir::currentPath()).filePath(

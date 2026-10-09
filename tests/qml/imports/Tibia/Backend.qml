@@ -1,6 +1,17 @@
 pragma Singleton
 import QtQuick
 QtObject {
+    property var hotkeys: QtObject {
+        property var commands: []
+        property var bindings: ({})
+        property var activeBindings: bindings
+        property bool capturing: false
+        function resetAll() {}
+        function resetShortcut(id) { return ""; }
+        function setShortcut(id, shortcut) { return ""; }
+        function shortcutFromKey(key, modifiers) { return ""; }
+        function matches(id, key, modifiers) { return false; }
+    }
     property QtObject otbmReader: QtObject {
         property string filePath: ""
         property bool loading: false

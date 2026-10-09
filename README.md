@@ -315,16 +315,25 @@ screen, or use **Win + Arrow**. On Windows 11, hover over **Maximize** or press
 **Win + Z** to choose a Snap Layout. Available zones depend on the monitor and
 the editor's minimum size (720 × 480).
 
+Open **File → Preferences → Hotkeys** to search commands and view their current
+and default shortcuts. Choose **Change**, press a key combination, and select
+**Apply**. Shortcuts are saved automatically; **Clear** removes a binding,
+**Reset** restores one command, and **Restore all defaults** restores every
+binding. Conflicts are reported before applying a change. Alternative bindings
+have separate entries, and basic navigation and cancellation controls are fixed.
+The keyboard controls below are defaults.
+
 | Action | Control |
 |---|---|
-| Toggle draw/select mode | `Space` |
+| Toggle draw/select mode | `Alt` |
 | Change floor | `+` / `-` or `Ctrl` + mouse wheel |
 | Zoom | Mouse wheel |
-| Pan | Middle mouse button or arrow keys |
+| Pan | Hold `Space`, middle mouse button, or arrow keys |
 | Fast keyboard pan | `Shift` + arrow keys |
 | Undo / redo | `Ctrl+Z` / `Ctrl+Shift+Z` |
 | Copy / cut / paste | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` |
-| Rotate doodad variant | `R` |
+| Next doodad variant | `R` |
+| Rotate selection or prefab | `Z` |
 | Go to position | `Ctrl+G` |
 | Show / hide palette | `Ctrl+B` or **View → Show palette** |
 

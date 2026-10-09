@@ -3,6 +3,7 @@ import QtQuick.Window
 import QtQuick.Controls
 import Tibia 1.0
 import "../style"
+import "PreviewMovement.js" as Movement
 import "../themes/fluent/Colors.js" as Fluent
 
 Window {
@@ -23,8 +24,13 @@ Window {
         visibility === Window.FullScreen ? showNormal() : showFullScreen();
     }
     onClosing: settings.showIngamePreviewWindow = false
+    Binding {
+        target: Backend.hotkeys
+        property: "previewActive"
+        value: previewWindow.visible && previewWindow.active
+    }
     Shortcut {
-        sequence: "F11"
+        sequence: Backend.hotkeys.activeBindings.preview_fullscreen
         context: Qt.WindowShortcut
         onActivated: previewWindow.toggleFullscreen()
     }
@@ -214,41 +220,42 @@ Window {
     }
 
     property var heldKeys: ({})
-    function movementKey(key) {
-        return [Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down, Qt.Key_W, Qt.Key_A,
-                Qt.Key_S, Qt.Key_D, Qt.Key_Home, Qt.Key_PageUp, Qt.Key_End, Qt.Key_PageDown].indexOf(key) >= 0;
-    }
     function walkHeldKeys() {
-        const k = heldKeys;
-        let dx = (k[Qt.Key_Right] || k[Qt.Key_D] ? 1 : 0) - (k[Qt.Key_Left] || k[Qt.Key_A] ? 1 : 0);
-        let dy = (k[Qt.Key_Down] || k[Qt.Key_S] ? 1 : 0) - (k[Qt.Key_Up] || k[Qt.Key_W] ? 1 : 0);
-        if (k[Qt.Key_Home]) { dx = -1; dy = -1; }
-        if (k[Qt.Key_PageUp]) { dx = 1; dy = -1; }
-        if (k[Qt.Key_End]) { dx = -1; dy = 1; }
-        if (k[Qt.Key_PageDown]) { dx = 1; dy = 1; }
-        if (dx || dy) movePlayer(dx, dy);
+        const movement = Movement.vector(heldKeys);
+        if (!Backend.hotkeys.capturing && (movement.dx || movement.dy))
+            movePlayer(movement.dx, movement.dy);
         else explorer.clearQueuedWalk();
     }
     function releaseMovement() { heldKeys = ({}); explorer.clearQueuedWalk(); }
+    Keys.onShortcutOverride: event => {
+        if (Movement.direction(event.key, event.modifiers, Backend.hotkeys))
+            event.accepted = true;
+    }
     Keys.onPressed: function(event) {
+        if (Backend.hotkeys.capturing) return;
         if (event.key === Qt.Key_Escape) {
             releaseMovement();
             if (previewWindow.visibility === Window.FullScreen) previewWindow.showNormal();
             else settings.showIngamePreviewWindow = false;
             event.accepted = true;
-        } else if (movementKey(event.key)) {
-            if (!event.isAutoRepeat) { heldKeys[event.key] = true; walkHeldKeys(); }
+        } else if (Movement.press(heldKeys, event.key, event.modifiers, Backend.hotkeys, event.isAutoRepeat)) {
+            if (!event.isAutoRepeat) walkHeldKeys();
             event.accepted = true;
         }
     }
     Keys.onReleased: function(event) {
-        if (movementKey(event.key)) {
-            if (!event.isAutoRepeat) { delete heldKeys[event.key]; walkHeldKeys(); }
+        if (Movement.release(heldKeys, event.key, event.isAutoRepeat)) {
+            if (!event.isAutoRepeat) walkHeldKeys();
             event.accepted = true;
         }
     }
-    Timer { interval: 16; running: panel.visible && previewWindow.active; repeat: true; onTriggered: panel.walkHeldKeys() }
+    Timer { interval: 16; running: panel.visible && previewWindow.active && !Backend.hotkeys.capturing; repeat: true; onTriggered: panel.walkHeldKeys() }
     Connections { target: previewWindow; function onActiveChanged() { if (!previewWindow.active) panel.releaseMovement(); } }
+    Connections {
+        target: Backend.hotkeys
+        function onCapturingChanged() { if (Backend.hotkeys.capturing) panel.releaseMovement(); }
+        function onBindingsChanged() { panel.releaseMovement(); }
+    }
 
     Connections {
         target: Backend.docMgr
@@ -257,9 +264,6 @@ Window {
                 Qt.callLater(panel.resetToEditorPosition)
         }
     }
-
-    // The map view normally owns keyboard focus. Window shortcuts keep offline
-    // walking responsive after clicking or hovering the editor canvas.
 
     Rectangle {
         anchors.fill: parent
@@ -337,7 +341,7 @@ Window {
             PreviewButton {
                 width: 38; height: 38; text: "\uE740"; font.family: "Segoe Fluent Icons"
                 onClicked: previewWindow.toggleFullscreen()
-                ToolTip.visible: hovered; ToolTip.text: "Fullscreen (F11)"
+                ToolTip.visible: hovered; ToolTip.text: "Fullscreen" + (Backend.hotkeys.bindings.preview_fullscreen ? " (" + Backend.hotkeys.bindings.preview_fullscreen + ")" : "")
             }
         }
     }

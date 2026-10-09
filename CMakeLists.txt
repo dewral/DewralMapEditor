@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
     "Disable Qt Creator package-manager auto setup" FORCE)
 
-project(DewralMapEditor VERSION 1.1.9 LANGUAGES CXX)
+project(DewralMapEditor VERSION 1.1.10 LANGUAGES CXX)
 
 set(DME_RELEASE_REPOSITORY "dewral/DewralMapEditor" CACHE STRING
     "GitHub repository hosting the stable update packages")
@@ -91,6 +91,8 @@ add_executable(DewralMapEditor
     editor/core/updateversion.h
     editor/core/worktimerservice.cpp
     editor/core/worktimerservice.h
+    editor/core/hotkeysettings.cpp
+    editor/core/hotkeysettings.h
     editor/map/mapview.cpp
     editor/map/mapview_edit.cpp
     editor/map/mapview_brush_core.cpp
@@ -182,6 +184,7 @@ qt_add_qml_module(DewralMapEditor
         editor/core/creaturefilter.h
         editor/core/updateservice.h
         editor/core/worktimerservice.h
+        editor/core/hotkeysettings.h
         libs/otformats/sprreader.h
         libs/otformats/datreader.h
         libs/otformats/otbreader.h
@@ -206,6 +209,11 @@ target_link_libraries(DewralMapEditor
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(hotkey_settings_test EXCLUDE_FROM_ALL
+        tests/hotkey_settings_test.cpp editor/core/hotkeysettings.cpp)
+    target_include_directories(hotkey_settings_test PRIVATE editor/core)
+    target_link_libraries(hotkey_settings_test PRIVATE Qt6::Gui Qt6::Qml)
+    add_test(NAME hotkey_settings COMMAND hotkey_settings_test)
     add_executable(ui_colorize_test EXCLUDE_FROM_ALL tests/ui_colorize_test.cpp editor/core/uitheme.cpp)
     target_include_directories(ui_colorize_test PRIVATE editor/core)
     target_link_libraries(ui_colorize_test PRIVATE Qt6::Core Qt6::Gui Qt6::Quick)
@@ -414,7 +422,7 @@ if(BUILD_TESTING)
                              map_ground_cluster_generator map_selection_rotation
                              document_recovery creature_store map_creature_refresh update_version
                              brushstore_advanced brushstore_border_variants
-                             palette_visibility PROPERTIES
+                             palette_visibility hotkey_settings PROPERTIES
             ENVIRONMENT_MODIFICATION
                 "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
     endif()

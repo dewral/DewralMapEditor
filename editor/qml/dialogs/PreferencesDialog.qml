@@ -51,13 +51,15 @@ DmeDialog {
                         { name: "Interface", icon: "\uE790" },
                         { name: "Performance", icon: "\uE9D9" },
                         { name: "Editor", icon: "\uE70F" },
-                        { name: "Zone display", icon: "\uE81E" }
+                        { name: "Zone display", icon: "\uE81E" },
+                        { name: "Hotkeys", icon: "\uE765" }
                     ]
                     delegate: Rectangle {
                         required property var modelData
                         required property int index
+                        objectName: "preferencesTab" + modelData.name.replace(/ /g, "")
                         width: parent.width
-                        height: 44
+                        height: Math.min(44, (parent.height - 5 * parent.spacing) / 6)
                         radius: 5
                         color: dialog.page === index ? Colors.c("selected") : navMouse.containsMouse ? Colors.c("hover") : "transparent"
                         Rectangle {
@@ -314,6 +316,13 @@ DmeDialog {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 mapView: dialog.mapView
+            }
+            HotkeysPage {
+                objectName: "preferencesHotkeys"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumWidth: 0
+                Layout.minimumHeight: 0
             }
         }
     }

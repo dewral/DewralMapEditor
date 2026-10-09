@@ -46,13 +46,18 @@ Item {
             dialog.height = 440;
             dialog.open();
             tryCompare(dialog, "visible", true);
-            for (let page = 0; page < 5; ++page) {
+            for (let page = 0; page < 6; ++page) {
                 dialog.page = page;
                 wait(20);
                 verify(dialog.contentItem.clip);
                 verify(dialog.contentItem.height <= dialog.height - dialog.footer.height - dialog.header.height);
                 const zones = findChild(dialog, "preferencesZoneDisplay");
                 if (page === 4) verify(zones.height <= dialog.contentItem.height);
+                if (page === 5) {
+                    const hotkeys = findChild(dialog, "preferencesHotkeys");
+                    verify(hotkeys.visible);
+                    verify(hotkeys.height <= dialog.contentItem.height);
+                }
             }
             const slider = findChild(dialog, "tooltipMinimumZoomSlider");
             verify(slider !== null);

@@ -150,6 +150,8 @@ Item {
 
         MapView {
             id: mapView
+            hotkeyBindings: Backend.hotkeys.activeBindings
+            commandHotkeysEnabled: !Backend.hotkeys.capturing
             modernZones: workspace.fluentUi
             anchors.fill: parent
             focus: true

@@ -246,7 +246,6 @@ DmeWindow {
     AppSettings {
         id: prefs
     }
-
     AppController {
         id: app
         settings: prefs
@@ -340,31 +339,25 @@ DmeWindow {
     }
 
     Shortcut {
-        sequence: "Ctrl+Alt+S"
+        sequence: Backend.hotkeys.activeBindings.save_as_alternative
         enabled: Backend.otbmReader.loaded
         onActivated: saveDialog.open()
     }
 
     Shortcut {
-        sequence: "Ctrl+="
+        sequence: Backend.hotkeys.activeBindings.zoom_in_alternative
         enabled: Backend.otbmReader.loaded
         onActivated: workspace.mapView.zoomSteps(1)
     }
 
     Shortcut {
-        sequence: "Ctrl+Y"
+        sequence: Backend.hotkeys.activeBindings.redo_alternative
         enabled: Backend.otbmReader.redoCount > 0
         onActivated: workspace.mapView.redo()
     }
 
     Shortcut {
-        sequence: "Ctrl+B"
-        enabled: app.started
-        onActivated: prefs.paletteCollapsed = !prefs.paletteCollapsed
-    }
-
-    Shortcut {
-        sequence: "Alt+A"
+        sequence: Backend.hotkeys.activeBindings.browse_field
         enabled: Backend.otbmReader.loaded && workspace.mapView.selectionCount === 1
         onActivated: {
             if (workspace.mapView.setContextFromSelection())

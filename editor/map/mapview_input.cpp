@@ -8,6 +8,7 @@
 #include <QWheelEvent>
 #include <QCursor>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QElapsedTimer>
 #include <QTimer>
 #include <QGuiApplication>
@@ -773,6 +774,17 @@ void MapView::zoomAt(int steps, qreal px, qreal py)
 
 void MapView::keyPressEvent(QKeyEvent *event)
 {
+    const auto matches = [this, event](const char *id, const char *defaultShortcut) {
+        if (!m_commandHotkeysEnabled) return false;
+        const QString binding = m_hotkeyBindings.value(QString::fromLatin1(id),
+            QString::fromLatin1(defaultShortcut)).toString();
+        if (binding.isEmpty()) return false;
+        auto modifiers = event->modifiers()
+            & (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier);
+        if (event->key() == Qt::Key_Plus) modifiers &= ~Qt::ShiftModifier;
+        return QKeySequence::fromString(binding, QKeySequence::PortableText)
+            == QKeySequence(QKeyCombination(modifiers, Qt::Key(event->key())));
+    };
     if (event->key() == Qt::Key_Escape && m_selectionController.lassoing()) {
         cancelLasso();
         event->accept();
@@ -791,64 +803,61 @@ void MapView::keyPressEvent(QKeyEvent *event)
             return;
         }
     }
-    if (event->key() == Qt::Key_Plus || event->key() == Qt::Key_Equal) {
+    if (matches("floor_up", "+") || matches("floor_up_alternative", "=")) {
         setFloor(m_navigationController.floor() - 1);
         event->accept();
         return;
     }
-    if (event->key() == Qt::Key_Minus) {
+    if (matches("floor_down", "-")) {
         setFloor(m_navigationController.floor() + 1);
         event->accept();
         return;
     }
 
-    if (event->key() == Qt::Key_Q) {
+    if (matches("show_shade", "Q")) {
         setShowShade(!m_showShade);
         event->accept();
         return;
     }
 
-    if (event->key() == Qt::Key_W && (event->modifiers() & Qt::ControlModifier)) {
+    if (matches("show_lower_floors", "Ctrl+W")) {
         setShowLowerFloors(!m_showLowerFloors);
         event->accept();
         return;
     }
 
-    if (event->modifiers() == Qt::NoModifier) {
-        if (event->key() == Qt::Key_F) {
-            setShowCreatures(!m_showCreatures);
-            event->accept();
-            return;
-        }
-        if (event->key() == Qt::Key_S) {
-            setShowSpawns(!m_showSpawns);
-            event->accept();
-            return;
-        }
-        if (event->key() == Qt::Key_E) {
-            setShowZones(!m_showZones);
-            event->accept();
-            return;
-        }
-        if (event->key() == Qt::Key_O) {
-            setShowPathing(!m_showPathing);
-            event->accept();
-            return;
-        }
-        if (event->key() == Qt::Key_L) {
-            setShowAnimations(!m_showAnimations);
-            event->accept();
-            return;
-        }
-
-        if (event->key() == Qt::Key_M) {
-            setMinimapOn(!m_minimapOn);
-            event->accept();
-            return;
-        }
+    if (matches("show_creatures", "F")) {
+        setShowCreatures(!m_showCreatures);
+        event->accept();
+        return;
+    }
+    if (matches("show_spawns", "S")) {
+        setShowSpawns(!m_showSpawns);
+        event->accept();
+        return;
+    }
+    if (matches("show_special_zones", "E")) {
+        setShowZones(!m_showZones);
+        event->accept();
+        return;
+    }
+    if (matches("show_pathing", "O")) {
+        setShowPathing(!m_showPathing);
+        event->accept();
+        return;
+    }
+    if (matches("show_animation", "L")) {
+        setShowAnimations(!m_showAnimations);
+        event->accept();
+        return;
+    }
+    if (matches("show_minimap", "M")) {
+        setMinimapOn(!m_minimapOn);
+        event->accept();
+        return;
     }
 
-    if (event->key() == Qt::Key_Space && !(event->modifiers() & Qt::ControlModifier)) {
+    if (event->key() == Qt::Key_Space && event->modifiers() == Qt::NoModifier) {
         if (!event->isAutoRepeat()) {
             m_spacePanHeld = true;
             if (!m_navigationController.panning())
@@ -858,14 +867,15 @@ void MapView::keyPressEvent(QKeyEvent *event)
         return;
     }
 
-    if (event->key() == Qt::Key_Alt && !event->isAutoRepeat()) {
+    if (event->key() == Qt::Key_Alt && !event->isAutoRepeat()
+        && !(event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier | Qt::MetaModifier))) {
         setEraseMode(false);
         toggleSelectionMode();
         event->accept();
         return;
     }
 
-    if (event->key() == Qt::Key_R && !m_brushController.doodadBrush().isEmpty() && m_brushController.store()) {
+    if (matches("next_doodad_variant", "R") && !m_brushController.doodadBrush().isEmpty() && m_brushController.store()) {
         const int cnt = m_brushController.store()->doodadVariantCount(m_brushController.doodadBrush());
         if (cnt > 1) {
             m_brushController.doodadVariant() = (m_brushController.doodadVariant() + 1) % cnt;
@@ -875,21 +885,21 @@ void MapView::keyPressEvent(QKeyEvent *event)
         return;
     }
 
-    if (event->key() == Qt::Key_Z && event->modifiers() == Qt::NoModifier
+    if (matches("rotate", "Z")
         && !m_selectionController.selected().isEmpty() && !m_selectionController.pasting()) {
         rotateSelection();
         event->accept();
         return;
     }
 
-    if (event->key() == Qt::Key_Z && event->modifiers() == Qt::NoModifier
+    if (matches("rotate", "Z")
         && !m_brushController.doodadBrush().isEmpty()) {
         rotateDoodadBrush();
         event->accept();
         return;
     }
 
-    if (event->key() == Qt::Key_Delete) {
+    if (matches("delete_selected_top", "Del")) {
         if (!m_selectionController.selected().isEmpty()) deleteSelectedTop();
         event->accept();
         return;

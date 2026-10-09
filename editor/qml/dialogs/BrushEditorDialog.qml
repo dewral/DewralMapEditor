@@ -20,6 +20,7 @@ DmeDialog {
 
     property string tab: "tilesets"
     property string curGround: ""
+    property string groundSaveError: ""
     property string curDoodad: ""
     property int selectedServerId: 0
     property var selectedServerIds: []
@@ -466,6 +467,7 @@ DmeDialog {
 
     function loadGround(name) {
         curGround = name;
+        groundSaveError = "";
         var d = Backend.brushStore.groundBrushEdit(name);
         zorderField.value = d.zorder;
         gItems.clear();
@@ -487,11 +489,13 @@ DmeDialog {
         borderTarget = "";
         borderAlign = sets["inner|"] ? "inner" : "outer";
         groundNameField.text = name;
+        groundCombo.currentIndex = groundCombo.model.indexOf(name);
         alignCombo.syncFromApp();
         targetCombo.syncFromApp();
     }
     function newGround() {
         curGround = "";
+        groundSaveError = "";
         groundNameField.text = "";
         zorderField.value = 3500;
         gItems.clear();
@@ -508,8 +512,15 @@ DmeDialog {
     }
     function saveGround() {
         var name = groundNameField.text.trim();
-        if (name === "" || gItems.count === 0)
+        groundSaveError = "";
+        if (name === "" || gItems.count === 0) {
+            groundSaveError = "Enter a name and add at least one ground item.";
             return false;
+        }
+        if (name !== curGround && Backend.brushStore.groundBrushNames().indexOf(name) >= 0) {
+            groundSaveError = "A ground brush named \"" + name + "\" already exists. Choose another name.";
+            return false;
+        }
         var items = [];
         for (var i = 0; i < gItems.count; ++i)
             items.push({
@@ -529,10 +540,11 @@ DmeDialog {
             });
         }
         if (Backend.brushStore.saveGroundBrush(name, zorderField.value, items, blocks,
-                                               optionalBorderIds)) {
+                                               optionalBorderIds, curGround)) {
             loadGround(name);
             return true;
         }
+        groundSaveError = "Could not save the ground brush. Your changes have been kept.";
         return false;
     }
 
@@ -1412,6 +1424,7 @@ DmeDialog {
                     spacing: 6
                     DmeComboBox {
                         id: groundCombo
+                        objectName: "brushManagerGroundCombo"
                         width: 150
                         height: 23
                         onActivated: root.loadGround(model[currentIndex])
@@ -1441,6 +1454,7 @@ DmeDialog {
                     }
                     DmeTextField {
                         id: groundNameField
+                        objectName: "brushManagerGroundName"
                         width: 150
                         height: 22
                     }
@@ -1894,6 +1908,7 @@ DmeDialog {
                 Row {
                     spacing: 6
                     DmeButton {
+                        objectName: "brushManagerSaveGround"
                         text: "Save"
                         width: 90
                         onClicked: root.saveGround()
@@ -1916,6 +1931,15 @@ DmeDialog {
                             root.close();
                         }
                     }
+                }
+                Text {
+                    objectName: "brushManagerGroundSaveError"
+                    visible: root.groundSaveError !== ""
+                    text: root.groundSaveError
+                    color: root.textColor
+                    font.pixelSize: 11
+                    width: parent.width
+                    wrapMode: Text.WordWrap
                 }
             }
 

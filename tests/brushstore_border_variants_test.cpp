@@ -6,6 +6,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QDir>
 #include <QTemporaryDir>
 #include <QVariantList>
 #include <QVariantMap>
@@ -45,11 +46,24 @@ int main(int argc, char **argv)
         {QStringLiteral("grass"), QJsonObject{
             {QStringLiteral("zorder"), 100},
             {QStringLiteral("lookid"), 1},
+            {QStringLiteral("friends"), QJsonArray{QStringLiteral("grass"), QStringLiteral("*")}},
+            {QStringLiteral("solo_optional"), true},
+            {QStringLiteral("hate_friends"), true},
+            {QStringLiteral("custom"), QStringLiteral("preserved")},
             {QStringLiteral("items"), QJsonArray{QJsonArray{1, 1}}},
             {QStringLiteral("borders"), QJsonArray{QJsonObject{
                 {QStringLiteral("align"), QStringLiteral("inner")},
                 {QStringLiteral("to"), QString()},
                 {QStringLiteral("border"), QStringLiteral("legacy")}
+            }}}
+        }},
+        {QStringLiteral("stone"), QJsonObject{
+            {QStringLiteral("items"), QJsonArray{QJsonArray{2, 1}}},
+            {QStringLiteral("friends"), QJsonArray{QStringLiteral("grass")}},
+            {QStringLiteral("borders"), QJsonArray{QJsonObject{
+                {QStringLiteral("align"), QStringLiteral("inner")},
+                {QStringLiteral("to"), QStringLiteral("grass")},
+                {QStringLiteral("border"), QStringLiteral("gb_grass__inner_empty")}
             }}}
         }}
     });
@@ -122,6 +136,7 @@ int main(int argc, char **argv)
     QFile savedFile(dir.filePath(QStringLiteral("brushes.json")));
     if (!savedFile.open(QIODevice::ReadOnly)) return 8;
     const QJsonObject saved = QJsonDocument::fromJson(savedFile.readAll()).object();
+    savedFile.close();
     const QJsonObject borders = saved.value(QStringLiteral("borders")).toObject();
     bool foundWeightedSlot = false;
     for (const QString &key : borders.keys()) {
@@ -153,5 +168,59 @@ int main(int argc, char **argv)
             else return 12;
         }
     }
-    return sawFirst && sawSecond ? 0 : 13;
+    if (!(sawFirst && sawSecond)) return 13;
+
+    const int revision = store.revision();
+    if (store.saveGroundBrush(QStringLiteral("stone"), 100, items,
+                              QVariantList{block}, optional, QStringLiteral("grass"))) return 22;
+    if (store.saveGroundBrush(QStringLiteral("dirt"), 100, items,
+                              QVariantList{block}, optional, QStringLiteral("missing"))) return 23;
+    if (store.revision() != revision || !store.isGroundBrush(QStringLiteral("grass"))) return 24;
+
+    int changedSignals = 0;
+    QObject::connect(&store, &BrushStore::brushesChanged, [&] { ++changedSignals; });
+    if (!store.saveGroundBrush(QStringLiteral("dirt"), 2000, items,
+                               QVariantList{block}, optional, QStringLiteral("grass"))) return 25;
+    if (changedSignals != 1 || store.isGroundBrush(QStringLiteral("grass"))
+        || store.groundBrushForServerId(1) != QStringLiteral("dirt")) return 26;
+    const QVariantMap dirt = store.groundBrushEdit(QStringLiteral("dirt"));
+    if (dirt.value(QStringLiteral("borders")).toList() != QVariantList{block}) return 27;
+    if (dirt.value(QStringLiteral("optionalTiles")).toList() != optional) return 28;
+
+    BrushStore renamedReload;
+    if (!renamedReload.loadForDir(dir.path())
+        || renamedReload.isGroundBrush(QStringLiteral("grass"))
+        || renamedReload.groundBrushEdit(QStringLiteral("dirt")) != dirt) return 29;
+    savedFile.close();
+    if (!savedFile.open(QIODevice::ReadOnly)) return 30;
+    const QJsonObject renamed = QJsonDocument::fromJson(savedFile.readAll()).object();
+    savedFile.close();
+    const QJsonObject renamedGrounds = renamed.value(QStringLiteral("grounds")).toObject();
+    const QJsonObject renamedDirt = renamedGrounds.value(QStringLiteral("dirt")).toObject();
+    const QJsonObject stone = renamedGrounds.value(QStringLiteral("stone")).toObject();
+    if (renamedDirt.value(QStringLiteral("custom")).toString() != QStringLiteral("preserved")
+        || !renamedDirt.value(QStringLiteral("solo_optional")).toBool()
+        || !renamedDirt.value(QStringLiteral("hate_friends")).toBool()
+        || renamedDirt.value(QStringLiteral("friends")).toArray()
+            != QJsonArray{QStringLiteral("dirt"), QStringLiteral("*")}
+        || stone.value(QStringLiteral("friends")).toArray() != QJsonArray{QStringLiteral("dirt")}
+        || stone.value(QStringLiteral("borders")).toArray().first().toObject()
+            .value(QStringLiteral("to")).toString() != QStringLiteral("dirt")) return 31;
+    if (!renamed.value(QStringLiteral("borders")).toObject()
+             .contains(QStringLiteral("gb_grass__inner_empty"))) return 32;
+
+    // A failed disk write must keep both the persisted brush and the in-memory draft intact.
+    const QString savedPath = dir.filePath(QStringLiteral("saved.json"));
+    if (!QFile::rename(sourceFile.fileName(), savedPath)
+        || !QDir().mkdir(sourceFile.fileName())) return 33;
+    if (store.saveGroundBrush(QStringLiteral("mud"), 2000, items,
+                              QVariantList{block}, optional, QStringLiteral("dirt"))) return 34;
+    if (changedSignals != 1 || store.groundBrushEdit(QStringLiteral("dirt")) != dirt
+        || store.isGroundBrush(QStringLiteral("mud"))) return 35;
+    if (!QDir().rmdir(sourceFile.fileName())
+        || !QFile::rename(savedPath, sourceFile.fileName())) return 36;
+    if (!store.saveGroundBrush(QStringLiteral("dirt"), 2500, items,
+                               QVariantList{block}, {}, QStringLiteral("dirt"))) return 37;
+    if (store.isGroundBrush(QStringLiteral("mud")) || store.groundBrushHasOptional(QStringLiteral("dirt"))) return 38;
+    return 0;
 }

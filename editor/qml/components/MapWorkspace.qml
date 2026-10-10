@@ -311,6 +311,11 @@ Item {
                 onTriggered: workspace.paletteNavigator.selectBrush(mapArea.ctx.serverId)
             }
             Action {
+                text: "Select"
+                enabled: mapArea.ctx.hasItem
+                onTriggered: workspace.paletteNavigator.selectItem(mapArea.ctx.serverId)
+            }
+            Action {
                 text: "Select RAW"
                 enabled: mapArea.ctx.hasItem
                 onTriggered: workspace.paletteNavigator.selectRaw(mapArea.ctx.serverId)

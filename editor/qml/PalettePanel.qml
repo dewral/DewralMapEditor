@@ -88,6 +88,11 @@ Rectangle {
         positionItem(serverId);
     }
 
+    function selectItem(serverId) {
+        showItemLocation("", "", serverId);
+        mapCtrl.brushServerId = serverId;
+    }
+
     function selectRaw(serverId) {
         const tileset = Backend.tilesetStore.tilesetForItem("raw", serverId);
         showItemLocation("raw", tileset, serverId);

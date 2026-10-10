@@ -704,7 +704,7 @@ DmeDialog {
                 id: pickerSearch
                 objectName: "brushManagerPickerSearch"
                 width: parent.width
-                placeholderText: "Name, ID or range (12000-13000)..."
+                placeholderText: "Name, ID or range (12000+50)..."
                 onTextChanged: {
                     pf.searchText = text;
                     root.pickerSelectionAnchor = -1;

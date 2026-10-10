@@ -92,16 +92,16 @@ QByteArray datFile(int additionalItems = 0)
     return data;
 }
 
-QByteArray otbFile()
+QByteArray otbFile(int firstServerId = 1000, int itemCount = 9)
 {
     QByteArray data("OTBI");
     data.append(static_cast<char>(0xfe));
     data.append(QByteArray(5, '\0')); // Root type and flags.
-    for (int cid = 100; cid <= 108; ++cid) {
+    for (int cid = 100; cid < 100 + itemCount; ++cid) {
         QByteArray item(5, '\0'); // Item group and flags.
         item.append(static_cast<char>(0x10));
         appendU16(item, 2);
-        appendU16(item, static_cast<quint16>(cid + 900));
+        appendU16(item, static_cast<quint16>(firstServerId + cid - 100));
         item.append(static_cast<char>(0x11));
         appendU16(item, 2);
         appendU16(item, static_cast<quint16>(cid));
@@ -146,6 +146,24 @@ int main(int argc, char **argv)
     otb.setItemsXml(&itemsXml);
     if (!require(dat.loadFile(datPath) && spr.loadFile(sprPath, 0, false, true)
                      && otb.loadFile(otbPath), "Could not load fixtures")) return 1;
+
+    const QString offsetOtbPath = directory.filePath(QStringLiteral("offset.otb"));
+    OtbReader offsetOtb;
+    if (!require(writeFile(offsetOtbPath, otbFile(11857, 53))
+                     && offsetOtb.loadFile(offsetOtbPath),
+                 "Could not load offset range fixture")) return 1;
+    PaletteFilter offsetFilter;
+    offsetFilter.setSourceModel(&offsetOtb);
+    offsetFilter.setSearchText(QStringLiteral("11858+50"));
+    if (!require(offsetFilter.rowCount() == 51,
+                 "Offset search must include the starting ID and the next 50 IDs")) return 1;
+    for (int row = 0; row < offsetFilter.rowCount(); ++row) {
+        if (!require(offsetFilter.serverIdAtRow(row) == 11858 + row,
+                     "Offset search must include both endpoints and exclude neighboring IDs")) return 1;
+    }
+    offsetFilter.setIds({11858, 11860, 11908, 11909});
+    if (!require(offsetFilter.rowCount() == 3 && offsetFilter.serverIdAtRow(2) == 11908,
+                 "Offset search must filter by ID bounds even when category IDs have gaps")) return 1;
 
     PaletteFilter filter;
     filter.setSourceModel(&otb);
@@ -206,6 +224,22 @@ int main(int argc, char **argv)
         {"1008-2000", {1008}},
         {"0-1000", {1000}},
         {"12000-13000", {}},
+        {"1002+4", {1002, 1003, 1004, 1005, 1006}},
+        {" 1002 + 4 ", {1002, 1003, 1004, 1005, 1006}},
+        {"1005+0", {1005}},
+        {"1002+50", {1002, 1003, 1004, 1005, 1006, 1007, 1008}},
+        {"1008+2000", {1008}},
+        {"0+1000", {1000}},
+        {"1002+2147482645", {1002, 1003, 1004, 1005, 1006, 1007, 1008}},
+        {"1002+2147482646", {}},
+        {"2147483647+1", {}},
+        {"1002+99999999999999999999", {}},
+        {"99999999999999999999+4", {}},
+        {"1002+", {}},
+        {"+4", {}},
+        {"1002+-4", {}},
+        {"1002+4+2", {}},
+        {"1002+4-2", {}},
         {"1002-", {}},
         {"1002-1006-1008", {}},
         {"1002-99999999999999999999", {}},
@@ -224,15 +258,18 @@ int main(int argc, char **argv)
             return 1;
         }
     }
-    filter.setSearchText(QStringLiteral("1002-1006"));
-    filter.setHideInvisibleSprites(true);
-    if (!require(filter.rowCount() == 2 && filter.serverIdAtRow(0) == 1005
-                     && filter.serverIdAtRow(1) == 1006,
-                 "ID ranges must honor sprite visibility")) return 1;
-    filter.setOrderedIds({1006, 1007, 1005, 1000});
-    if (!require(filter.rowCount() == 2 && filter.serverIdAtRow(0) == 1006
-                     && filter.serverIdAtRow(1) == 1005,
-                 "ID ranges must preserve category membership and ordering")) return 1;
+    for (const QString &search : {QStringLiteral("1002-1006"), QStringLiteral("1002+4")}) {
+        filter.setMode(QStringLiteral("all"));
+        filter.setSearchText(search);
+        filter.setHideInvisibleSprites(true);
+        if (!require(filter.rowCount() == 2 && filter.serverIdAtRow(0) == 1005
+                         && filter.serverIdAtRow(1) == 1006,
+                     "ID ranges must honor sprite visibility")) return 1;
+        filter.setOrderedIds({1006, 1007, 1005, 1000});
+        if (!require(filter.rowCount() == 2 && filter.serverIdAtRow(0) == 1006
+                         && filter.serverIdAtRow(1) == 1005,
+                     "ID ranges must preserve category membership and ordering")) return 1;
+    }
     filter.setMode(QStringLiteral("all"));
     filter.setSearchText(QString());
     filter.setHideInvisibleSprites(true);

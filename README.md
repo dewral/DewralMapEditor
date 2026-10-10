@@ -82,6 +82,10 @@ client assets.
 
 Create and organize custom brushes directly in the editor.
 
+Item searches support names, ID prefixes, and inclusive ID ranges. Enter
+`11858-11908` or `11858+50` to show ID `11858` and the next 50 IDs through
+`11908`. Sprite visibility and category filters still apply.
+
 ![Creating and editing a brush in the DME Brush Editor](docs/screenshots/brush-editor.png)
 
 ### Classic UI

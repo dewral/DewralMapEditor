@@ -34,14 +34,16 @@ void PaletteFilter::setSearchText(const QString &t)
     m_search = t;
     m_searchRangeFrom = -1;
     m_searchRangeTo = -1;
-    static const QRegularExpression rangePattern(QStringLiteral("^\\s*([0-9]+)\\s*-\\s*([0-9]+)\\s*$"));
+    static const QRegularExpression rangePattern(QStringLiteral("^\\s*([0-9]+)\\s*([+-])\\s*([0-9]+)\\s*$"));
     const auto rangeMatch = rangePattern.match(t);
     if (rangeMatch.hasMatch()) {
         bool fromOk = false;
         bool toOk = false;
         const int from = rangeMatch.captured(1).toInt(&fromOk);
-        const int to = rangeMatch.captured(2).toInt(&toOk);
-        if (fromOk && toOk) {
+        const int value = rangeMatch.captured(3).toInt(&toOk);
+        const bool isOffset = rangeMatch.captured(2) == QLatin1String("+");
+        if (fromOk && toOk && (!isOffset || value <= std::numeric_limits<int>::max() - from)) {
+            const int to = isOffset ? from + value : value;
             m_searchRangeFrom = qMin(from, to);
             m_searchRangeTo = qMax(from, to);
         }

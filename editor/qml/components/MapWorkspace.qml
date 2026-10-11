@@ -365,6 +365,11 @@ Item {
                 onTriggered: workspace.paletteNavigator.selectItem(mapArea.ctx.serverId)
             }
             Action {
+                text: "Select"
+                enabled: mapArea.ctx.hasItem
+                onTriggered: workspace.paletteNavigator.selectItem(mapArea.ctx.serverId)
+            }
+            Action {
                 text: "Select RAW"
                 enabled: mapArea.ctx.hasSelectedItem
                 onTriggered: workspace.paletteNavigator.selectRaw(mapArea.ctx.serverId)

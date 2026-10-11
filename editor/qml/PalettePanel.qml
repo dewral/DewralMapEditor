@@ -92,6 +92,7 @@ Rectangle {
         mapCtrl.houseBrush = 0;
         mapCtrl.eraseMode = false;
         mapCtrl.lassoMode = false;
+
         showItemLocation("", "", serverId);
         mapCtrl.brushServerId = serverId;
     }

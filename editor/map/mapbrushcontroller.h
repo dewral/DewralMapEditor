@@ -106,6 +106,15 @@ public:
     const QString &carpetBrush() const { return m_carpetBrush; }
     QString &tableBrush() { return m_tableBrush; }
     const QString &tableBrush() const { return m_tableBrush; }
+    bool renameBrush(const QString &kind, const QString &oldName, const QString &newName)
+    {
+        QString *brush = kind == QLatin1String("walls") ? &m_wallBrush
+                : kind == QLatin1String("carpets") ? &m_carpetBrush
+                : kind == QLatin1String("doodads") ? &m_doodadBrush : nullptr;
+        if (!brush || *brush != oldName) return false;
+        *brush = newName;
+        return true;
+    }
     int &doorBrushId() { return m_doorBrushId; }
     int doorBrushId() const { return m_doorBrushId; }
     int &doodadVariant() { return m_doodadVariant; }

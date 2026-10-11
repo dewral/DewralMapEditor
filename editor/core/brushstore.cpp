@@ -65,9 +65,6 @@ QVariantMap BrushStore::saveAdvancedBrush(const QString &kind, const QString &na
         return fail("That name already exists. Load it before editing.");
     if (!originalName.isEmpty() && !collection.contains(originalName))
         return fail("The original brush no longer exists. Reload it first.");
-    // Renaming connected brushes can invalidate door/material references. Save a copy instead.
-    if (!originalName.isEmpty() && target != originalName)
-        return fail("Use New to create a copy; renaming may break palette or door references.");
     QJsonObject object = collection.value(originalName).toObject();
     const auto patch = QJsonObject::fromVariantMap(draft);
     for (auto it = patch.begin(); it != patch.end(); ++it) object.insert(it.key(), it.value());
@@ -119,12 +116,28 @@ QVariantMap BrushStore::saveAdvancedBrush(const QString &kind, const QString &na
     }
     if (!active) return fail("Add at least one variant with a positive weight.");
     const auto backup = m_rawRoot;
+    if (!originalName.isEmpty() && target != originalName) {
+        collection.remove(originalName);
+        if (kind == "walls") {
+            auto doors = m_rawRoot.value("doors").toObject();
+            for (auto it = doors.begin(); it != doors.end(); ++it) {
+                auto door = it.value().toObject();
+                if (door.value("brush").toString() == originalName) {
+                    door.insert("brush", target);
+                    it.value() = door;
+                }
+            }
+            m_rawRoot.insert("doors", doors);
+        }
+    }
     collection.insert(target, object);
     m_rawRoot.insert(kind, collection);
     if (!applyRawAndSave()) {
         m_rawRoot = backup;
         return fail("Could not write brushes.json. Your draft has been kept.");
     }
+    if (!originalName.isEmpty() && target != originalName)
+        emit advancedBrushRenamed(kind, originalName, target);
     return {{"success", true}};
 }
 
@@ -1040,13 +1053,18 @@ QVariantMap BrushStore::groundBrushEdit(const QString &name) const
 bool BrushStore::saveGroundBrush(const QString &name, int zorder,
                                  const QVariantList &items,
                                  const QVariantList &borderBlocks,
-                                 const QVariantList &optionalTiles)
+                                 const QVariantList &optionalTiles,
+                                 const QString &originalName)
 {
     if (name.trimmed().isEmpty() || items.isEmpty()) return false;
 
     QJsonObject grounds = m_rawRoot.value(QStringLiteral("grounds")).toObject();
     QJsonObject borders = m_rawRoot.value(QStringLiteral("borders")).toObject();
-    const QJsonObject old = grounds.value(name).toObject();
+    const QString sourceName = originalName.isEmpty() ? name : originalName;
+    const bool renaming = sourceName != name;
+    if (!originalName.isEmpty() && !grounds.contains(sourceName)) return false;
+    if (renaming && grounds.contains(name)) return false;
+    const QJsonObject old = grounds.value(sourceName).toObject();
 
     QJsonArray itemsArr;
     int lookid = 0;
@@ -1060,6 +1078,7 @@ bool BrushStore::saveGroundBrush(const QString &name, int zorder,
     }
     if (itemsArr.isEmpty()) return false;
 
+    // On rename, retain the source's border definitions: other brushes may share them.
     const QString prefix = QStringLiteral("gb_%1__").arg(name);
     for (const QString &k : borders.keys())
         if (k.startsWith(prefix)) borders.remove(k);
@@ -1122,7 +1141,7 @@ bool BrushStore::saveGroundBrush(const QString &name, int zorder,
         if (i > 0 && !(stored.isDouble() && stored.toInt() == 0)) hasOptional = true;
     }
 
-    QJsonObject g;
+    QJsonObject g = old;
     g.insert(QStringLiteral("zorder"), zorder);
     g.insert(QStringLiteral("lookid"), lookid);
     g.insert(QStringLiteral("items"), itemsArr);
@@ -1132,19 +1151,42 @@ bool BrushStore::saveGroundBrush(const QString &name, int zorder,
         const QString optionalKey = prefix + QStringLiteral("optional");
         borders.insert(optionalKey, optionalArray);
         g.insert(QStringLiteral("optional"), optionalKey);
+    } else {
+        g.remove(QStringLiteral("optional"));
     }
 
-    if (old.contains(QStringLiteral("friends")))
-        g.insert(QStringLiteral("friends"), old.value(QStringLiteral("friends")));
-    if (old.contains(QStringLiteral("solo_optional")))
-        g.insert(QStringLiteral("solo_optional"), old.value(QStringLiteral("solo_optional")));
-    if (old.contains(QStringLiteral("hate_friends")))
-        g.insert(QStringLiteral("hate_friends"), old.value(QStringLiteral("hate_friends")));
-
     grounds.insert(name, g);
+    if (renaming) {
+        grounds.remove(sourceName);
+        // Keep named border targets and friendships connected to the renamed brush.
+        for (const QString &key : grounds.keys()) {
+            QJsonObject ground = grounds.value(key).toObject();
+            QJsonArray groundBorders = ground.value(QStringLiteral("borders")).toArray();
+            for (int i = 0; i < groundBorders.size(); ++i) {
+                QJsonObject border = groundBorders.at(i).toObject();
+                if (border.value(QStringLiteral("to")).toString() == sourceName) {
+                    border.insert(QStringLiteral("to"), name);
+                    groundBorders[i] = border;
+                }
+            }
+            if (ground.contains(QStringLiteral("borders")))
+                ground.insert(QStringLiteral("borders"), groundBorders);
+            QJsonArray friends = ground.value(QStringLiteral("friends")).toArray();
+            for (int i = 0; i < friends.size(); ++i)
+                if (friends.at(i).toString() == sourceName) friends[i] = name;
+            if (ground.contains(QStringLiteral("friends")))
+                ground.insert(QStringLiteral("friends"), friends);
+            grounds.insert(key, ground);
+        }
+    }
+    const QJsonObject backup = m_rawRoot;
     m_rawRoot.insert(QStringLiteral("grounds"), grounds);
     m_rawRoot.insert(QStringLiteral("borders"), borders);
-    return applyRawAndSave();
+    if (!applyRawAndSave()) {
+        m_rawRoot = backup;
+        return false;
+    }
+    return true;
 }
 
 void BrushStore::deleteGroundBrush(const QString &name)

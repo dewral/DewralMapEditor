@@ -132,7 +132,7 @@ Item {
             fail("Dialog not found: " + title)
         }
         function advancedEditor(kind) {
-            const editor = dialogWithTitle(manager, "Advanced brushes · Wall / Carpet / Doodad")
+            const editor = dialogWithTitle(manager, "Advanced brushes · Carpet / Doodad")
             editor.kind = kind || "walls"
             editor.open()
             tryCompare(editor, "opened", true)
@@ -663,7 +663,7 @@ Item {
                 {tag: "ground-preview", tab: "ground", name: "brushManagerGroundPreview"},
                 {tag: "border-slot", tab: "ground", name: "brushManagerBorderSlot6"},
                 {tag: "border-variant", tab: "ground", name: "brushManagerBorderVariant1"},
-                {tag: "wall-slot", tab: "wall", name: "brushManagerWallSlot0"},
+                {tag: "wall-slot", tab: "wall", name: "wallBrushVariant0_0"},
                 {tag: "doodad-stack", tab: "doodad", name: "brushManagerDoodadCell0"}
             ]
         }
@@ -675,17 +675,17 @@ Item {
             slots[6] = [{id: 13614, chance: 45}, {id: 13618, chance: 100}]
             manager.setCurrentBorderSlots(slots)
             manager.selectedBorderType = 6
-            manager.wallIds = [13614]
+            manager.wallEditor.addToShape(0, [13614])
             manager.setDoodadCell(0, 13610, false)
             manager.setDoodadCell(0, 13614, true)
-            const draft = JSON.stringify({borders: manager.borderSets, wall: manager.wallIds, doodad: manager.doodadCellItems})
+            const draft = JSON.stringify({borders: manager.borderSets, wall: manager.wallEditor.draft, doodad: manager.doodadCellItems})
             tryVerify(() => findChild(manager.contentItem, data.name) !== null)
             const sprite = findChild(manager.contentItem, data.name)
             verify(sprite)
             wait(50)
             mouseDoubleClickSequence(sprite, 8, 8)
             compare(manager.selectedServerIds, [data.tag === "border-variant" ? 13618 : 13614])
-            compare(JSON.stringify({borders: manager.borderSets, wall: manager.wallIds, doodad: manager.doodadCellItems}), draft)
+            compare(JSON.stringify({borders: manager.borderSets, wall: manager.wallEditor.draft, doodad: manager.doodadCellItems}), draft)
             compare(groundItems.count, 1)
             compare(groundItems.get(0).chance, 10)
         }
@@ -707,11 +707,11 @@ Item {
             compare(manager.doodadCellItems[0], [])
 
             manager.tab = "wall"
-            manager.wallIds = [13614]
-            const wall = findChild(manager.contentItem, "brushManagerWallSlot0")
+            manager.wallEditor.addToShape(0, [13614])
+            const wall = findChild(manager.contentItem, "wallBrushVariant0_0")
             wait(50)
             mouseClick(wall, 8, 8, Qt.RightButton)
-            compare(manager.wallIds[0], 0)
+            compare(manager.wallEditor.variants(0).length, 0)
             compare(manager.selectedServerIds, [])
         }
         function test_revealAdvancedSprite_data() {

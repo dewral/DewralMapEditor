@@ -43,7 +43,8 @@ public:
     Q_INVOKABLE bool saveGroundBrush(const QString &name, int zorder,
                                      const QVariantList &items,
                                      const QVariantList &borderBlocks,
-                                     const QVariantList &optionalTiles);
+                                     const QVariantList &optionalTiles,
+                                     const QString &originalName = QString());
     Q_INVOKABLE void deleteGroundBrush(const QString &name);
 
     Q_INVOKABLE QVariantList wallBrushEdit(const QString &name) const;
@@ -58,6 +59,8 @@ public:
 signals:
 
     void brushesChanged();
+    void advancedBrushRenamed(const QString &kind, const QString &oldName,
+                              const QString &newName);
 
 public:
 

@@ -4,6 +4,8 @@
 #include <QObject>
 #include <QStringList>
 #include <QHash>
+#include <QSet>
+class OtbReader;
 #include <QVariantList>
 #include <QtQml/qqmlregistration.h>
 
@@ -17,6 +19,7 @@ class TilesetStore : public QObject
 public:
     explicit TilesetStore(QObject *parent = nullptr);
 
+    void setItemSource(OtbReader *source);
     int revision() const { return m_revision; }
     QString errorString() const { return m_errorString; }
 
@@ -55,7 +58,11 @@ private:
                               QHash<QString, QHash<QString, QVariantList>> &items);
     bool saveJson();
     void setErrorString(const QString &message);
-    void bump() { ++m_revision; emit tilesetsChanged(); }
+    void bump();
+    void rebuildRawOthers();
+    OtbReader *m_itemSource = nullptr;
+    QVariantList m_rawOthers;
+    QSet<int> m_rawOtherIds;
 
     int m_revision = 0;
     QString m_path;

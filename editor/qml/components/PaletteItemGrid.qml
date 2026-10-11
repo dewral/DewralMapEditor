@@ -73,6 +73,8 @@ Item {
         anchors.bottom: parent.bottom
         width: parent.width - (root.githubUi ? 4 : 14)
         clip: true
+        reuseItems: true
+        cacheBuffer: Math.max(0, grid.height)
         cellWidth: root.listView ? grid.width : root.githubUi ? Math.max(1, Math.floor(width / githubColumns))
                                  : (root.fluentUi ? Math.floor(grid.width / grid.fluentColumns) : root.app.iconSizePx)
         cellHeight: root.listView ? Math.max(48, root.app.iconSizePx * 0.72) : root.githubUi ? githubCellHeight : (root.fluentUi ? grid.cellWidth : root.app.iconSizePx)

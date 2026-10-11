@@ -96,8 +96,15 @@ Item {
         id: tilesets
         property int revision: 0
         property var saved: ({Walls: []})
-        function namesFor(category) { return category === "terrain" ? Object.keys(saved) : []; }
-        function itemsFor(category, name) { return saved[name] || []; }
+        function namesFor(category) { return category === "raw" ? ["Others"] : category === "terrain" ? Object.keys(saved) : []; }
+        function itemsFor(category, name) {
+            if (category === "raw" && name === "Others") {
+                const ids=[]; for (let row=0; row<items.count; ++row) ids.push(items.get(row).serverId);
+                return ids;
+            }
+            return saved[name] || [];
+        }
+        function tilesetForItem(category, id) { return category === "raw" ? "Others" : ""; }
         function isCustomOnly(category, name) { return true; }
         function newTileset(category, name) {
             const copy = Object.assign({}, saved);
@@ -186,10 +193,11 @@ Item {
             items.setProperty(3, "itemName", "  ");
             const panel = createTemporaryObject(panelComponent, testRoot);
             verify(panel);
-            panel.selectKind("All Items");
+            panel.width = 440;
+            panel.selectKind("RAW Palette");
             const itemGrid = findChild(panel, "paletteItemGrid");
-            verify(itemGrid.directAllItems);
-            compare(itemGrid.count, 80);
+            verify(!itemGrid.directAllItems);
+            tryCompare(itemGrid, "count", 80);
             const prefix = panel.fluentUi ? "fluent" : panel.githubUi ? "github" : "palette";
             const hideNamed = findChild(panel, prefix + "HideNamedItems");
             const hideInvisible = findChild(panel, prefix + "HideInvisibleSprites");
@@ -200,8 +208,8 @@ Item {
                 mouseClick(findChild(panel, "fluentFilterButton"));
                 tryCompare(findChild(panel, "fluentFilterMenu"), "visible", true);
             } else {
-                tryVerify(() => hideNamed.x >= hideInvisible.x + hideInvisible.width);
-                compare(hideNamed.y, hideInvisible.y, "Filters must appear side by side");
+                tryVerify(() => hideNamed.mapToItem(panel, 0, 0).x >= hideInvisible.mapToItem(panel, hideInvisible.width, 0).x);
+                compare(hideNamed.mapToItem(panel, 0, 0).y, hideInvisible.mapToItem(panel, 0, 0).y, "Filters must appear side by side");
             }
             mouseClick(hideNamed, 7, 7);
             compare(prefs.hideNamedItems, true);
@@ -220,7 +228,7 @@ Item {
             mouseClick(hideNamed, 7, 7);
             compare(prefs.hideNamedItems, false);
             tryCompare(itemGrid, "count", 80);
-            verify(itemGrid.directAllItems);
+            verify(!itemGrid.directAllItems);
 
             panel.width = 225;
             tryVerify(() => hideNamed.y > hideInvisible.y);
@@ -308,7 +316,7 @@ Item {
         function test_contextMenuAddsRangeToWalls() {
             const panel = createTemporaryObject(panelComponent, testRoot);
             verify(panel);
-            panel.selectKind("All Items");
+            panel.selectKind("RAW Palette");
             const itemGrid = findChild(panel, "paletteItemGrid");
             clickRow(itemGrid, 2);
             clickRow(itemGrid, 5, Qt.ShiftModifier);
@@ -391,7 +399,7 @@ Item {
         function test_filteredRangeUsesVisibleRows() {
             const panel = createTemporaryObject(panelComponent, testRoot);
             verify(panel);
-            panel.selectKind("All Items");
+            panel.selectKind("RAW Palette");
             const itemGrid = findChild(panel, "paletteItemGrid");
             clickRow(itemGrid, 0);
             clickRow(itemGrid, 3, Qt.ShiftModifier);
@@ -410,7 +418,7 @@ Item {
         function test_newTilesetKeepsSelectionSnapshot() {
             const panel = createTemporaryObject(panelComponent, testRoot);
             verify(panel);
-            panel.selectKind("All Items");
+            panel.selectKind("RAW Palette");
             const itemGrid = findChild(panel, "paletteItemGrid");
             clickRow(itemGrid, 1);
             clickRow(itemGrid, 3, Qt.ShiftModifier);
@@ -443,7 +451,7 @@ Item {
         function test_bulkFavoritesAndRemoval() {
             const panel = createTemporaryObject(panelComponent, testRoot);
             verify(panel);
-            panel.selectKind("All Items");
+            panel.selectKind("RAW Palette");
             const itemGrid = findChild(panel, "paletteItemGrid");
             clickRow(itemGrid, 0);
             clickRow(itemGrid, 2, Qt.ShiftModifier);

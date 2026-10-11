@@ -1,4 +1,5 @@
 #include "tilesetstore.h"
+#include "otbreader.h"
 
 #include "dmedatadir.h"
 
@@ -130,11 +131,17 @@ bool TilesetStore::loadForDir(const QString &dirName)
 
 QStringList TilesetStore::namesFor(const QString &category) const
 {
-    return m_names.value(category);
+    auto names = m_names.value(category);
+    if (category == QLatin1String("raw")) {
+        names.removeAll(QStringLiteral("Others"));
+        if (m_itemSource || !m_rawOthers.isEmpty()) names.append(QStringLiteral("Others"));
+    }
+    return names;
 }
 
 QVariantList TilesetStore::itemsFor(const QString &category, const QString &name) const
 {
+    if (category == QLatin1String("raw") && name == QLatin1String("Others")) return m_rawOthers;
     return m_items.value(category).value(name);
 }
 
@@ -142,23 +149,28 @@ QString TilesetStore::tilesetForItem(const QString &category, int serverId) cons
 {
     const QStringList names = m_names.value(category);
     const auto categoryItems = m_items.constFind(category);
-    if (categoryItems == m_items.cend()) return {};
+    if (categoryItems == m_items.cend()) return category == QLatin1String("raw") && m_rawOtherIds.contains(serverId) ? QStringLiteral("Others") : QString();
 
     for (const QString &name : names) {
+        if (category == QLatin1String("raw") && name == QLatin1String("Others")) continue;
         const QVariantList items = categoryItems->value(name);
         for (const QVariant &item : items)
             if (item.toInt() == serverId) return name;
     }
-    return {};
+    return category == QLatin1String("raw") && m_rawOtherIds.contains(serverId) ? QStringLiteral("Others") : QString();
 }
 
 bool TilesetStore::isCustomOnly(const QString &category, const QString &name) const
 {
-    return m_names.value(category).contains(name);
+    return !(category == QLatin1String("raw") && name == QLatin1String("Others")) && m_names.value(category).contains(name);
 }
 
 bool TilesetStore::newTileset(const QString &category, const QString &name)
 {
+    if (category == QLatin1String("raw") && name.trimmed() == QLatin1String("Others")) {
+        setErrorString(QStringLiteral("RAW Others is managed automatically. Choose a named RAW tileset."));
+        return false;
+    }
     const QString cleanName = name.trimmed();
     if (cleanName.isEmpty()) return false;
     if (m_names.value(category).contains(cleanName)) return false;
@@ -178,6 +190,11 @@ bool TilesetStore::newTileset(const QString &category, const QString &name)
 bool TilesetStore::renameTileset(const QString &category, const QString &name,
                                  const QString &newName)
 {
+    if (category == QLatin1String("raw") && (name.trimmed() == QLatin1String("Others")
+                                            || newName.trimmed() == QLatin1String("Others"))) {
+        setErrorString(QStringLiteral("RAW Others is managed automatically. Choose a named RAW tileset."));
+        return false;
+    }
     const QString cleanName = name.trimmed();
     const QString cleanNewName = newName.trimmed();
     if (cleanName.isEmpty() || cleanNewName.isEmpty()) return false;
@@ -205,6 +222,10 @@ bool TilesetStore::renameTileset(const QString &category, const QString &name,
 
 bool TilesetStore::deleteTileset(const QString &category, const QString &name)
 {
+    if (category == QLatin1String("raw") && name.trimmed() == QLatin1String("Others")) {
+        setErrorString(QStringLiteral("RAW Others is managed automatically. Choose a named RAW tileset."));
+        return false;
+    }
     if (!m_names.value(category).contains(name)) return false;
     const auto oldNames = m_names;
     const auto oldItems = m_items;
@@ -221,6 +242,10 @@ bool TilesetStore::deleteTileset(const QString &category, const QString &name)
 
 bool TilesetStore::addItem(const QString &category, const QString &name, int serverId)
 {
+    if (category == QLatin1String("raw") && name.trimmed() == QLatin1String("Others")) {
+        setErrorString(QStringLiteral("RAW Others is managed automatically. Choose a named RAW tileset."));
+        return false;
+    }
     if (name.isEmpty()) return false;
     const auto oldNames = m_names;
     const auto oldItems = m_items;
@@ -240,6 +265,10 @@ bool TilesetStore::addItem(const QString &category, const QString &name, int ser
 bool TilesetStore::addItems(const QString &category, const QString &name,
                             const QVariantList &serverIds)
 {
+    if (category == QLatin1String("raw") && name.trimmed() == QLatin1String("Others")) {
+        setErrorString(QStringLiteral("RAW Others is managed automatically. Choose a named RAW tileset."));
+        return false;
+    }
     if (name.isEmpty() || serverIds.isEmpty()) return false;
     const auto oldNames = m_names;
     const auto oldItems = m_items;
@@ -264,6 +293,10 @@ bool TilesetStore::addItems(const QString &category, const QString &name,
 
 bool TilesetStore::removeItem(const QString &category, const QString &name, int serverId)
 {
+    if (category == QLatin1String("raw") && name.trimmed() == QLatin1String("Others")) {
+        setErrorString(QStringLiteral("RAW Others is managed automatically. Choose a named RAW tileset."));
+        return false;
+    }
     if (!m_items.value(category).value(name).contains(serverId)) return false;
     const auto oldNames = m_names;
     const auto oldItems = m_items;
@@ -276,4 +309,49 @@ bool TilesetStore::removeItem(const QString &category, const QString &name, int 
     }
     bump();
     return true;
+}
+
+void TilesetStore::setItemSource(OtbReader *source)
+{
+    if (source == m_itemSource) return;
+    if (m_itemSource) disconnect(m_itemSource, nullptr, this, nullptr);
+    m_itemSource = source;
+    if (source) {
+        connect(source, &QAbstractItemModel::modelReset, this, &TilesetStore::bump);
+        connect(source, &OtbReader::loadedChanged, this, &TilesetStore::bump);
+    }
+    bump();
+}
+
+void TilesetStore::bump()
+{
+    rebuildRawOthers();
+    ++m_revision;
+    emit tilesetsChanged();
+}
+
+void TilesetStore::rebuildRawOthers()
+{
+    m_rawOthers.clear(); m_rawOtherIds.clear();
+    QSet<int> assigned;
+    const auto raw = m_items.value(QStringLiteral("raw"));
+    for (auto it = raw.cbegin(); it != raw.cend(); ++it) {
+        if (it.key() == QLatin1String("Others")) continue;
+        for (const auto &value : it.value()) assigned.insert(value.toInt());
+    }
+    if (m_itemSource) {
+        for (int row = 0; row < m_itemSource->rowCount(); ++row) {
+            const int id = m_itemSource->data(m_itemSource->index(row, 0), OtbReader::ServerIdRole).toInt();
+            if (id > 0 && !assigned.contains(id)) {
+                m_rawOthers.append(id); m_rawOtherIds.insert(id);
+            }
+        }
+    } else {
+        for (const auto &value : raw.value(QStringLiteral("Others"))) {
+            const int id = value.toInt();
+            if (id > 0 && !assigned.contains(id) && !m_rawOtherIds.contains(id)) {
+                m_rawOthers.append(id); m_rawOtherIds.insert(id);
+            }
+        }
+    }
 }

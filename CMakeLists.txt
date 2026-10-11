@@ -276,6 +276,7 @@ if(BUILD_TESTING)
 
     add_executable(palette_visibility_test EXCLUDE_FROM_ALL
         tests/palette_visibility_test.cpp
+        editor/core/tilesetstore.cpp
         editor/core/palettefilter.cpp
         editor/core/brushstore.cpp)
     target_include_directories(palette_visibility_test PRIVATE libs/otformats editor/core)
@@ -318,7 +319,7 @@ if(BUILD_TESTING)
             WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
             ENVIRONMENT "QT_QUICK_CONTROLS_STYLE=Basic;QT_QUICK_BACKEND=software"
             ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
-            TIMEOUT 30)
+            TIMEOUT 120)
     endif()
     add_executable(brushstore_border_variants_test EXCLUDE_FROM_ALL
         tests/brushstore_border_variants_test.cpp

@@ -43,7 +43,7 @@ Rectangle {
 
     function profilePage(index) {
         clearPaletteSearch();
-        paletteCol.selectKind("All Items");
+        paletteCol.selectKind("RAW Palette");
         grid.positionViewAtIndex(Math.max(0, Math.min(index, grid.count - 1)), GridView.Beginning);
     }
 
@@ -82,8 +82,8 @@ Rectangle {
         if (tileset && tileset.length > 0) {
             paletteCol.selectCategoryTileset(category, tileset);
         } else {
-            paletteCol.selectKind("All Items");
-            paletteFilter.mode = "all";
+            paletteCol.selectKind("RAW Palette");
+            Qt.callLater(function () { subCombo.currentIndex = paletteCol.subNames.indexOf("Others"); });
         }
         positionItem(serverId);
     }
@@ -93,7 +93,7 @@ Rectangle {
         mapCtrl.eraseMode = false;
         mapCtrl.lassoMode = false;
 
-        showItemLocation("", "", serverId);
+        selectRaw(serverId);
         mapCtrl.brushServerId = serverId;
     }
 
@@ -297,7 +297,7 @@ Rectangle {
         anchors.bottomMargin: paletteRoot.githubUi || paletteRoot.fluentUi ? 16 : 6
         spacing: paletteRoot.fluentUi ? 16 : paletteRoot.githubUi ? 10 : 4
 
-        property var kinds: ["Recent", "Favorites", "All Items", "Terrain Palette", "Doodad Palette", "Collection Palette", "Door Palette", "Item Palette", "RAW Palette", "Creature Palette", "House Palette", "My Palettes"]
+        property var kinds: ["Recent", "Favorites", "Terrain Palette", "Doodad Palette", "Collection Palette", "Door Palette", "Item Palette", "RAW Palette", "Creature Palette", "House Palette", "My Palettes"]
         property bool creatureMode: currentKind === "Creature Palette"
         property string creatureFilterType: "all"
         property bool houseMode: currentKind === "House Palette"
@@ -328,8 +328,6 @@ Rectangle {
 
         property var subNames: {
             const _r = Backend.tilesetStore.revision;
-            if (currentKind === "All Items")
-                return Backend.tilesetStore.namesFor("raw");
             if (currentCategory !== "")
                 return Backend.tilesetStore.namesFor(currentCategory);
             if (currentKind === "My Palettes")
@@ -337,7 +335,7 @@ Rectangle {
             return [];
         }
         property bool quickCollection: currentKind === "Recent" || currentKind === "Favorites"
-        property bool showSub: currentKind !== "All Items" && !quickCollection
+        property bool showSub: !quickCollection
                                && !creatureMode && !houseMode
         property string currentSubName: (subCombo.currentIndex >= 0 && subCombo.currentIndex < subNames.length) ? subNames[subCombo.currentIndex] : ""
         onCurrentSubNameChanged: {
@@ -354,8 +352,6 @@ Rectangle {
 
         property var currentIds: {
             const _r = Backend.tilesetStore.revision;
-            if (currentKind === "All Items")
-                return null;
             if (currentKind === "Recent")
                 return app.recentBrushIds;
             if (currentKind === "Favorites")
@@ -388,8 +384,6 @@ Rectangle {
             interval: 120
             repeat: false
             onTriggered: {
-                if (paletteCol.currentKind === "All Items")
-                    paletteFilter.mode = "all";
                 paletteFilter.searchText = paletteCol.pendingSearchText;
             }
         }
@@ -457,7 +451,7 @@ Rectangle {
 
                         required property var modelData
                         readonly property bool active: modelData.kind === "RAW Palette"
-                                                     ? (paletteCol.currentKind === "RAW Palette" || paletteCol.currentKind === "All Items")
+                                                     ? (paletteCol.currentKind === "RAW Palette")
                                                      : paletteCol.currentKind === modelData.kind
 
                         width: githubCategoryRow.categoryWidth
@@ -625,8 +619,8 @@ Rectangle {
                     id: githubSubCombo
                     anchors.fill: parent
                     model: {
-                        if (paletteCol.currentKind === "RAW Palette" || paletteCol.currentKind === "All Items")
-                            return ["All Items"].concat(paletteCol.subNames);
+                        if (paletteCol.currentKind === "RAW Palette")
+                            return paletteCol.subNames;
                         if (paletteCol.showSub)
                             return paletteCol.subNames;
                         if (paletteCol.creatureMode)
@@ -636,27 +630,17 @@ Rectangle {
                         return ["All categories"];
                     }
                     currentIndex: {
-                        if (paletteCol.currentKind === "All Items")
-                            return 0;
                         if (paletteCol.currentKind === "RAW Palette")
-                            return subCombo.currentIndex + 1;
+                            return subCombo.currentIndex;
                         if (paletteCol.creatureMode)
                             return paletteCol.creatureFilterType === "monster" ? 1
                                    : (paletteCol.creatureFilterType === "npc" ? 2 : 0);
                         return paletteCol.showSub ? subCombo.currentIndex : 0;
                     }
-                    enabled: paletteCol.currentKind === "All Items"
-                             || paletteCol.showSub || paletteCol.creatureMode
+                    enabled: paletteCol.showSub || paletteCol.creatureMode
                     onActivated: index => {
-                        if (paletteCol.currentKind === "RAW Palette" || paletteCol.currentKind === "All Items") {
-                            if (index === 0) {
-                                kindCombo.currentIndex = paletteCol.kinds.indexOf("All Items");
-                            } else {
-                                kindCombo.currentIndex = paletteCol.kinds.indexOf("RAW Palette");
-                                Qt.callLater(function () {
-                                    subCombo.currentIndex = index - 1;
-                                });
-                            }
+                        if (paletteCol.currentKind === "RAW Palette") {
+                            subCombo.currentIndex = index;
                         } else if (paletteCol.creatureMode) {
                             paletteCol.creatureFilterType = index === 1
                                     ? "monster" : (index === 2 ? "npc" : "all");
@@ -749,7 +733,7 @@ Rectangle {
                 width: parent.width
                 height: paletteRoot.fluentUi ? 29 : 23
                 model: paletteCol.kinds
-                currentIndex: paletteRoot.fluentUi ? paletteCol.kinds.indexOf("All Items") : paletteRoot.githubUi ? paletteCol.kinds.indexOf("Item Palette") : 0
+                currentIndex: paletteRoot.fluentUi ? paletteCol.kinds.indexOf("RAW Palette") : paletteRoot.githubUi ? paletteCol.kinds.indexOf("Item Palette") : 0
             }
 
             Text {
@@ -777,7 +761,7 @@ Rectangle {
                                 ? "monster" : (index === 2 ? "npc" : "all");
                 }
                 onModelChanged: {
-                    if (currentIndex >= model.length)
+                    if (model.length > 0 && (currentIndex < 0 || currentIndex >= model.length))
                         currentIndex = 0;
                 }
             }
@@ -1060,6 +1044,7 @@ Rectangle {
 
         MenuSeparator {
             visible: paletteCol.showSub && paletteCol.currentSubName !== ""
+                     && !(paletteCol.currentCategory === "raw" && paletteCol.currentSubName === "Others")
         }
         DmeMenuItem {
             readonly property bool allFavorites: palItemMenu.serverIds.length > 0
@@ -1107,7 +1092,8 @@ Rectangle {
 
             model: {
                 catMenu.tilesetRevision;
-                return Backend.tilesetStore.namesFor(catMenu.category);
+                const names = Backend.tilesetStore.namesFor(catMenu.category);
+                return catMenu.category === "raw" ? names.filter(name => name !== "Others") : names;
             }
             delegate: DmeMenuItem {
                 text: modelData

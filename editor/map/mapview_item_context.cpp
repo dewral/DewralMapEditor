@@ -258,8 +258,8 @@ QVariantMap MapView::contextInfo() const
     QVariantMap brushes;
     QVariantList collections;
     const bool singleTile = tile && m_selectionController.selected().size() == 1;
-    const bool singleItem = singleTile && has && m_itemController.contextTargetsItem()
-        && (!m_selectionController.wholeStack() || tile->items.size() == 1);
+    // Like RME, selecting a whole tile still exposes the top selected item's brush.
+    const bool singleItem = singleTile && has && m_itemController.contextTargetsItem();
     if (singleTile) {
         const auto candidate = [this](const QString &kind, int id) {
             const QString name = typedBrushName(kind, id);

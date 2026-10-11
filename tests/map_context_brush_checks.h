@@ -99,10 +99,10 @@ static bool testContextBrushes()
     click(Qt::RightButton, 100);
     context = view.contextInfo();
     if (!require(context.value("singleTile").toBool()
-                 && !context.value("hasSelectedItem").toBool()
-                 && !context.value("brushes").toMap().contains("doodad")
+                 && context.value("hasSelectedItem").toBool()
+                 && context.value("brushes").toMap().contains("doodad")
                  && context.value("brushes").toMap().contains("ground"),
-                 "Whole-stack selection exposed an arbitrary single-item brush")) return false;
+                 "Whole-stack selection must expose the top item's brush like RME")) return false;
     click(Qt::LeftButton, 101, Qt::ControlModifier);
     click(Qt::RightButton, 100);
     if (!require(view.selectionCount() == 2 && !view.contextInfo().value("singleTile").toBool()

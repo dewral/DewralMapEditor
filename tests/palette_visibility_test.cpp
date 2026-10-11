@@ -3,6 +3,10 @@
 #include "otbreader.h"
 #include "itemsxmlreader.h"
 #include "palettefilter.h"
+#include "tilesetstore.h"
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include "sprreader.h"
 
 #include <QCoreApplication>
@@ -147,6 +151,31 @@ int main(int argc, char **argv)
     if (!require(dat.loadFile(datPath) && spr.loadFile(sprPath, 0, false, true)
                      && otb.loadFile(otbPath), "Could not load fixtures")) return 1;
 
+    const QString tilesetPath = directory.filePath(QStringLiteral("tilesets.json"));
+    if (!require(writeFile(tilesetPath, R"({"raw":{"Walls":[1001],"Others":[1001,1002]}})"),
+                 "Could not write RAW category fixture")) return 1;
+    TilesetStore tilesets;
+    tilesets.setItemSource(&otb);
+    if (!require(tilesets.loadForDir(directory.path()), "Could not load RAW category fixture")) return 1;
+    if (!require(tilesets.namesFor("raw").last() == "Others"
+                 && tilesets.itemsFor("raw", "Others").size() == 8
+                 && !tilesets.itemsFor("raw", "Others").contains(1001)
+                 && tilesets.tilesetForItem("raw", 1001) == "Walls"
+                 && tilesets.tilesetForItem("raw", 1002) == "Others",
+                 "RAW Others must contain only IDs outside named RAW categories")) return 1;
+    if (!require(tilesets.addItem("raw", "Walls", 1002)
+                 && !tilesets.itemsFor("raw", "Others").contains(1002)
+                 && tilesets.removeItem("raw", "Walls", 1002)
+                 && tilesets.itemsFor("raw", "Others").contains(1002)
+                 && !tilesets.deleteTileset("raw", "Others"),
+                 "RAW Others must update after category edits and remain generated")) return 1;
+    {
+        QFile file(tilesetPath);
+        if (!require(file.open(QIODevice::ReadOnly), "Could not read saved RAW definitions")) return 1;
+        const auto saved = QJsonDocument::fromJson(file.readAll()).object()["raw"].toObject()["Others"].toArray();
+        if (!require(saved.size() == 2, "Generated RAW Others must not overwrite saved definitions")) return 1;
+    }
+
     const QString offsetOtbPath = directory.filePath(QStringLiteral("offset.otb"));
     OtbReader offsetOtb;
     if (!require(writeFile(offsetOtbPath, otbFile(11857, 53))
@@ -172,15 +201,16 @@ int main(int argc, char **argv)
     filter.setHideInvisibleSprites(true);
     if (!require(spr.preloadItemImageSources(&dat) == 9 && filter.rowCount() == 3,
                  "Preloading must refresh the filter and retain only visible thumbnails")) return 1;
-    if (!require(spr.thumbnailCacheBytes() == 0,
-                 "Visibility preparation must not retain every thumbnail")) return 1;
+    if (!require(spr.thumbnailCacheBytes() > 0,
+                 "Visibility preparation must retain composed thumbnails")) return 1;
+    const qsizetype preparedBytes = spr.thumbnailCacheBytes();
     const int firstRevision = spr.itemImagesRevision();
     QImage firstRequest, duplicateRequest;
     std::thread requestA([&] { firstRequest = spr.preloadedItemImage(105, firstRevision); });
     std::thread requestB([&] { duplicateRequest = spr.preloadedItemImage(105, firstRevision); });
     requestA.join(); requestB.join();
     if (!require(!firstRequest.isNull() && firstRequest == duplicateRequest
-                     && spr.thumbnailCacheBytes() == firstRequest.sizeInBytes(),
+                     && spr.thumbnailCacheBytes() == preparedBytes && firstRequest.cacheKey() == duplicateRequest.cacheKey(),
                  "Concurrent thumbnail requests must share a single cached image")) return 1;
     for (int cid = 100; cid <= 108; ++cid) {
         const bool visible = cid >= 105 && cid <= 107;
@@ -276,12 +306,12 @@ int main(int argc, char **argv)
 
     const int revision = spr.itemImagesRevision();
     if (!require(spr.loadFile(sprPath, 0, false, true) && filter.rowCount() == 0
-                     && spr.itemImagesRevision() > revision,
+                     && spr.itemImagesRevision() > revision && spr.thumbnailCacheBytes() == 0,
                  "Sprite reload must invalidate old visibility data")) return 1;
     spr.preloadItemImageSources(&dat);
     if (!require(spr.preloadedItemImage(105, firstRevision).isNull()
-                     && spr.thumbnailCacheBytes() == 0,
-                 "Profile changes must reject stale requests and clear the thumbnail cache")) return 1;
+                     && spr.thumbnailCacheBytes() > 0,
+                 "Profile changes must reject stale requests and prepare a fresh thumbnail cache")) return 1;
     if (!require(filter.rowCount() == 3, "Sprite reload must restore current visibility")) return 1;
 
     const QByteArray brushes = R"({"doodads": {
@@ -353,22 +383,24 @@ int main(int argc, char **argv)
     filter.setHideNamedItems(false);
     filter.setHideInvisibleSprites(false);
     if (!require(filter.rowCount() == 9, "Disabling both filters must restore every item")) return 1;
-    // Fill the real cache beyond its budget and verify LRU, not just its counter.
+    // Keep every prepared thumbnail, including collections larger than the old 32 MB budget.
     if (!require(writeFile(datPath, datFile(8300)) && dat.loadFile(datPath),
-                 "Could not load cache eviction fixture")) return 1;
+                 "Could not load large thumbnail fixture")) return 1;
     spr.preloadItemImageSources(&dat);
     const int cacheRevision = spr.itemImagesRevision();
+    const qsizetype largePreparedBytes = spr.thumbnailCacheBytes();
+    if (!require(largePreparedBytes > 32 * 1024 * 1024, "Large fixture must exceed the former cache budget")) return 1;
     const QImage oldest = spr.preloadedItemImage(105, cacheRevision);
     const QImage recentlyUsed = spr.preloadedItemImage(8408, cacheRevision);
     for (int cid = 109; cid <= 8408; ++cid) {
         if (cid % 100 == 0) spr.preloadedItemImage(8408, cacheRevision);
         if (!require(!spr.preloadedItemImage(cid, cacheRevision).isNull()
-                         && spr.thumbnailCacheBytes() <= 32 * 1024 * 1024,
-                     "Thumbnail cache exceeded its memory budget")) return 1;
+                         && spr.thumbnailCacheBytes() == largePreparedBytes,
+                     "Scrolling must use prepared thumbnails without changing cache memory")) return 1;
     }
     if (!require(spr.preloadedItemImage(8408, cacheRevision).cacheKey() == recentlyUsed.cacheKey()
-                     && spr.preloadedItemImage(105, cacheRevision).cacheKey() != oldest.cacheKey(),
-                 "Thumbnail cache did not retain hot entries and evict old entries")) return 1;
+                     && spr.preloadedItemImage(105, cacheRevision).cacheKey() == oldest.cacheKey(),
+                 "Prepared thumbnails were discarded or recomposed")) return 1;
     std::atomic_bool requesting{false};
     std::thread changingProfile([&] {
         requesting.store(true);
@@ -379,9 +411,9 @@ int main(int argc, char **argv)
     spr.loadFile(sprPath, 0, false, true);
     spr.preloadItemImageSources(&dat);
     changingProfile.join();
-    if (!require(spr.thumbnailCacheBytes() == 0
+    if (!require(spr.thumbnailCacheBytes() == largePreparedBytes
                      && spr.preloadedItemImage(105, cacheRevision).isNull(),
                  "In-flight requests polluted the replacement profile cache")) return 1;
-    qInfo() << "Palette visibility, name, LRU and profile switching checks passed";
+    qInfo() << "Palette visibility, retained thumbnails and profile switching checks passed";
     return 0;
 }

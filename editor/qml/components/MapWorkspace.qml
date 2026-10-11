@@ -19,6 +19,7 @@ Item {
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
 
+    property Item previewDockHost: null
     property alias mapView: mapView
     property alias mapRenderer: mapRenderer
     property alias context: mapArea.ctx
@@ -208,6 +209,7 @@ Item {
         }
 
         IngamePreviewPanel {
+            dockHost:workspace.previewDockHost
             mapView: mapView
             settings: workspace.settings
             githubUi: workspace.githubUi
@@ -359,19 +361,11 @@ Item {
                 height: visible ? implicitHeight : 0
                 onTriggered: workspace.paletteNavigator.selectContextBrush(mapArea.brushOptions.collection)
             }
-            Action {
-                text: "Select"
-                enabled: mapArea.ctx.hasSelectedItem
-                onTriggered: workspace.paletteNavigator.selectItem(mapArea.ctx.serverId)
-            }
-            Action {
-                text: "Select"
-                enabled: mapArea.ctx.hasItem
-                onTriggered: workspace.paletteNavigator.selectItem(mapArea.ctx.serverId)
-            }
-            Action {
+            DmeMenuItem {
+                objectName: "selectRawBrush"
                 text: "Select RAW"
-                enabled: mapArea.ctx.hasSelectedItem
+                visible: mapArea.ctx.singleTile && mapArea.ctx.hasSelectedItem
+                height: visible ? implicitHeight : 0
                 onTriggered: workspace.paletteNavigator.selectRaw(mapArea.ctx.serverId)
             }
             DmeMenuItem {

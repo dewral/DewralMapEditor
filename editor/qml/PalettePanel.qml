@@ -885,8 +885,42 @@ Rectangle {
         }
 
         Item {
+            id: paletteContents
+            objectName: "paletteContents"
             width: parent.width
             height: parent.height - controlsColumn.height - githubControlsColumn.height - brushSizeBox.height - fluentTools.height - paletteCol.spacing * 3
+            clip: true
+            property bool motionReady: false
+            Component.onCompleted: motionReady = true
+
+            function animateChange() {
+                if (paletteRoot.fluentUi && motionReady)
+                    contentTransitionStart.restart();
+            }
+            Connections {
+                target: paletteCol
+                function onCurrentKindChanged() { paletteContents.animateChange(); }
+                function onCurrentSubNameChanged() { paletteContents.animateChange(); }
+            }
+            Timer {
+                id: contentTransitionStart
+                interval: 0
+                onTriggered: contentTransition.restart()
+            }
+            transform: Translate { id: contentOffset }
+            ParallelAnimation {
+                id: contentTransition
+                NumberAnimation {
+                    target: paletteContents; property: "opacity"
+                    from: 0.35; to: 1; duration: 170
+                    easing.type: Easing.OutCubic
+                }
+                NumberAnimation {
+                    target: contentOffset; property: "y"
+                    from: 6; to: 0; duration: 170
+                    easing.type: Easing.OutCubic
+                }
+            }
 
             PaletteItemGrid {
                 id: grid
@@ -950,8 +984,14 @@ Rectangle {
         FluentTools {
             id: fluentTools
             width: parent.width
-            visible: paletteRoot.fluentUi && (!paletteRoot.brushDockSettings || paletteRoot.brushDockSettings.toolsDock !== "topbar")
-            height: visible ? implicitHeight : 0
+            readonly property bool shownInPalette: paletteRoot.fluentUi && (!paletteRoot.brushDockSettings || paletteRoot.brushDockSettings.toolsDock !== "topbar")
+            opacity: shownInPalette ? 1 : 0
+            visible: shownInPalette || height > 0 || opacity > 0
+            enabled: shownInPalette
+            height: shownInPalette ? implicitHeight : 0
+            clip: true
+            Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            Behavior on height { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
             onDockDragStarted: paletteRoot.toolsDockDragStarted()
             onDockDragMoved: (x,y) => paletteRoot.brushDockDragMoved(x,y)
             onDockDragFinished: (x,y) => paletteRoot.brushDockDragFinished(x,y)
@@ -962,8 +1002,14 @@ Rectangle {
 
         PaletteBrushSizeSelector {
             id: brushSizeBox
-            visible: !paletteRoot.fluentUi || !paletteRoot.brushDockSettings || paletteRoot.brushDockSettings.brushSizeDock !== "topbar"
-            height: visible ? implicitHeight : 0
+            readonly property bool shownInPalette: !paletteRoot.fluentUi || !paletteRoot.brushDockSettings || paletteRoot.brushDockSettings.brushSizeDock !== "topbar"
+            opacity: shownInPalette ? 1 : 0
+            visible: shownInPalette || height > 0 || opacity > 0
+            enabled: shownInPalette
+            height: shownInPalette ? implicitHeight : 0
+            clip: true
+            Behavior on opacity { enabled: paletteRoot.fluentUi; NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            Behavior on height { enabled: paletteRoot.fluentUi; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
             onDockDragStarted: paletteRoot.brushDockDragStarted()
             onDockDragMoved: (x,y) => paletteRoot.brushDockDragMoved(x,y)
             onDockDragFinished: (x,y) => paletteRoot.brushDockDragFinished(x,y)

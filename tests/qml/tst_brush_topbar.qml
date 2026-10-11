@@ -87,11 +87,11 @@ Item {
             Backend.otbmReader.loaded = loaded;
         }
         function test_adapts_to_width() {
-            compare(bar.height, 42);
+            tryCompare(bar, "height", 42);
             bar.width = 700;
-            compare(bar.height, 114);
+            tryCompare(bar, "height", 114);
             prefs.brushSizeDock = "palette";
-            compare(bar.height, 78);
+            tryCompare(bar, "height", 78);
             prefs.brushSizeDock = "topbar";
             bar.width = 1400;
         }
@@ -99,7 +99,7 @@ Item {
             prefs.brushSizeDock = "palette";
             for (const width of [720, 860, 1400]) {
                 bar.width = width;
-                wait(0);
+                tryCompare(bar, "height", bar.compactLighting ? 78 : 42);
                 const color = findChild(bar, "brightnessColorButton");
                 verify(color.mapToItem(bar, color.width, 0).x <= width);
                 verify(color.mapToItem(bar, 0, color.height).y <= bar.height);

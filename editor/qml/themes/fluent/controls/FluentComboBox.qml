@@ -72,6 +72,16 @@ Item {
         closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
         modal: true; dim: false; focus: true
         onOpened: list.positionViewAtIndex(root.currentIndex, ListView.Contain)
+        transformOrigin: Item.TopLeft
+        enter: Transition {
+            ParallelAnimation {
+                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: root.paletteCategories ? 130 : 0; easing.type: Easing.OutCubic }
+                NumberAnimation { property: "scale"; from: 0.98; to: 1; duration: root.paletteCategories ? 130 : 0; easing.type: Easing.OutCubic }
+            }
+        }
+        exit: Transition {
+            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: root.paletteCategories ? 90 : 0; easing.type: Easing.InQuad }
+        }
         background: Rectangle {
             radius: root.paletteCategories ? 1 : 4
             color: root.paletteCategories ? Colors.c("popup") : Colors.c("surface")

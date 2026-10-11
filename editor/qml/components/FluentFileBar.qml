@@ -29,6 +29,7 @@ Rectangle {
     Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Colors.c("separator") }
     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Colors.c("separator") }
     implicitHeight: 42 + (compactLighting ? 36 : 0) + (secondRow ? 36 : 0)
+    Behavior on implicitHeight { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
     Row {
         id: commands
         y: 5
@@ -114,7 +115,10 @@ Rectangle {
         y: root.secondRow ? (root.compactLighting ? 79 : 43) : 6
         width: Math.max(0, root.width - 10 - x)
         height: 30
-        visible: root.hasDockedPanels
+        opacity: root.hasDockedPanels ? 1 : 0
+        visible: root.hasDockedPanels || opacity > 0
+        enabled: root.hasDockedPanels
+        Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
         clip: true
         contentWidth: dockedPanels.width; contentHeight: 30
         boundsBehavior: Flickable.StopAtBounds
@@ -122,8 +126,14 @@ Rectangle {
             id: dockedPanels
             spacing: 12
         PaletteBrushSizeSelector {
-            visible: root.brushDocked
-            width: 280; height: 30; compact: true
+            opacity: root.brushDocked ? 1 : 0
+            visible: root.brushDocked || width > 0 || opacity > 0
+            enabled: root.brushDocked
+            width: root.brushDocked ? 280 : 0
+            height: 30; compact: true
+            clip: true
+            Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
             mapCtrl: root.mapView; githubUi: false
             onDockDragStarted: root.brushDockDragStarted()
             onDockDragMoved: (x,y) => root.brushDockDragMoved(x,y)
@@ -131,8 +141,14 @@ Rectangle {
             onDockDragCanceled: root.brushDockDragCanceled()
         }
         FluentTools {
-            visible: root.toolsDocked
-            width: 489; height: 30; compact: true
+            opacity: root.toolsDocked ? 1 : 0
+            visible: root.toolsDocked || width > 0 || opacity > 0
+            enabled: root.toolsDocked
+            width: root.toolsDocked ? 489 : 0
+            height: 30; compact: true
+            clip: true
+            Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
             mapView: root.mapView
             onDoorsRequested: root.toolsDoorsRequested()
             onDockDragStarted: root.toolsDockDragStarted()

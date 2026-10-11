@@ -432,10 +432,18 @@ DmeWindow {
         panelWidth: Math.max(root.minimumPaletteWidth, Math.min(prefs.fluentPaletteWidth, root.maximumPaletteWidth))
     }
     readonly property real paletteTop: root.fluentUi ? fluentFileBar.y + fluentFileBar.height : titleBar.y + titleBar.height
-    readonly property real baseMapLeft: root.fluentUi
+    property real baseMapLeft: root.fluentUi
         ? (!prefs.paletteCollapsed && paletteDock.side === "left" ? palette.width + 12 : 6) : paletteSplitter.x + paletteSplitter.width
-    readonly property real baseMapRight: root.githubUi ? 1 : root.fluentUi && !prefs.paletteCollapsed && paletteDock.side === "right" ? palette.width + 12 : 8
+    property real baseMapRight: root.githubUi ? 1 : root.fluentUi && !prefs.paletteCollapsed && paletteDock.side === "right" ? palette.width + 12 : 8
 
+    Behavior on baseMapLeft {
+        enabled: root.fluentUi && !splitterArea.pressed && !floatingPaletteResize.pressed
+        NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+    }
+    Behavior on baseMapRight {
+        enabled: root.fluentUi && !splitterArea.pressed && !floatingPaletteResize.pressed
+        NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+    }
     readonly property bool previewDocked: prefs.showIngamePreviewWindow && (prefs.ingamePreviewDockSide==="left" || prefs.ingamePreviewDockSide==="right")
     readonly property real previewDockWidth: Math.min(Math.max(320,prefs.ingamePreviewDockWidth),Math.max(320,root.width-baseMapLeft-baseMapRight-240))
     readonly property real mapLeft: baseMapLeft+(previewDocked && prefs.ingamePreviewDockSide==="left" ? previewDockWidth+6 : 0)
@@ -496,7 +504,25 @@ DmeWindow {
             return Math.max(root.minimumPaletteWidth,
                             Math.min(root.fluentUi ? prefs.fluentPaletteWidth : prefs.paletteWidth, root.maximumPaletteWidth));
         }
-        visible: !prefs.paletteCollapsed
+        opacity: root.fluentUi && prefs.paletteCollapsed ? 0 : 1
+        visible: !prefs.paletteCollapsed || (root.fluentUi && opacity > 0)
+        enabled: !prefs.paletteCollapsed
+        Behavior on opacity {
+            enabled: root.fluentUi
+            NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+        }
+        transform: Translate {
+            y: root.fluentUi && prefs.paletteCollapsed ? -8 : 0
+            Behavior on y {
+                enabled: root.fluentUi
+                NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+            }
+        }
+        readonly property bool animateDock: root.fluentUi && !paletteDock.dragging && !paletteDock.pending
+            && !splitterArea.pressed && !floatingPaletteResize.pressed
+        Behavior on x { enabled: palette.animateDock; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+        Behavior on y { enabled: palette.animateDock; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+        Behavior on height { enabled: palette.animateDock; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
         app: app
         mapCtrl: workspace.mapView
         modernLayout: root.modernGrayUi
@@ -504,6 +530,7 @@ DmeWindow {
         onRevealRequested: prefs.paletteCollapsed = false
 
         MouseArea {
+            id: floatingPaletteResize
             visible: root.fluentUi && paletteDock.side === "floating" && !prefs.palettePositionLocked
             anchors.right: parent.right; anchors.bottom: parent.bottom
             width: 16; height: 16; cursorShape: Qt.SizeFDiagCursor

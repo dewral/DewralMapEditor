@@ -27,7 +27,8 @@ ListModel {
             if (searchText !== "" && String(item.serverId).indexOf(searchText) < 0
                     && item.itemName.indexOf(searchText) < 0)
                 continue;
-            append({serverId: item.serverId, itemName: item.itemName});
+            append({serverId: item.serverId, itemName: item.itemName, spriteIds:item.spriteIds || [],
+                    itemWidth:item.itemWidth || 1,itemHeight:item.itemHeight || 1,layers:item.layers || 1});
         }
     }
     function setIds(values) { ids = values; mode = "ids"; rebuild(); }

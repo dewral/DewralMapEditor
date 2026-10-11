@@ -88,10 +88,50 @@ Rectangle {
         positionItem(serverId);
     }
 
+    function selectItem(serverId) {
+        mapCtrl.houseBrush = 0;
+        mapCtrl.eraseMode = false;
+        mapCtrl.lassoMode = false;
+        showItemLocation("", "", serverId);
+        mapCtrl.brushServerId = serverId;
+    }
+
     function selectRaw(serverId) {
+        mapCtrl.houseBrush = 0;
+        mapCtrl.eraseMode = false;
+        mapCtrl.lassoMode = false;
         const tileset = Backend.tilesetStore.tilesetForItem("raw", serverId);
         showItemLocation("raw", tileset, serverId);
         mapCtrl.brushServerId = serverId;
+    }
+
+    function selectContextBrush(option) {
+        if (!option)
+            return;
+        // Validate against current definitions before changing the palette.
+        if (option.kind !== "raw"
+                && mapCtrl.typedBrushName(option.kind, option.serverId) !== option.name)
+            return;
+        showItemLocation(option.category, option.tileset, option.displayedServerId);
+        if (option.kind === "raw") {
+            mapCtrl.houseBrush = 0;
+            mapCtrl.eraseMode = false;
+            mapCtrl.lassoMode = false;
+            mapCtrl.brushServerId = option.serverId;
+        } else {
+            mapCtrl.useTypedBrush(option.kind, option.serverId);
+        }
+    }
+
+    function selectSpawn() {
+        revealRequested();
+        clearPaletteSearch();
+        paletteCol.selectKind("Creature Palette");
+        mapCtrl.houseBrush = 0;
+        mapCtrl.eraseMode = false;
+        mapCtrl.lassoMode = false;
+        mapCtrl.spawnBrush = true;
+        mapCtrl.selectionMode = false;
     }
 
     function selectBrush(serverId) {
@@ -146,7 +186,11 @@ Rectangle {
         clearPaletteSearch();
         paletteCol.selectKind("Creature Palette");
         paletteCol.creatureFilterType = isNpc ? "npc" : "monster";
+        mapCtrl.houseBrush = 0;
+        mapCtrl.eraseMode = false;
+        mapCtrl.lassoMode = false;
         mapCtrl.selectCreatureBrush(name, isNpc === true);
+        mapCtrl.selectionMode = false;
         Qt.callLater(function () {
             creatureList.positionCreature(name, isNpc === true);
         });
@@ -158,7 +202,13 @@ Rectangle {
         revealRequested();
         clearPaletteSearch();
         paletteCol.selectKind("House Palette");
-        Qt.callLater(function () { houseCol.selectHouseId(houseId); });
+        Qt.callLater(function () {
+            if (houseCol.selectHouseId(houseId)) {
+                mapCtrl.eraseMode = false;
+                mapCtrl.lassoMode = false;
+                mapCtrl.selectionMode = false;
+            }
+        });
     }
 
     function selectPrefabPalette(name, prefabName) {

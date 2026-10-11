@@ -314,6 +314,11 @@ void MapView::renderTakeDirtyChunks(QVector<QPair<int, quint64>> &out)
     for (const auto &[z, key] : dirtyChunks)
         out.append(qMakePair(z, key));
     dirtyChunks.clear();
+    if (m_luaPreviewAnimationFrame!=m_animFrame) {
+        for (const auto &chunk : m_luaPreviewAnimated)
+            if (!out.contains(chunk)) out.append(chunk);
+        m_luaPreviewAnimationFrame=m_animFrame;
+    }
 }
 
 void MapView::refreshSelectionTint()

@@ -29,6 +29,14 @@ constexpr uint32_t packAmbientLight(uint8_t intensity)
     return channel | (channel << 8) | (channel << 16) | (255u << 24);
 }
 
+uint32_t packColoredAmbientLight(uint8_t intensity, int index)
+{
+    const uint32_t r = ((index / 36) % 6) * intensity / 5;
+    const uint32_t g = ((index / 6) % 6) * intensity / 5;
+    const uint32_t b = (index % 6) * intensity / 5;
+    return r | (g << 8) | (b << 16) | (255u << 24);
+}
+
 constexpr bool ambientPackingIsExact()
 {
     for (uint32_t intensity = 0; intensity <= 255; ++intensity) {
@@ -64,6 +72,9 @@ int overlayPadding(double tileSize)
 
 quint32 MapView::renderChunkVersion(int z, quint64 key)
 {
+    const auto preview=m_luaPreviewChunks.constFind(z);
+    if (preview!=m_luaPreviewChunks.cend() && preview->contains(key))
+        return 0x40000000u | (static_cast<quint32>(m_dataVersion+m_animFrame+m_atlasService.generation()) & 0x3FFFFFFFu);
 
     auto &tileIndex = m_chunkStore.tiles();
     auto ztiles = tileIndex.find(z);
@@ -86,6 +97,11 @@ quint32 MapView::renderCollectChunkInstances(int z, quint64 key, bool groundOnly
 
     std::shared_ptr<const std::vector<QuadRef>> quads;
     quint32 ver = kChunkEmpty;
+    const auto preview=m_luaPreviewChunks.constFind(z);
+    if (preview!=m_luaPreviewChunks.cend() && preview->contains(key)) {
+        quads=luaPreviewChunkQuads(z,key);
+        ver=renderChunkVersion(z,key);
+    } else
     {
         std::lock_guard<std::mutex> lk(m_chunkStore.cacheMutex());
         quads = m_chunkStore.cachedChunkLocked(z, key);
@@ -251,7 +267,7 @@ void MapView::computeLightChunk(int floor, int cx, int cy, std::vector<uint32_t>
     const int base_x = cx * kChunkTiles;
     const int base_y = cy * kChunkTiles;
 
-    const uint32_t ambient = packAmbientLight(static_cast<uint8_t>(m_lightAmbient));
+    const uint32_t ambient = packColoredAmbientLight(static_cast<uint8_t>(m_lightAmbient), m_lightAmbientColor);
     out.assign(static_cast<size_t>(kChunkTiles) * kChunkTiles, ambient);
 
     if (!m_otbm || !m_otb || !m_dat) return;
@@ -265,7 +281,7 @@ void MapView::computeLightChunk(int floor, int cx, int cy, std::vector<uint32_t>
                 auto cit = zit->constFind(chunkKey(cx + dcx, cy + dcy));
                 if (cit == zit->cend()) continue;
                 for (const OtbmTile *t : cit.value()) {
-                    if (!t) continue;
+                    if (!t || m_luaPreviewTiles.contains(selKey(t->x,t->y,t->z))) continue;
                     for (const OtbmMapItem &it : t->items) {
                         const int cid = m_otb->clientIdForServerId(it.server_id);
                         if (cid <= 0) continue;
@@ -279,6 +295,21 @@ void MapView::computeLightChunk(int floor, int cx, int cy, std::vector<uint32_t>
             }
     }
 
+    const auto preview=m_luaPreviewChunks.constFind(floor);
+    if (preview!=m_luaPreviewChunks.cend()) {
+        for (int dy=-1;dy<=1;++dy) for (int dx=-1;dx<=1;++dx)
+            for (quint64 position : preview->value(chunkKey(cx+dx,cy+dy))) {
+                const auto tile=m_luaPreviewTiles.constFind(position);
+                if (tile==m_luaPreviewTiles.cend()) continue;
+                for (const auto &item : tile->items) {
+                    const int cid=m_otb->clientIdForServerId(item.server_id);
+                    const ClientItem *ci=cid>0 ? m_dat->itemByClientId(cid) : nullptr;
+                    if (ci && ci->has(ClientProperty::Light) && ci->light_level>0)
+                        lights.push_back({double(tile->x),double(tile->y),ci->light_color,
+                                          static_cast<uint8_t>(std::min<int>(ci->light_level,255))});
+                }
+            }
+    }
     out = LightField::sample(kChunkTiles, kChunkTiles, base_x, base_y, ambient, lights);
 
 }
@@ -378,7 +409,7 @@ void MapView::renderBuildPreviewLightGrid(int firstFloor, int lastFloor,
     }
 
     const uint8_t previewAmbient = static_cast<uint8_t>(qBound(0, ambientLevel, 255));
-    const uint32_t ambient = packAmbientLight(previewAmbient);
+    const uint32_t ambient = packColoredAmbientLight(previewAmbient, m_lightAmbientColor);
     const size_t cellCount = static_cast<size_t>(tw) * th;
     out.assign(cellCount, ambient);
     if (!m_otbm || !m_otb || !m_dat) return;
@@ -1020,15 +1051,10 @@ void MapView::renderCollectZoneMarkInstances(std::vector<float> &outHouse,
                     int slot = 0;
                     for (int i = 0; i < 4; ++i) {
                         if (!(flags & bits[i]) || m_zoneOpacities[i].toDouble() <= 0) continue;
-                        // Mixed flags use alternating bands rather than blended colors.
-                        if (count == 1) {
-                            fills[i]->insert(fills[i]->end(), {x, y, 32.0f, 32.0f});
-                        } else {
-                            for (int row = 0; row < 8; ++row)
-                                for (int band = 0; band < 8; ++band)
-                                    if (((t->x * 8 + t->y * 8 + row + band) % count) == slot)
-                                        fills[i]->insert(fills[i]->end(), {x + band * 4.0f, y + row * 4.0f, 4.0f, 4.0f});
-                        }
+                        // One tile instance per active zone. The shader selects
+                        // the same world-anchored 4px cells without 64 quads.
+                        fills[i]->insert(fills[i]->end(),
+                            {x, y, 32.0f, 32.0f, float(count), float(slot)});
                         ++slot;
                         const float edge = ((m_editController.activeZone() & bits[i]) ? 2.0f : 1.0f) * 32.0f / ts;
                         const int dx[] {-1, 1, 0, 0}, dy[] {0, 0, -1, 1};
@@ -1468,13 +1494,15 @@ void MapView::renderCollectFloorInstances(int z, int cMinX, int cMinY, int cMaxX
     if (!m_otb || !m_dat || atlasSlots.empty()) return;
     auto &tileIndex = m_chunkStore.tiles();
     auto ztiles = tileIndex.find(z);
-    if (ztiles == tileIndex.end()) return;
+    const auto preview=m_luaPreviewChunks.constFind(z);
+    if (ztiles == tileIndex.end() && preview==m_luaPreviewChunks.cend()) return;
 
     for (int cy = cMinY; cy <= cMaxY; ++cy)
         for (int cx = cMinX; cx <= cMaxX; ++cx) {
             const quint64 key = chunkKey(cx, cy);
-            if (!ztiles->contains(key)) continue;
-            const auto quads = takeChunkQuads(z, key);
+            const bool virtualChunk=preview!=m_luaPreviewChunks.cend() && preview->contains(key);
+            if (!virtualChunk && (ztiles==tileIndex.end() || !ztiles->contains(key))) continue;
+            const auto quads = virtualChunk ? luaPreviewChunkQuads(z,key) : takeChunkQuads(z, key);
             if (!quads) { requestChunkQuads(z, key); complete = false; continue; }
             for (const QuadRef &q : *quads) {
                 if (groundOnly && !q.ground) continue;

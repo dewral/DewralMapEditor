@@ -350,6 +350,8 @@ void MapView::rebuildAtlas()
 void MapView::setOtbm(OtbmReader *reader)
 {
     if (m_otbm == reader) return;
+    m_itemController.menuPending() = false;
+    m_itemController.contextTargetsItem() = true;
     m_initialViewToken.store(0);
     if (m_otbm) disconnect(m_otbm, nullptr, this, nullptr);
     if (m_mapLoadCancel) m_mapLoadCancel->store(true, std::memory_order_release);
@@ -800,6 +802,7 @@ bool MapView::useGroundBrushName(const QString &name)
 
 void MapView::onMapLoaded()
 {
+    clearLuaPreview();
     clearTerrainPreview();
     const bool reportProgress = m_otbm && m_otbm->isLoading() && m_otbm->isLoaded();
     const bool preparedAsyncIndex = m_asyncFloorIndexReady;

@@ -282,6 +282,7 @@ void BrushStore::clear()
     m_doors.clear();
     m_doodads.clear();
     m_doodadByServerId.clear();
+    m_doodadMembersByServerId.clear();
     m_prefabs.clear();
     m_prefabPalettes.clear();
     m_carpets.clear();
@@ -552,7 +553,17 @@ void BrushStore::parseRoot(const QJsonObject &root)
             if (alt.singles.isEmpty() && alt.composites.isEmpty()) continue;
             def.alts.append(alt);
         }
-        if (!def.alts.isEmpty()) m_doodads.insert(it.key(), def);
+        if (!def.alts.isEmpty()) {
+            m_doodads.insert(it.key(), def);
+            // Context picking recognizes placed variants and composite members.
+            // Prefabs are excluded: their building blocks need not select the prefab.
+            if (!prefab) {
+                for (int id : doodadItemIds(it.key())) {
+                    if (!m_doodadMembersByServerId.contains(id))
+                        m_doodadMembersByServerId.insert(id, it.key());
+                }
+            }
+        }
     }
 
     auto parseConnected = [](const QJsonObject &source,
@@ -1258,6 +1269,13 @@ QVector<BrushStore::DoodadTile> BrushStore::doodadVariantTiles(const QString &na
         }
     }
     return {};
+}
+
+QString BrushStore::doodadBrushForItem(int serverId) const
+{
+    const QString preview = m_doodadByServerId.value(serverId);
+    if (!preview.isEmpty() && m_doodads.contains(preview)) return preview;
+    return m_doodadMembersByServerId.value(serverId);
 }
 
 QVector<int> BrushStore::doodadItemIds(const QString &name) const

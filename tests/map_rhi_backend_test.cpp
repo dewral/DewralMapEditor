@@ -173,6 +173,25 @@ bool exercise(QRhi *rhi, const QString &imagePath)
     MapRhiBackend::Draws many = scene;
     for (int i = 0; i < 150; ++i) many.push_back(scene.back());
     if (!require(frame(many,true,true) == changed, "Uniform growth or cache recreation changed pixels")) return false;
+    const std::array<QColor,4> colors{Qt::red, Qt::green, Qt::blue, Qt::white};
+    for (int count = 2; count <= 4; ++count) {
+        std::array<MapRenderBuffer,4> zones;
+        MapRhiBackend::Draws patterns;
+        for (int slot = 0; slot < count; ++slot) {
+            const float data[]{32,0,32,32,float(count),float(slot)};
+            zones[slot].assign(data, sizeof(data));
+            auto tint = u;
+            tint.tint[0] = colors[slot].redF();
+            tint.tint[1] = colors[slot].greenF();
+            tint.tint[2] = colors[slot].blueF();
+            patterns.push_back({&zones[slot],1,tint,MapRhiBackend::ZonePattern});
+        }
+        const QImage pattern = frame(patterns,true,false);
+        for (int y = 0; y < 8; ++y) for (int x = 0; x < 8; ++x)
+            if (!pixel(pattern,32+x*4+2,y*4+2,colors[(8+x+y)%count])) return false;
+        if (!require(frame({},false,false) == pattern,
+                     "Cached zone patterns must retain their world phase")) return false;
+    }
     target.reset();
     return true;
 }

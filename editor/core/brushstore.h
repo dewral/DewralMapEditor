@@ -102,6 +102,7 @@ public:
 
     Q_INVOKABLE bool hasDoodadData() const { return !m_doodads.isEmpty(); }
     QString doodadBrushForServerId(int serverId) const { return m_doodadByServerId.value(serverId); }
+    QString doodadBrushForItem(int serverId) const;
     QHash<int, QString> doodadBrushAssignments() const { return m_doodadByServerId; }
     Q_INVOKABLE bool isDoodadBrushItem(int serverId) const { return m_doodadByServerId.contains(serverId); }
     Q_INVOKABLE bool isDoodadBrush(const QString &name) const { return m_doodads.contains(name); }
@@ -215,6 +216,7 @@ private:
 
     QHash<QString, DoodadDef> m_doodads;
     QHash<int, QString> m_doodadByServerId;
+    QHash<int, QString> m_doodadMembersByServerId;
     QSet<QString> m_prefabs;
     QHash<QString, QString> m_prefabPalettes;
 

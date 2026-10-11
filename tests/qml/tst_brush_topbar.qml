@@ -28,6 +28,47 @@ Item {
         name: "BrushTopbar"
         when: windowShown
         function initTestCase() { Backend.uiTheme.style = "fluent-dark"; }
+        function test_palette_panels_fit_content() {
+            tools.compact = false;
+            selector.compact = false;
+            tools.width = 236;
+            selector.width = 236;
+            tools.visible = false;
+            selector.visible = false;
+            wait(20);
+            tools.visible = true;
+            selector.visible = true;
+            wait(50);
+            const lastTool = findChild(tools, "fluentToolDoors");
+            const toolBottom = lastTool.mapToItem(tools, 0, lastTool.height).y;
+            verify(tools.implicitHeight >= toolBottom, "Tools height " + tools.implicitHeight + " < content " + toolBottom);
+            const lastBrush = findChild(selector, "brushRadius11");
+            const brushBottom = lastBrush.mapToItem(selector, 0, lastBrush.height).y;
+            verify(brushBottom > 24);
+            verify(selector.implicitHeight >= brushBottom, "Brush height " + selector.implicitHeight + " < content " + brushBottom);
+            tools.compact = true;
+            selector.compact = true;
+            tools.width = 489;
+            selector.width = 280;
+        }
+        function test_lighting_active_indicator_tracks_state() {
+            const button = findChild(bar, "fluentLightSwitch");
+            const background = findChild(button, "lightingButtonBackground");
+            const icon = findChild(button, "lightingButtonIcon");
+            map.torchOn = false;
+            const inactiveSource = String(icon.source);
+            const glow = findChild(button, "lightingButtonGlow");
+            compare(glow.visible, false);
+            compare(background.border.width, 0);
+            map.torchOn = true;
+            compare(button.checked, true);
+            compare(String(icon.source), inactiveSource);
+            compare(glow.visible, true);
+            compare(background.border.width, 0);
+            map.torchOn = false;
+            compare(button.checked, false);
+            compare(String(icon.source), inactiveSource);
+        }
         function test_adapts_to_width() {
             compare(bar.height, 42);
             bar.width = 700;

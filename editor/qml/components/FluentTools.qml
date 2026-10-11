@@ -35,14 +35,14 @@ Item {
         onCanceled: { moving = false; root.dockDragCanceled(); }
         Text { visible: root.compact; anchors.centerIn: parent; text: "⋮"; color: Colors.c("muted"); font.pixelSize: 20 }
     }
-    implicitHeight: compact ? 30 : toolsContent.implicitHeight
+    implicitHeight: compact ? 30 : toolsHeading.implicitHeight + toolsContent.spacing + toolsGrid.implicitHeight
     Column {
     id: toolsContent
     x: root.compact ? 20 : 0
     width: root.width - x
 
     spacing: 8
-    Text { visible: !root.compact; height: visible ? implicitHeight : 0; text: "Tools"; color: Colors.c("heading"); font.family: "Segoe UI"; font.pixelSize: 12 }
+    Text { id: toolsHeading; visible: !root.compact; text: "Tools"; color: Colors.c("heading"); font.family: "Segoe UI"; font.pixelSize: 12 }
     Grid {
         id: toolsGrid
         readonly property int buttonWidth: root.compact ? 56 : 62
@@ -55,19 +55,23 @@ Item {
                 required property string modelData
                 objectName: "fluentTool" + modelData
                 width: toolsGrid.buttonWidth
-                height: root.compact ? 30 : 38
+                height: root.compact ? 30 : 44
                 text: modelData
                 padding: 3
-                contentItem: Grid {
+                contentItem: Item {
+                  Grid {
+                    anchors.centerIn: parent
                     columns: root.compact ? 2 : 1
                     horizontalItemAlignment: Grid.AlignHCenter
                     verticalItemAlignment: Grid.AlignVCenter
                     spacing: 2
                     Image {
-                        width: 16; height: 16
+                        width: root.compact ? 18 : 20; height: width
+                        sourceSize: Qt.size(width, height)
                         source: "image://tibiaui/fluent-icon/" + toolButton.modelData + "/" + String(Colors.c("muted")).replace("#", "")
                     }
                     Text { text: toolButton.modelData; color: Colors.c("buttonText"); font.family: "Segoe UI"; font.pixelSize: 11 }
+                }
                 }
                 background: Rectangle {
                     radius: 4

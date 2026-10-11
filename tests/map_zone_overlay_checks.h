@@ -23,13 +23,19 @@ bool testZoneOverlays()
                  "Mixed zones must cover populated map tiles with both flags")) return false;
     auto area = [](const std::vector<float> &rects) {
         float total = 0;
-        for (size_t i = 0; i < rects.size(); i += 4) total += rects[i+2] * rects[i+3];
+        for (size_t i = 0; i < rects.size(); i += 6) {
+            const int count = int(rects[i+4]), slot = int(rects[i+5]);
+            for (int y = 0; y < 8; ++y) for (int x = 0; x < 8; ++x)
+                if ((int(rects[i]/4) + int(rects[i+1]/4) + x + y) % count == slot) total += 16;
+        }
         return total;
     };
     if (!require(area(pz) + area(np) == 3 * 32 * 32,
                  "Mixed-zone bands must partition each tile without overlap")) return false;
     if (!require(borders[0].size() == 8 * 4 && borders[1].size() == 8 * 4,
                  "Zone outlines must exclude shared internal tile edges")) return false;
+    if (!require(pz.size() == 3 * 6 && np.size() == 3 * 6,
+                 "Mixed zones must use one instance per flag and tile")) return false;
     auto labels = view.visibleZoneLabels();
     if (!require(labels.size() == 1, "Expected one connected zone label")) return false;
     const double anchorX = labels[0].toMap()["worldX"].toDouble();

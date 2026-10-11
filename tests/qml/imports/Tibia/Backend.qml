@@ -1,6 +1,23 @@
 pragma Singleton
 import QtQuick
 QtObject {
+    property QtObject generatorProfiles: QtObject {
+        property var profiles: []
+        function load(id) { return profiles.find(p=>p.id===id); }
+        function save(profile,id) { const p=Object.assign({},profile); p.id=id || "new"; profiles=[p]; return {success:true,profile:p}; }
+        function remove(id) { profiles=[]; return {success:true}; }
+        function importProfile(path) { return {success:false,error:"Test"}; }
+        function exportProfile(profile,path) { return {success:true}; }
+    }
+    property QtObject luaScripts: QtObject {
+        property bool busy: false
+        property string lastMode: ""
+        signal finished(var result)
+        function generatorScripts(directory) { return ["test30.lua"]; }
+        function run(path, mode, seed) { lastMode = mode; busy = true; }
+        function runProfile(directory,profile,info) { lastMode="profile"; busy=true; }
+        function cancel() { busy = false; finished({success: false, error: "Cancelled"}); }
+    }
     property var hotkeys: QtObject {
         property var commands: []
         property var bindings: ({})
@@ -82,6 +99,7 @@ QtObject {
     }
     property QtObject otbReader: QtObject {
         property bool loaded: true
+        property int itemCount: 2
         function clientIdForServerId(id) { return 0 }
         function rowForServerId(id) { return -1 }
         function detailsAt(row) { return {} }

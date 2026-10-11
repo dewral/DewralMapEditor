@@ -325,6 +325,8 @@ DmeWindow {
         statsDialog: statsDialog
         brushEditorDialog: brushEditorDialog
         aiMapAssistantDialog: aiMapAssistantDialog
+        luaGeneratorDialog: luaGeneratorDialog
+        customMapGeneratorDialog: customMapGeneratorDialog
         terrainGeneratorDialog: terrainGeneratorDialog
         dungeonGeneratorDialog: dungeonGeneratorDialog
         groundClusterGeneratorDialog: groundClusterGeneratorDialog
@@ -747,20 +749,50 @@ DmeWindow {
         visible: root.fluentUi && app.started
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
         height: 26; color: FluentColors.c("cell")
-        Row {
-            anchors.fill: parent
-            anchors.rightMargin: (statusTimer.visible ? statusTimer.width + 8 : 0) + (statusFps.visible ? statusFps.width + 8 : 0)
-            Repeater {
-                model: [Backend.otbmReader.loaded ? "Ready" : "No map",
-                    workspace.mapView.selectionCount ? workspace.mapView.selectionCount + " selected" : "Nothing selected",
-                    workspace.mapView.hoverText,
-                    "Zoom: " + Math.round(workspace.mapView.tileSize / 32 * 100) + "%"]
-                delegate: Item {
-                    required property string modelData
-                    width: parent.width / 4; height: parent.height
-                    Rectangle { width: 1; height: 14; anchors.verticalCenter: parent.verticalCenter; color: FluentColors.c("separator") }
-                    Text { anchors.fill: parent; anchors.leftMargin: 9; text: modelData; color: FluentColors.c("muted"); font.pixelSize: 11; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+        Rectangle { width: parent.width; height: 1; color: FluentColors.c("separator") }
+        component StatusField: Item {
+            property string label: ""
+            property string value: ""
+            property bool emphasize: false
+            Rectangle { width: 1; height: 14; anchors.verticalCenter: parent.verticalCenter; color: FluentColors.c("separator") }
+            Row {
+                anchors.left: parent.left; anchors.leftMargin: 12
+                anchors.right: parent.right; anchors.rightMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 8
+                Text { id: fieldLabel; text: parent.parent.label; color: FluentColors.c("placeholder"); font.pixelSize: 11 }
+                Text {
+                    width: Math.max(0, parent.width - fieldLabel.width - parent.spacing)
+                    text: parent.parent.value; color: FluentColors.c("text")
+                    font.pixelSize: 11; font.weight: parent.parent.emphasize ? Font.DemiBold : Font.Normal
+                    elide: Text.ElideRight
                 }
+            }
+        }
+        Row {
+            id: statusFields
+            anchors.fill: parent
+            anchors.rightMargin: (statusTimer.visible ? statusTimer.width + 8 : 0) + (statusFps.visible ? statusFps.width + 16 : 0)
+            Item {
+                width: 80; height: parent.height
+                Text { anchors.centerIn: parent; text: Backend.otbmReader.loaded ? "Ready" : "No map"; color: FluentColors.c("muted"); font.pixelSize: 11 }
+            }
+            StatusField {
+                width: 145; height: parent.height
+                label: "Selection"; value: String(workspace.mapView.selectionCount); emphasize: true
+            }
+            StatusField {
+                width: Math.max(0, statusFields.width - 80 - 145 - 80 - 105); height: parent.height
+                label: "Position / item"; value: workspace.mapView.hoverText || "—"
+            }
+            StatusField {
+                width: 80; height: parent.height
+                label: "Floor"; value: String(workspace.mapView.floor); emphasize: true
+            }
+            StatusField {
+                width: 105; height: parent.height
+                label: "Zoom"; value: Math.round(workspace.mapView.tileSize / 32 * 100) + "%"; emphasize: true
+                MouseArea { anchors.fill: parent; acceptedButtons: Qt.NoButton; onWheel: wheel => workspace.mapView.zoomSteps(wheel.angleDelta.y > 0 ? 1 : -1) }
             }
         }
         Text {
@@ -770,7 +802,7 @@ DmeWindow {
             anchors.verticalCenter: parent.verticalCenter
             width: 72
             text: workspace.mapRenderer.fps > 0 ? "FPS: " + workspace.mapRenderer.fps : "FPS: idle"
-            color: FluentColors.c("placeholder"); font.pixelSize: 11
+            color: FluentColors.c("muted"); font.pixelSize: 11; font.weight: Font.DemiBold
         }
         WorkTimerStatus {
             id: statusTimer
@@ -894,6 +926,37 @@ DmeWindow {
         function open() {
             aiMapAssistantLoader.active = true;
             aiMapAssistantLoader.item["open"]();
+        }
+    }
+    QtObject {
+        id: luaGeneratorDialog
+        function open() {
+            luaGeneratorLoader.active = true;
+            luaGeneratorLoader.item.open();
+        }
+    }
+    QtObject {
+        id: customMapGeneratorDialog
+        function open() {
+            customMapGeneratorLoader.active = true;
+            customMapGeneratorLoader.item.open();
+        }
+    }
+    Loader {
+        id: customMapGeneratorLoader
+        active: false
+        sourceComponent: CustomMapGeneratorDialog {
+            mapCtrl: workspace.mapView
+            clientKey: app.loadedClientKey
+            onClosed: Qt.callLater(() => customMapGeneratorLoader.active = false)
+        }
+    }
+    Loader {
+        id: luaGeneratorLoader
+        active: false
+        sourceComponent: LuaGeneratorDialog {
+            mapCtrl: workspace.mapView
+            onClosed: Qt.callLater(() => luaGeneratorLoader.active = false)
         }
     }
     Loader {

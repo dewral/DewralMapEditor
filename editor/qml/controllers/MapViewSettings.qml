@@ -14,7 +14,7 @@ Item {
         "showSpawns", "showHouses", "showZones", "showZonesAlways",
         "visibleZoneMask", "zoneOpacities", "zoneColors", "selectionColor", "selectionOpacity",
         "tilesOpacity", "itemsOpacity", "houseOpacity",
-        "showAnimations", "torchOn", "lightAmbient", "minimapOn",
+        "showAnimations", "torchOn", "lightAmbient", "lightAmbientColor", "minimapOn",
         "showShade", "showLowerFloors", "placeEffect", "automagic",
         "compensatedSelect", "selectionFloors"
     ]

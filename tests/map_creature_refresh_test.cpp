@@ -2,6 +2,7 @@
 #include "mapview.h"
 #include "dmedatadir.h"
 #include "itemsxmlreader.h"
+#include "map_lua_checks.h"
 
 #include <QDebug>
 #include <QElapsedTimer>
@@ -208,11 +209,25 @@ bool atlasBudget(const QTemporaryDir &directory)
 #include "map_house_tool_checks.h"
 #include "map_zone_overlay_checks.h"
 #include "map_hotkey_checks.h"
+#include "map_context_brush_checks.h"
 
 int main(int argc, char **argv)
 {
     QGuiApplication application(argc, argv);
+    {
+        MapView lightView;
+        std::vector<uint32_t> pixels;
+        lightView.setLightAmbientColor(180); // Pure red in the Tibia palette.
+        lightView.renderBuildPreviewLightGrid(7,7,0,0,1,1,0,0,7,128,pixels);
+        if (!require(pixels.size() == 1 && pixels[0] == 0xff000080u,
+                     "Ambient palette color must scale by the selected brightness")) return 1;
+        lightView.setLightAmbientColor(215);
+        lightView.renderBuildPreviewLightGrid(7,7,0,0,1,1,0,0,7,128,pixels);
+        if (!require(pixels[0] == 0xff808080u,
+                     "White ambient must preserve the previous grayscale lighting")) return 1;
+    }
     if (!testMapHotkeys()) return 1;
+    if (!testContextBrushes()) return 1;
     if (!testZoneOverlays()) return 1;
     if (QCoreApplication::arguments().contains(QStringLiteral("--zone-overlay-only"))) return 0;
     QTemporaryDir directory(QDir(QDir::currentPath()).filePath(
@@ -234,6 +249,7 @@ int main(int argc, char **argv)
                  "Could not load creature refresh assets")) return 1;
 
     const QString profile = QFileInfo(profileDirectory.path()).fileName();
+    if (!testLuaPatch(otb,dat,spr,directory.path())) return 1;
     CreatureStore creatures;
     creatures.loadForDir(profile);
     if (!require(creatures.saveCreature({}, QStringLiteral("Rat"), false, 1, 0, 0, 0, 0, 0)

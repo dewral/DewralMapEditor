@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
     "Disable Qt Creator package-manager auto setup" FORCE)
 
-project(DewralMapEditor VERSION 1.1.10 LANGUAGES CXX)
+project(DewralMapEditor VERSION 1.1.10 LANGUAGES C CXX)
 
 set(DME_RELEASE_REPOSITORY "dewral/DewralMapEditor" CACHE STRING
     "GitHub repository hosting the stable update packages")
@@ -21,6 +21,20 @@ if(NOT TARGET Qt6::GuiPrivate)
     find_package(Qt6 REQUIRED COMPONENTS GuiPrivate)
 endif()
 qt_policy(SET QTP0001 NEW)
+
+# Lua 5.1 matches otMapGenPublic and is linked statically into the editor.
+file(GLOB DME_LUA_SOURCES CONFIGURE_DEPENDS "libs/lua/src/*.c")
+list(FILTER DME_LUA_SOURCES EXCLUDE REGEX "/(lua|luac|print)\\.c$")
+add_library(DmeLua STATIC ${DME_LUA_SOURCES})
+target_include_directories(DmeLua PUBLIC libs/lua/src)
+if(UNIX)
+    target_compile_definitions(DmeLua PRIVATE LUA_USE_POSIX)
+    target_link_libraries(DmeLua PRIVATE m)
+endif()
+add_library(DmeLuaScripts STATIC editor/core/luascriptengine.cpp editor/core/luascriptengine.h
+    editor/core/customgeneratorprofiles.cpp editor/core/customgeneratorprofiles.h editor/core/custommaprecipe.h)
+target_include_directories(DmeLuaScripts PUBLIC editor/core)
+target_link_libraries(DmeLuaScripts PUBLIC Qt6::Core Qt6::Concurrent PRIVATE DmeLua)
 
 add_library(OTFormats STATIC
     libs/otformats/sprreader.cpp
@@ -94,6 +108,7 @@ add_executable(DewralMapEditor
     editor/core/hotkeysettings.cpp
     editor/core/hotkeysettings.h
     editor/map/mapview.cpp
+    editor/map/mapview_lua.cpp
     editor/map/mapview_edit.cpp
     editor/map/mapview_brush_core.cpp
     editor/map/mapview_brush_ground.cpp
@@ -201,6 +216,7 @@ target_compile_definitions(DewralMapEditor PRIVATE
 target_link_libraries(DewralMapEditor
     PRIVATE
         OTFormats
+        DmeLuaScripts
         Qt6::Quick
         Qt6::GuiPrivate
         Qt6::Network
@@ -209,6 +225,9 @@ target_link_libraries(DewralMapEditor
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(lua_script_engine_test EXCLUDE_FROM_ALL tests/lua_script_engine_test.cpp)
+    target_link_libraries(lua_script_engine_test PRIVATE DmeLuaScripts)
+    add_test(NAME lua_script_engine COMMAND lua_script_engine_test)
     add_executable(hotkey_settings_test EXCLUDE_FROM_ALL
         tests/hotkey_settings_test.cpp editor/core/hotkeysettings.cpp)
     target_include_directories(hotkey_settings_test PRIVATE editor/core)
@@ -422,7 +441,7 @@ if(BUILD_TESTING)
                              map_ground_cluster_generator map_selection_rotation
                              document_recovery creature_store map_creature_refresh update_version
                              brushstore_advanced brushstore_border_variants
-                             palette_visibility hotkey_settings PROPERTIES
+                             palette_visibility hotkey_settings lua_script_engine PROPERTIES
             ENVIRONMENT_MODIFICATION
                 "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
     endif()
@@ -441,6 +460,17 @@ set_target_properties(DewralMapEditor PROPERTIES
 add_custom_command(TARGET DewralMapEditor POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_SOURCE_DIR}/data" "$<TARGET_FILE_DIR:DewralMapEditor>/data"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/editor/qml/themes/fluent/icons/LUCIDE-LICENSE.txt"
+        "$<TARGET_FILE_DIR:DewralMapEditor>/LUCIDE-LICENSE.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/libs/lua/LICENSE.txt"
+        "$<TARGET_FILE_DIR:DewralMapEditor>/LUA-LICENSE.txt"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:DewralMapEditor>/docs"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/docs/custom-map-generator.md"
+        "${CMAKE_SOURCE_DIR}/docs/lua-api.md"
+        "$<TARGET_FILE_DIR:DewralMapEditor>/docs"
 )
 
 if(WIN32)

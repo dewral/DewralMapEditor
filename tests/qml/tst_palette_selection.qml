@@ -43,6 +43,9 @@ Item {
     QtObject {
         id: mockMap
         property int brushServerId: 0
+        property bool eraseMode: false
+        property bool lassoMode: false
+        property bool selectionMode: false
         property string doodadBrush: ""
         property string creatureBrush: ""
         property bool creatureBrushIsNpc: false
@@ -53,9 +56,16 @@ Item {
         property bool houseExitMode: false
         property string brushShape: "square"
         property int brushSize: 0
+        property string selectedBrushKind: ""
         signal brushChanged()
         signal brushUsed(int serverId)
         function useGroundBrush(id) { brushServerId = id; }
+        function typedBrushName(kind, id) { return id === 506 ? "stone" : ""; }
+        function useTypedBrush(kind, id) {
+            selectedBrushKind = kind;
+            brushServerId = id;
+            selectionMode = false;
+        }
         function doodadPreviewSource(id) { return ""; }
         function doodadPreviewSourceForName(name) { return ""; }
         function selectCreatureBrush(name, isNpc) {
@@ -350,6 +360,33 @@ Item {
             panel.selectCreature(name, data.isNpc);
             compare(panel.currentKind, "Creature Palette");
             compare(mockMap.creatureBrush, name);
+        }
+        function test_contextBrushActivatesOriginalVariant() {
+            tilesets.saved = ({Walls: [500]});
+            const panel = createTemporaryObject(panelComponent, testRoot);
+            verify(panel);
+            panel.selectContextBrush({kind: "wall", name: "stone", serverId: 506,
+                                      displayedServerId: 500, category: "terrain", tileset: "Walls"});
+            compare(panel.currentKind, "Terrain Palette");
+            compare(mockMap.selectedBrushKind, "wall");
+            compare(mockMap.brushServerId, 506);
+            panel.selectContextBrush({kind: "wall", name: "removed", serverId: 509,
+                                      displayedServerId: 500, category: "terrain", tileset: "Walls"});
+            compare(mockMap.brushServerId, 506);
+        }
+        function test_reselectSpawnLeavesSelectionMode() {
+            const panel = createTemporaryObject(panelComponent, testRoot);
+            verify(panel);
+            panel.selectSpawn();
+            mockMap.selectionMode = true;
+            mockMap.eraseMode = true;
+            mockMap.lassoMode = true;
+            panel.selectSpawn();
+            compare(panel.currentKind, "Creature Palette");
+            verify(mockMap.spawnBrush);
+            verify(!mockMap.selectionMode);
+            verify(!mockMap.eraseMode);
+            verify(!mockMap.lassoMode);
         }
         function test_filteredRangeUsesVisibleRows() {
             const panel = createTemporaryObject(panelComponent, testRoot);

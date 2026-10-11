@@ -1,3 +1,4 @@
+import "../controllers/ContextBrushes.js" as ContextBrushes
 import QtQuick
 import QtQuick.Controls
 import Tibia 1.0
@@ -122,7 +123,10 @@ Item {
         visible: Backend.otbmReader.loaded
         clip: true
 
+        property var brushOptions: ({})
         property var ctx: ({
+                singleTile: false,
+                hasSelectedItem: false,
                 hasItem: false,
                 serverId: 0,
                 clientId: 0,
@@ -166,6 +170,8 @@ Item {
             }
             onContextMenuRequested: (x, y) => {
                 mapArea.ctx = mapView.contextInfo();
+                mapArea.brushOptions = ContextBrushes.options(mapArea.ctx, mapView,
+                    Backend.tilesetStore, Backend.brushStore);
                 contextMenu.popup(x, y);
             }
             onPropertiesRequested: {
@@ -305,27 +311,82 @@ Item {
             }
             MenuSeparator {}
             DmeMenuItem {
-                text: "Select Brush"
-                visible: mapArea.ctx.hasItem && mapView.brushForServerId(mapArea.ctx.serverId) !== ""
+                objectName: "selectGroundBrush"
+                text: "Select Groundbrush"
+                visible: !!mapArea.brushOptions.ground
                 height: visible ? implicitHeight : 0
-                onTriggered: workspace.paletteNavigator.selectBrush(mapArea.ctx.serverId)
+                onTriggered: workspace.paletteNavigator.selectContextBrush(mapArea.brushOptions.ground)
+            }
+            DmeMenuItem {
+                objectName: "selectWallBrush"
+                text: "Select Wallbrush"
+                visible: !!mapArea.brushOptions.wall
+                height: visible ? implicitHeight : 0
+                onTriggered: workspace.paletteNavigator.selectContextBrush(mapArea.brushOptions.wall)
+            }
+            DmeMenuItem {
+                objectName: "selectCarpetBrush"
+                text: "Select Carpetbrush"
+                visible: !!mapArea.brushOptions.carpet
+                height: visible ? implicitHeight : 0
+                onTriggered: workspace.paletteNavigator.selectContextBrush(mapArea.brushOptions.carpet)
+            }
+            DmeMenuItem {
+                objectName: "selectTableBrush"
+                text: "Select Tablebrush"
+                visible: !!mapArea.brushOptions.table
+                height: visible ? implicitHeight : 0
+                onTriggered: workspace.paletteNavigator.selectContextBrush(mapArea.brushOptions.table)
+            }
+            DmeMenuItem {
+                objectName: "selectDoodadBrush"
+                text: "Select Doodadbrush"
+                visible: !!mapArea.brushOptions.doodad
+                height: visible ? implicitHeight : 0
+                onTriggered: workspace.paletteNavigator.selectContextBrush(mapArea.brushOptions.doodad)
+            }
+            DmeMenuItem {
+                objectName: "selectDoorBrush"
+                text: "Select Doorbrush"
+                visible: !!mapArea.brushOptions.door
+                height: visible ? implicitHeight : 0
+                onTriggered: workspace.paletteNavigator.selectContextBrush(mapArea.brushOptions.door)
+            }
+            DmeMenuItem {
+                objectName: "selectCollectionBrush"
+                text: "Select Collection"
+                visible: !!mapArea.brushOptions.collection
+                height: visible ? implicitHeight : 0
+                onTriggered: workspace.paletteNavigator.selectContextBrush(mapArea.brushOptions.collection)
+            }
+            Action {
+                text: "Select"
+                enabled: mapArea.ctx.hasSelectedItem
+                onTriggered: workspace.paletteNavigator.selectItem(mapArea.ctx.serverId)
             }
             Action {
                 text: "Select RAW"
-                enabled: mapArea.ctx.hasItem
+                enabled: mapArea.ctx.hasSelectedItem
                 onTriggered: workspace.paletteNavigator.selectRaw(mapArea.ctx.serverId)
             }
             DmeMenuItem {
                 text: "Select Creature"
-                visible: mapArea.ctx.creatureName !== ""
+                visible: mapArea.ctx.singleTile && mapArea.ctx.creatureName !== ""
                 height: visible ? implicitHeight : 0
                 onTriggered: workspace.paletteNavigator.selectCreature(
                                  mapArea.ctx.creatureName,
                                  mapArea.ctx.creatureIsNpc === true)
             }
             DmeMenuItem {
+                objectName: "selectSpawnBrush"
+                text: "Select Spawn"
+                visible: mapArea.ctx.singleTile && mapArea.ctx.spawnRadius > 0
+                height: visible ? implicitHeight : 0
+                onTriggered: workspace.paletteNavigator.selectSpawn()
+            }
+            DmeMenuItem {
                 text: "Select House"
-                visible: mapArea.ctx.houseId > 0
+                visible: mapArea.ctx.singleTile && mapArea.ctx.houseId > 0
                 height: visible ? implicitHeight : 0
                 onTriggered: {
                     mapView.clearSelection();

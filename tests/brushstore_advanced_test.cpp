@@ -50,6 +50,9 @@ int main(int argc, char **argv)
     CHECK(store.doodadVariantCount("learned") == 2);
     CHECK(store.doodadVariantTiles("learned", 0).size() == 2);
     CHECK(store.doodadVariantTiles("learned", 0)[1].dz == 1);
+    CHECK(store.doodadBrushForItem(300) == "learned");
+    CHECK(store.doodadBrushForItem(301).isEmpty());
+    CHECK(store.doodadBrushForServerId(300).isEmpty());
     auto invalid = doodad;
     invalid.insert("lookid", 1.5);
     CHECK(!store.saveAdvancedBrush("doodads", "learned", "learned", invalid).value("success").toBool());
@@ -58,6 +61,7 @@ int main(int argc, char **argv)
     CHECK(reload.loadForDir(dir.path()));
     CHECK(reload.advancedBrushEdit("doodads", "learned") == doodad);
     CHECK(reload.advancedBrushEdit("walls", "wall") == wall);
+    CHECK(reload.doodadBrushForItem(300) == "learned");
     CHECK(source.open(QIODevice::ReadOnly));
     CHECK(QJsonDocument::fromJson(source.readAll()).object().value("doors").toObject().contains("door"));
     qInfo() << "Advanced brushes: round trips, validation, learning and weighted picking passed";

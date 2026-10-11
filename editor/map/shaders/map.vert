@@ -23,7 +23,7 @@ void main()
     if (mode == 0) {
         p = instance.xy + atlasAndOffset.zw + corner * 32.0;
         uv = (instance.zw + vec2(0.5) + corner * 31.0) / atlasAndOffset.xy;
-    } else if (mode == 1) {
+    } else if (mode == 1 || mode == 5) {
         p = instance.xy + corner * instance.zw;
     } else if (mode == 2) {
         p = mix(rect.xy, rect.zw, corner);

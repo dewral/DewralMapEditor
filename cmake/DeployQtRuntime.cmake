@@ -8,6 +8,7 @@ endif()
 execute_process(
     COMMAND "${WINDEPLOYQT_EXECUTABLE}"
         --release
+        --force
         --dir "${APPLICATION_DIRECTORY}"
         --qmldir "${QML_SOURCE_DIRECTORY}"
         --no-translations
@@ -23,7 +24,6 @@ execute_process(
         --no-quickcontrols2universal
         --no-quickcontrols2universalstyleimpl
         --no-quickcontrols2windowsstyleimpl
-        --no-quickeffects
         "${APPLICATION_FILE}"
     RESULT_VARIABLE deploy_result
 )
@@ -45,7 +45,7 @@ set(obsolete_runtime_paths
     "Qt6QuickControls2Universal.dll"
     "Qt6QuickControls2UniversalStyleImpl.dll"
     "Qt6QuickControls2WindowsStyleImpl.dll"
-    "Qt6QuickEffects.dll"
+    "Qt6QuickParticles.dll"
     "Qt6QuickShapes.dll"
     "generic"
     "networkinformation"
@@ -63,7 +63,6 @@ set(obsolete_runtime_paths
     "qml/QtQuick/Dialogs/quickimpl/qml/+Imagine"
     "qml/QtQuick/Dialogs/quickimpl/qml/+Material"
     "qml/QtQuick/Dialogs/quickimpl/qml/+Universal"
-    "qml/QtQuick/Effects"
     "qml/QtQuick/LocalStorage"
     "qml/QtQuick/NativeStyle"
     "qml/QtQuick/Particles"

@@ -1,5 +1,15 @@
 # Dewral Map Editor
 
+**Tools → Custom Map Generator…** creates single-floor dungeons and caves with
+your own client materials, weighted variants and reusable JSON profiles. It
+provides a non-destructive map preview and applies the result with one Undo.
+See [custom materials and Midhem profile guide](docs/custom-map-generator.md).
+
+Lua generation is available under **Tools → Lua Scripts & otMapGen…**, with an
+embedded Lua 5.1 runtime, background execution and one-step Undo. The panel can
+run [otMapGenPublic](https://github.com/abecek/otMapGenPublic) from an external
+folder or custom scripts. See [Lua API and setup](docs/lua-api.md).
+
 Dewral Map Editor (DME) is a desktop OpenTibia map editor for OTBM maps. It
 uses a Qt 6/QML interface and a custom QRhi renderer designed for large,
 multi-floor Tibia maps.

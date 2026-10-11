@@ -349,6 +349,7 @@ public:
             mixLightKey(static_cast<quint32>(lightTW));
             mixLightKey(static_cast<quint32>(lightTH));
             mixLightKey(static_cast<quint32>(ambientLevel));
+            mixLightKey(static_cast<quint32>(src->lightAmbientColor()));
             mixLightKey(static_cast<quint32>(m_botFloor));
             if (m_previewWindow) {
                 // Creature lights in OTClient follow the pixel walk offset.
@@ -430,10 +431,15 @@ public:
             uploadDyn(m_zoneHouseVbo, m_zoneHouseInst, m_zoneHouseCount);
             uploadDyn(m_zoneSelectedHouseVbo, m_zoneSelectedHouseInst,
                       m_zoneSelectedHouseCount);
-            uploadDyn(m_zonePzVbo, m_zonePzInst, m_zonePzCount);
-            uploadDyn(m_zoneNoPvpVbo, m_zoneNoPvpInst, m_zoneNoPvpCount);
-            uploadDyn(m_zoneNoLogoutVbo, m_zoneNoLogoutInst, m_zoneNoLogoutCount);
-            uploadDyn(m_zonePvpVbo, m_zonePvpInst, m_zonePvpCount);
+            auto uploadZone = [&](MapRenderBuffer &buffer, const std::vector<float> &data, int &count) {
+                if (!m_modernZones) { uploadDyn(buffer, data, count); return; }
+                count = int(data.size() / 6);
+                buffer.assign(data.data(), int(data.size() * sizeof(float)));
+            };
+            uploadZone(m_zonePzVbo, m_zonePzInst, m_zonePzCount);
+            uploadZone(m_zoneNoPvpVbo, m_zoneNoPvpInst, m_zoneNoPvpCount);
+            uploadZone(m_zoneNoLogoutVbo, m_zoneNoLogoutInst, m_zoneNoLogoutCount);
+            uploadZone(m_zonePvpVbo, m_zonePvpInst, m_zonePvpCount);
             for (int i = 0; i < 6; ++i) uploadDyn(m_zoneBorderVbo[i], m_zoneBorders[i], m_zoneBorderCount[i]);
 
             src->renderCollectSpawnMarkInstances(m_spawnInst, m_spawnSelInst, &m_spawnFillInst);
@@ -602,7 +608,7 @@ public:
             const int counts[] {m_zonePzCount,m_zoneNoPvpCount,m_zoneNoLogoutCount,m_zonePvpCount};
             for (int i = 0; i < 4; ++i) {
                 auto fill = colors[i]; fill.setW(m_zoneAlpha[i]);
-                rectangles(draws, *fills[i], counts[i], fill, matrix);
+                if (counts[i] > 0) draws.push_back({fills[i], counts[i], uniforms(matrix, fill), MapRhiBackend::ZonePattern});
                 colors[i].setW(0.85f);
                 rectangles(draws, m_zoneBorderVbo[i], m_zoneBorderCount[i], colors[i], matrix);
             }

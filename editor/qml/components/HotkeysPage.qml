@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Tibia 1.0
 import "../style"
+import "../themes/fluent/Colors.js" as Colors
 
 ColumnLayout {
     id: page
@@ -13,14 +14,38 @@ ColumnLayout {
         return (command.label + " " + command.category + " " + command.shortcut
                 + " " + command.defaultShortcut).toLowerCase().includes(query);
     }).sort((a, b) => a.category.localeCompare(b.category) || a.label.localeCompare(b.label))
+    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
+    readonly property color textColor: fluentUi ? Colors.c("text") : "#F0F3F6"
+    readonly property color mutedColor: fluentUi ? Colors.c("muted") : "#8B949E"
+    readonly property color accentColor: fluentUi ? Colors.c("accent") : "#58A6FF"
     spacing: 10
+    component ShortcutCaps: Row {
+        property string sequence: ""
+        spacing: 4
+        Repeater {
+            model: sequence.length ? sequence.replace(/\+\+/g, "+Plus").split("+") : ["Unassigned"]
+            delegate: Rectangle {
+                required property string modelData
+                width: keyLabel.implicitWidth + 14; height: 26; radius: 4
+                color: page.fluentUi ? Colors.c("button") : "#2D333B"
+                border.color: page.fluentUi ? Colors.c("border") : "#444C56"
+                Text {
+                    id: keyLabel
+                    anchors.centerIn: parent
+                    text: parent.modelData
+                    color: sequence.length ? page.textColor : page.mutedColor
+                    font { family: "Segoe UI"; pixelSize: 11 }
+                }
+            }
+        }
+    }
 
-    Text { text: "Hotkeys"; color: "#F0F6FC"; font { pixelSize: 18; bold: true } }
+    Text { text: "Hotkeys"; color: page.textColor; font { pixelSize: 18; bold: true } }
     Text {
         Layout.fillWidth: true
-        text: "Change a command's shortcut by pressing a key combination. Changes are saved automatically."
+        text: "Click a shortcut to change it. Changes are saved automatically."
         wrapMode: Text.WordWrap
-        color: "#8B949E"
+        color: page.mutedColor
         font.pixelSize: 11
     }
 
@@ -45,7 +70,7 @@ ColumnLayout {
         visible: page.feedback.length > 0
         text: page.feedback
         wrapMode: Text.WordWrap
-        color: "#E3B341"
+        color: page.accentColor
         font.pixelSize: 11
     }
 
@@ -70,22 +95,29 @@ ColumnLayout {
                 required property int index
                 readonly property bool startsCategory: index === 0
                     || page.filteredCommands[index - 1].category !== modelData.category
-                width: commandList.width - 12
-                height: 56 + (startsCategory ? 29 : 0)
+                width: commandList.width
+                height: 58 + (startsCategory ? 34 : 0)
                 Text {
                     width: parent.width
-                    height: 29
+                    height: 34
                     visible: row.startsCategory
-                    text: row.modelData.category
-                    color: "#8B949E"
+                    text: row.modelData.category.toUpperCase()
+                    color: page.mutedColor
                     font { pixelSize: 11; bold: true }
                     verticalAlignment: Text.AlignVCenter
                 }
                 Rectangle {
                     anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                    height: 56
-                    color: "#20252C"
-                    radius: 3
+                    height: 58
+                    color: rowHover.hovered ? (page.fluentUi ? Colors.c("hover") : "#303030")
+                           : (page.fluentUi ? Colors.c("surface") : "#242424")
+                    radius: 5
+                    HoverHandler { id: rowHover }
+                    Rectangle {
+                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 8; rightMargin: 8 }
+                        height: 1
+                        color: page.fluentUi ? Colors.c("separator") : "#343434"
+                    }
                     RowLayout {
                         anchors { fill: parent; margins: 8 }
                         spacing: 8
@@ -96,35 +128,48 @@ ColumnLayout {
                                 Layout.fillWidth: true
                                 text: row.modelData.label
                                 elide: Text.ElideRight
-                                color: "#F0F3F6"
+                                color: page.textColor
                                 font.pixelSize: 11
                             }
                             Text {
                                 Layout.fillWidth: true
-                                text: "Default: " + (row.modelData.defaultShortcut || "Unassigned")
+                                text: !row.modelData.editable ? "Fixed control"
+                                      : row.modelData.shortcut !== row.modelData.defaultShortcut
+                                        ? "Custom - Default: " + (row.modelData.defaultShortcut || "Unassigned")
+                                        : "Default binding"
                                 elide: Text.ElideRight
-                                color: "#8B949E"
+                                color: page.mutedColor
                                 font.pixelSize: 10
                             }
                         }
-                        Text {
-                            Layout.preferredWidth: 115
-                            text: row.modelData.shortcut || "Unassigned"
-                            elide: Text.ElideRight
-                            color: row.modelData.shortcut ? "#E3B341" : "#8B949E"
-                            font.pixelSize: 11
-                        }
-                        DmeButton {
+                        ToolButton {
+                            id: bindingButton
                             objectName: "changeHotkey_" + row.modelData.id
-                            Layout.preferredWidth: 65
-                            text: row.modelData.editable ? "Change" : "Fixed"
+                            Layout.preferredWidth: Math.min(190, Math.max(125, shortcutCaps.implicitWidth + 16))
+                            Layout.preferredHeight: 36
                             enabled: row.modelData.editable
+                            Accessible.name: "Change shortcut for " + row.modelData.label
+                            ToolTip.visible: hovered
+                            ToolTip.text: enabled ? "Click to record a new shortcut" : "This control cannot be changed"
+                            contentItem: Item {
+                                ShortcutCaps { id: shortcutCaps; anchors.centerIn: parent; sequence: row.modelData.shortcut }
+                            }
+                            background: Rectangle {
+                                radius: 5
+                                color: bindingButton.down ? (page.fluentUi ? Colors.c("pressed") : "#333333") : "transparent"
+                                border.width: bindingButton.hovered || bindingButton.activeFocus ? 1 : 0
+                                border.color: page.accentColor
+                            }
                             onClicked: captureDialog.begin(row.modelData)
                         }
                         DmeButton {
                             objectName: "resetHotkey_" + row.modelData.id
-                            Layout.preferredWidth: 58
-                            text: "Reset"
+                            Layout.preferredWidth: 32
+                            text: "\u21ba"
+                            Accessible.name: "Restore default for " + row.modelData.label
+                            HoverHandler { id: resetHover }
+                            ToolTip.visible: resetHover.hovered
+                            ToolTip.text: "Restore default shortcut"
                             enabled: row.modelData.editable
                                      && row.modelData.shortcut !== row.modelData.defaultShortcut
                             onClicked: page.feedback = page.hotkeys.resetShortcut(row.modelData.id)
@@ -136,7 +181,7 @@ ColumnLayout {
                 anchors.centerIn: parent
                 visible: commandList.count === 0
                 text: "No matching commands."
-                color: "#8B949E"
+                color: page.mutedColor
                 font.pixelSize: 12
             }
         }
@@ -150,7 +195,7 @@ ColumnLayout {
         Layout.fillWidth: true
         text: "Preview walking keys apply while the in-game preview has focus. Fixed controls handle navigation and cancelling."
         wrapMode: Text.WordWrap
-        color: "#8B949E"
+        color: page.mutedColor
         font.pixelSize: 10
     }
 
@@ -205,22 +250,18 @@ ColumnLayout {
                 Text {
                     Layout.fillWidth: true
                     text: captureDialog.commandLabel
-                    color: "#F0F3F6"
+                    color: page.textColor
                     font { pixelSize: 13; bold: true }
                     wrapMode: Text.WordWrap
                 }
-                Text { text: "Press the new shortcut (for example Ctrl+G)."; color: "#8B949E"; font.pixelSize: 11 }
+                Text { text: "Press the new shortcut (for example Ctrl+G)."; color: page.mutedColor; font.pixelSize: 11 }
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 44
-                    color: "#161B22"
-                    border.color: "#C89B3C"
-                    Text {
-                        anchors.centerIn: parent
-                        text: captureDialog.candidate || "Unassigned"
-                        color: "#E3B341"
-                        font.pixelSize: 17
-                    }
+                    radius: 6
+                    color: page.fluentUi ? Colors.c("surface") : "#242424"
+                    border.color: page.accentColor
+                    ShortcutCaps { anchors.centerIn: parent; sequence: captureDialog.candidate }
                 }
                 Text {
                     Layout.fillWidth: true

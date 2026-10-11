@@ -2,6 +2,7 @@ import QtCore
 import QtQuick
 
 Settings {
+
     property int fluentPaletteWidth: 285
     property string toolsDock: "palette"
     property string brushSizeDock: "palette"
@@ -51,6 +52,7 @@ Settings {
     property bool torchOn: false
     property bool showLightSources: false
     property int lightAmbient: 40
+    property int lightAmbientColor: 215
     property bool minimapOn: false
     property bool showShade: true
     property bool showLowerFloors: true

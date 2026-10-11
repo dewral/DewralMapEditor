@@ -22,6 +22,45 @@
 #include <limits>
 #include <vector>
 
+QString MapView::typedBrushName(const QString &kind, int serverId) const
+{
+    const BrushStore *store = m_brushController.store();
+    if (!store || serverId <= 0) return {};
+    if (kind == QLatin1String("ground")) return store->groundBrushForServerId(serverId);
+    if (kind == QLatin1String("wall")) return store->wallBrushForServerId(serverId);
+    if (kind == QLatin1String("carpet")) return store->carpetBrushForServerId(serverId);
+    if (kind == QLatin1String("table")) return store->tableBrushForServerId(serverId);
+    if (kind == QLatin1String("doodad")) return store->doodadBrushForItem(serverId);
+    if (kind == QLatin1String("door") && store->isDoorItem(serverId))
+        return QString::number(serverId);
+    return {};
+}
+
+bool MapView::useTypedBrush(const QString &kind, int serverId)
+{
+    const QString name = typedBrushName(kind, serverId);
+    if (name.isEmpty()) return false;
+    setHouseBrush(0);
+    setEraseMode(false);
+    setLassoMode(false);
+    if (kind == QLatin1String("doodad")) {
+        useDoodadBrush(name);
+        return true;
+    }
+    // Start from RAW so an ID shared by several brush families cannot activate
+    // a different family through the generic brush priority order.
+    applyBrushServerId(serverId, false);
+    if (kind == QLatin1String("ground")) m_brushController.groundBrush() = name;
+    else if (kind == QLatin1String("wall")) m_brushController.wallBrush() = name;
+    else if (kind == QLatin1String("carpet")) m_brushController.carpetBrush() = name;
+    else if (kind == QLatin1String("table")) m_brushController.tableBrush() = name;
+    else if (kind == QLatin1String("door")) m_brushController.doorBrushId() = serverId;
+    emit brushChanged();
+    emit contentUpdated();
+    update();
+    return true;
+}
+
 QVariantMap MapView::itemContextInfo(const OtbmMapItem &item, int index,
                                      int x, int y, int z) const
 {
@@ -216,6 +255,57 @@ QVariantMap MapView::contextInfo() const
         m.insert(QStringLiteral("doorOpen"), false);
     }
 
+    QVariantMap brushes;
+    QVariantList collections;
+    const bool singleTile = tile && m_selectionController.selected().size() == 1;
+    const bool singleItem = singleTile && has && m_itemController.contextTargetsItem()
+        && (!m_selectionController.wholeStack() || tile->items.size() == 1);
+    if (singleTile) {
+        const auto candidate = [this](const QString &kind, int id) {
+            const QString name = typedBrushName(kind, id);
+            if (name.isEmpty()) return QVariantMap();
+            return QVariantMap{{QStringLiteral("kind"), kind},
+                               {QStringLiteral("name"), name},
+                               {QStringLiteral("serverId"), id}};
+        };
+        bool groundFound = false;
+        for (const OtbmMapItem &item : tile->items) {
+            const bool ground = item.is_ground
+                || (m_otb && m_otb->isClientGroundForServerId(item.server_id));
+            if (ground) {
+                if (!groundFound) {
+                    groundFound = true;
+                    const auto value = candidate(QStringLiteral("ground"), item.server_id);
+                    if (!value.isEmpty()) brushes.insert(QStringLiteral("ground"), value);
+                }
+                continue;
+            }
+            for (const QString &kind : {QStringLiteral("wall"), QStringLiteral("table"),
+                                        QStringLiteral("carpet"), QStringLiteral("doodad")}) {
+                const auto value = candidate(kind, item.server_id);
+                if (value.isEmpty()) continue;
+                collections.append(value);
+                if (kind != QLatin1String("doodad") && !brushes.contains(kind))
+                    brushes.insert(kind, value);
+            }
+        }
+        if (singleItem) {
+            const int id = m.value(QStringLiteral("serverId")).toInt();
+            for (const QString &kind : {QStringLiteral("doodad"), QStringLiteral("door")}) {
+                const auto value = candidate(kind, id);
+                if (!value.isEmpty()) brushes.insert(kind, value);
+            }
+        }
+        if (singleItem) collections.append(QVariantMap{{QStringLiteral("kind"), QStringLiteral("raw")},
+                                                {QStringLiteral("serverId"), m.value(QStringLiteral("serverId"))}});
+        if (brushes.contains(QStringLiteral("ground")))
+            collections.append(brushes.value(QStringLiteral("ground")));
+    }
+    m.insert(QStringLiteral("brushes"), brushes);
+    m.insert(QStringLiteral("collectionBrushes"), collections);
+    m.insert(QStringLiteral("singleTile"), singleTile);
+    m.insert(QStringLiteral("hasSelectedItem"), singleItem);
+
     m.insert(QStringLiteral("selectionCount"), m_selectionController.selected().size());
     m.insert(QStringLiteral("creatureName"),
              tile ? tile->creature_name.value() : QString());
@@ -306,6 +396,7 @@ bool MapView::setContextStackIndex(int index)
     const OtbmTile *tile = currentFloorTileAt(m_itemController.contextX(), m_itemController.contextY());
     if (!tile || index < 0 || index >= static_cast<int>(tile->items.size())) return false;
     m_itemController.contextItemIndex() = index;
+    m_itemController.contextTargetsItem() = true;
     return true;
 }
 

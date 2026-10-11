@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import "../themes/fluent/Colors.js" as Colors
 import Tibia 1.0
 
@@ -57,6 +58,8 @@ Rectangle {
                 }
                 ToolButton {
                 id: toolButton
+                focusPolicy: Qt.NoFocus
+                onPressed: root.mapView.forceActiveFocus()
                 readonly property var modelData: commandCell.modelData
                 x: commandCell.dividerBefore ? 13 : 0
                 width: 40; height: 32
@@ -143,8 +146,18 @@ Rectangle {
         visible: root.brushDragActive
         color: "#304a9ec7"; border.color: Colors.c("accent"); border.width: 2
     }
+    Rectangle {
+        anchors.left: commands.right
+        anchors.leftMargin: 5
+        y: 7
+        width: 1
+        height: 28
+        color: Colors.c("separator")
+    }
     ToolButton {
         id: previewButton
+        focusPolicy: Qt.NoFocus
+        onPressed: root.mapView.forceActiveFocus()
         objectName: "fluentIngamePreviewButton"
         anchors.left: commands.right
         anchors.leftMargin: 12
@@ -177,6 +190,8 @@ Rectangle {
     }
     ToolButton {
         id: lightSwitch
+        focusPolicy: Qt.NoFocus
+        onPressed: root.mapView.forceActiveFocus()
         objectName: "fluentLightSwitch"
         anchors.left: previewButton.right; anchors.leftMargin: 2
         y: 5
@@ -187,23 +202,54 @@ Rectangle {
         onClicked: root.mapView.torchOn = !root.mapView.torchOn
         contentItem: Item {
             Image {
+                id: lightingIcon
+                objectName: "lightingButtonIcon"
                 anchors.centerIn: parent
                 width: 20; height: 20
                 source: "image://tibiaui/fluent-icon/lighting/" + String(Colors.c("buttonText")).replace("#", "")
                 sourceSize: Qt.size(20, 20)
                 opacity: lightSwitch.enabled ? 1 : 0.35
             }
+        MultiEffect {
+            objectName: "lightingButtonGlow"
+            anchors.fill: lightingIcon
+            source: lightingIcon
+            visible: lightSwitch.checked && lightSwitch.enabled
+            shadowEnabled: true
+            shadowColor: "#F2C86B"
+            shadowBlur: 0.8
+            shadowOpacity: 1.0
+            shadowScale: 1.15
+            blurMax: 12
+            autoPaddingEnabled: true
+        }
         }
         background: Rectangle {
+            objectName: "lightingButtonBackground"
             radius: 4
+            border.width: 0
             color: lightSwitch.down ? Colors.c("selectedHover")
-                   : lightSwitch.checked || lightSwitch.hovered ? Colors.c("selected") : "transparent"
+                   : lightSwitch.hovered ? Colors.c("selected") : "transparent"
         }
         Accessible.name: "Lighting"
         ToolTip.visible: hovered
-        ToolTip.text: checked ? "Disable map lighting" : "Enable map lighting"
+        ToolTip.text: (checked ? "Disable map lighting" : "Enable map lighting") + " · Right-click: settings"
         ToolTip.delay: 650
     }
-    ColorHighlight { targetItem: lightSwitch; colorKeys: ["lightingOn", "lightingOff", "lightingBorder", "lightingKnob", "lightingText", "selected", "selectedBorder"] }
+    MouseArea {
+        x: lightSwitch.x; y: lightSwitch.y; width: lightSwitch.width; height: lightSwitch.height
+        acceptedButtons: Qt.RightButton
+        onClicked: lightingPopup.open()
+    }
+    Popup {
+        id: lightingPopup
+        x: Math.min(lightSwitch.x, root.width - width)
+        y: root.height
+        width: 320; padding: 16
+        contentItem: LightingControls { mapView: root.mapView }
+        background: Rectangle { color: Colors.c("cell"); border.color: Colors.c("border") }
+        onClosed: root.mapView.forceActiveFocus()
+    }
+    ColorHighlight { targetItem: lightSwitch; colorKeys: ["accent", "selected", "selectedHover", "buttonText"] }
     ColorHighlight { targetItem: root; colorKeys: ["toolbar", "separator", "button", "buttonText", "muted"] }
 }

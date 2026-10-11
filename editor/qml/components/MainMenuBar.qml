@@ -30,6 +30,8 @@ DmeMenuBar {
     required property var statsDialog
     required property var brushEditorDialog
     required property var aiMapAssistantDialog
+    required property var luaGeneratorDialog
+    required property var customMapGeneratorDialog
     required property var terrainGeneratorDialog
     required property var dungeonGeneratorDialog
     required property var groundClusterGeneratorDialog
@@ -494,6 +496,16 @@ DmeMenuBar {
 
     DmeMenu {
         title: "Tools"
+        Action {
+            text: "Custom Map Generator..."
+            enabled: Backend.otbmReader.loaded
+            onTriggered: menuBar.customMapGeneratorDialog.open()
+        }
+        Action {
+            text: "Lua Scripts & otMapGen..."
+            enabled: Backend.otbmReader.loaded
+            onTriggered: menuBar.luaGeneratorDialog.open()
+        }
         focus: false
 
         Action {
@@ -607,26 +619,15 @@ DmeMenuBar {
         DmeMenu {
             id: lightStrengthMenu
             title: "Light ambient"
-            Instantiator {
-                model: [
-                    { label: "Dark", value: 0 },
-                    { label: "Night", value: 20 },
-                    { label: "Default", value: 40 },
-                    { label: "Dusk", value: 80 },
-                    { label: "Bright", value: 128 },
-                    { label: "Full light", value: 255 }
-                ]
-                delegate: DmeMenuItem {
-                    required property var modelData
-                    text: modelData.label
-                    checkable: true
-                    checked: menuBar.mapView.lightAmbient === modelData.value
-                    onTriggered: menuBar.mapView.lightAmbient = modelData.value
+            MenuItem {
+                width: 320
+                implicitHeight: lightingControls.implicitHeight + 24
+                enabled: menuBar.mapView !== null
+                contentItem: LightingControls {
+                    id: lightingControls
+                    mapView: menuBar.mapView
                 }
-                onObjectAdded: (index, object) =>
-                    lightStrengthMenu.insertItem(index, object)
-                onObjectRemoved: (index, object) =>
-                    lightStrengthMenu.removeItem(object)
+                background: Rectangle { color: "transparent" }
             }
         }
         Action {

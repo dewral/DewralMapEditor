@@ -1,5 +1,7 @@
 <RCC>
     <qresource prefix="/">
+        <file alias="qml/controllers/ContextBrushes.js">qml/controllers/ContextBrushes.js</file>
+
         <file alias="qml/components/OtclientName.qml">qml/components/OtclientName.qml</file>
         <file alias="qml/components/fonts/otclient-name.png">qml/components/fonts/otclient-name.png</file>
         <file alias="qml/components/ImplicitHeightLoader.qml">qml/components/ImplicitHeightLoader.qml</file>
@@ -9,6 +11,7 @@
              wlasne delegaty menu (zolte podswietlenie, centrowany tekst). -->
         <file alias="qtquickcontrols2.conf">qtquickcontrols2.conf</file>
         <file alias="qml/Main.qml">qml/Main.qml</file>
+        <file alias="qml/components/LightingControls.qml">qml/components/LightingControls.qml</file>
         <file alias="qml/components/FluentFileBar.qml">qml/components/FluentFileBar.qml</file>
         <file alias="qml/components/FluentTools.qml">qml/components/FluentTools.qml</file>
         <file alias="qml/PalettePanel.qml">qml/PalettePanel.qml</file>
@@ -68,6 +71,9 @@
         <file alias="qml/dialogs/BrushEditorDialog.qml">qml/dialogs/BrushEditorDialog.qml</file>
         <file alias="qml/dialogs/AdvancedBrushEditor.qml">qml/dialogs/AdvancedBrushEditor.qml</file>
         <file alias="qml/dialogs/AiMapAssistantDialog.qml">qml/dialogs/AiMapAssistantDialog.qml</file>
+        <file alias="qml/dialogs/LuaGeneratorDialog.qml">qml/dialogs/LuaGeneratorDialog.qml</file>
+        <file alias="qml/dialogs/CustomMapGeneratorDialog.qml">qml/dialogs/CustomMapGeneratorDialog.qml</file>
+        <file alias="qml/components/GeneratorMaterialSlot.qml">qml/components/GeneratorMaterialSlot.qml</file>
         <file alias="qml/dialogs/TerrainGeneratorDialog.qml">qml/dialogs/TerrainGeneratorDialog.qml</file>
         <file alias="qml/dialogs/DungeonGeneratorDialog.qml">qml/dialogs/DungeonGeneratorDialog.qml</file>
         <file alias="qml/dialogs/GroundClusterGeneratorDialog.qml">qml/dialogs/GroundClusterGeneratorDialog.qml</file>
@@ -210,8 +216,8 @@
         <file alias="ui/button_normal.png">ui/button_normal.png</file>
         <file alias="ui/button_active.png">ui/button_active.png</file>
         <file alias="ui/tab_normal.png">ui/tab_normal.png</file>
-        <file alias="ui/LightOFF.png">ui/LightOFF.png</file>
-        <file alias="ui/LightON.png">ui/LightON.png</file>
+        <file alias="ui/LightOFF.png">ui/lightOFF.png</file>
+        <file alias="ui/LightON.png">ui/lightON.png</file>
         <file alias="ui/tabsq_normal.png">ui/tabsq_normal.png</file>
         <file alias="ui/tabsq_hover.png">ui/tabsq_hover.png</file>
         <file alias="ui/tabsq_checked.png">ui/tabsq_checked.png</file>

@@ -28,7 +28,13 @@ vec3 zoneColor(vec3 base, float zone)
 void main()
 {
     int mode = int(options.z + 0.5);
-    if (mode == 3) {
+    if (mode == 5) {
+        int count = max(1, int(spriteFlags.x + 0.5));
+        int slot = int(spriteFlags.y + 0.5);
+        ivec2 cell = ivec2(floor(worldPx / 4.0));
+        if ((cell.x + cell.y) % count != slot) discard;
+        fragColor = tint;
+    } else if (mode == 3) {
         fragColor = texture(atlas, uv);
     } else if (mode == 0) {
         vec4 c = texture(atlas, uv);

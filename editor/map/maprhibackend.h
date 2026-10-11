@@ -21,7 +21,7 @@ struct MapRenderBuffer {
 
 class MapRhiBackend {
 public:
-    enum Mode { Sprite, Rectangle, Flat, Blit, Lines };
+    enum Mode { Sprite, Rectangle, Flat, Blit, Lines, ZonePattern };
     struct Uniforms {
         float matrix[16]{};
         float tint[4]{1, 1, 1, 1};

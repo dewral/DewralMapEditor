@@ -43,7 +43,8 @@ Item {
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
 
-    implicitHeight: compact ? 30 : brushContent.implicitHeight + (fluentUi ? 16 : 0)
+    implicitHeight: compact ? 30 : brushHeading.implicitHeight + brushContent.spacing + brushButtons.implicitHeight
+                    + (githubUi ? 1 + brushContent.spacing : 0) + (fluentUi ? 16 : 0)
     Rectangle {
         anchors.fill: parent
         visible: root.fluentUi && !root.compact
@@ -67,8 +68,8 @@ Item {
     }
 
     Text {
+        id: brushHeading
         visible: !root.compact
-        height: visible ? (root.fluentUi ? 22 : implicitHeight) : 0
         text: "Brush size"
         color: root.fluentUi ? Colors.c("heading") : root.grayUi ? "#F0F0F0" : (root.githubUi ? "#E6EDF3" : "#ddd")
         font.pixelSize: root.githubUi ? 12 : 11
@@ -77,6 +78,7 @@ Item {
     }
 
     Flow {
+        id: brushButtons
         width: parent.width
         spacing: root.githubUi ? 5 : 3
 

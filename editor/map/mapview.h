@@ -94,6 +94,7 @@ class MapView : public QQuickItem
     Q_PROPERTY(bool houseExitMode READ houseExitMode WRITE setHouseExitMode NOTIFY brushChanged)
 
     Q_PROPERTY(bool torchOn READ torchOn WRITE setTorchOn NOTIFY torchChanged)
+    Q_PROPERTY(int lightAmbientColor READ lightAmbientColor WRITE setLightAmbientColor NOTIFY torchChanged)
     Q_PROPERTY(int lightAmbient READ lightAmbient WRITE setLightAmbient NOTIFY torchChanged)
 
     Q_PROPERTY(bool showAnimations READ showAnimations WRITE setShowAnimations NOTIFY showAnimationsChanged)
@@ -132,6 +133,7 @@ class MapView : public QQuickItem
     Q_PROPERTY(bool pathBuilderDrawing READ pathBuilderDrawing NOTIFY pathBuilderChanged)
     Q_PROPERTY(int pathPreviewCount READ pathPreviewCount NOTIFY pathBuilderChanged)
     Q_PROPERTY(bool terrainPreviewActive READ terrainPreviewActive NOTIFY terrainGeneratorChanged)
+    Q_PROPERTY(bool luaPreviewActive READ luaPreviewActive NOTIFY luaPreviewChanged)
     Q_PROPERTY(int terrainPreviewCount READ terrainPreviewCount NOTIFY terrainGeneratorChanged)
     Q_PROPERTY(bool groundClusterStampActive READ groundClusterStampActive NOTIFY groundClusterStampChanged)
     Q_PROPERTY(uint groundClusterStampSeed READ groundClusterStampSeed NOTIFY groundClusterStampChanged)
@@ -175,6 +177,7 @@ public:
         return !m_terrainPreview.isEmpty() || !m_terrainDecorationPreview.isEmpty();
     }
     int terrainPreviewCount() const { return m_terrainPreview.size(); }
+    bool luaPreviewActive() const { return !m_luaPreviewTiles.isEmpty(); }
     bool groundClusterStampActive() const { return m_groundClusterStampActive; }
     uint groundClusterStampSeed() const { return m_groundClusterStampSeed; }
     bool terrainLearningBusy() const { return m_terrainLearningBusy; }
@@ -194,6 +197,8 @@ public:
 
     Q_INVOKABLE void useGroundBrush(int serverId) { applyBrushServerId(serverId, true); }
     Q_INVOKABLE bool useGroundBrushName(const QString &name);
+    Q_INVOKABLE QString typedBrushName(const QString &kind, int serverId) const;
+    Q_INVOKABLE bool useTypedBrush(const QString &kind, int serverId);
     Q_INVOKABLE void useDoodadBrush(const QString &name);
     Q_INVOKABLE void setDoodadRotation(int quarterTurns);
     Q_INVOKABLE void rotateDoodadBrush();
@@ -349,6 +354,16 @@ public:
     void setTorchOn(bool on) {
         if (m_torchOn == on) return;
         m_torchOn = on;
+        clearLightChunks();
+        m_lightDirty = true;
+        emit torchChanged();
+        emit contentUpdated(); update();
+    }
+    int lightAmbientColor() const { return m_lightAmbientColor; }
+    void setLightAmbientColor(int value) {
+        value = std::clamp(value, 0, 215);
+        if (m_lightAmbientColor == value) return;
+        m_lightAmbientColor = value;
         clearLightChunks();
         m_lightDirty = true;
         emit torchChanged();
@@ -696,7 +711,12 @@ public:
 
     Q_INVOKABLE QVariantMap aiSelectionContext() const;
     Q_INVOKABLE QVariantMap applyAiGroundPlan(const QVariantMap &plan,
-                                               const QVariantMap &context);
+                                             const QVariantMap &context);
+    Q_INVOKABLE QVariantMap applyLuaPatch(const QVariantMap &patch, int x, int y, int z);
+    Q_INVOKABLE QVariantMap luaGeneratorItemInfo(const QVariantMap &profile) const;
+    Q_INVOKABLE QVariantMap setLuaPreview(const QVariantMap &patch, int x, int y, int z);
+    Q_INVOKABLE QVariantMap applyLuaPreview();
+    Q_INVOKABLE void clearLuaPreview();
 
     Q_INVOKABLE int removeItemOnSelection(int serverId);
 
@@ -762,6 +782,7 @@ signals:
     void brushParamsChanged();
     void pathBuilderChanged();
     void terrainGeneratorChanged();
+    void luaPreviewChanged();
     void groundClusterStampChanged();
     void terrainLearningChanged();
     void terrainProfileLearned(const QVariantMap &result);
@@ -823,6 +844,9 @@ private:
                          bool *animated = nullptr) const;
 
     void appendTopItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out) const;
+    QString prepareLuaPatch(const QVariantMap &patch,int x,int y,int z,
+                            std::vector<OtbmTile> &tiles) const;
+    std::shared_ptr<const std::vector<QuadRef>> luaPreviewChunkQuads(int z,quint64 key);
 
     void collectFloorChunkQuads(int z, quint64 chunkKey, std::vector<QuadRef> &out,
                                 bool *animated = nullptr);
@@ -960,6 +984,12 @@ private:
         int serverId = 0;
     };
     QVector<TerrainPreviewTile> m_terrainPreview;
+    QHash<quint64,OtbmTile> m_luaPreviewTiles;
+    QHash<int,QHash<quint64,QVector<quint64>>> m_luaPreviewChunks;
+    QSet<QPair<int,quint64>> m_luaPreviewAnimated;
+    int m_luaPreviewAnimationFrame=-1;
+    QVariantMap m_luaPreviewPatch;
+    int m_luaPreviewX=0,m_luaPreviewY=0,m_luaPreviewZ=7;
     QVector<TerrainPreviewSprite> m_terrainPreviewSprites;
     struct TerrainDecorationPreview {
         int x = 0;
@@ -1097,6 +1127,7 @@ private:
     quint32 m_lightVersion = 0;
     bool m_lightDirty = true;
     int m_lightAmbient = 40;
+    int m_lightAmbientColor = 215;
 
     QHash<int, QHash<quint64, std::vector<uint32_t>>> m_lightChunks;
     std::mutex m_lightMutex;

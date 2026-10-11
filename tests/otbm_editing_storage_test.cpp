@@ -183,6 +183,16 @@ int main(int argc, char **argv)
     if (!require(directory.isValid(), "Could not create a temporary directory"))
         return EXIT_FAILURE;
 
+    OtbmReader stamp;
+    stamp.newMap(1024,1024,1098,3,57);
+    stamp.setMapProperties(QStringLiteral("Saved with Remere's Map Editor 3.3\nMy custom description"),1024,1024,{},{});
+    if (!require(stamp.saveFile(directory.filePath(QStringLiteral("stamp.otbm")))
+                 && stamp.description() == QStringLiteral("Saved with Dewral Map Editor\nMy custom description"),
+                 "Save must replace the editor stamp and preserve the custom description")) return EXIT_FAILURE;
+    stamp.setMapProperties(QStringLiteral("My own description"),1024,1024,{},{});
+    if (!require(stamp.saveFile(directory.filePath(QStringLiteral("custom.otbm")))
+                 && stamp.description() == QStringLiteral("My own description"),
+                 "Save must preserve descriptions without an editor stamp")) return EXIT_FAILURE;
     if (!testUndoRedo()) return EXIT_FAILURE;
     if (!testImport(directory.filePath(QStringLiteral("import-source.otbm"))))
         return EXIT_FAILURE;

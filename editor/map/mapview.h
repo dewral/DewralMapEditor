@@ -723,6 +723,7 @@ public:
     Q_INVOKABLE int replaceItemsOnSelection(int fromId, int toId);
 
     Q_INVOKABLE int countItemOnSelection(int serverId) const;
+    Q_INVOKABLE QVariantList previewMonsterLabels(int centerX, int centerY, int z, int columns, int rows) const;
     Q_INVOKABLE bool isPreviewWalkable(int x, int y, int z) const;
     Q_INVOKABLE int previewStepDurationAt(int x, int y, int z, int speed, bool diagonal = false) const;
     Q_INVOKABLE int previewOutfitWalkPhases(int lookType) const;
@@ -1115,6 +1116,7 @@ private:
     }
 
     int m_animFrame = 0;
+    QHash<uint16_t, int> m_animationPhases;
 
     int itemFrame(const ClientItem *ci) const {
         const int f = std::max(1, static_cast<int>(ci->frames));

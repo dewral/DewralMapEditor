@@ -2,6 +2,7 @@
 #define DATREADER_H
 
 #include "binaryreader.h"
+#include "clientanimation.h"
 #include <QAbstractListModel>
 #include <QHash>
 #include <QString>
@@ -24,6 +25,7 @@ struct ClientSpriteGroup {
     uint8_t frames = 1;
     std::vector<uint32_t> sprite_ids;
     std::vector<uint32_t> frame_durations;
+    ClientAnimation animation;
 
     uint32_t totalSprites() const {
         return static_cast<uint32_t>(width) * height * layers
@@ -61,6 +63,7 @@ struct ClientItem {
 
     std::vector<uint32_t> sprite_ids;
     std::vector<uint32_t> frame_durations;
+    ClientAnimation animation;
     std::vector<ClientSpriteGroup> sprite_groups;
 
     uint16_t ground_speed = 0;
@@ -76,6 +79,7 @@ struct ClientItem {
     int animationFrameAt(quint64 elapsedMs) const {
         const int f = std::max(1, static_cast<int>(frames));
         if (f <= 1) return 0;
+        if (!animation.durations.empty()) return animation.frameAt(f, elapsedMs);
         const quint64 elapsed = elapsedMs;
         if (frame_durations.size() != static_cast<size_t>(f))
             return static_cast<int>((elapsed / 500) % f);

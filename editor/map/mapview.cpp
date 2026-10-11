@@ -70,11 +70,10 @@ void MapView::animTick()
     if (frame == m_animFrame) return;
     bool phaseChanged = false;
     if (m_dat) for (const auto &item : m_dat->items()) {
-        if (item.animationFrameAt(static_cast<quint64>(frame) * 16)
-            != item.animationFrameAt(static_cast<quint64>(m_animFrame) * 16)) {
-            phaseChanged = true;
-            break;
-        }
+        if (item.frames <= 1) continue;
+        const int phase = item.animationFrameAt(static_cast<quint64>(frame) * 16);
+        if (m_animationPhases.value(item.id, -1) != phase) phaseChanged = true;
+        m_animationPhases[item.id] = phase;
     }
     m_animFrame = frame;
     if (!phaseChanged) return;
@@ -377,6 +376,7 @@ void MapView::setDat(DatReader *reader)
 {
     if (m_dat == reader) return;
     m_dat = reader;
+    m_animationPhases.clear();
     emit readersChanged();
     onMapLoaded();
 }

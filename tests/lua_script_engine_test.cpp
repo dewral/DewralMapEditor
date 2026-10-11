@@ -35,6 +35,10 @@ int main(int argc, char **argv)
     flag->store(true);
     require(!run("dme.setGround({x=1,y=1,z=7},100)").value("success").toBool(),"Cancelled run succeeded");
     flag->store(false);
+    require(!run("_dme_tiles={setmetatable({}, {__index=function() error('bad result') end})}").value("success").toBool(),
+            "Result conversion executed a throwing metamethod");
+    require(!run("_dme_tiles={setmetatable({}, {__index=function() while true do end end})}").value("success").toBool(),
+            "Result conversion executed a looping metamethod");
     const QByteArray random="dme.setGround({x=1,y=1,z=7},math.random(1,1000))";
     require(run(random).value("tiles")==run(random).value("tiles"),"Seed does not reproduce results");
     const QString asyncPath=directory.filePath("async.lua");

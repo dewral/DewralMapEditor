@@ -1,6 +1,7 @@
 #pragma once
 #include "mapview.h"
 #include <QDir>
+#include <QThread>
 
 static bool testLuaPatch(OtbReader &otb, DatReader &dat, SprReader &spr, const QString &folder)
 {
@@ -18,13 +19,15 @@ static bool testLuaPatch(OtbReader &otb, DatReader &dat, SprReader &spr, const Q
             QVariantMap{{"id",1000},{"count",1},{"ground",false}},
             QVariantMap{{"id",5710},{"count",1},{"ground",false}}}}}}}};
     const quint64 virtualChunk=(quint64(10)<<32)|10;
-    view.setLuaPreview(virtualPatch,320,320,7);
+    if (!check(view.setLuaPreview(virtualPatch,320,320,7).value("success").toBool(),
+               "Virtual Lua preview validation failed")) return false;
     QElapsedTimer timer; timer.start(); bool rendered=false;
     while (!rendered && timer.elapsed()<5000) {
-        QCoreApplication::processEvents();
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
         std::vector<float> instances;
         view.renderCollectChunkInstances(7,virtualChunk,false,instances);
-        rendered=instances.size()==12;
+        rendered=!view.atlasBuilding() && instances.size()==12;
+        if (!rendered) QThread::msleep(1);
     }
     if (!check(rendered && !map.tileAt(320,320,7),"Preview did not render the full virtual item stack")) return false;
     view.clearLuaPreview();

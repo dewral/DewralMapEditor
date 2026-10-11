@@ -126,6 +126,57 @@ int main(int argc, char **argv)
                && outfit && outfit->sprite_groups.size() == 2
                && outfit->sprite_groups[1].type == 1 && outfit->sprite_groups[1].sprite_ids.front() == 80001,
                "32-bit IDs, animation alignment and outfit groups")) return 1;
-    qInfo() << "Binary stream and DAT compatibility checks passed";
+    if (!check(animated->animation.asynchronous && animated->animation.loops == 0
+               && animated->animation.start == 0 && animated->animation.durations.size() == 2
+               && animated->animation.durations[0].minimum == 100
+               && animated->animation.durations[0].maximum == 200,
+               "DAT must preserve complete animation metadata")) return 1;
+    ClientAnimation finite;
+    finite.loops = 1; finite.start = 1; finite.durations = {{100,100},{200,200},{300,300}};
+    if (!check(finite.frameAt(3,0) == 1 && finite.frameAt(3,199) == 1
+               && finite.frameAt(3,200) == 2 && finite.frameAt(3,5000) == 2,
+               "Finite animation must start at the specified frame and stop on the last")) return 1;
+    ClientAnimation pingPong;
+    pingPong.loops = -1; pingPong.durations = {{100,100},{100,100},{100,100}};
+    if (!check(pingPong.frameAt(3,0) == 0 && pingPong.frameAt(3,100) == 1
+               && pingPong.frameAt(3,200) == 2 && pingPong.frameAt(3,300) == 1
+               && pingPong.frameAt(3,400) == 0, "Ping-pong sequence")) return 1;
+    ClientAnimation async;
+    async.asynchronous = true; async.durations = {{100,100},{100,100}};
+    ClientAnimation sync;
+    sync.durations = {{100,100},{100,100}};
+    if (!check(async.frameAt(2,350) == 0 && async.frameAt(2,450) == 1
+               && sync.frameAt(2,350) == 1, "Asynchronous and global animation clocks")) return 1;
+    ClientAnimation ranged;
+    ranged.durations = {{100,200},{100,200}};
+    if (!check(ranged.frameAt(2,0) == 0 && ranged.frameAt(2,99) == 0
+               && ranged.frameAt(2,200) == 1, "Random duration must stay within DAT bounds")) return 1;
+    int boundary = 100;
+    ranged.frameAt(2,0);
+    while (boundary < 200 && ranged.frameAt(2,boundary) == 0) ++boundary;
+    if (!check(boundary >= 100 && boundary <= 200 && ranged.frameAt(2,boundary) == 1,
+               "Range duration transition")) return 1;
+    // Rewind queries must reproduce the same sampled timeline, including render workers.
+    ranged.frameAt(2,10000);
+    if (!check(ranged.frameAt(2,boundary - 1) == 0 && ranged.frameAt(2,boundary) == 1,
+               "Rewinding changed the sampled animation timeline")) return 1;
+    ClientAnimation randomStart;
+    randomStart.start = -1; randomStart.durations = {{100,100},{100,100},{100,100}};
+    const int initialPhase = randomStart.frameAt(3,0);
+    if (!check(initialPhase >= 0 && initialPhase < 3
+               && randomStart.frameAt(3,100) == (initialPhase + 1) % 3,
+               "Random start must select a valid phase")) return 1;
+    QByteArray finiteDat = modern;
+    finiteDat[21] = char(2); // loop count, little endian.
+    finiteDat[25] = char(1); // initial phase.
+    if (!save(path, finiteDat) || !check(modernDat.loadFile(path), "Finite DAT metadata fixture")) return 1;
+    const auto *finiteItem = modernDat.itemByClientId(100);
+    if (!check(finiteItem && finiteItem->animation.loops == 2 && finiteItem->animation.start == 1,
+               "Parser discarded loop count or start phase")) return 1;
+    for (int length = 20; length < 50; ++length) {
+        if (!save(path, modern.left(length))) return 1;
+        if (!check(!modernDat.loadFile(path), "Truncated animation metadata accepted")) return 1;
+    }
+    qInfo() << "Binary stream, DAT and animation compatibility checks passed";
     return 0;
 }

@@ -83,9 +83,17 @@ bool runChunk(lua_State *L, const QByteArray &code, const char *name, QString &e
     }
     return true;
 }
+// Result buffers contain data only. Never execute script metamethods while
+// converting them to Qt values outside the protected script call.
+void rawField(lua_State *L, int index, const char *field)
+{
+    if (index < 0 && index > LUA_REGISTRYINDEX) index = lua_gettop(L) + index + 1;
+    lua_pushstring(L, field);
+    lua_rawget(L, index);
+}
 bool integerField(lua_State *L, int index, const char *field, int low, int high, int &out)
 {
-    lua_getfield(L, index, field);
+    rawField(L, index, field);
     const double value = lua_tonumber(L, -1);
     const bool valid = lua_type(L, -1) == LUA_TNUMBER && value >= low && value <= high
                        && value == static_cast<int>(value);
@@ -294,7 +302,7 @@ QVariantMap LuaScriptEngine::execute(const QString &path, const QString &mode, i
     QVariantList tiles;
     int itemCount = 0, originX = 65535, originY = 65535, originZ = 0;
     if (ok) {
-        lua_getglobal(L, "_dme_tiles");
+        rawField(L, LUA_GLOBALSINDEX, "_dme_tiles");
         if (!lua_istable(L, -1)) { ok = false; error = "Script overwrote the generation buffer."; }
         if (ok) {
             lua_pushnil(L);
@@ -313,10 +321,10 @@ QVariantMap LuaScriptEngine::execute(const QString &path, const QString &mode, i
                     items.append(QVariantMap{{"id",id},{"count",count},{"ground",ground}});
                     return true;
                 };
-                lua_getfield(L,-1,"ground");
+                rawField(L,-1,"ground");
                 if (!lua_isnil(L,-1) && !readItem(lua_gettop(L),true)) ok=false;
                 lua_pop(L,1);
-                lua_getfield(L,-1,"items");
+                rawField(L,-1,"items");
                 if (!lua_istable(L,-1)) ok=false;
                 if (ok) {
                     const size_t count=lua_objlen(L,-1);
@@ -342,7 +350,7 @@ QVariantMap LuaScriptEngine::execute(const QString &path, const QString &mode, i
         }
     }
     if (ok && (otMapGen || customProfile)) {
-        lua_getglobal(L,"_dme_origin");
+        rawField(L, LUA_GLOBALSINDEX,"_dme_origin");
         const int index=lua_gettop(L);
         ok=lua_istable(L,index) && integerField(L,index,"x",0,65535,originX)
             && integerField(L,index,"y",0,65535,originY) && integerField(L,index,"z",0,15,originZ);

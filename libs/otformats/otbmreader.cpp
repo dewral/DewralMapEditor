@@ -817,7 +817,7 @@ bool OtbmReader::newMap(int width, int height, int clientVersion,
     m_width = static_cast<uint16_t>(std::clamp(width, 256, 65535));
     m_height = static_cast<uint16_t>(std::clamp(height, 256, 65535));
     applyClientVersions(clientVersion, otbMajor, otbMinor);
-    m_description = QStringLiteral("Created with Dewral Map Editor");
+    m_description = QStringLiteral("Saved with Dewral Map Editor");
     m_spawnsXmlLoaded = true;
     m_housesXmlLoaded = true;
 
@@ -3269,6 +3269,15 @@ bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
         m_description = oldDescription;
     };
 
+    // Replace only the editor stamp; retain the mapper's description below it.
+    const int firstNewline = m_description.indexOf(QLatin1Char('\n'));
+    const QString firstLine = firstNewline < 0 ? m_description : m_description.left(firstNewline);
+    if (firstLine.startsWith(QStringLiteral("Saved with Remere's Map Editor"))
+        || firstLine == QStringLiteral("Created with Dewral Map Editor")
+        || m_description.isEmpty()) {
+        m_description = QStringLiteral("Saved with Dewral Map Editor")
+            + (firstNewline < 0 ? QString() : m_description.mid(firstNewline));
+    }
     QString spawnTarget;
     QString houseTarget;
     QByteArray spawnData;

@@ -235,13 +235,13 @@ void DatReader::readSpriteData(ClientItem &item, BinaryReader &reader, bool outf
         group.frames    = reader.readU8();
 
         if (group.frames > 1 && frameDurations()) {
-            reader.readU8();
-            reader.readU32();
-            reader.readU8();
+            group.animation.asynchronous = reader.readU8() == 1;
+            group.animation.loops = reader.readS32();
+            group.animation.start = reader.readS8();
             for (uint32_t f = 0; f < group.frames; ++f) {
                 const uint32_t minimum = reader.readU32();
                 const uint32_t maximum = reader.readU32();
-                group.frame_durations.push_back(std::max<uint32_t>(1, minimum + (maximum - std::min(minimum, maximum)) / 2));
+                group.animation.durations.push_back({minimum, maximum});
             }
         }
 
@@ -254,6 +254,7 @@ void DatReader::readSpriteData(ClientItem &item, BinaryReader &reader, bool outf
 
         if (g == 0) {
             item.frame_durations = group.frame_durations;
+            item.animation = group.animation;
             item.width = group.width;
             item.height = group.height;
             item.layers = group.layers;

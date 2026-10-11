@@ -35,6 +35,13 @@ void MapView::ensureItemSprites(int serverId)
 {
     if (serverId <= 0 || !m_spr || !m_spr->isLoaded()) return;
 
+    // An in-flight atlas replacement must not discard newly requested items.
+    if (m_atlasBuilding) {
+        m_pendingAtlasSpriteIds.unite(MapAtlasService::itemSpriteIds(serverId, m_otb, m_dat));
+        m_refreshCreaturesAfterAtlas = true;
+        return;
+    }
+
     const int previousGeneration = m_atlasService.generation();
     m_atlasService.ensureItem(serverId, m_otb, m_dat, m_spr);
     if (m_atlasService.generation() == previousGeneration) return;

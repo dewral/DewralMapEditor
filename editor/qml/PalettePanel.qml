@@ -692,7 +692,7 @@ Rectangle {
 
             Item {
                 visible: paletteRoot.fluentUi; width: parent.width; height: visible ? 22 : 0
-                Text { text: "Palette"; color: FluentColors.c("heading"); font.family: "Segoe UI"; font.pixelSize: 12 }
+                Text { anchors.verticalCenter: parent.verticalCenter; anchors.verticalCenterOffset: -4; text: "Palette"; color: FluentColors.c("heading"); font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.DemiBold }
                 MouseArea {
                     anchors.fill: parent; anchors.rightMargin: 52
                     cursorShape: paletteRoot.positionLocked ? Qt.ArrowCursor : Qt.SizeAllCursor
@@ -709,27 +709,62 @@ Rectangle {
                     onCanceled: paletteRoot.dragCanceled()
                     onDoubleClicked: paletteRoot.lockRequested()
                 }
-                Text { anchors.right: parent.right; anchors.rightMargin: 24; text: paletteRoot.positionLocked ? "\uD83D\uDD12" : "\uD83D\uDD13"; color: FluentColors.c("text"); font.pixelSize: 12
-                    MouseArea { id: lockArea; anchors.fill: parent; anchors.margins: -3; hoverEnabled: true; onClicked: paletteRoot.lockRequested() }
-                    ToolTip.visible: lockArea.containsMouse
-                    ToolTip.text: paletteRoot.positionLocked ? "Unlock palette position" : "Lock palette position"
-                }
-                Text {
-                    anchors.right: parent.right; text: "\u00d7"
-                    color: FluentColors.c("text"); font.pixelSize: 16
-                    MouseArea {
-                        id: closePaletteArea
-                        anchors.fill: parent; anchors.margins: -3; hoverEnabled: true
-                        onClicked: paletteRoot.collapseRequested()
+                ToolButton {
+                    id: paletteLockButton
+                    objectName: "paletteLockButton"
+                    anchors.right: paletteCloseButton.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.verticalCenterOffset: -4
+                    width: 24; height: 22
+                    padding: 0
+                    focusPolicy: Qt.NoFocus
+                    onClicked: paletteRoot.lockRequested()
+                    contentItem: Image {
+                        source: "image://tibiaui/fluent-icon/" + (paletteRoot.positionLocked ? "lock/" : "unlock/")
+                                + String(FluentColors.c(paletteRoot.positionLocked ? "accent" : "muted")).replace("#", "")
+                        sourceSize: Qt.size(16, 16)
+                        fillMode: Image.Pad
                     }
-                    ToolTip.visible: closePaletteArea.containsMouse
+                    background: Rectangle {
+                        radius: 2
+                        color: paletteLockButton.down ? FluentColors.c("pressed")
+                             : paletteLockButton.hovered ? FluentColors.c("hover") : "transparent"
+                    }
+                    Accessible.name: paletteRoot.positionLocked ? "Unlock palette position" : "Lock palette position"
+                    ToolTip.visible: hovered
+                    ToolTip.delay: 550
+                    ToolTip.text: Accessible.name
+                }
+                ToolButton {
+                    id: paletteCloseButton
+                    objectName: "paletteCloseButton"
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.verticalCenterOffset: -4
+                    width: 24; height: 22
+                    padding: 0
+                    focusPolicy: Qt.NoFocus
+                    onClicked: paletteRoot.collapseRequested()
+                    contentItem: Image {
+                        source: "image://tibiaui/fluent-icon/close/" + String(FluentColors.c("muted")).replace("#", "")
+                        sourceSize: Qt.size(16, 16)
+                        fillMode: Image.Pad
+                    }
+                    background: Rectangle {
+                        radius: 2
+                        color: paletteCloseButton.down ? FluentColors.c("pressed")
+                             : paletteCloseButton.hovered ? FluentColors.c("hover") : "transparent"
+                    }
+                    Accessible.name: "Close palette"
+                    ToolTip.visible: hovered
+                    ToolTip.delay: 550
                     ToolTip.text: "Close palette (Ctrl+B)"
                 }
             }
-
             DmeComboBox {
                 id: kindCombo
                 objectName: "paletteKindCombo"
+                paletteCategories: true
                 width: parent.width
                 height: paletteRoot.fluentUi ? 29 : 23
                 model: paletteCol.kinds

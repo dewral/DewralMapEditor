@@ -8,6 +8,7 @@ import Tibia 1.0
 Item {
     id: root
     property var model: []
+    property bool paletteCategories: false
     property int currentIndex: -1
     readonly property string currentText: controlLoader.item ? controlLoader.item.currentText : ""
     readonly property bool open: controlLoader.item ? controlLoader.item.open : false
@@ -41,6 +42,7 @@ Item {
     Component {
         id: fluentCombo
         Fluent.FluentComboBox {
+            paletteCategories: root.paletteCategories
             model: root.model
             currentIndex: root.currentIndex
             enabled: root.enabled

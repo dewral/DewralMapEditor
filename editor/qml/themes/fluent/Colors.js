@@ -47,7 +47,9 @@ var roles = [
     ["lightingOff", "Lighting switch: off"], ["lightingBorder", "Lighting switch: border"],
     ["lightingKnob", "Lighting switch: knob"], ["lightingText", "Lighting label"]
 ];
+roles.push(["sliderFill", "Slider fill"], ["sliderHandle", "Slider handle"], ["sliderHandleHover", "Slider handle hover"], ["sliderHandlePressed", "Slider handle pressed"]);
 var defaults = {
+    sliderFill: "#7D9DAA", sliderHandle: "#B5BDC2", sliderHandleHover: "#CDD3D7", sliderHandlePressed: "#E5E8EA",
     titleBar: "#202020", toolbar: "#242424",
     background: background, base: base, surface: surface, popup: popup,
     button: button, field: field, hover: hover, pressed: pressed, border: border,

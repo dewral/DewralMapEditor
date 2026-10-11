@@ -22,6 +22,7 @@ QtObject {
         property var commands: []
         property var bindings: ({})
         property var activeBindings: bindings
+        property bool previewActive:false
         property bool capturing: false
         function resetAll() {}
         function resetShortcut(id) { return ""; }
@@ -40,6 +41,7 @@ QtObject {
         signal mapChanged()
     }
     property QtObject docMgr: QtObject {
+        signal currentChanged()
         property int recoveryCount: 0
         property var recoveries: []
     }
@@ -104,7 +106,16 @@ QtObject {
         function rowForServerId(id) { return -1 }
         function detailsAt(row) { return {} }
     }
+    property QtObject datReader: QtObject {
+        property bool loaded: true
+        property int outfitCount:0
+        property bool previewSprites: false
+        function outfitFramePreview(type,dir,walking,tick) { return {ids:previewSprites ? [1] : [],width:1,height:1}; }
+    }
     property QtObject sprReader: QtObject {
+        function outfitImageSource(ids,masks,width,height,head,body,legs,feet) { return Qt.resolvedUrl("../../../../editor/qml/components/fonts/otclient-name.png"); }
+        function outfitColor(index) { return "#888888"; }
+        property bool loaded: true
         property int itemImagesRevision: 1
         function itemImageSource(spriteIds, width, height, layers) { return "" }
     }

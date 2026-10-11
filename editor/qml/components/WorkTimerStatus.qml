@@ -107,6 +107,7 @@ Item {
         }
         Text {
             anchors.verticalCenter: parent.verticalCenter
+            visible: root.width >= 205
             width: 80
             height: 24
             text: Backend.workTimer.active ? Backend.workTimer.taskName : "Work timer"

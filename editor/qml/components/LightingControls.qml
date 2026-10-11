@@ -6,22 +6,26 @@ Column {
     id: root
     required property var mapView
     property bool paletteOpen: false
+    property bool paletteOnly: false
     spacing: 12
     function paletteColor(index) {
         return Qt.rgba(Math.floor(index / 36) / 5, Math.floor(index / 6) % 6 / 5, index % 6 / 5, 1);
     }
     Row {
+        visible: !root.paletteOnly
         width: parent.width; spacing: 8
         Text { text: "Brightness"; color: Colors.c("text"); font.pixelSize: 12 }
         Text { text: root.mapView.lightAmbient + " / 255"; color: Colors.c("muted"); font.pixelSize: 12 }
     }
-    Slider {
+    LightingSlider {
+        visible: !root.paletteOnly
         width: parent.width
         from: 0; to: 255; stepSize: 1
         value: root.mapView.lightAmbient
         onMoved: root.mapView.lightAmbient = Math.round(value)
     }
     Button {
+        visible: !root.paletteOnly
         width: parent.width
         text: "Light color · " + root.mapView.lightAmbientColor
         onClicked: root.paletteOpen = !root.paletteOpen

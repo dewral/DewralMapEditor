@@ -922,8 +922,6 @@ QVariantList MapView::visibleZoneLabels() const
     std::sort(keys.begin(), keys.end());
     for (auto start : keys) {
         const auto *tile = visible.value(start);
-        if (m_showSpawns && tile->spawn_radius > 0)
-            addLabel(tile->x, tile->y - tile->spawn_radius - .5, QStringLiteral("Spawn · ") + (tile->creature_name.isEmpty() ? QStringLiteral("Area") : QString(tile->creature_name)), QStringLiteral("#b88ae3"));
         if (visited.contains(start)) continue;
         const auto cached = m_zoneLabelRegions.constFind(start);
         if (cached != m_zoneLabelRegions.cend()) {

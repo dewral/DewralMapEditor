@@ -23,7 +23,7 @@ void IngamePreviewController::setSource(MapView *source)
 
 void IngamePreviewController::setSpeed(int speed)
 {
-    speed = qBound(100, speed, 2000);
+    speed = qBound(100, speed, 10000);
     if (m_speed == speed) return;
     m_speed = speed;
     emit speedChanged();

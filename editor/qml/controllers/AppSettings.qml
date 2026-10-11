@@ -61,11 +61,14 @@ Settings {
     property bool compensatedSelect: true
     property int selectionFloors: 0
     property bool showIngamePreviewWindow: false
+    property string ingamePreviewDockSide: "window"
+    property int ingamePreviewDockWidth: 440
     property bool ingamePreviewFollowCursor: true
     property bool ingamePreviewLighting: true
     property int ingamePreviewWidthTiles: 15
     property int ingamePreviewHeightTiles: 11
     property string ingamePreviewPlayerName: "Dewral"
+    property int ingamePreviewPlayerLevel: 1
     property string ingamePreviewOutfitsJson: "[]"
     property int ingamePreviewLookType: 128
     property int ingamePreviewLookHead: 78

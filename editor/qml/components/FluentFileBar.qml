@@ -19,7 +19,8 @@ Rectangle {
     readonly property bool toolsDocked: settings && settings.toolsDock === "topbar"
     readonly property bool hasDockedPanels: brushDocked || toolsDocked
     readonly property int dockedWidth: (brushDocked ? 280 : 0) + (toolsDocked ? 489 : 0) + (brushDocked && toolsDocked ? 12 : 0)
-    readonly property bool secondRow: hasDockedPanels && width < commands.width + lightSwitch.width + previewButton.width + dockedWidth + 62
+    readonly property bool compactLighting: width < commands.width + 472
+    readonly property bool secondRow: hasDockedPanels && (compactLighting || width < commands.width + lightSwitch.width + previewButton.width + animationButton.width + ambientButton.width + dockedWidth + 62)
     signal newRequested()
     signal openRequested()
     signal saveRequested()
@@ -27,7 +28,7 @@ Rectangle {
     color: Colors.c("toolbar")
     Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Colors.c("separator") }
     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Colors.c("separator") }
-    implicitHeight: secondRow ? 78 : 42
+    implicitHeight: 42 + (compactLighting ? 36 : 0) + (secondRow ? 36 : 0)
     Row {
         id: commands
         y: 5
@@ -109,8 +110,8 @@ Rectangle {
         }
     }
     Flickable {
-        x: root.secondRow ? 10 : lightSwitch.x + lightSwitch.width + 14
-        y: root.secondRow ? 43 : 6
+        x: root.secondRow ? 10 : ambientButton.x + ambientButton.width + 14
+        y: root.secondRow ? (root.compactLighting ? 79 : 43) : 6
         width: Math.max(0, root.width - 10 - x)
         height: 30
         visible: root.hasDockedPanels
@@ -189,11 +190,45 @@ Rectangle {
         ToolTip.text: checked ? "Close In-game Preview" : "Open In-game Preview"
     }
     ToolButton {
+        id: animationButton
+        focusPolicy: Qt.NoFocus
+        onPressed: root.mapView.forceActiveFocus()
+        objectName: "fluentAnimationButton"
+        anchors.left: previewButton.right
+        anchors.leftMargin: 2
+        y: 5
+        width: 40
+        height: 32
+
+        enabled: Backend.otbmReader.loaded
+        checkable: true
+        checked: root.mapView.showAnimations
+        onClicked: root.mapView.showAnimations = !root.mapView.showAnimations
+        contentItem: Item {
+            Image {
+                anchors.centerIn: parent
+                width: 20; height: 20
+                source: "image://tibiaui/fluent-icon/" + (animationButton.checked ? "animation-pause/" : "animation-play/") + String(Colors.c("buttonText")).replace("#", "")
+                sourceSize: Qt.size(20, 20)
+                opacity: animationButton.enabled ? 1 : 0.35
+            }
+        }
+        background: Rectangle {
+            radius: 4
+            color: animationButton.down ? Colors.c("selectedHover")
+                   : animationButton.checked || animationButton.hovered ? Colors.c("selected") : "transparent"
+        }
+        Accessible.name: "Item animations"
+        ToolTip.visible: hovered
+        ToolTip.delay: 650
+        ToolTip.text: checked ? "Pause item animations" : "Play item animations"
+    }
+    ToolButton {
         id: lightSwitch
         focusPolicy: Qt.NoFocus
         onPressed: root.mapView.forceActiveFocus()
         objectName: "fluentLightSwitch"
-        anchors.left: previewButton.right; anchors.leftMargin: 2
+        anchors.left: animationButton.right; anchors.leftMargin: 2
         y: 5
         width: 40; height: 32
         enabled: Backend.otbmReader.loaded
@@ -236,17 +271,83 @@ Rectangle {
         ToolTip.text: (checked ? "Disable map lighting" : "Enable map lighting") + " · Right-click: settings"
         ToolTip.delay: 650
     }
+    Row {
+        id: ambientButton
+        anchors.left: root.compactLighting ? parent.left : lightSwitch.right; anchors.leftMargin: root.compactLighting ? 10 : 8
+        y: root.compactLighting ? 41 : 5; height: 32; spacing: 8
+        enabled: Backend.otbmReader.loaded
+        opacity: enabled ? 1 : 0.35
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Brightness"; color: Colors.c("muted"); font.pixelSize: 11
+        }
+        LightingSlider {
+            id: brightnessSlider
+            width: 130; height: 32
+            from: 0; to: 255; stepSize: 1
+            focusPolicy: Qt.NoFocus
+            value: root.mapView.lightAmbient
+            onMoved: root.mapView.lightAmbient = Math.round(value)
+            onPressedChanged: if (!pressed) root.mapView.forceActiveFocus()
+        }
+        TextField {
+            id: brightnessValue
+            width: 42; height: 24; anchors.verticalCenter: parent.verticalCenter
+            padding: 3; font.pixelSize: 11
+            color: Colors.c("buttonText"); horizontalAlignment: Text.AlignHCenter
+            selectByMouse: true
+            validator: IntValidator { bottom: 0; top: 255 }
+            Accessible.name: "Brightness value, 0 to 255"
+            Binding { target: brightnessValue; property: "text"; value: String(root.mapView.lightAmbient); when: !brightnessValue.activeFocus }
+            onEditingFinished: {
+                if (acceptableInput) root.mapView.lightAmbient = Number(text);
+                text = String(root.mapView.lightAmbient);
+            }
+            onAccepted: root.mapView.forceActiveFocus()
+            background: Rectangle {
+                color: "transparent"
+                border.color: brightnessValue.activeFocus ? Colors.c("sliderFill") : Colors.c("border")
+            }
+        }
+        ToolButton {
+            id: ambientColorButton
+            objectName: "brightnessColorButton"
+            width: 76; height: 24; anchors.verticalCenter: parent.verticalCenter
+            padding: 4
+            focusPolicy: Qt.NoFocus
+            onClicked: { lightingControls.paletteOpen = true; lightingPopup.open(); }
+            contentItem: Row {
+                spacing: 6
+                Rectangle {
+                    width: 16; height: 16; anchors.verticalCenter: parent.verticalCenter
+                    color: lightingControls.paletteColor(root.mapView.lightAmbientColor)
+                    border.color: Colors.c("border")
+                }
+                Text {
+                    text: root.mapView.lightAmbientColor + " ▾"
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: Colors.c("buttonText"); font.pixelSize: 11
+                }
+            }
+            background: Rectangle {
+                color: ambientColorButton.hovered || lightingPopup.opened ? Colors.c("selected") : "transparent"
+                border.color: Colors.c("border")
+            }
+            Accessible.name: "Light color"
+            ToolTip.visible: hovered; ToolTip.delay: 650; ToolTip.text: "Choose light color"
+        }
+    }
     MouseArea {
         x: lightSwitch.x; y: lightSwitch.y; width: lightSwitch.width; height: lightSwitch.height
         acceptedButtons: Qt.RightButton
-        onClicked: lightingPopup.open()
+        onClicked: { lightingControls.paletteOpen = true; lightingPopup.open(); }
     }
     Popup {
         id: lightingPopup
-        x: Math.min(lightSwitch.x, root.width - width)
+        x: Math.max(0, Math.min(ambientButton.x, root.width - width))
         y: root.height
         width: 320; padding: 16
-        contentItem: LightingControls { mapView: root.mapView }
+        contentItem: LightingControls { id: lightingControls; mapView: root.mapView; paletteOnly: true }
         background: Rectangle { color: Colors.c("cell"); border.color: Colors.c("border") }
         onClosed: root.mapView.forceActiveFocus()
     }

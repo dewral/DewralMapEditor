@@ -852,3 +852,39 @@ QVariantList MapView::mapOverlayData(bool includeTooltips,
     }
     return output;
 }
+
+QVariantList MapView::previewMonsterLabels(int centerX, int centerY, int z, int columns, int rows) const
+{
+    QVariantList result;
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    if (!m_otbm || !m_showCreatures || !m_creatureStore || !m_dat) return result;
+    const int halfX = std::clamp(columns, 1, 512) / 2 + 2;
+    const int halfY = std::clamp(rows, 1, 512) / 2 + 2;
+    const auto floorIt = m_chunkStore.tiles().constFind(z);
+    if (floorIt == m_chunkStore.tiles().cend()) return result;
+    for (int cy = floorDiv(centerY - halfY, kChunkTiles); cy <= floorDiv(centerY + halfY, kChunkTiles); ++cy)
+        for (int cx = floorDiv(centerX - halfX, kChunkTiles); cx <= floorDiv(centerX + halfX, kChunkTiles); ++cx) {
+            const auto chunk = floorIt->constFind(chunkKey(cx, cy));
+            if (chunk == floorIt->cend()) continue;
+            for (const auto *tile : chunk.value()) {
+                if (!tile || tile->creature_name.isEmpty()
+                    || std::abs(tile->x - centerX) > halfX || std::abs(tile->y - centerY) > halfY) continue;
+                const auto *creature = m_creatureStore->byName(tile->creature_name);
+                if (!creature) continue;
+                const auto *outfit = creature->lookType > 0
+                    ? m_dat->outfitByLookType(static_cast<uint16_t>(creature->lookType))
+                    : (m_otb && creature->lookItem > 0 ? m_dat->itemByClientId(static_cast<uint16_t>(m_otb->clientIdForServerId(creature->lookItem))) : nullptr);
+                if (!outfit || outfit->sprite_ids.empty()) continue;
+                int elevation = 0;
+                if (m_otb) for (const auto &item : tile->items) {
+                    const auto *client = m_dat->itemByClientId(static_cast<uint16_t>(m_otb->clientIdForServerId(item.server_id)));
+                    if (client && client->has(ClientProperty::Elevation)) elevation += client->elevation;
+                }
+                result.append(QVariantMap{{QStringLiteral("name"), tile->creature_name.value()},
+                    {QStringLiteral("x"), tile->x}, {QStringLiteral("y"), tile->y},
+                    {QStringLiteral("elevation"), elevation},
+                    {QStringLiteral("npc"), tile->creature_is_npc}});
+            }
+        }
+    return result;
+}

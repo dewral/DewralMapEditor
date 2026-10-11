@@ -42,6 +42,7 @@ TestCase {
                 property bool showAnimations: false
                 property bool torchOn: false
                 property int lightAmbient: 40
+                property int lightAmbientColor: 215
                 property bool minimapOn: false
                 property bool showShade: true
                 property bool showLowerFloors: true
@@ -67,6 +68,7 @@ TestCase {
                 onShowZonesAlwaysChanged: viewFlagsChanged()
                 onTorchOnChanged: torchChanged()
                 onLightAmbientChanged: torchChanged()
+                onLightAmbientColorChanged: torchChanged()
                 onCompensatedSelectChanged: selectionOptionsChanged()
                 onSelectionFloorsChanged: selectionOptionsChanged()
             }

@@ -63,7 +63,7 @@ Item {
                 verify(np.x + np.width <= tools.width);
                 compare(lasso.width, np.width);
                 compare(lasso.width, 62, "Tools must keep their width when the panel resizes");
-                compare(lasso.height, 38);
+                compare(lasso.height, 44);
                 const doors = findChild(tools, "fluentToolDoors");
                 verify(doors.x + doors.width <= tools.width);
                 if (width === 210) {

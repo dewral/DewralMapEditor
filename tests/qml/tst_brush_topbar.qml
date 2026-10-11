@@ -3,7 +3,7 @@ import QtTest
 import Tibia 1.0
 import "../../editor/qml/components" as Components
 Item {
-    width: 1000; height: 400
+    width: 1400; height: 400
     QtObject { id: prefs; property string brushSizeDock: "topbar"; property string toolsDock: "palette" }
     QtObject {
         id: map
@@ -11,7 +11,11 @@ Item {
         property int brushSize: 0
         property bool hasClipboard: false
         property int selectionCount: 0
+        property bool showAnimations: false
         property bool torchOn: false
+        property int lightAmbient: 40
+        property int lightAmbientColor: 215
+        function forceActiveFocus() {}
         property bool selectionMode: false
         property bool lassoMode: false
         property bool optionalBorderMode: false
@@ -69,14 +73,39 @@ Item {
             compare(button.checked, false);
             compare(String(icon.source), inactiveSource);
         }
+        function test_animationToggle() {
+            const button = findChild(bar, "fluentAnimationButton");
+            verify(button !== null);
+            const loaded = Backend.otbmReader.loaded;
+            Backend.otbmReader.loaded = true;
+            map.showAnimations = false;
+            mouseClick(button);
+            compare(map.showAnimations, true);
+            compare(button.checked, true);
+            mouseClick(button);
+            compare(map.showAnimations, false);
+            Backend.otbmReader.loaded = loaded;
+        }
         function test_adapts_to_width() {
             compare(bar.height, 42);
             bar.width = 700;
-            compare(bar.height, 78);
+            compare(bar.height, 114);
             prefs.brushSizeDock = "palette";
-            compare(bar.height, 42);
+            compare(bar.height, 78);
             prefs.brushSizeDock = "topbar";
-            bar.width = 1000;
+            bar.width = 1400;
+        }
+        function test_lightingFitsNarrowWindow() {
+            prefs.brushSizeDock = "palette";
+            for (const width of [720, 860, 1400]) {
+                bar.width = width;
+                wait(0);
+                const color = findChild(bar, "brightnessColorButton");
+                verify(color.mapToItem(bar, color.width, 0).x <= width);
+                verify(color.mapToItem(bar, 0, color.height).y <= bar.height);
+            }
+            prefs.brushSizeDock = "topbar";
+            bar.width = 1400;
         }
         function test_tools_controls_and_docking() {
             prefs.toolsDock = "topbar";

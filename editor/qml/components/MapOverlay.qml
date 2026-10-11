@@ -443,4 +443,22 @@ Item {
         }
     }
     Component.onCompleted: refreshData(true)
+
+    // Use the same fixed-size creature information as the in-game preview.
+    QtObject {
+        id: monsterCamera
+        property real visualX: overlay.currentOriginX + overlay.width / (2 * overlay.currentTileSize) - 0.5
+        property real visualY: overlay.currentOriginY + overlay.height / (2 * overlay.currentTileSize) - 0.5
+        property int z: overlay.mapCtrl.floor
+    }
+    IngameMonsterOverlay {
+        width: overlay.width / viewScale
+        height: overlay.height / viewScale
+        scale: viewScale
+        transformOrigin: Item.TopLeft
+        visible: overlay.tooltipsVisible
+        source: overlay.mapCtrl
+        controller: monsterCamera
+        viewScale: overlay.currentTileSize / 32
+    }
 }

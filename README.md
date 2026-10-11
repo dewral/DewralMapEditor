@@ -35,7 +35,7 @@ multi-floor Tibia maps.
   zone tools, spawns, creatures, houses, and towns.
 - Supports selection, multi-floor selection, moving items between floors,
   cut/copy/paste, undo/redo, item properties, search, and replacement tools.
-- Includes a configurable In-game Preview window (work in progress).
+- Includes an In-game Preview that can float in its own window or dock on either side of the editor. Drag its inner header to an edge, or use Dock left / Dock right / Open in separate window. Dock width is resizable, and the side and width are remembered.
 - Loads maps even when optional house and spawn sidecar files are absent.
 - Offers Fluent Dark, GitHub Dark, gray themes, Windows Classic and the
   Tibia-inspired Classic UI through the theme settings.

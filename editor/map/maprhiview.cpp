@@ -314,11 +314,8 @@ public:
         }
 
         const bool lightingEnabled = m_previewWindow ? m_previewLighting : src->torchOn();
-        // OTClient treats ambient intensity as an unsigned byte. The preview
-        // deliberately represents TFS night (40), while the editor uses the
-        // exact 0..255 level selected in View > Light ambient.
-        constexpr int previewAmbient = 40;
-        const int ambientLevel = m_previewWindow ? previewAmbient : src->lightAmbient();
+        // The editor and in-game preview share the selected ambient light.
+        const int ambientLevel = src->lightAmbient();
         const int lightTW = static_cast<int>(std::ceil(w / ts)) + 3;
         const int lightTH = static_cast<int>(std::ceil(h / ts)) + 3;
         for (int z = 0; z < 16; ++z) {

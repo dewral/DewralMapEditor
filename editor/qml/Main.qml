@@ -432,10 +432,38 @@ DmeWindow {
         panelWidth: Math.max(root.minimumPaletteWidth, Math.min(prefs.fluentPaletteWidth, root.maximumPaletteWidth))
     }
     readonly property real paletteTop: root.fluentUi ? fluentFileBar.y + fluentFileBar.height : titleBar.y + titleBar.height
-    readonly property real mapLeft: root.fluentUi
+    readonly property real baseMapLeft: root.fluentUi
         ? (!prefs.paletteCollapsed && paletteDock.side === "left" ? palette.width + 12 : 6) : paletteSplitter.x + paletteSplitter.width
-    readonly property real mapRight: root.fluentUi && !prefs.paletteCollapsed && paletteDock.side === "right" ? palette.width + 12 : 8
+    readonly property real baseMapRight: root.githubUi ? 1 : root.fluentUi && !prefs.paletteCollapsed && paletteDock.side === "right" ? palette.width + 12 : 8
 
+    readonly property bool previewDocked: prefs.showIngamePreviewWindow && (prefs.ingamePreviewDockSide==="left" || prefs.ingamePreviewDockSide==="right")
+    readonly property real previewDockWidth: Math.min(Math.max(320,prefs.ingamePreviewDockWidth),Math.max(320,root.width-baseMapLeft-baseMapRight-240))
+    readonly property real mapLeft: baseMapLeft+(previewDocked && prefs.ingamePreviewDockSide==="left" ? previewDockWidth+6 : 0)
+    readonly property real mapRight: baseMapRight+(previewDocked && prefs.ingamePreviewDockSide==="right" ? previewDockWidth+6 : 0)
+    Item {
+        id:previewDockHost
+        objectName:"previewDockHost"
+        visible:root.previewDocked
+        x:prefs.ingamePreviewDockSide==="left" ? root.baseMapLeft : root.width-root.baseMapRight-width
+        y:root.paletteTop
+        width:root.previewDockWidth
+        height:Math.max(0,root.height-y-(root.fluentUi ? 28 : 6))
+        z:3
+    }
+    Rectangle {
+        x:prefs.ingamePreviewDockSide==="left" ? previewDockHost.x+previewDockHost.width : previewDockHost.x-6
+        y:previewDockHost.y; width:6; height:previewDockHost.height; z:4
+        visible:root.previewDocked; color:resizePreview.containsMouse ? FluentColors.c("accent") : "transparent"
+        MouseArea {
+            id:resizePreview; anchors.fill:parent; hoverEnabled:true; cursorShape:Qt.SizeHorCursor
+            property real startX:0; property real startWidth:0
+            onPressed:mouse => { startX=mapToGlobal(mouse.x,mouse.y).x; startWidth=previewDockHost.width; }
+            onPositionChanged:mouse => { if (pressed) {
+                const delta=(mapToGlobal(mouse.x,mouse.y).x-startX)*(prefs.ingamePreviewDockSide==="left" ? 1 : -1);
+                prefs.ingamePreviewDockWidth=Math.round(Math.max(320,Math.min(root.width-root.baseMapLeft-root.baseMapRight-240,startWidth+delta)));
+            } }
+        }
+    }
     Rectangle {
         visible: root.fluentUi && paletteDock.dragging && paletteDock.target !== ""
         x: paletteDock.target === "right" ? root.contentItem.width - paletteDock.panelWidth - 6 : 6
@@ -620,7 +648,7 @@ DmeWindow {
         anchors.left: parent.left
         anchors.leftMargin: root.mapLeft
         anchors.right: parent.right
-        anchors.rightMargin: root.githubUi ? 1 : root.mapRight
+        anchors.rightMargin: root.mapRight
 
         sourceComponent: root.fluentUi ? null : root.githubUi
                          ? githubToolBarComponent
@@ -651,7 +679,7 @@ DmeWindow {
         anchors.left: parent.left
         anchors.leftMargin: root.mapLeft
         anchors.right: parent.right
-        anchors.rightMargin: root.githubUi ? 1 : root.mapRight
+        anchors.rightMargin: root.mapRight
         height: app.started ? (root.fluentUi ? 36 : root.githubUi ? 42 : 22) : 0
         visible: app.started
 
@@ -728,13 +756,14 @@ DmeWindow {
 
     MapWorkspace {
         id: workspace
+        previewDockHost:previewDockHost
         anchors.top: tabBar.bottom
         anchors.topMargin: 0
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.leftMargin: root.mapLeft
         anchors.right: parent.right
-        anchors.rightMargin: root.githubUi ? 1 : root.mapRight
+        anchors.rightMargin: root.mapRight
         anchors.bottomMargin: root.fluentUi ? 28 : root.githubUi ? 1 : 6
         visible: app.started
         app: app
@@ -746,6 +775,7 @@ DmeWindow {
 
     Rectangle {
         id: fluentStatusBar
+        readonly property bool compact: width < 1000
         visible: root.fluentUi && app.started
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
         height: 26; color: FluentColors.c("cell")
@@ -774,23 +804,23 @@ DmeWindow {
             anchors.fill: parent
             anchors.rightMargin: (statusTimer.visible ? statusTimer.width + 8 : 0) + (statusFps.visible ? statusFps.width + 16 : 0)
             Item {
-                width: 80; height: parent.height
+                width: fluentStatusBar.compact ? 54 : 80; height: parent.height
                 Text { anchors.centerIn: parent; text: Backend.otbmReader.loaded ? "Ready" : "No map"; color: FluentColors.c("muted"); font.pixelSize: 11 }
             }
             StatusField {
-                width: 145; height: parent.height
-                label: "Selection"; value: String(workspace.mapView.selectionCount); emphasize: true
+                width: fluentStatusBar.compact ? 85 : 145; height: parent.height
+                label: fluentStatusBar.compact ? "Sel" : "Selection"; value: String(workspace.mapView.selectionCount); emphasize: true
             }
             StatusField {
-                width: Math.max(0, statusFields.width - 80 - 145 - 80 - 105); height: parent.height
-                label: "Position / item"; value: workspace.mapView.hoverText || "—"
+                width: Math.max(0, statusFields.width - (fluentStatusBar.compact ? 54 + 85 + 66 + 86 : 80 + 145 + 80 + 105)); height: parent.height
+                label: fluentStatusBar.compact ? "Pos" : "Position / item"; value: workspace.mapView.hoverText || "—"
             }
             StatusField {
-                width: 80; height: parent.height
+                width: fluentStatusBar.compact ? 66 : 80; height: parent.height
                 label: "Floor"; value: String(workspace.mapView.floor); emphasize: true
             }
             StatusField {
-                width: 105; height: parent.height
+                width: fluentStatusBar.compact ? 86 : 105; height: parent.height
                 label: "Zoom"; value: Math.round(workspace.mapView.tileSize / 32 * 100) + "%"; emphasize: true
                 MouseArea { anchors.fill: parent; acceptedButtons: Qt.NoButton; onWheel: wheel => workspace.mapView.zoomSteps(wheel.angleDelta.y > 0 ? 1 : -1) }
             }
@@ -809,7 +839,7 @@ DmeWindow {
             visible: prefs.showWorkTimer
             anchors.right: parent.right; anchors.rightMargin: statusFps.visible ? statusFps.width + 14 : 6
             anchors.verticalCenter: parent.verticalCenter
-            width: 245; height: 26
+            width: fluentStatusBar.compact ? 126 : 245; height: 26
             foreground: FluentColors.c("muted"); accent: FluentColors.c("accent")
         }
     }

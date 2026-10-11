@@ -1,8 +1,11 @@
 <RCC>
     <qresource prefix="/">
+        <file alias="qml/components/LightingSlider.qml">qml/components/LightingSlider.qml</file>
         <file alias="qml/controllers/ContextBrushes.js">qml/controllers/ContextBrushes.js</file>
 
         <file alias="qml/components/OtclientName.qml">qml/components/OtclientName.qml</file>
+        <file alias="qml/components/fonts/otclient-name-blue.png">qml/components/fonts/otclient-name-blue.png</file>
+        <file alias="qml/components/fonts/otclient-name-red.png">qml/components/fonts/otclient-name-red.png</file>
         <file alias="qml/components/fonts/otclient-name.png">qml/components/fonts/otclient-name.png</file>
         <file alias="qml/components/ImplicitHeightLoader.qml">qml/components/ImplicitHeightLoader.qml</file>
         <file alias="qml/components/ComboBoxTypeAhead.qml">qml/components/ComboBoxTypeAhead.qml</file>
@@ -38,6 +41,7 @@
         <file alias="qml/components/MapOverlay.qml">qml/components/MapOverlay.qml</file>
         <file alias="qml/components/PreviewMovement.js">qml/components/PreviewMovement.js</file>
         <file alias="qml/components/IngamePreviewPanel.qml">qml/components/IngamePreviewPanel.qml</file>
+        <file alias="qml/components/IngameMonsterOverlay.qml">qml/components/IngameMonsterOverlay.qml</file>
         <file alias="qml/components/IngamePlayerOverlay.qml">qml/components/IngamePlayerOverlay.qml</file>
         <file alias="qml/components/GithubPaletteCombo.qml">qml/components/GithubPaletteCombo.qml</file>
         <file alias="qml/components/PaletteBrushButton.qml">qml/components/PaletteBrushButton.qml</file>
@@ -291,7 +295,12 @@
             <file alias="qml/themes/fluent/icons/save.svg">qml/themes/fluent/icons/save.svg</file>
             <file alias="qml/themes/fluent/icons/open.svg">qml/themes/fluent/icons/open.svg</file>
             <file alias="qml/themes/fluent/icons/paste.svg">qml/themes/fluent/icons/paste.svg</file>
+            <file alias="qml/themes/fluent/icons/dock-left.svg">qml/themes/fluent/icons/dock-left.svg</file>
+            <file alias="qml/themes/fluent/icons/dock-right.svg">qml/themes/fluent/icons/dock-right.svg</file>
+            <file alias="qml/themes/fluent/icons/detach.svg">qml/themes/fluent/icons/detach.svg</file>
             <file alias="qml/themes/fluent/icons/preview.svg">qml/themes/fluent/icons/preview.svg</file>
+            <file alias="qml/themes/fluent/icons/animation-play.svg">qml/themes/fluent/icons/animation-play.svg</file>
+            <file alias="qml/themes/fluent/icons/animation-pause.svg">qml/themes/fluent/icons/animation-pause.svg</file>
             <file alias="qml/themes/fluent/icons/lighting.svg">qml/themes/fluent/icons/lighting.svg</file>
             <file alias="qml/themes/fluent/icons/undo.svg">qml/themes/fluent/icons/undo.svg</file>
             <file alias="qml/themes/fluent/icons/new.svg">qml/themes/fluent/icons/new.svg</file>

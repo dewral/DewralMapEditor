@@ -1702,78 +1702,80 @@ DmeDialog {
                     }
 
                     Repeater {
+                        // Slot directions point toward the neighbouring ground.
+                        // Keep the stored types and sprites; only move their preview boxes.
                         model: [
                             {
                                 bt: 9,
                                 lab: "DNW",
-                                cx: 0,
-                                cy: 0
+                                cx: 4,
+                                cy: 4
                             },
                             {
                                 bt: 1,
                                 lab: "N",
                                 cx: 2,
-                                cy: 0
+                                cy: 4
                             },
                             {
                                 bt: 10,
                                 lab: "DNE",
-                                cx: 4,
-                                cy: 0
+                                cx: 0,
+                                cy: 4
                             },
                             {
                                 bt: 5,
                                 lab: "CNW",
-                                cx: 1,
-                                cy: 1
+                                cx: 3,
+                                cy: 3
                             },
                             {
                                 bt: 6,
                                 lab: "CNE",
-                                cx: 3,
-                                cy: 1
+                                cx: 1,
+                                cy: 3
                             },
                             {
                                 bt: 4,
                                 lab: "W",
-                                cx: 0,
+                                cx: 4,
                                 cy: 2
                             },
                             {
                                 bt: 2,
                                 lab: "E",
-                                cx: 4,
+                                cx: 0,
                                 cy: 2
                             },
                             {
                                 bt: 7,
                                 lab: "CSW",
-                                cx: 1,
-                                cy: 3
+                                cx: 3,
+                                cy: 1
                             },
                             {
                                 bt: 8,
                                 lab: "CSE",
-                                cx: 3,
-                                cy: 3
+                                cx: 1,
+                                cy: 1
                             },
                             {
                                 bt: 12,
                                 lab: "DSW",
-                                cx: 0,
-                                cy: 4
+                                cx: 4,
+                                cy: 0
                             },
                             {
                                 bt: 3,
                                 lab: "S",
                                 cx: 2,
-                                cy: 4
+                                cy: 0
                             },
                             {
                                 bt: 11,
                                 lab: "DSE",
-                                cx: 4,
-                                cy: 4
+                                cx: 0,
+                                cy: 0
                             }
                         ]
                         delegate: Rectangle {

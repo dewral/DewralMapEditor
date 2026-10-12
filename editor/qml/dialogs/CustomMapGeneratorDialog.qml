@@ -22,11 +22,21 @@ DmeDialog {
     property bool error: false
     property string status: "Add background and floor materials to begin."
     property string executionLog: ""
+    readonly property var groundRoles: ["background", "floor", "secondary"]
+    readonly property var groundRoleLabels: ["Background", "Rooms and corridors", "Secondary floor"]
+    readonly property var groundBorders: profile.groundBorders || []
+    readonly property int borderSetIndex: category.currentIndex - 4
+    readonly property var categoryLabels: ["Floors", "Walls · 4 slots", "Borders · default floor", "Decorations"].concat(
+        groundBorders.map(set => "Borders · " + set.name))
+    readonly property var brushNames: {
+        const revision = Backend.brushStore.revision;
+        return category.currentIndex === 1 ? Backend.brushStore.wallBrushNames() : Backend.brushStore.groundBrushNames();
+    }
     readonly property var wallLabels: ["Horizontal", "Vertical", "Small junction", "Corner"]
     readonly property var borderLabels: ["South", "West", "North", "East", "Outer SE", "Outer SW", "Outer NE", "Outer NW", "Inner SW", "Inner SE", "Inner NW", "Inner NE"]
     readonly property var shownSlots: {
         if (category.currentIndex===1) return wallLabels.map((label,i)=>({role:"wall"+(i+1),label:label}));
-        if (category.currentIndex===2) return borderLabels.map((label,i)=>({role:"border"+(i+1),label:label}));
+        if (category.currentIndex===2 || category.currentIndex>=4) return borderLabels.map((label,i)=>({role:"border"+(i+1),label:label}));
         if (category.currentIndex===3) return [{role:"decorations",label:"Decorations"}];
         return [{role:"background",label:"Background · required"},{role:"floor",label:"Rooms and corridors · required"},{role:"secondary",label:"Secondary floor · optional"}];
     }
@@ -37,7 +47,7 @@ DmeDialog {
     function freshProfile() {
         return {version:1,name:"Midhem — jaskinia",kind:"dungeon",clientKey:clientKey,
             width:70,height:70,rooms:8,seed:123,density:8,x:1000,y:1000,z:mapCtrl ? mapCtrl.floor : 7,
-            wallsEnabled:false,bordersEnabled:false,materials:{}};
+            wallsEnabled:false,bordersEnabled:false,materials:{},groundBorders:[]};
     }
     function invalidate() {
         mapCtrl.clearLuaPreview();
@@ -49,24 +59,106 @@ DmeDialog {
     }
     function editMaterials(role,values) {
         invalidate(); const copy=Object.assign({},profile);
+        if (borderSetIndex >= 0 && role.indexOf("border") === 0) {
+            copy.groundBorders = groundBorders.slice();
+            const set = Object.assign({},copy.groundBorders[borderSetIndex]);
+            set.materials = Object.assign({},set.materials); set.materials[role] = values;
+            copy.groundBorders[borderSetIndex] = set; profile = copy; return;
+        }
         copy.materials=Object.assign({},profile.materials); copy.materials[role]=values; profile=copy;
+        if (groundRoles.indexOf(role) >= 0) {
+            let ids=[];
+            for (const key of groundRoles) ids=ids.concat((copy.materials[key] || []).map(entry => entry.id));
+            copy.groundBorders = groundBorders.map(set => Object.assign({},set,{
+                groundIds:set.groundIds.filter(id => ids.indexOf(id) >= 0)
+            })).filter(set => set.groundIds.length > 0);
+            profile = Object.assign({},copy);
+            if (category.currentIndex >= categoryLabels.length) category.currentIndex = 0;
+        }
+    }
+    function slotEntries(role) {
+        const materials = role.indexOf("border")===0 && borderSetIndex >= 0 && groundBorders[borderSetIndex]
+            ? groundBorders[borderSetIndex].materials : profile.materials;
+        return materials[role] || [];
+    }
+    function validEntries(role, entries) {
+        const probe={materials:{}}; probe.materials[role]=entries;
+        const metadata=mapCtrl.luaGeneratorItemInfo(probe);
+        const groundRole=groundRoles.indexOf(role)>=0;
+        for (const entry of entries) {
+            const item=metadata[String(entry.id)] || {};
+            if (!item.valid || item.ground!==groundRole || ((role==="floor" || role==="secondary") && item.blocked)) {
+                error=true; status="Item #"+entry.id+" does not fit this category. Floors must be walkable ground items."; return false;
+            }
+        }
+        return true;
+    }
+    function weightedEntries(values) {
+        const active=values.filter(entry => entry.chance > 0);
+        const maximum=Math.max(100,...active.map(entry => entry.chance));
+        return active.map(entry => ({id:entry.id,weight:Math.max(1,Math.round(entry.chance*100/maximum))}));
+    }
+    function loadGroundBrush(role, name) {
+        const brush=Backend.brushStore.groundBrushEdit(name);
+        const entries=weightedEntries(brush.items || []);
+        if (!entries.length) { error=true; status="This ground brush has no active ground items."; return; }
+        if (!validEntries(role,entries)) return;
+        // BrushStore uses N/E/S/W/CNW/CNE/CSW/CSE/DNW/DNE/DSE/DSW.
+        const alignment=[3,4,1,2,8,7,6,5,12,11,9,10];
+        const sets=[];
+        for (const block of brush.borders || []) {
+            const materials={};
+            for (let i=0;i<12;++i) {
+                const variants=weightedEntries(block.tiles[alignment[i]] || []);
+                if (!validEntries("border"+(i+1),variants)) return;
+                materials["border"+(i+1)]=variants;
+            }
+            if (!Object.keys(materials).some(key => materials[key].length)) continue;
+            const target=block.to || "";
+            sets.push({name:name+" · "+block.align+" → "+(target==="*" ? "any ground" : target || "empty"),
+                brush:name,groundIds:entries.map(entry => entry.id),align:block.align,to:target,
+                toGroundIds:target && target!=="*" ? (Backend.brushStore.groundBrushEdit(target).items || []).map(entry => entry.id) : [],
+                zorder:brush.zorder || 0,materials:materials});
+        }
+        invalidate(); const copy=Object.assign({},profile);
+        copy.materials=Object.assign({},profile.materials);
+        const ids=entries.map(entry => entry.id);
+        copy.materials[role]=(copy.materials[role] || []).filter(entry => ids.indexOf(entry.id)<0).concat(entries);
+        copy.groundBorders=groundBorders.map(set => Object.assign({},set,{
+            groundIds:set.groundIds.filter(id => ids.indexOf(id)<0)
+        })).filter(set => set.groundIds.length).concat(sets.length ? sets : [{
+            name:name,brush:name,groundIds:ids,align:"outer",to:"*",toGroundIds:[],zorder:brush.zorder || 0,materials:{}
+        }]);
+        if (sets.length) copy.bordersEnabled=true;
+        profile=copy; error=false;
+        status="Loaded "+name+": "+entries.length+" ground variants and "+sets.length+" border sets into "+groundRoleLabels[groundRoles.indexOf(role)]+".";
+    }
+    function loadWallBrush(name) {
+        const brush=Backend.brushStore.advancedBrushEdit("walls",name);
+        const alignment=[6,9,0,3];
+        const materials=Object.assign({},profile.materials);
+        for (let i=0;i<4;++i) {
+            const entries=weightedEntries(((brush.items || {})[String(alignment[i])] || []).map(pair => ({id:pair[0],chance:pair[1]})));
+            if (!validEntries("wall"+(i+1),entries)) return;
+            materials["wall"+(i+1)]=entries;
+        }
+        invalidate(); profile=Object.assign({},profile,{materials:materials,wallsEnabled:true});
+        error=false; status="Loaded wall brush "+name+". Check all four wall slots before generating.";
     }
     function addItem(role,id) {
         id=id || selectedId;
         if (id<=0) { error=true; status="Select an item on the left first."; return; }
-        const probe={materials:{}}; probe.materials[role]=[{id:id,weight:1}];
-        const metadata=mapCtrl.luaGeneratorItemInfo(probe)[String(id)] || {};
-        const groundRole=role==="background" || role==="floor" || role==="secondary";
-        if (!metadata.valid || metadata.ground!==groundRole || ((role==="floor" || role==="secondary") && metadata.blocked)) {
-            error=true; status="Item #"+id+" does not fit this category. Floors must be walkable ground items."; return;
-        }
-        const entries=(profile.materials[role] || []).slice();
+        if (!validEntries(role,[{id:id,weight:1}])) return;
+        const entries=slotEntries(role).slice();
         if (entries.some(entry=>entry.id===id)) return;
         entries.push({id:id,weight:1}); editMaterials(role,entries);
+        if (groundRoles.indexOf(role)>=0 && !groundBorders.some(set => set.groundIds.indexOf(id)>=0)) {
+            edit("groundBorders",groundBorders.concat([{name:"Ground #"+id,groundIds:[id],align:"outer",to:"*",toGroundIds:[],zorder:0,materials:{}}]));
+        }
         error=false; status="Added #"+id+" to "+role+". Weight controls variant frequency.";
     }
     function report(result) { error=result.success!==true; status=error ? result.error : "Profile saved."; }
-    function adopt(value) { invalidate(); profile=value; error=false; status="Profile loaded. Check materials before generating."; }
+    function adopt(value) { invalidate(); category.currentIndex=0; activeRole="background"; profile=value; error=false; status="Profile loaded. Check materials before generating."; }
     onOpened: targetDocument=Backend.otbmReader
     onClosed: { invalidate(); if (awaitingResult) Backend.luaScripts.cancel(); }
     onClientKeyChanged: {
@@ -108,16 +200,19 @@ DmeDialog {
         onAccepted: { dialog.invalidate(); settings.generatorDirectory=Backend.fileTools.toLocalFile(selectedFolder); }
     }
     FileDialog {
-        id: importPicker; title: "Import material profile"; nameFilters:["Generator profiles (*.json)"]
+        id: importPicker; title: "Import generator profile"; nameFilters:["Generator profiles (*.json)"]
         onAccepted: {
             const result=Backend.generatorProfiles.importProfile(selectedFile); dialog.report(result);
             if (result.success) dialog.adopt(result.profile);
         }
     }
     FileDialog {
-        id: exportPicker; title: "Export material profile"; fileMode:FileDialog.SaveFile
+        id: exportPicker; title: "Export generator profile"; fileMode:FileDialog.SaveFile
         nameFilters:["Generator profiles (*.json)"]; defaultSuffix:"json"
-        onAccepted: dialog.report(Backend.generatorProfiles.exportProfile(dialog.profile,selectedFile))
+        onAccepted: {
+            const result=Backend.generatorProfiles.exportProfile(dialog.profile,selectedFile); dialog.report(result);
+            if (result.success) dialog.status="Generator profile exported.";
+        }
     }
     PaletteFilter { id: picker; sourceModel: Backend.otbReader; sprReader:Backend.sprReader; searchText: search.text; mode:"all" }
     contentItem: Item {
@@ -127,7 +222,7 @@ DmeDialog {
             Row {
                 width: parent.width; spacing: 6
                 DmeComboBox {
-                    id: profiles; width: Math.max(170,body.width-440); currentIndex:0
+                    id: profiles; width: body.width-370; currentIndex:0
                     model: ["New profile"].concat(Backend.generatorProfiles.profiles.map(p=>p.name))
                     enabled: !Backend.luaScripts.busy
                     onActivated: index => {
@@ -148,8 +243,18 @@ DmeDialog {
                 DmeButton { text:"Delete"; width:64; enabled:!!dialog.profile.id && !Backend.luaScripts.busy; onClicked: {
                     const result=Backend.generatorProfiles.remove(dialog.profile.id); dialog.report(result); if (result.success) dialog.adopt(dialog.freshProfile());
                 } }
-                DmeButton { text:"Import"; width:64; enabled:!Backend.luaScripts.busy; onClicked:importPicker.open() }
-                DmeButton { text:"Export"; width:64; enabled:!Backend.luaScripts.busy; onClicked:exportPicker.open() }
+                DmeButton {
+                    objectName:"importGeneratorProfile"; text:"Import"; width:64; enabled:!Backend.luaScripts.busy; onClicked:importPicker.open()
+                    ToolTip.visible:importHover.hovered; ToolTip.delay:500
+                    ToolTip.text:"Import a generator profile from JSON.\nIncludes materials, weights, borders and settings.\nAdds it to your saved profiles."
+                    HoverHandler { id:importHover }
+                }
+                DmeButton {
+                    objectName:"exportGeneratorProfile"; text:"Export"; width:64; enabled:!Backend.luaScripts.busy; onClicked:exportPicker.open()
+                    ToolTip.visible:exportHover.hovered; ToolTip.delay:500
+                    ToolTip.text:"Export the current generator profile to JSON.\nIncludes unsaved materials, weights, borders and settings.\nSave the generated map separately as OTBM."
+                    HoverHandler { id:exportHover }
+                }
             }
             DmeTextField { id:nameInput; objectName:"customGeneratorName"; width:parent.width; placeholderText:"Profile name"; enabled:!Backend.luaScripts.busy; onTextChanged: { if (dialog.profile && text!==dialog.profile.name) dialog.edit("name",text); } }
             Binding { target:nameInput; property:"text"; value:dialog.profile.name }
@@ -160,14 +265,15 @@ DmeDialog {
             anchors.bottom:footer.top; anchors.bottomMargin:12
             width:parent.width; spacing:12
             Rectangle {
-                width:Math.floor((columns.width-24)*0.25); height:columns.height
+                id:itemsPanel; objectName:"customGeneratorItemsPanel"
+                width:4*54+20; height:columns.height
                 radius:6; color:Colors.c("surface"); border.color:Colors.c("border")
                 Column {
                     anchors.fill:parent; anchors.margins:10; spacing:8
                     Text { font.family:Colors.fontFamily; text:"Available items"; color:Colors.c("text"); font.bold:true }
                     DmeTextField { id:search; width:parent.width; placeholderText:"Search name or ID…" }
                     GridView {
-                        id:itemGrid; width:parent.width; height:parent.height-108; clip:true; cellWidth:54; cellHeight:54
+                        id:itemGrid; objectName:"customGeneratorItemsGrid"; width:parent.width; height:parent.height-108; clip:true; cellWidth:54; cellHeight:54
                         model:picker
                         ScrollBar.vertical:ScrollBar {}
                         delegate: Rectangle {
@@ -203,11 +309,47 @@ DmeDialog {
                 }
             }
             Column {
-                width:Math.floor((columns.width-24)*0.43); height:columns.height; spacing:8
-                DmeComboBox { id:category; width:parent.width; model:["Floors","Walls · 4 slots","Borders · 12 slots","Decorations"]; currentIndex:0; onActivated:dialog.activeRole=dialog.shownSlots[0].role }
+                id:materialsColumn
+                width:Math.floor((columns.width-itemsPanel.width-24)*0.56); height:columns.height; spacing:8
+                DmeComboBox {
+                    id:category; objectName:"customGeneratorCategory"; width:parent.width; model:dialog.categoryLabels; currentIndex:0
+                    onCurrentIndexChanged:dialog.activeRole=dialog.shownSlots[0].role
+                }
+                Column {
+                    id:brushControls; width:parent.width; spacing:6
+                    visible:category.currentIndex===0 || category.currentIndex===1
+                    enabled:!Backend.luaScripts.busy
+                    DmeComboBox {
+                        id:groundTarget; objectName:"customGeneratorGroundTarget"; width:parent.width
+                        visible:category.currentIndex===0; model:dialog.groundRoleLabels
+                        onActivated:index => dialog.activeRole=dialog.groundRoles[index]
+                    }
+                    Binding { target:groundTarget; property:"currentIndex"; value:Math.max(0,dialog.groundRoles.indexOf(dialog.activeRole)) }
+                    Row {
+                        width:parent.width; spacing:6
+                        DmeComboBox {
+                            id:brushPicker; objectName:"customGeneratorBrushPicker"; width:parent.width-96; model:dialog.brushNames
+                            currentIndex:dialog.brushNames.length ? 0 : -1
+                            onModelChanged:currentIndex=model.length ? 0 : -1
+                        }
+                        DmeButton {
+                            objectName:"loadGeneratorBrush"; text:"Load brush"; width:90; enabled:brushPicker.currentIndex>=0
+                            onClicked: {
+                                if (category.currentIndex===1) dialog.loadWallBrush(brushPicker.currentText);
+                                else dialog.loadGroundBrush(dialog.activeRole,brushPicker.currentText);
+                            }
+                        }
+                    }
+                }
+                Text {
+                    id:borderHint; width:parent.width; visible:category.currentIndex===2 || dialog.borderSetIndex>=0
+                    text:dialog.borderSetIndex>=0 ? "Ground IDs: "+dialog.groundBorders[dialog.borderSetIndex].groundIds.join(", ")+" · "+dialog.groundBorders[dialog.borderSetIndex].align
+                        : "Used for room floor tiles without their own border set. Load a ground brush or add a ground item to edit its borders separately."
+                    wrapMode:Text.WordWrap; color:Colors.c("muted"); font.family:Colors.fontFamily; font.pixelSize:11
+                }
                 Text { font.family:Colors.fontFamily; text:"Variant weights: 1–100"; color:Colors.c("muted"); font.pixelSize:11 }
                 ScrollView {
-                    id:slotScroll; width:parent.width; height:parent.height-56; clip:true
+                    id:slotScroll; width:parent.width; height:parent.height-56-(brushControls.visible ? brushControls.height+8 : 0)-(borderHint.visible ? borderHint.height+8 : 0); clip:true
                     Column {
                         width:slotScroll.availableWidth; spacing:8
                         Repeater {
@@ -215,7 +357,7 @@ DmeDialog {
                             delegate: GeneratorMaterialSlot {
                                 required property var modelData
                                 roleKey:modelData.role; label:modelData.label
-                                entries:dialog.profile.materials[roleKey] || []
+                                entries:dialog.slotEntries(roleKey)
                                 selected:dialog.activeRole===roleKey; editable:!Backend.luaScripts.busy
                                 onActivated:dialog.activeRole=roleKey
                                 onAddRequested: id => dialog.addItem(roleKey,id)
@@ -252,8 +394,8 @@ DmeDialog {
                                 Binding { target:settingInput; property:"value"; value:dialog.profile[settingField.modelData.key] }
                             }
                         }
-                        DmeCheckBox { text:"Generate walls"; checked:dialog.profile.wallsEnabled; onClicked:dialog.edit("wallsEnabled",!checked) }
-                        DmeCheckBox { text:"Generate borders"; checked:dialog.profile.bordersEnabled; onClicked:dialog.edit("bordersEnabled",!checked) }
+                        DmeCheckBox { text:"Generate walls"; checked:dialog.profile.wallsEnabled; onClicked:dialog.edit("wallsEnabled",!dialog.profile.wallsEnabled) }
+                        DmeCheckBox { text:"Generate borders"; checked:dialog.profile.bordersEnabled; onClicked:dialog.edit("bordersEnabled",!dialog.profile.bordersEnabled) }
                         DmeButton { text:"Choose otMapGen folder…"; width:parent.width; onClicked:folderPicker.open() }
                         Text { font.family:Colors.fontFamily; width:parent.width; text:settings.generatorDirectory || "Select the folder containing config.lua and lib/."; color:Colors.c("muted"); font.pixelSize:10; wrapMode:Text.WrapAnywhere }
                     }

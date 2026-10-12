@@ -1,5 +1,6 @@
 #include "mapview.h"
 #include "mapview_p.h"
+#include "customgeneratorprofiles.h"
 #include <cmath>
 #include <algorithm>
 
@@ -100,9 +101,7 @@ QVariantMap MapView::luaGeneratorItemInfo(const QVariantMap &profile) const
 {
     QVariantMap info;
     if (!m_otb) return info;
-    const auto materials=profile.value("materials").toMap();
-    for (auto role=materials.cbegin();role!=materials.cend();++role) for (const QVariant &entry : role.value().toList()) {
-        const int id=entry.toMap().value("id").toInt();
+    for (int id : CustomGeneratorProfiles::itemIds(profile)) {
         info[QString::number(id)]=QVariantMap{{"valid",m_otb->clientIdForServerId(id)>0},
             {"ground",itemCategory(id)==0},{"blocked",m_otb->isUnpassableForServerId(id)
                 || m_otb->isClientUnpassableForServerId(id) || m_otb->blocksPathForServerId(id)}};

@@ -24,6 +24,12 @@ w danych aktualnego klienta przed każdym uruchomieniem.
    albo przeciągnij go na kategorię. Dwuklik dodaje item do aktywnej kategorii.
 3. Dodaj **Background**: ground wypełniający obszar poza jaskinią.
 4. Dodaj **Rooms and corridors**: nieblokujący ground do chodzenia.
+   Możesz też wybrać kategorię **Floors**, docelowy slot oraz nazwę ground brusha
+   i kliknąć **Load brush**. Wczytywane są wszystkie aktywne warianty podłogi
+   i ich wagi. Każdy border brusha dostaje osobną pozycję **Borders · nazwa**
+   w dropdownie kategorii, razem z przypisaniem do ground ID, kierunkami,
+   rodzajem inner/outer i docelowym gruntem. Kolejne brushe można dodać do
+   tego samego slotu; ich bordery pozostają oddzielne.
 5. Opcjonalnie dodaj **Secondary floor**. Zastąpi około 15% pól podłogi.
 6. W **Decorations** dodaj pojedyncze kamienie, grzyby lub inne itemy.
    Nie dodawaj fragmentów obiektów składanych z wielu pól.
@@ -41,7 +47,16 @@ waga 1 w tej samej kategorii. Można usunąć wpis przyciskiem ×.
 
 Są opcjonalne. Po włączeniu **Generate walls** trzeba wypełnić wszystkie cztery
 sloty: Horizontal, Vertical, Small junction, Corner.
-Po włączeniu **Generate borders** trzeba wypełnić wszystkie 12 slotów.
+W kategorii **Walls** przycisk **Load brush** pobiera warianty i wagi
+odpowiednich elementów wall brusha.
+W **Borders · default floor** ręcznie przypisywany komplet wymaga wszystkich
+12 slotów. W zestawach przypisanych do konkretnego gruntu można zostawić
+puste sloty, tak jak w ground brushu. Brakujące wklęsłe narożniki są
+zastępowane dostępnymi bokami. Zestaw konkretnego celu ma pierwszeństwo przed
+zestawem dla dowolnego gruntu. Bordery są generowane po wyborze podłogi,
+więc warianty i secondary floor zachowują właściwe zestawy borderów.
+Dodanie pojedynczego ground ID tworzy pusty zestaw **Borders · Ground #ID**,
+który można uzupełnić ręcznie. Usunięcie ground ID usuwa jego przypisanie.
 Numery odpowiadają tablicom bibliotek otMapGen:
 
 | Slot | Wariant bordera |
@@ -58,7 +73,11 @@ przekazany do podglądu. Zmień materiały lub seed zgodnie z komunikatem.
 ## Profile i podgląd
 
 **Save**, **Duplicate**, **Delete**, **Import** i **Export** obsługują nazwane
-profile JSON: materiały, wagi i wszystkie ustawienia generowania.
+profile JSON: materiały, wagi, zestawy borderów przypisane do gruntów
+i wszystkie ustawienia generowania. Tooltipy przy **Import** i **Export**
+wyjaśniają ich działanie. Import dodaje profil do biblioteki; eksport zapisuje
+bieżące ustawienia, również niezapisane zmiany. Mapę zapisuje się oddzielnie
+jako OTBM. Dotychczasowe profile z jednym kompletem borderów nadal działają.
 Profile zapisane w DME są powiązane z profilem klienta. Aby użyć profilu na
 innym kliencie, zduplikuj go i popraw materiały. ID są zawsze sprawdzane ponownie.
 Biblioteka znajduje się w katalogu danych aplikacji `custom-generator/profiles.json`.

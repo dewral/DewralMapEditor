@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import tempfile
+import shutil
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -11,6 +12,9 @@ import xml.etree.ElementTree as ET
 spec = importlib.util.spec_from_file_location("profile_import", Path(__file__).resolve().parents[1] / "scripts/import-rme-profile.py")
 profile_import = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(profile_import)
+redux_spec = importlib.util.spec_from_file_location("redux_import", Path(__file__).resolve().parents[1] / "scripts/import-rme-redux.py")
+redux_import = importlib.util.module_from_spec(redux_spec)
+redux_spec.loader.exec_module(redux_import)
 
 
 class ProfileImportTest(unittest.TestCase):
@@ -36,6 +40,47 @@ class ProfileImportTest(unittest.TestCase):
         }
         for name, text in files.items():
             (self.source / name).write_text(text, encoding="utf-8")
+
+    def test_redux_folder_includes_standalone_tilesets_and_metadata(self):
+        redux = self.source / "redux"
+        for folder in ("brushes", "borders", "tilesets/terrain", "items", "creatures"):
+            (redux / folder).mkdir(parents=True)
+        (redux / "materials.xml").write_text('<materials><brushes><include folder="brushes/"/></brushes><borders><include folder="borders/"/></borders><tilesets><include folder="tilesets/" subfolders="true"/></tilesets><items><include folder="items/"/></items><creatures><include folder="creatures/"/></creatures></materials>')
+        (redux / "brushes/grounds.xml").write_bytes((self.source / "grounds.xml").read_bytes())
+        (redux / "borders/borders.xml").write_bytes((self.source / "borders.xml").read_bytes())
+        (redux / "tilesets/terrain/Nature.xml").write_text('<tileset name="Nature"><brush name="custom grass"/></tileset>')
+        (redux / "items/items.xml").write_text('<items><item id="100" name="grass"/></items>')
+        (redux / "creatures/creatures.xml").write_text('<creatures><creature name="Rat" type="monster" looktype="21"/></creatures>')
+        report = profile_import.import_profile(redux, self.target)
+        self.assertEqual(json.loads((self.target / "tilesets.json").read_text())["terrain"]["Nature"], [100])
+        self.assertEqual(ET.parse(self.target / "items.xml").getroot().find("item").get("id"), "100")
+        self.assertEqual(ET.parse(self.target / "creatures.xml").getroot().find("creature").get("name"), "Rat")
+        self.assertIn("items.xml", report["files"])
+
+    def test_batch_exclusion_is_case_insensitive_and_backs_up_existing_data(self):
+        checkout = Path(self.temporary.name) / "checkout"
+        shutil.copytree(self.source, checkout / "data/760")
+        shutil.copytree(self.source, checkout / "data/1525-CrystalServer")
+        output = Path(self.temporary.name) / "output"
+        (output / "760").mkdir(parents=True)
+        (output / "760/brushes.json").write_bytes(b'{"old":true}')
+        backup = Path(self.temporary.name) / "backup"
+        report = redux_import.import_all(checkout, output, backup, ["1525-crystalServer"])
+        self.assertEqual([p["profile"] for p in report["profiles"]], ["760"])
+        self.assertFalse((output / "1525-CrystalServer").exists())
+        self.assertEqual((backup / "760/brushes.json").read_bytes(), b'{"old":true}')
+
+    def test_batch_validates_every_profile_before_replacing_any_data(self):
+        checkout = Path(self.temporary.name) / "checkout"
+        shutil.copytree(self.source, checkout / "data/760")
+        (checkout / "data/800").mkdir()
+        (checkout / "data/800/materials.xml").write_text('<materials><include file="missing.xml"/></materials>')
+        output = Path(self.temporary.name) / "output"
+        (output / "760").mkdir(parents=True)
+        (output / "760/brushes.json").write_bytes(b'{"old":true}')
+        with self.assertRaises(FileNotFoundError):
+            redux_import.import_all(checkout, output, Path(self.temporary.name) / "backup", [])
+        self.assertEqual((output / "760/brushes.json").read_bytes(), b'{"old":true}')
 
     def test_legacy_grounds_server_previews_and_auxiliary_palettes(self):
         before = {p.name: p.read_bytes() for p in self.source.iterdir()}

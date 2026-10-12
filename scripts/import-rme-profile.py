@@ -43,10 +43,27 @@ def convert_materials(source: Path) -> tuple[dict, dict, list[str]]:
         "borders.xml", "grounds.xml", "walls.xml", "doodads.xml", "tilesets.xml", "materials.xml",
     )}
     warnings = []
-    for root in roots:
+    for material_file, root in zip(material_files, roots):
         for border in root.findall("./border"):
             normalized["borders.xml"].append(copy.deepcopy(border))
         for tileset in root.iter("tileset"):
+            if not tileset.get("name"):
+                continue
+            # Redux stores one tileset per file, with its category in the path.
+            if root.tag == "tileset":
+                category = next((part for part in material_file.relative_to(source.resolve()).parts[:-1]
+                                 if part in rme.CATEGORY_TARGETS), None)
+                if category is None:
+                    if "creatures" in material_file.parts:
+                        warnings.append("Creature tileset groups are supplied through creatures.xml in DME")
+                        continue
+                    raise ValueError(f"No palette category for Redux tileset: {material_file}")
+                wrapped = ET.Element("tileset", dict(tileset.attrib))
+                group = ET.SubElement(wrapped, category)
+                for entry in tileset:
+                    group.append(copy.deepcopy(entry))
+                normalized["tilesets.xml"].append(wrapped)
+                continue
             normalized["tilesets.xml"].append(copy.deepcopy(tileset))
     for name, node in definitions.items():
         kind = node.get("type")
@@ -176,6 +193,17 @@ def import_profile(source: Path, destination: Path, dry_run: bool = False,
     for name in ("items.xml", "creatures.xml"):
         if (source / name).is_file():
             contents[name] = rme.sanitized_xml(source / name)
+        else:
+            section = name.removesuffix(".xml")
+            metadata = ET.Element(section)
+            for material_file in rme.included_material_files(source):
+                root = rme.read_xml(material_file)
+                if root.tag == section:
+                    for entry in root:
+                        if entry.tag != "include":
+                            metadata.append(copy.deepcopy(entry))
+            if len(metadata):
+                contents[name] = ET.tostring(metadata, encoding="utf-8", xml_declaration=True)
     if items_xml is not None:
         contents["items.xml"] = rme.sanitized_xml(items_xml.resolve())
     report = {

@@ -291,6 +291,23 @@ After cloning RME, regenerate every supported profile with:
 python scripts/import-rme-data.py --rme C:\path\to\RME
 ```
 
+To import the complete folder-based material collection from
+[RME Redux](https://github.com/Open-Tibia-Tools/remeres-map-editor-redux/tree/master/data),
+excluding CrystalServer:
+
+```powershell
+python scripts/import-rme-redux.py --rme C:\path\to\remeres-map-editor-redux --exclude 1525-CrystalServer
+```
+
+The Redux importer validates all profiles before replacing their material
+files, backs up existing files under `build/rme-import-backups`, and records
+the source and conversion warnings in `data/rme-redux-import.json`. Nested
+folder includes, standalone tilesets, and item/creature metadata are converted.
+The existing 7.72/7.80/7.92 profiles retain the 7.60 material fallback.
+Client DAT/SPR/OTB files and custom profiles are not replaced. Unsupported
+RME-specific automagic rules are listed in the import report; importing
+materials does not add new binary client formats to DME.
+
 The importer writes `brushes.json`, `tilesets.json`, `items.xml`, and
 `creatures.xml` for the built-in profiles. RME does not provide separate
 material directories for Tibia 7.72, 7.80, or 7.92, so those profiles use the

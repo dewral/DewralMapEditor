@@ -439,10 +439,18 @@ def included_material_files(source_directory: Path) -> list[Path]:
             raise FileNotFoundError(f"RME material include is missing: {path}")
         visited.add(path)
         result.append(path)
-        for include in read_xml(path).findall("./include"):
+        for include in read_xml(path).iter("include"):
             filename = include.get("file")
             if filename:
                 visit(path.parent / filename)
+            folder = include.get("folder")
+            if folder:
+                directory = path.parent / folder
+                if not directory.is_dir():
+                    raise FileNotFoundError(f"RME material folder is missing: {directory}")
+                pattern = "**/*.xml" if include.get("subfolders", "false").lower() == "true" else "*.xml"
+                for child in sorted(directory.glob(pattern)):
+                    visit(child)
 
     visit(source_directory / "materials.xml")
     return result

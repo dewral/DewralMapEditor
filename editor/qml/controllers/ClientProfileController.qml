@@ -9,14 +9,14 @@ QtObject {
     property var clientPaths: ({})
     property var customProfiles: []
     property var mapProfiles: ({})
-    readonly property var knownVersions: [760, 772, 780, 792, 800, 810, 820, 840, 850, 854, 860, 870, 910, 920, 946, 954, 960, 986, 1010, 1030, 1041, 1077, 1098]
+    readonly property var knownVersions: [740, 760, 772, 780, 792, 800, 810, 820, 840, 850, 854, 860, 870, 910, 920, 946, 954, 960, 970, 986, 1010, 1020, 1021, 1030, 1031, 1035, 1041, 1077, 1098, 10100, 1271, 1281, 1285, 1286, 1287, 1290, 1310, 1320, 1330]
     property int loadedClientVersion: 0
     property string loadedClientKey: ""
     property string loadedClientFolder: ""
     property string loadedClientFingerprint: ""
 
     function versionLabel(version) {
-        if (version >= 10100)
+        if (version === 10100)
             return "10.100";
         return Math.floor(version / 100) + "." + ("0" + (version % 100)).slice(-2);
     }

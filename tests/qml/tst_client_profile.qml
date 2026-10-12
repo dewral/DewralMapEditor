@@ -79,4 +79,12 @@ TestCase {
         verify(!profiles.switchMapProfile("1098"));
         compare(prefs.selectedClientKey, "Midhem");
     }
+    function test_redux_profiles_and_version_labels() {
+        verify(profiles.knownVersions.includes(740));
+        verify(profiles.knownVersions.includes(10100));
+        verify(profiles.knownVersions.includes(1330));
+        verify(!profiles.knownVersions.includes(1525));
+        compare(profiles.versionLabel(10100),"10.100");
+        compare(profiles.versionLabel(1330),"13.30");
+    }
 }

@@ -106,16 +106,16 @@ DmeDialog {
 
     function groundExportCells() {
         // 8x8 stepped outline: -1 is empty, 0 is ground, 1..12 are border slots.
-        // Borders face inward (CSE/DSE at the upper left, mirrored elsewhere).
+        // Borders face inward; outer stair caps use C* and adjacent positions use D*.
         var layout = [
-            [-1, -1, 11,  3,  3, 12, -1, -1],
-            [-1, 11,  8,  0,  0,  7, 12, -1],
-            [11,  8,  0,  0,  0,  0,  7, 12],
+            [-1, -1,  8,  3,  3,  7, -1, -1],
+            [-1,  8, 11,  0,  0, 12,  7, -1],
+            [ 8, 11,  0,  0,  0,  0, 12,  7],
             [ 2,  0,  0,  0,  0,  0,  0,  4],
             [ 2,  0,  0,  0,  0,  0,  0,  4],
-            [10,  6,  0,  0,  0,  0,  5,  9],
-            [-1, 10,  6,  0,  0,  5,  9, -1],
-            [-1, -1, 10,  1,  1,  9, -1, -1]
+            [ 6, 10,  0,  0,  0,  0,  9,  5],
+            [-1,  6, 10,  0,  0,  9,  5, -1],
+            [-1, -1,  6,  1,  1,  5, -1, -1]
         ];
         var used = {};
         var groundIndex = 0;

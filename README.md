@@ -18,7 +18,7 @@ multi-floor Tibia maps.
 > `Tibia.spr`, and `items.otb` files. These files are copyrighted by CipSoft
 > and must not be committed to this repository or included in a release.
 
-![Dewral Map Editor with an OTBM map open](docs/screenshots/editor-overview.png)
+![Dewral Map Editor with an OTBM map open](docs/screenshots/screen1.png)
 
 ## Highlights
 

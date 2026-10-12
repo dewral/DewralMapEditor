@@ -27,6 +27,7 @@ struct SpriteData {
 };
 
 class DatReader;
+struct ClientItem;
 
 class SprReader : public QAbstractListModel
 {
@@ -92,6 +93,7 @@ public:
 
     int preloadItemImageSources(const DatReader *datReader);
     QImage preloadedItemImage(int clientId, int revision = -1) const;
+    QImage itemPatternImage(const ClientItem &item, int variation);
     qsizetype thumbnailCacheBytes() const;
     int itemImagesRevision() const { return m_itemImagesRevision; }
     Q_INVOKABLE bool itemHasVisibleSprite(int clientId) const;

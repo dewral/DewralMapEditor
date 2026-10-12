@@ -553,6 +553,30 @@ QImage SprReader::composeColoredOutfit(const QVariantList &spriteIds,
     return composite;
 }
 
+QImage SprReader::itemPatternImage(const ClientItem &item, int variation)
+{
+    const int stride = qMax(1, int(item.width)) * qMax(1, int(item.height))
+                     * qMax(1, int(item.layers));
+    const int patterns = qMax(1, int(item.pattern_x)) * qMax(1, int(item.pattern_y))
+                       * qMax(1, int(item.pattern_z));
+    // Spatial variations use the first animation frame. PNG exports are static.
+    const size_t start = size_t(qMax(0, variation) % patterns) * size_t(stride);
+    if (start + size_t(stride) > item.sprite_ids.size())
+        return {};
+    QVariantList sprites;
+    sprites.reserve(stride);
+    for (int i = 0; i < stride; ++i) {
+        const auto id = item.sprite_ids[start + size_t(i)];
+        if (id != 0) {
+            const auto sprite = loadSprite(id);
+            if (!sprite || sprite->image.isNull())
+                return {};
+        }
+        sprites.push_back(QVariant::fromValue(id));
+    }
+    return composeItemImage(sprites, item.width, item.height, item.layers);
+}
+
 QImage SprReader::composeItemImage(const QVariantList &spriteIds,
                                    int itemWidth,
                                    int itemHeight,

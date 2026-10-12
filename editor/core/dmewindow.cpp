@@ -53,6 +53,19 @@ bool DmeWindow::event(QEvent *event)
                          style | WS_THICKFRAME | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU);
         SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+        // The custom frameless caption must still expose native icons to the
+        // taskbar and Alt+Tab. Shared resource handles live for the process.
+        const HINSTANCE module = GetModuleHandleW(nullptr);
+        const auto smallIcon = reinterpret_cast<HICON>(LoadImageW(
+            module, L"IDI_DME_ICON", IMAGE_ICON,
+            GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_SHARED));
+        const auto largeIcon = reinterpret_cast<HICON>(LoadImageW(
+            module, L"IDI_DME_ICON", IMAGE_ICON,
+            GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_SHARED));
+        if (smallIcon)
+            SendMessageW(hwnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(smallIcon));
+        if (largeIcon)
+            SendMessageW(hwnd, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(largeIcon));
         // Match a normal dark Windows window (as used by OTEditor), while
         // retaining our QML caption and native Snap support. Unsupported
         // Windows versions simply ignore the Windows 11 corner attributes.

@@ -4,6 +4,7 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 import Tibia 1.0
 import "../style"
+import "../dialogs"
 
 Item {
     id: root
@@ -193,7 +194,7 @@ Item {
     Popup {
         id: panel
         width: 470
-        height: (root.showTimerDetails || stack.currentIndex === 1) ? 548 : 442
+        height: (root.showTimerDetails || stack.currentIndex !== 0) ? 548 : 442
         x: Math.min(0, root.width - width)
         y: -height - 8
         padding: 0
@@ -215,13 +216,15 @@ Item {
                 width: parent.width
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: stack.currentIndex === 0 ? "Work timer" : "Session history"
+                    text: stack.currentIndex === 0 ? "Work timer" : stack.currentIndex === 1 ? "Session history" : "My activity"
                     color: root.strongText
                     font.pixelSize: 16
                     font.bold: true
                 }
-                Item { width: parent.width - parent.children[0].implicitWidth - historyButton.width; height: 1 }
-                DmeButton { id: historyButton; width: 76; text: stack.currentIndex === 0 ? "History" : "Back"; onClicked: stack.currentIndex = 1 - stack.currentIndex }
+                Item { width: parent.width - parent.children[0].implicitWidth - historyButton.width - activityButton.width - 8; height: 1 }
+                DmeButton { id: activityButton; width: 96; text: stack.currentIndex === 2 ? "Timer" : "My activity"; onClicked: stack.currentIndex = stack.currentIndex === 2 ? 0 : 2 }
+                Item { width: 8; height: 1 }
+                DmeButton { id: historyButton; width: 76; text: stack.currentIndex === 1 ? "Back" : "History"; onClicked: stack.currentIndex = stack.currentIndex === 1 ? 0 : 1 }
             }
 
             StackLayout {
@@ -460,9 +463,21 @@ Item {
                         DmeButton { text: "Export JSON"; onClicked: jsonDialog.open() }
                     }
                 }
+                Flickable {
+                    contentWidth: width; contentHeight: personalActivity.implicitHeight
+                    clip: true; boundsBehavior: Flickable.StopAtBounds
+                    WorkActivityPanel {
+                        id: personalActivity; width: parent.width
+                        foreground: root.strongText; muted: root.mutedText; accent: root.accent
+                        cardColor: root.cardColor; borderColor: root.borderColor
+                        onAccountRequested: activityAccount.open()
+                    }
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                }
             }
         }
     }
+    ActivityDialog { id: activityAccount }
 
     DmeConfirmDialog {
         id: removeTimerConfirm

@@ -126,7 +126,29 @@ void ActivityService::switchDocument(){
     }
     emit changed();
 }
-void ActivityService::disconnectDevice(){endSession();if(linked())enqueue(base("logout"));m_lastSessions.clear();QSettings s;s.remove("activity/token");s.remove("activity/device");s.remove("activity/accountName");m_token.clear();m_device.clear();m_accountName.clear();m_maps.clear();m_status="Not connected";emit changed();upload();}
+void ActivityService::disconnectDevice(){endSession();if(linked())enqueue(base("logout"));m_lastSessions.clear();QSettings s;s.remove("activity/token");s.remove("activity/device");s.remove("activity/accountName");m_token.clear();m_device.clear();m_accountName.clear();m_maps.clear();m_summary.clear();m_summaryError.clear();m_summaryLoading=false;m_status="Not connected";emit summaryChanged();emit changed();upload();}
+void ActivityService::refreshSummary(){
+    if(!linked()||m_summaryLoading)return;
+    const QString secret=m_token;
+    QNetworkRequest request(QUrl(m_server+"/api/device/summary"));
+    request.setRawHeader("Authorization",("Bearer "+secret).toUtf8());request.setTransferTimeout(15000);
+    m_summaryLoading=true;emit summaryChanged();
+    auto *reply=m_network.get(request);
+    connect(reply,&QNetworkReply::finished,this,[this,reply,secret]{
+        const auto result=QJsonDocument::fromJson(reply->readAll());
+        const auto error=reply->error();const QString message=reply->errorString();
+        reply->deleteLater();
+        if(secret!=m_token)return;
+        m_summaryLoading=false;
+        if(error==QNetworkReply::NoError&&result.isObject()&&result.object().value("totals").isObject()){
+            m_summary=result.object().toVariantMap();m_summaryError.clear();
+        }else{
+            m_summaryError="Cannot refresh your activity report: "+message;
+            if(error==QNetworkReply::AuthenticationRequiredError)disconnectDevice();
+        }
+        emit summaryChanged();
+    });
+}
 void ActivityService::signIn(const QString &url,const QString &email,const QString &password,const QString &deviceName){
     if(m_busy||linked()){fail("Sign out before logging in to another account.");return;}
     if(email.trimmed().isEmpty()||password.isEmpty()){fail("Enter your account email and password.");return;}

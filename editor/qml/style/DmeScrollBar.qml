@@ -76,12 +76,17 @@ Item {
             drag.minimumY: upArrow.height
             drag.maximumY: upArrow.height + track.height - thumb.height
             onPressed: { if (root.scrollController) root.scrollController.cancel(); root.dragging = true; if (root.flickable) root.flickable.cancelFlick(); }
-            onReleased: root.dragging = false
+            onReleased: { if (root.scrollController) root.scrollController.finish(); root.dragging = false; }
+            onCanceled: { if (root.scrollController) root.scrollController.cancel(); root.dragging = false; }
             onPositionChanged: {
-                if (!root.flickable || track.height === thumb.height)
+                if (!root.dragging || !pressed || !root.flickable || track.height === thumb.height)
                     return;
                 var ratio = (thumb.y - upArrow.height) / (track.height - thumb.height);
-                root.flickable.contentY = root.minY + ratio * (root.flickable.contentHeight - root.flickable.height);
+                const target = root.minY + ratio * (root.flickable.contentHeight - root.flickable.height);
+                if (root.scrollController)
+                    root.scrollController.scrollTo(target, false, 75);
+                else
+                    root.flickable.contentY = target;
             }
         }
     }

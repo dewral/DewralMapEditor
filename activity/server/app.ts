@@ -88,6 +88,16 @@ export async function makeApp(pool:Pool) {
   const id=randomUUID(),secret=token();await pool.query('INSERT INTO devices(id,user_id,token,name) VALUES($1,$2,$3,$4)',[id,found.rows[0].id,hash(secret),b.name]);
   return {deviceId:id,token:secret,accountName:found.rows[0].name,accountEmail:found.rows[0].email};
  });
+ app.get('/api/device/summary',{preHandler:deviceAuth},async(req)=>{
+  // Device credentials always read their own account, even for administrators.
+  z.object({}).strict().parse(req.query);
+  const zone='Europe/Warsaw',start=DateTime.now().setZone(zone).startOf('day'),end=start.plus({days:1});
+  const rows=await pool.query(`SELECT e.payload,e.session_id FROM events e JOIN sessions s ON s.id=e.session_id WHERE s.user_id=$1 AND e.at>=$2::timestamptz-interval '1 hour' AND e.at<$3 ORDER BY e.at LIMIT 200001`,[req.device!.user_id,start.toISO(),end.toISO()]);
+  if(rows.rows.length>200000)fail(413,'Too much activity for the daily summary');
+  const totals=aggregate(rows.rows.map(r=>r.payload),start.toMillis(),end.toMillis(),zone).totals;
+  const sessions=new Set(rows.rows.filter(r=>Date.parse(r.payload.at)>=start.toMillis()).map(r=>r.session_id)).size;
+  return {day:start.toISODate(),zone,totals,sessions,updatedAt:DateTime.utc().toISO()};
+ });
  app.post('/api/devices/:id/revoke',{preHandler:auth},async(req)=>{
   const id=uuid.parse((req.params as any).id),d=await pool.query('SELECT user_id FROM devices WHERE id=$1',[id]);
   if(!d.rowCount||!mayRead(req.user!.role,req.user!.id,d.rows[0].user_id)) fail(403,'Access denied');await pool.query('UPDATE devices SET revoked=true,status=\'offline\' WHERE id=$1',[id]);return {ok:true};

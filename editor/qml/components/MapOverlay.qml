@@ -21,9 +21,11 @@ Item {
     property real paintedOriginX: 0
     property real paintedOriginY: 0
     readonly property real currentTileSize: mapCtrl ? Math.max(1, mapCtrl.tileSize) : 1
+    readonly property real pixelOriginX: Math.round(currentOriginX * currentTileSize) / currentTileSize
+    readonly property real pixelOriginY: Math.round(currentOriginY * currentTileSize) / currentTileSize
     readonly property int tooltipMinimumZoom: typeof settings.tooltipMinimumZoom === "number" ? settings.tooltipMinimumZoom : 0
     readonly property bool tooltipsVisible: settings.showTooltips && currentTileSize / 32 * 100 >= tooltipMinimumZoom
-    onTooltipsVisibleChanged: scheduleRefresh(true)
+    onTooltipsVisibleChanged: { scheduleRefresh(true); syncTooltipModels(); }
     readonly property real canvasMargin: 64
 
     clip: true
@@ -184,12 +186,23 @@ Item {
     readonly property var textEntries: entries.filter(function(entry) {
         return entry.kind !== "container" && entry.kind !== "house_exit" && entry.text.length > 0;
     })
+    OverlayEntryModel { id: textModel }
+    OverlayEntryModel { id: containerModel }
+    function syncTooltipModels() {
+        if (!textModel || !containerModel) return;
+        textModel.updateEntries(tooltipsVisible ? textEntries : []);
+        containerModel.updateEntries(tooltipsVisible ? containerEntries : []);
+    }
+    onTextEntriesChanged: if (textModel) textModel.updateEntries(tooltipsVisible ? textEntries : [])
+    onContainerEntriesChanged: if (containerModel) containerModel.updateEntries(tooltipsVisible ? containerEntries : [])
     Repeater {
-        model: overlay.tooltipsVisible ? overlay.textEntries : []
+        model: textModel
         delegate: Rectangle {
-            required property var modelData
-            readonly property real anchorX: (modelData.x + 0.5 - overlay.currentOriginX) * overlay.currentTileSize
-            readonly property real anchorY: (modelData.y - overlay.currentOriginY) * overlay.currentTileSize
+            objectName: "itemTooltip"
+            required property string encodedData
+            readonly property var modelData: JSON.parse(encodedData)
+            readonly property real anchorX: (modelData.x + 0.5 - overlay.pixelOriginX) * overlay.currentTileSize
+            readonly property real anchorY: (modelData.y - overlay.pixelOriginY) * overlay.currentTileSize
             x: anchorX - width / 2
             y: anchorY - height - 6
             width: Math.min(360, caption.implicitWidth + 18)
@@ -213,11 +226,13 @@ Item {
     }
 
     Repeater {
-        model: overlay.tooltipsVisible ? overlay.containerEntries : []
+        model: containerModel
 
         delegate: Rectangle {
             id: containerTip
-            required property var modelData
+            objectName: "containerTooltip"
+            required property string encodedData
+            readonly property var modelData: JSON.parse(encodedData)
             readonly property int columns: Math.min(4, Math.max(1, modelData.items.length))
             readonly property int rows: Math.ceil(modelData.items.length / columns)
             // Tooltips stay compact when the map is zoomed out and never enlarge
@@ -227,13 +242,13 @@ Item {
             readonly property real gridWidth: columns * slotSize + Math.max(0, columns - 1) * 2
             readonly property real gridHeight: rows * slotSize + Math.max(0, rows - 1) * 2
             readonly property bool hasOverflow: modelData.itemCount > modelData.items.length
-            readonly property real anchorX: (modelData.x + 0.5 - overlay.currentOriginX)
+            readonly property real anchorX: (modelData.x + 0.5 - overlay.pixelOriginX)
                                                  * overlay.currentTileSize
-            readonly property real anchorY: (modelData.y - overlay.currentOriginY)
+            readonly property real anchorY: (modelData.y - overlay.pixelOriginY)
                                                  * overlay.currentTileSize
 
-            x: Math.max(2, Math.min(overlay.width - width - 2, anchorX - width / 2))
-            y: anchorY - height - 7 >= 2 ? anchorY - height - 7 : anchorY + overlay.currentTileSize + 5
+            x: anchorX - width / 2
+            y: anchorY - height - 7
             width: Math.max(containerHeader.implicitWidth + 10, gridWidth + 10)
             height: 10 + containerHeader.implicitHeight + 3 + gridHeight
                     + (hasOverflow ? overflowText.implicitHeight + 3 : 0)
@@ -452,6 +467,7 @@ Item {
         property int z: overlay.mapCtrl.floor
     }
     IngameMonsterOverlay {
+        alignToMapPixels: true
         width: overlay.width / viewScale
         height: overlay.height / viewScale
         scale: viewScale

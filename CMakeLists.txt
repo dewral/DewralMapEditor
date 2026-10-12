@@ -248,6 +248,7 @@ if(BUILD_TESTING)
     if(WIN32)
         add_executable(dme_window_test EXCLUDE_FROM_ALL
             tests/dme_window_test.cpp
+            editor/windows/DME.rc
             editor/core/dmewindow.cpp
             editor/core/dmewindow.h)
         target_include_directories(dme_window_test PRIVATE editor/core)

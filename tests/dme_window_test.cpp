@@ -71,6 +71,10 @@ int main(int argc, char **argv)
     app.processEvents();
 
     auto hwnd = reinterpret_cast<HWND>(window.winId());
+    expect(SendMessageW(hwnd, WM_GETICON, ICON_SMALL, 0) != 0,
+           "the native window must expose the DME taskbar icon");
+    expect(SendMessageW(hwnd, WM_GETICON, ICON_BIG, 0) != 0,
+           "the native window must expose the DME Alt+Tab icon");
     int cornerPreference = 0;
     if (SUCCEEDED(DwmGetWindowAttribute(hwnd, 33, &cornerPreference, sizeof(cornerPreference)))) {
         expect(cornerPreference == 2, "Windows 11 must use standard rounded window corners");
@@ -144,6 +148,9 @@ int main(int argc, char **argv)
     window.destroy();
     window.create();
     hwnd = reinterpret_cast<HWND>(window.winId());
+    expect(SendMessageW(hwnd, WM_GETICON, ICON_SMALL, 0) != 0
+               && SendMessageW(hwnd, WM_GETICON, ICON_BIG, 0) != 0,
+           "native icons must survive recreation of the window");
     expect((GetWindowLongPtrW(hwnd, GWL_STYLE) & snapStyles) == snapStyles,
            "snap support must survive recreation of the native window");
 

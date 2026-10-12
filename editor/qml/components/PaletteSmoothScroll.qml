@@ -1,28 +1,53 @@
 import QtQuick
 
-// Animate wheel/arrow steps only; direct dragging and trackpad input stay immediate.
+// A behavior retargets without resetting velocity during wheel/scrollbar input.
 MouseArea {
     id: root
     required property var view
     property real step: 64
     property real destination: 0
+    property real animatedPosition: 0
+    property int motionDuration: 180
+    property bool following: false
     acceptedButtons: Qt.NoButton
     anchors.fill: parent
 
-    function cancel() { scrollAnimation.stop(); }
-    function scrollBy(distance, immediate) {
+    function cancel() {
+        following = false;
+        animatedPosition = view.contentY;
+    }
+    function finish() {
+        cancel();
+        view.contentY = destination;
+        animatedPosition = destination;
+    }
+    function scrollTo(position, immediate, duration) {
         const minimum = view.originY;
         const maximum = Math.max(minimum, minimum + view.contentHeight - view.height);
-        const start = scrollAnimation.running ? destination : view.contentY;
-        destination = Math.max(minimum, Math.min(maximum, start + distance));
-        scrollAnimation.stop();
+        destination = Math.max(minimum, Math.min(maximum, position));
         view.cancelFlick();
         if (immediate) {
-            view.contentY = destination;
+            finish();
         } else {
-            scrollAnimation.from = view.contentY;
-            scrollAnimation.to = destination;
-            scrollAnimation.start();
+            if (!following) animatedPosition = view.contentY;
+            motionDuration = duration || 180;
+            following = true;
+            animatedPosition = destination;
+        }
+    }
+    function scrollBy(distance, immediate) {
+        const start = scrollAnimation.running ? destination : view.contentY;
+        scrollTo(start + distance, immediate, 180);
+    }
+    onAnimatedPositionChanged: if (following) view.contentY = animatedPosition
+    Behavior on animatedPosition {
+        enabled: root.following
+        SmoothedAnimation {
+            id: scrollAnimation
+            duration: root.motionDuration
+            velocity: -1
+            maximumEasingTime: 80
+            reversingMode: SmoothedAnimation.Immediate
         }
     }
     onWheel: wheel => {
@@ -30,16 +55,8 @@ MouseArea {
             scrollBy(-wheel.pixelDelta.y, true);
         else if (wheel.angleDelta.y !== 0)
             scrollBy(-wheel.angleDelta.y / 120 * step, false);
-        else {
-            wheel.accepted = false;
-            return;
-        }
+        else { wheel.accepted = false; return; }
         wheel.accepted = true;
-    }
-    NumberAnimation {
-        id: scrollAnimation
-        target: root.view; property: "contentY"
-        duration: 160; easing.type: Easing.OutCubic
     }
     Connections {
         target: root.view

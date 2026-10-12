@@ -618,20 +618,6 @@ DmeMenuBar {
             onTriggered: menuBar.settings.showLightSources =
                          !menuBar.settings.showLightSources
         }
-        DmeMenu {
-            id: lightStrengthMenu
-            title: "Light ambient"
-            MenuItem {
-                width: 320
-                implicitHeight: lightingControls.implicitHeight + 24
-                enabled: menuBar.mapView !== null
-                contentItem: LightingControls {
-                    id: lightingControls
-                    mapView: menuBar.mapView
-                }
-                background: Rectangle { color: "transparent" }
-            }
-        }
         Action {
             id: hotkeyAction_show_minimap
             text: "Show minimap"

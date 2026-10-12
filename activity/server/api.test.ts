@@ -35,6 +35,13 @@ test('account login, scoped access, deduplication, offline replay and immutable 
  assert.equal((await pool.query('SELECT count(*) AS count FROM events')).rows[0].count,1);
  const now=new Date(),day=now.toISOString().slice(0,10),url='/api/report?from='+day+'&to='+day+'&zone=UTC';
  const report=await app.inject({url,headers:m});assert.equal(report.statusCode,200,report.body);assert.equal(report.json().totals.edits,1);assert.equal(report.json().totals.tiles,100);
+ const personal=await app.inject({url:'/api/device/summary',headers});assert.equal(personal.statusCode,200,personal.body);assert.equal(personal.json().totals.tiles,100);
+ assert.equal((await app.inject({url:'/api/device/summary?userId='+other,headers})).statusCode,400);
+ assert.equal((await app.inject({url:'/api/device/summary'})).statusCode,401);
+ const otherDevice=(await app.inject({method:'POST',url:'/api/device/login',payload:{email:'other@test.dev',password:'test-password-123',name:'Other'}})).json();
+ assert.equal((await app.inject({url:'/api/device/summary',headers:{authorization:'Bearer '+otherDevice.token}})).json().totals.tiles,0);
+ const adminDevice=(await app.inject({method:'POST',url:'/api/device/login',payload:{email:'admin@test.dev',password:'test-password-123',name:'Admin DME'}})).json();
+ assert.equal((await app.inject({url:'/api/device/summary',headers:{authorization:'Bearer '+adminDevice.token}})).json().totals.tiles,0);
  assert.equal(report.json().mappers.length,1);assert.equal(report.json().mappers[0].id,mapper);assert.equal(report.json().mappers[0].tiles,100);assert.equal(report.json().mappers[0].sessions,1);
  assert.equal((await app.inject({url,headers:o})).json().mappers.length,0);
  assert.equal((await app.inject({url,headers:o})).json().sessions.length,0);

@@ -97,6 +97,27 @@ public:
     if(service.m_session.isEmpty()||service.currentMapId()!=mapId)return 23;
     map->saveFile(temp.path()+"/untracked.otbm");
     if(!service.m_session.isEmpty()||!service.currentMapId().isEmpty())return 24;
+    QTcpServer summaryServer;summaryServer.listen(QHostAddress::LocalHost,0);
+    bool requestedSummary=false;
+    QObject::connect(&summaryServer,&QTcpServer::newConnection,&service,[&]{
+        auto *socket=summaryServer.nextPendingConnection();
+        QObject::connect(socket,&QTcpSocket::readyRead,socket,[&,socket]{
+            const QByteArray request=socket->readAll();
+            requestedSummary=request.contains("GET /api/device/summary ")&&request.contains("Bearer summary-test");
+            const QByteArray body=R"({"day":"2026-10-12","totals":{"activeMs":90000,"edits":3,"tiles":12}})";
+            socket->write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "+QByteArray::number(body.size())+"\r\nConnection: close\r\n\r\n"+body);
+            socket->disconnectFromHost();
+        });
+        QObject::connect(socket,&QTcpSocket::disconnected,socket,&QObject::deleteLater);
+    });
+    service.m_server=QStringLiteral("http://127.0.0.1:%1").arg(summaryServer.serverPort());service.m_token="summary-test";
+    service.refreshSummary();timer.restart();
+    while(timer.elapsed()<3000&&service.summaryLoading()){QCoreApplication::processEvents();QThread::msleep(1);}
+    if(!requestedSummary||service.summary().value("totals").toMap().value("edits").toInt()!=3)return 25;
+    service.m_server=QStringLiteral("http://127.0.0.1:%1").arg(denied.serverPort());
+    service.refreshSummary();timer.restart();
+    while(timer.elapsed()<3000&&service.summaryLoading()){QCoreApplication::processEvents();QThread::msleep(1);}
+    if(service.linked()||!service.summary().isEmpty())return 26;
     service.m_token.clear();
     q.finish();db.close();db=QSqlDatabase();QSqlDatabase::removeDatabase("test-reader");
     return 0;

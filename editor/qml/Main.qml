@@ -844,7 +844,7 @@ DmeWindow {
         Row {
             id: statusFields
             anchors.fill: parent
-            anchors.rightMargin: (activityStatus.visible ? activityStatus.width + 8 : 0) + (statusTimer.visible ? statusTimer.width + 8 : 0) + (statusFps.visible ? statusFps.width + 16 : 0)
+            anchors.rightMargin: (statusTimer.visible ? statusTimer.width + 8 : 0) + (statusFps.visible ? statusFps.width + 16 : 0)
             Item {
                 width: fluentStatusBar.compact ? 54 : 80; height: parent.height
                 Text { anchors.centerIn: parent; text: Backend.otbmReader.loaded ? "Ready" : "No map"; color: FluentColors.c("muted"); font.pixelSize: 11 }

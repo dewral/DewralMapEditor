@@ -1,5 +1,11 @@
 # DME Activity
 
+The Work timer popup includes **My activity**, a personal daily server summary
+with active/AFK time, edits, tile changes, saves and save errors. It refreshes
+only while visible, identifies pending events, and links to the full dashboard.
+Device credentials read only their own account, including admin credentials.
+Manual Work timer tasks remain local and are never added to automatic totals.
+
 Panel zespołu i automatyczna rejestracja aktywności na przypisanych mapach. Mapper widzi własne dane; administrator cały zespół. Liczniki opisują aktywność, nie jakość pracy.
 
 ## Lokalny UniServer (Windows)

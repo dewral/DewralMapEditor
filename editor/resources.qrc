@@ -1,5 +1,8 @@
 <RCC>
     <qresource prefix="/">
+        <file alias="qml/components/WorkActivityPanel.qml">qml/components/WorkActivityPanel.qml</file>
+        <file alias="qml/components/OverlayEntryModel.qml">qml/components/OverlayEntryModel.qml</file>
+        <file alias="qml/components/PaletteCellMotion.qml">qml/components/PaletteCellMotion.qml</file>
         <file alias="qml/components/LightingSlider.qml">qml/components/LightingSlider.qml</file>
         <file alias="qml/controllers/ContextBrushes.js">qml/controllers/ContextBrushes.js</file>
 

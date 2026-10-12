@@ -26,6 +26,9 @@ class ActivityService final : public QObject {
     Q_PROPERTY(QString currentMapId READ currentMapId NOTIFY changed)
     Q_PROPERTY(QString currentMapName READ currentMapName NOTIFY changed)
     Q_PROPERTY(bool busy READ busy NOTIFY changed)
+    Q_PROPERTY(QVariantMap summary READ summary NOTIFY summaryChanged)
+    Q_PROPERTY(QString summaryError READ summaryError NOTIFY summaryChanged)
+    Q_PROPERTY(bool summaryLoading READ summaryLoading NOTIFY summaryChanged)
 public:
     explicit ActivityService(DocumentManager *documents, QObject *parent=nullptr);
     ~ActivityService() override;
@@ -39,11 +42,16 @@ public:
     QString currentMapId() const { return m_mapId; }
     QString currentMapName() const;
     bool busy() const { return m_busy; }
+    QVariantMap summary() const { return m_summary; }
+    QString summaryError() const { return m_summaryError; }
+    bool summaryLoading() const { return m_summaryLoading; }
     Q_INVOKABLE void signIn(const QString &url, const QString &email, const QString &password, const QString &deviceName);
     Q_INVOKABLE void refreshMaps();
+    Q_INVOKABLE void refreshSummary();
     Q_INVOKABLE void disconnectDevice();
 signals:
     void changed();
+    void summaryChanged();
 protected:
     bool eventFilter(QObject *, QEvent *) override;
 private:
@@ -66,6 +74,9 @@ private:
     qint64 m_anchor=0, m_lastInput=0, m_checkpoint=0, m_seq=0;
     QString m_server,m_token,m_device,m_session,m_mapId,m_accountName,m_status=QStringLiteral("Not connected"),m_error;
     QVariantList m_maps;
+    QVariantMap m_summary;
+    QString m_summaryError;
+    bool m_summaryLoading=false;
     int m_pending=0,m_blocked=0;
     bool m_busy=false,m_uploading=false;
     QTimer m_tick,m_sync;

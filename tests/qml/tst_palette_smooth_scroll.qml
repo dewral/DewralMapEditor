@@ -42,5 +42,17 @@ Item {
             mouseWheel(scroll, 80, 80, 0, -120);
             tryCompare(view, "contentY", view.originY + 100);
         }
+        function test_scrollbar_follow_and_release() {
+            scroll.scrollTo(view.originY + 170, false, 75);
+            wait(20);
+            verify(view.contentY < view.originY + 170);
+            scroll.scrollTo(view.originY + 230, false, 75);
+            tryCompare(view, "contentY", view.originY + 230);
+            scroll.scrollTo(view.originY + 300, false, 75);
+            scroll.finish();
+            compare(view.contentY, view.originY + 300);
+            wait(120);
+            compare(view.contentY, view.originY + 300);
+        }
     }
 }

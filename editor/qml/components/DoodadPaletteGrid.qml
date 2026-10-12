@@ -133,15 +133,13 @@ Item {
         model: root.entries
 
         delegate: Rectangle {
-            // Cached cells fade in when crossing the viewport edge, even when
-            // scrolling directly with the scrollbar rather than the wheel.
-            readonly property bool inViewport: y + height > grid.contentY
-                                               && y < grid.contentY + grid.height
-            opacity: !root.fluentUi || inViewport ? 1 : 0
-            Behavior on opacity {
-                enabled: root.fluentUi && inViewport
-                NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+            PaletteCellMotion {
+                id: cellMotion
+                view: grid
+                targetCell: cell
+                enabled: root.fluentUi || root.githubUi
             }
+            opacity: cellMotion.reveal
             id: cell
             required property int index
             required property var modelData
@@ -278,12 +276,12 @@ Item {
     PaletteSmoothScroll {
         id: smoothScroll
         view: grid
-        enabled: root.fluentUi
+        enabled: root.fluentUi || root.githubUi
         step: grid.cellHeight * 2
     }
 
     DmeScrollBar {
-        scrollController: root.fluentUi ? smoothScroll : null
+        scrollController: (root.fluentUi || root.githubUi) ? smoothScroll : null
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom

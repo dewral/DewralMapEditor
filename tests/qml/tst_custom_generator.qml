@@ -9,6 +9,15 @@ Item {
     id:root
     width: 1200; height: 820
     property var previousBrushes
+    property var previousSprites
+    QtObject {
+        id: sprites
+        property bool loaded:true
+        property int itemImagesRevision:1
+        function itemImageSource(ids,width,height,layers) {
+            return Qt.resolvedUrl("../../editor/qml/components/fonts/otclient-name.png");
+        }
+    }
     QtObject {
         id: brushes
         property int revision:1
@@ -53,8 +62,8 @@ Item {
         ListElement { serverId:100; itemName:"Midhem floor"; itemWidth:1; itemHeight:1; layers:1 }
         ListElement { serverId:101; itemName:"Midhem rock"; itemWidth:1; itemHeight:1; layers:1 }
         function clientIdForServerId(id) { return id; }
-        function rowForServerId(id) { return id===100 ? 0 : 1; }
-        function detailsAt(row) { return get(row); }
+        function rowForServerId(id) { return id>=100 && id<=416 ? id-100 : -1; }
+        function detailsAt(row) { return {spriteIds:[row+1],itemWidth:1,itemHeight:1,layers:1}; }
     }
     Dialogs.CustomMapGeneratorDialog { id: dialog; mapCtrl:mapStub; clientKey:"midhem" }
     TestCase {
@@ -63,8 +72,9 @@ Item {
         function initTestCase() {
             root.Window.window.width=1200; root.Window.window.height=820; Backend.otbReader=assets;
             root.previousBrushes=Backend.brushStore; Backend.brushStore=brushes;
+            root.previousSprites=Backend.sprReader; Backend.sprReader=sprites;
         }
-        function cleanupTestCase() { Backend.brushStore=root.previousBrushes; }
+        function cleanupTestCase() { Backend.brushStore=root.previousBrushes; Backend.sprReader=root.previousSprites; }
         function init() {
             Backend.uiTheme.style="fluent-dark"; Backend.luaScripts.busy=false;
             mapStub.applied=0; dialog.awaitingResult=false;
@@ -72,6 +82,9 @@ Item {
             findChild(dialog,"customGeneratorSettings").generatorDirectory="test-folder";
         }
         function cleanup() { dialog.close(); Backend.luaScripts.busy=false; }
+        function addRequiredMaterials() {
+            dialog.addItem("background",100); dialog.addItem("floor",100);
+        }
         function test_materialsAndInvalidation() {
             dialog.addItem("background",100); dialog.addItem("floor",100);
             compare(dialog.profile.materials.floor.length,1);
@@ -84,6 +97,7 @@ Item {
         }
         function test_generatePreviewApply() {
             verify(!findChild(dialog,"applyCustomMap").enabled);
+            addRequiredMaterials();
             mouseClick(findChild(dialog,"generateCustomMap"));
             verify(Backend.luaScripts.busy); compare(Backend.luaScripts.lastMode,"profile");
             Backend.luaScripts.busy=false;
@@ -93,6 +107,7 @@ Item {
             compare(mapStub.applied,1); verify(!mapStub.luaPreviewActive);
         }
         function test_cancelAndClientChange() {
+            addRequiredMaterials();
             mouseClick(findChild(dialog,"generateCustomMap"));
             dialog.clientKey="other";
             verify(!Backend.luaScripts.busy); verify(!mapStub.luaPreviewActive);
@@ -113,6 +128,7 @@ Item {
             compare(dialog.profile.materials.background[0].id,100);
         }
         function test_documentSwitchDiscardsResult() {
+            addRequiredMaterials();
             mouseClick(findChild(dialog,"generateCustomMap"));
             Backend.otbmReaderChanged();
             verify(!Backend.luaScripts.busy);
@@ -132,7 +148,7 @@ Item {
         }
         function test_loadMultipleGroundBrushesAndEditTheirBorders() {
             dialog.activeRole="floor";
-            mouseClick(findChild(dialog,"loadGeneratorBrush"));
+            findChild(dialog,"customGeneratorBrushPicker").handleActivation(1);
             compare(dialog.profile.materials.floor.length,2);
             compare(dialog.profile.materials.floor[1].weight,40);
             compare(dialog.profile.groundBorders.length,2);
@@ -170,7 +186,7 @@ Item {
             picker.currentIndex=2;
             findChild(dialog,"customGeneratorCategory").currentIndex=1;
             compare(picker.currentIndex,0);
-            mouseClick(findChild(dialog,"loadGeneratorBrush"));
+            picker.handleActivation(1);
             verify(dialog.profile.wallsEnabled);
             compare(dialog.profile.materials.wall1,[{id:406,weight:80},{id:416,weight:20}]);
             compare(dialog.profile.materials.wall2[0].id,409);
@@ -186,6 +202,86 @@ Item {
             dialog.loadGroundBrush(dialog.activeRole,"Cave floor");
             compare(dialog.profile.materials.floor.length,2);
             verify(!dialog.profile.materials.secondary);
+        }
+        function test_choosingGroundBrushAddsToEachRequiredSlot() {
+            const picker=findChild(dialog,"customGeneratorBrushPicker");
+            const target=findChild(dialog,"customGeneratorGroundTarget");
+            compare(picker.currentIndex,0);
+            verify(!dialog.profile.materials.background);
+            mouseClick(picker,10,picker.height/2);
+            tryCompare(picker,"open",true);
+            const view=findChild(picker,"comboBoxTypeAhead").view;
+            tryVerify(()=>view.itemAtIndex(1)!==null);
+            mouseClick(view.itemAtIndex(1),20,10);
+            tryCompare(picker,"open",false);
+            compare(dialog.profile.materials.background.length,2);
+            compare(dialog.slotSummary("background"),"Cave floor · 2 items");
+            const slot=findChild(dialog.contentItem,"materialSlot_background");
+            compare(slot.entries.length,2);
+            const sprite=findChild(slot,"materialSprite_background_100");
+            verify(sprite!==null);
+            verify(String(sprite.source).length>0);
+            tryCompare(sprite,"status",Image.Ready);
+            target.handleActivation(1);
+            compare(dialog.activeRole,"floor"); compare(picker.currentIndex,0);
+            verify(!dialog.profile.materials.floor);
+            picker.handleActivation(1);
+            compare(dialog.profile.materials.floor.length,2);
+            compare(dialog.profile.materials.background.length,2);
+            picker.handleActivation(2);
+            compare(dialog.profile.materials.floor.length,3);
+            compare(dialog.slotSummary("floor"),"Cave floor, Stone floor · 3 items");
+            picker.handleActivation(2);
+            compare(dialog.profile.materials.floor.length,3);
+            wait(50);
+            grabImage(root).save("build/custom-generator-brush-feedback-ui.png");
+            mouseClick(findChild(dialog,"generateCustomMap"));
+            verify(Backend.luaScripts.busy);
+        }
+        function test_keyboardSelectionAddsOnlyTheFinalBrush() {
+            const picker=findChild(dialog,"customGeneratorBrushPicker");
+            mouseClick(picker,10,picker.height/2);
+            tryCompare(picker,"open",true);
+            tryCompare(findChild(picker,"comboBoxTypeAhead").view,"activeFocus",true);
+            keyClick(Qt.Key_C);
+            compare(picker.currentText,"Cave floor");
+            verify(!dialog.profile.materials.background);
+            keyClick(Qt.Key_S);
+            compare(picker.currentText,"Stone floor");
+            verify(!dialog.profile.materials.background);
+            keyClick(Qt.Key_Return);
+            tryCompare(picker,"open",false);
+            compare(dialog.profile.materials.background,[{id:103,weight:100}]);
+            compare(dialog.profile.groundBorders.length,1);
+        }
+        function test_missingMaterialsHighlightsTheEmptySlot() {
+            const generate=findChild(dialog,"generateCustomMap");
+            mouseClick(generate);
+            verify(dialog.error); verify(!Backend.luaScripts.busy);
+            verify(dialog.status.indexOf("Background and Rooms and corridors")>=0);
+            findChild(dialog,"customGeneratorBrushPicker").handleActivation(1);
+            findChild(dialog,"customGeneratorCategory").handleActivation(1);
+            mouseClick(generate);
+            verify(dialog.error); verify(!Backend.luaScripts.busy);
+            verify(dialog.status.indexOf("Rooms and corridors")>=0);
+            compare(dialog.activeRole,"floor");
+            compare(findChild(dialog,"customGeneratorCategory").currentIndex,0);
+            compare(findChild(dialog,"customGeneratorGroundTarget").currentIndex,1);
+            findChild(dialog,"customGeneratorBrushPicker").handleActivation(1);
+            mouseClick(generate);
+            verify(!dialog.error); verify(Backend.luaScripts.busy);
+        }
+        function test_placeholderAndProfileLoadDoNotAddBrushes() {
+            const picker=findChild(dialog,"customGeneratorBrushPicker");
+            picker.handleActivation(0);
+            verify(!dialog.profile.materials.background);
+            picker.handleActivation(1);
+            const profile=dialog.freshProfile();
+            profile.materials={background:[{id:103,weight:9}],floor:[{id:100,weight:1}]};
+            dialog.adopt(profile);
+            compare(dialog.profile.materials.background,[{id:103,weight:9}]);
+            compare(dialog.profile.materials.floor,[{id:100,weight:1}]);
+            compare(picker.currentIndex,0);
         }
         function test_removingGroundPrunesItsBorderSets() {
             dialog.loadGroundBrush("floor","Cave floor");

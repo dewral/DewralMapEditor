@@ -24,8 +24,12 @@ w danych aktualnego klienta przed każdym uruchomieniem.
    albo przeciągnij go na kategorię. Dwuklik dodaje item do aktywnej kategorii.
 3. Dodaj **Background**: ground wypełniający obszar poza jaskinią.
 4. Dodaj **Rooms and corridors**: nieblokujący ground do chodzenia.
-   Możesz też wybrać kategorię **Floors**, docelowy slot oraz nazwę ground brusha
-   i kliknąć **Load brush**. Wczytywane są wszystkie aktywne warianty podłogi
+   Możesz też wybrać kategorię **Floors**, docelowy slot oraz nazwę ground brusha.
+   Wybór brusha od razu dodaje go do docelowego slotu, bez osobnego kliknięcia.
+   Slot pokazuje nazwy dodanych brushy, liczbę itemów i sprite każdego wariantu.
+   Zmiana docelowego slotu resetuje dropdown do **Choose ground brush…**;
+   wybierz brush osobno dla **Background** i **Rooms and corridors**.
+   Wczytywane są wszystkie aktywne warianty podłogi
    i ich wagi. Każdy border brusha dostaje osobną pozycję **Borders · nazwa**
    w dropdownie kategorii, razem z przypisaniem do ground ID, kierunkami,
    rodzajem inner/outer i docelowym gruntem. Kolejne brushe można dodać do
@@ -47,7 +51,7 @@ waga 1 w tej samej kategorii. Można usunąć wpis przyciskiem ×.
 
 Są opcjonalne. Po włączeniu **Generate walls** trzeba wypełnić wszystkie cztery
 sloty: Horizontal, Vertical, Small junction, Corner.
-W kategorii **Walls** przycisk **Load brush** pobiera warianty i wagi
+W kategorii **Walls** wybór brusha w dropdownie pobiera warianty i wagi
 odpowiednich elementów wall brusha.
 W **Borders · default floor** ręcznie przypisywany komplet wymaga wszystkich
 12 slotów. W zestawach przypisanych do konkretnego gruntu można zostawić

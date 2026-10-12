@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+.git
+
+.local-db
+.local-admin.txt
+
+.local-settings.json
+.local-server*

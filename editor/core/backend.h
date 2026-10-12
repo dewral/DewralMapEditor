@@ -25,6 +25,7 @@
 #include "aimapassistant.h"
 #include "updateservice.h"
 #include "worktimerservice.h"
+#include "activityservice.h"
 #include "hotkeysettings.h"
 #include "luascriptengine.h"
 #include "customgeneratorprofiles.h"
@@ -49,6 +50,7 @@ class Backend : public QObject
     Q_PROPERTY(AiMapAssistant *aiMapAssistant READ aiMapAssistant CONSTANT)
     Q_PROPERTY(UpdateService *updateService READ updateService CONSTANT)
     Q_PROPERTY(WorkTimerService *workTimer READ workTimer CONSTANT)
+    Q_PROPERTY(ActivityService *activity READ activity CONSTANT)
     Q_PROPERTY(HotkeySettings *hotkeys READ hotkeys CONSTANT)
     Q_PROPERTY(LuaScriptEngine *luaScripts READ luaScripts CONSTANT)
     Q_PROPERTY(CustomGeneratorProfiles *generatorProfiles READ generatorProfiles CONSTANT)
@@ -74,6 +76,7 @@ public:
     AiMapAssistant *aiMapAssistant() { return &m_aiMapAssistant; }
     UpdateService *updateService() { return &m_updateService; }
     WorkTimerService *workTimer() { return &m_workTimer; }
+    ActivityService *activity() { return &m_activity; }
     HotkeySettings *hotkeys() { return &m_hotkeys; }
     LuaScriptEngine *luaScripts() { return &m_luaScripts; }
     CustomGeneratorProfiles *generatorProfiles() { return &m_generatorProfiles; }
@@ -121,6 +124,7 @@ private:
     AiMapAssistant m_aiMapAssistant;
     UpdateService m_updateService;
     WorkTimerService m_workTimer;
+    ActivityService m_activity;
     HotkeySettings m_hotkeys;
     LuaScriptEngine m_luaScripts;
     CustomGeneratorProfiles m_generatorProfiles;

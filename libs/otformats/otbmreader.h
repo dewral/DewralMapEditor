@@ -442,6 +442,8 @@ public:
 signals:
     void loadedChanged();
     void errorChanged();
+    void activityOperation(const QString &kind, qint64 tiles);
+    void activitySave(bool automatic, bool success);
     void mapChanged();
     void dirtyChanged();
     void filePathChanged();

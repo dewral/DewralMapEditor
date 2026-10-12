@@ -14,7 +14,9 @@
         "network",
         "opengl",
         "png",
-        "widgets"
+        "widgets",
+        "sql",
+        "sql-sqlite"
       ]
     },
     "qtdeclarative",

@@ -18,6 +18,7 @@ Window {
     required property var app
 
     required property var settings
+    property bool editorReady: app.started
     property bool loadingMap: false
     property string loadingMapPath: ""
     property string loadingProfileKey: ""
@@ -56,7 +57,7 @@ Window {
     }
 
     transientParent: null
-    visible: !app.started
+    visible: !editorReady
     width: loadingMap ? 460 : 800
     height: loadingMap ? 190 : fluentTheme ? 600 : 520
     minimumWidth: loadingMap ? 460 : 800
@@ -73,7 +74,7 @@ Window {
     Connections {
         target: Backend.otbmReader
         function onLoadingChanged() {
-            if (!Backend.otbmReader.loading)
+            if (!Backend.otbmReader.loading && !startupScreen.app.started)
                 startupScreen.loadingMap = false;
         }
     }

@@ -1,0 +1,14 @@
+import {readFileSync,writeFileSync,existsSync} from 'node:fs';
+import {randomBytes} from 'node:crypto';
+import {fileURLToPath} from 'node:url';
+import path from 'node:path';
+const root=path.dirname(fileURLToPath(import.meta.url));process.chdir(root);
+const settings=path.join(root,'.local-settings.json');
+if(!existsSync(settings)) writeFileSync(settings,JSON.stringify({adminEmail:'admin@dme.local',adminPassword:randomBytes(18).toString('base64url'),mapperPassword:randomBytes(18).toString('base64url')},null,2),{mode:0o600});
+const config=JSON.parse(readFileSync(settings,'utf8'));
+process.env.LOCAL_DATABASE=path.join(root,'.local-db');
+process.env.PUBLIC_ORIGIN='http://localhost';
+process.env.ADMIN_EMAIL=config.adminEmail;process.env.ADMIN_PASSWORD=config.adminPassword;
+process.env.PILOT_PASSWORD=config.mapperPassword;
+writeFileSync(path.join(root,'.local-admin.txt'),`DME Activity - local pilot\nPanel: http://localhost/dme-activity/\nDME login server: http://localhost:3000\n\nAdministrator: ${config.adminEmail}\nPassword: ${config.adminPassword}\n\nTest mapper 1: mapper1@dme.local\nTest mapper 2: mapper2@dme.local\nTest mapper password: ${config.mapperPassword}\n`,{mode:0o600});
+await import('./dist/server.js');

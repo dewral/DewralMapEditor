@@ -8,7 +8,7 @@
 Backend *Backend::s_instance = nullptr;
 
 Backend::Backend(QObject *parent)
-    : QObject(parent), m_updateService(&m_docMgr), m_workTimer(&m_docMgr)
+    : QObject(parent), m_updateService(&m_docMgr), m_workTimer(&m_docMgr), m_activity(&m_docMgr)
 {
     Q_ASSERT(!s_instance);
     s_instance = this;

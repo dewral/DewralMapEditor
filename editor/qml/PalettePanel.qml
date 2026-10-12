@@ -968,8 +968,9 @@ Rectangle {
                 visible: paletteCol.currentKind === "Doodad Palette"
                 app: paletteRoot.app
                 mapCtrl: paletteRoot.mapCtrl
-                itemIds: paletteCol.currentIds || []
-                categoryName: paletteCol.currentSubName
+                // Do not materialize every RAW Others item in the hidden Doodad model.
+                itemIds: paletteCol.currentKind === "Doodad Palette" ? (paletteCol.currentIds || []) : []
+                categoryName: paletteCol.currentKind === "Doodad Palette" ? paletteCol.currentSubName : ""
                 searchText: paletteFilter.searchText
                 githubUi: paletteRoot.githubUi
                 onContextMenuRequested: serverId => {

@@ -16,7 +16,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 6.7 COMPONENTS Core Gui Qml Quick ShaderTools Network Widgets Concurrent REQUIRED)
+find_package(Qt6 6.7 COMPONENTS Core Gui Qml Quick ShaderTools Network Widgets Concurrent Sql REQUIRED)
 if(NOT TARGET Qt6::GuiPrivate)
     find_package(Qt6 REQUIRED COMPONENTS GuiPrivate)
 endif()
@@ -103,6 +103,8 @@ add_executable(DewralMapEditor
     editor/core/updateservice.h
     editor/core/updateversion.cpp
     editor/core/updateversion.h
+    editor/core/activityservice.cpp
+    editor/core/activityservice.h
     editor/core/worktimerservice.cpp
     editor/core/worktimerservice.h
     editor/core/hotkeysettings.cpp
@@ -198,6 +200,7 @@ qt_add_qml_module(DewralMapEditor
         editor/core/creaturestore.h
         editor/core/creaturefilter.h
         editor/core/updateservice.h
+        editor/core/activityservice.h
         editor/core/worktimerservice.h
         editor/core/hotkeysettings.h
         libs/otformats/sprreader.h
@@ -219,6 +222,7 @@ target_link_libraries(DewralMapEditor
         DmeLuaScripts
         Qt6::Quick
         Qt6::GuiPrivate
+        Qt6::Sql
         Qt6::Network
         Qt6::Concurrent
 )
@@ -415,6 +419,12 @@ if(BUILD_TESTING)
         set_tests_properties(map_creature_refresh PROPERTIES ENVIRONMENT
             "QT_QPA_PLATFORM=minimal;QT_QPA_PLATFORM_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::QWindowsIntegrationPlugin>")
     endif()
+    add_executable(activity_service_test EXCLUDE_FROM_ALL tests/activity_service_test.cpp editor/core/activityservice.cpp editor/core/documentmanager.cpp)
+    target_include_directories(activity_service_test PRIVATE editor/core libs/otformats)
+    target_link_libraries(activity_service_test PRIVATE OTFormats Qt6::Core Qt6::Network Qt6::Sql Qt6::Qml)
+    add_test(NAME activity_service COMMAND activity_service_test)
+    set_tests_properties(activity_service PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>" TIMEOUT 30)
+
     add_executable(document_recovery_test EXCLUDE_FROM_ALL
         tests/document_recovery_test.cpp
         editor/core/documentmanager.cpp)

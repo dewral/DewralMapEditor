@@ -79,8 +79,10 @@ Item {
         property string searchText: "filtered"
         property bool hideInvisibleSprites: false
         property bool hideNamedItems: false
+        property var detailsProbe: ({reads: 0})
         // Exercise the direct All Items path, whose reader exposes detailsAt.
         function detailsAt(row) {
+            detailsProbe.reads++;
             const item = get(row);
             return {serverId: item.serverId, name: item.itemName};
         }
@@ -182,6 +184,19 @@ Item {
             tryVerify(() => grid.itemAtIndex(row) !== null);
             mouseClick(grid.itemAtIndex(row), 8, 8, button || Qt.LeftButton,
                        modifiers || Qt.NoModifier);
+        }
+        function test_rawOthers_does_not_build_hidden_doodads() {
+            Backend.uiTheme.style = "fluent-dark";
+            const panel = createTemporaryObject(panelComponent, testRoot);
+            verify(panel);
+            wait(50);
+            items.detailsProbe.reads = 0;
+            panel.selectKind("RAW Palette");
+            tryCompare(findChild(panel, "paletteItemGrid"), "count", 80);
+            wait(50);
+            compare(items.detailsProbe.reads, 0,
+                    "RAW Others must not build full item details for the hidden Doodad grid");
+            compare(findChild(panel, "doodadPaletteGrid").count, 0);
         }
         function test_hideNamedItems_data() {
             return ["classic", "windows-classic", "github", "gray-dark",

@@ -39,6 +39,7 @@ DmeMenuBar {
     required property var borderizeConfirm
     required property var randomizeConfirm
     required property var aboutDialog
+    signal activityRequested()
     property int menuLeftInset: 4
     property int menuVerticalOffset: -4
 
@@ -543,6 +544,7 @@ DmeMenuBar {
 
     DmeMenu {
         title: "View"
+        Action { text: "DME Activity…"; onTriggered: menuBar.activityRequested() }
         Action {
             id: hotkeyAction_show_palette
             shortcut: menuBar.commandShortcut("show_palette")

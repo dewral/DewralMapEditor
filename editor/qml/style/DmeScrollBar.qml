@@ -6,6 +6,7 @@ import Tibia 1.0
 Item {
     id: root
     readonly property bool fluentTheme: Backend.uiTheme.style === "fluent-dark"
+    property var scrollController: null
     property var flickable
     property bool dragging: false
     readonly property bool githubTheme: Backend.uiTheme.style !== "classic"
@@ -40,7 +41,7 @@ Item {
         Loader { anchors.fill: parent; sourceComponent: root.githubTheme ? githubUp : classicUp }
         MouseArea {
             id: upArea; anchors.fill: parent; hoverEnabled: true
-            onClicked: if (root.flickable) root.flickable.contentY = Math.max(root.minY, root.flickable.contentY - 32)
+            onClicked: if (root.scrollController) root.scrollController.scrollBy(-32, false); else if (root.flickable) root.flickable.contentY = Math.max(root.minY, root.flickable.contentY - 32)
         }
     }
 
@@ -51,7 +52,7 @@ Item {
         Loader { anchors.fill: parent; sourceComponent: root.githubTheme ? githubDown : classicDown }
         MouseArea {
             id: downArea; anchors.fill: parent; hoverEnabled: true
-            onClicked: if (root.flickable) root.flickable.contentY = Math.min(root.maxY, root.flickable.contentY + 32)
+            onClicked: if (root.scrollController) root.scrollController.scrollBy(32, false); else if (root.flickable) root.flickable.contentY = Math.min(root.maxY, root.flickable.contentY + 32)
         }
     }
 
@@ -74,7 +75,7 @@ Item {
             drag.axis: Drag.YAxis
             drag.minimumY: upArrow.height
             drag.maximumY: upArrow.height + track.height - thumb.height
-            onPressed: root.dragging = true
+            onPressed: { if (root.scrollController) root.scrollController.cancel(); root.dragging = true; if (root.flickable) root.flickable.cancelFlick(); }
             onReleased: root.dragging = false
             onPositionChanged: {
                 if (!root.flickable || track.height === thumb.height)

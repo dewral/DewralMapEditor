@@ -2516,6 +2516,7 @@ void OtbmReader::pushUndo(UndoAction &&action)
     if (action.tiles.empty() && action.houses.empty()) return;
     ++m_editOperationCount;
     m_changedTileCount += static_cast<qint64>(action.tiles.size());
+    emit activityOperation(QStringLiteral("edit"), static_cast<qint64>(action.tiles.size()));
     if (m_undoLimit <= 0) return;
     action.bytes = estimateActionBytes(action);
     m_undoBytes += action.bytes;
@@ -2746,6 +2747,7 @@ bool OtbmReader::undo()
     m_undoBytes -= action.bytes;
     ++m_editOperationCount;
     m_changedTileCount += static_cast<qint64>(action.tiles.size());
+    emit activityOperation(QStringLiteral("undo"), static_cast<qint64>(action.tiles.size()));
 
     UndoAction redoAction;
     redoAction.tiles.reserve(action.tiles.size());
@@ -2777,6 +2779,7 @@ bool OtbmReader::redo()
     m_redoBytes -= action.bytes;
     ++m_editOperationCount;
     m_changedTileCount += static_cast<qint64>(action.tiles.size());
+    emit activityOperation(QStringLiteral("redo"), static_cast<qint64>(action.tiles.size()));
 
     UndoAction undoAction;
     undoAction.tiles.reserve(action.tiles.size());
@@ -3205,7 +3208,9 @@ void OtbmReader::restoreHouseSnapshots(
 
 bool OtbmReader::saveFile(const QString &path)
 {
-    return saveFileInternal(path, false);
+    const bool result = saveFileInternal(path, false);
+    emit activitySave(false, result);
+    return result;
 }
 
 bool OtbmReader::saveRecoveryFile(const QString &path)
@@ -3236,6 +3241,7 @@ bool OtbmReader::saveRecoveryFile(const QString &path)
     m_housesXmlLoaded = oldHousesLoaded;
     m_spawnsModified = oldSpawnsModified;
     m_housesModified = oldHousesModified;
+    emit activitySave(true, result);
     return result;
 }
 

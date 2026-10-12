@@ -26,6 +26,20 @@ DmeWindow {
     readonly property int minimumPaletteWidth: modernGrayUi ? 330 : (githubUi ? 220 : 160)
     readonly property int maximumPaletteWidth: Math.floor(width * 0.5)
 
+    // Render the native window without exposing an unfinished first frame.
+    property bool editorPresented: false
+    opacity: editorPresented ? 1 : 0
+    Connections {
+        target: app
+        function onStartedChanged() {
+            if (!app.started)
+                root.editorPresented = false;
+        }
+    }
+    onFrameSwapped: {
+        if (app.started && !Backend.otbmReader.loading)
+            editorPresented = true;
+    }
     visible: app.started
     width: 1000
     height: 680
@@ -300,6 +314,7 @@ DmeWindow {
 
     MainMenuBar {
         id: menuBar
+        onActivityRequested: { activityLoader.active = true; activityLoader.item.open(); }
         menuLeftInset: root.fluentUi ? 8 : root.githubUi ? 52 : 4
         menuVerticalOffset: root.fluentUi ? root.fluentTitleHeight / 2 : (root.githubUi ? 0 : -4)
         width: root.githubUi ? 520 : implicitWidth
@@ -829,7 +844,7 @@ DmeWindow {
         Row {
             id: statusFields
             anchors.fill: parent
-            anchors.rightMargin: (statusTimer.visible ? statusTimer.width + 8 : 0) + (statusFps.visible ? statusFps.width + 16 : 0)
+            anchors.rightMargin: (activityStatus.visible ? activityStatus.width + 8 : 0) + (statusTimer.visible ? statusTimer.width + 8 : 0) + (statusFps.visible ? statusFps.width + 16 : 0)
             Item {
                 width: fluentStatusBar.compact ? 54 : 80; height: parent.height
                 Text { anchors.centerIn: parent; text: Backend.otbmReader.loaded ? "Ready" : "No map"; color: FluentColors.c("muted"); font.pixelSize: 11 }
@@ -1347,11 +1362,18 @@ DmeWindow {
     }
     Loader {
         id: startupLoader
-        active: !app.started
+        active: !app.started || !root.editorPresented
         sourceComponent: StartupWindow {
+            editorReady: root.editorPresented
             app: app
             settings: prefs
         }
+    }
+
+    Loader {
+        id: activityLoader
+        active: false
+        sourceComponent: ActivityDialog { onClosed: Qt.callLater(() => activityLoader.active = false) }
     }
 
     WindowResizeHandles {

@@ -13,6 +13,7 @@
              automatycznie). Bez tego Windows uzywa stylu natywnego, ktory ignoruje
              wlasne delegaty menu (zolte podswietlenie, centrowany tekst). -->
         <file alias="qtquickcontrols2.conf">qtquickcontrols2.conf</file>
+        <file alias="qml/dialogs/ActivityDialog.qml">qml/dialogs/ActivityDialog.qml</file>
         <file alias="qml/Main.qml">qml/Main.qml</file>
         <file alias="qml/components/LightingControls.qml">qml/components/LightingControls.qml</file>
         <file alias="qml/components/FluentFileBar.qml">qml/components/FluentFileBar.qml</file>
@@ -47,6 +48,7 @@
         <file alias="qml/components/PaletteBrushButton.qml">qml/components/PaletteBrushButton.qml</file>
         <file alias="qml/components/PaletteBrushSizeSelector.qml">qml/components/PaletteBrushSizeSelector.qml</file>
         <file alias="qml/components/PaletteItemGrid.qml">qml/components/PaletteItemGrid.qml</file>
+        <file alias="qml/components/PaletteSmoothScroll.qml">qml/components/PaletteSmoothScroll.qml</file>
         <file alias="qml/components/DoodadPaletteGrid.qml">qml/components/DoodadPaletteGrid.qml</file>
         <file alias="qml/components/CreaturePaletteView.qml">qml/components/CreaturePaletteView.qml</file>
         <file alias="qml/components/HousePaletteView.qml">qml/components/HousePaletteView.qml</file>

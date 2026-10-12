@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+.local-db/
+.local-admin.txt
+.local-settings.json
+.local-server*

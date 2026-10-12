@@ -1702,78 +1702,78 @@ DmeDialog {
                     }
 
                     Repeater {
-                        // Slot directions point toward the neighbouring ground.
-                        // Keep the stored types and sprites; only move their preview boxes.
+                        // Labels describe preview positions; stored types point toward neighbouring ground.
+                        // Keep the stored types and sprite mappings unchanged.
                         model: [
                             {
                                 bt: 9,
-                                lab: "DNW",
+                                lab: "DSE",
                                 cx: 4,
                                 cy: 4
                             },
                             {
                                 bt: 1,
-                                lab: "N",
+                                lab: "S",
                                 cx: 2,
                                 cy: 4
                             },
                             {
                                 bt: 10,
-                                lab: "DNE",
+                                lab: "DSW",
                                 cx: 0,
                                 cy: 4
                             },
                             {
                                 bt: 5,
-                                lab: "CNW",
+                                lab: "CSE",
                                 cx: 3,
                                 cy: 3
                             },
                             {
                                 bt: 6,
-                                lab: "CNE",
+                                lab: "CSW",
                                 cx: 1,
                                 cy: 3
                             },
                             {
                                 bt: 4,
-                                lab: "W",
+                                lab: "E",
                                 cx: 4,
                                 cy: 2
                             },
                             {
                                 bt: 2,
-                                lab: "E",
+                                lab: "W",
                                 cx: 0,
                                 cy: 2
                             },
                             {
                                 bt: 7,
-                                lab: "CSW",
+                                lab: "CNE",
                                 cx: 3,
                                 cy: 1
                             },
                             {
                                 bt: 8,
-                                lab: "CSE",
+                                lab: "CNW",
                                 cx: 1,
                                 cy: 1
                             },
                             {
                                 bt: 12,
-                                lab: "DSW",
+                                lab: "DNE",
                                 cx: 4,
                                 cy: 0
                             },
                             {
                                 bt: 3,
-                                lab: "S",
+                                lab: "N",
                                 cx: 2,
                                 cy: 0
                             },
                             {
                                 bt: 11,
-                                lab: "DSE",
+                                lab: "DNW",
                                 cx: 0,
                                 cy: 0
                             }

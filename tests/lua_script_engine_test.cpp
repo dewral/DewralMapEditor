@@ -1,5 +1,6 @@
 #include "luascriptengine.h"
 #include "customgeneratorprofiles.h"
+#include "custommaprecipe.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QSet>
@@ -58,6 +59,114 @@ int main(int argc, char **argv)
     require(!engine.busy() && !asyncResult.value("success").toBool()
         && asyncResult.value("error").toString().contains("cancel",Qt::CaseInsensitive),
         "Background cancellation failed or blocked the event loop");
+    // Exercise the recipe on a known connected layout without requiring an external checkout.
+    const QByteArray brushFixture=R"lua(
+DME_PROFILE={kind='dungeon',width=24,height=24,rooms=2,density=0,bordersEnabled=true,
+ materials={background={{id=10000,weight=1}},floor={{id=10001,weight=1},{id=10002,weight=1}},secondary={{id=10003,weight=1}}},
+ itemInfo={},groundBorders={}}
+for id=10000,10003 do DME_PROFILE.itemInfo[tostring(id)]={ground=true,blocked=false} end
+for group=1,3 do
+ local set={groundIds=group==1 and {10001,10003} or {10002},to=group==3 and 'first ground' or '*',
+  toGroundIds=group==3 and {10001} or {},align=group==3 and 'inner' or 'outer',zorder=group,materials={}}
+ for slot=1,12 do
+  local id=19000+group*1000+slot
+  set.materials['border'..slot]={{id=id,weight=1}}
+  DME_PROFILE.itemInfo[tostring(id)]={ground=false,blocked=false}
+ end
+ DME_PROFILE.groundBorders[group]=set
+end
+CLI_FINAL_MAP_TABLE={}
+function doCreateItemMock(id,count,p)
+ table.insert(CLI_FINAL_MAP_TABLE[p.x][p.y][p.z],{itemid=id,typeOrCount=count})
+end
+GroundMapper={new=function()
+ return {doMainGround=function(_,items)
+  for x=32,55 do CLI_FINAL_MAP_TABLE[x]={}; for y=32,55 do
+   local id=(x>=38 and x<=50 and y>=38 and y<=50) and items[1][1] or items[0][1]
+   CLI_FINAL_MAP_TABLE[x][y]={[7]={{itemid=id}}}
+  end end
+ end}
+end}
+CaveGroundMapper=GroundMapper
+Cursor={new=function() return {} end}
+WayPointer={new=function() return {_createPathBetweenTwoPointsTSP=function() end,_connectTwoPoints=function() end} end}
+CaveWayPointer=WayPointer
+DungeonRoomBuilder={new=function() return {createRooms=function() end} end}
+CaveRoomBuilder=DungeonRoomBuilder
+)lua";
+    result=run(brushFixture+customMapRecipe);
+    if (!result.value("success").toBool()) qFatal("Ground border fixture: %s",qPrintable(result.value("error").toString()));
+    require(result.value("tileCount").toInt()==576,"Ground border recipe lost tiles");
+    const auto generatedTiles=result.value("tiles").toList();
+    QHash<int,int> grounds;
+    for (const QVariant &value : generatedTiles) {
+        const auto tile=value.toMap();
+        for (const QVariant &entry : tile.value("items").toList())
+            if (entry.toMap().value("ground").toBool()) grounds[tile.value("y").toInt()*65536+tile.value("x").toInt()]=entry.toMap().value("id").toInt();
+    }
+    QSet<int> borderFamilies;
+    for (const QVariant &value : generatedTiles) {
+        const auto tile=value.toMap();
+        const int key=tile.value("y").toInt()*65536+tile.value("x").toInt();
+        const int center=grounds.value(key);
+        for (const QVariant &entry : tile.value("items").toList()) {
+            const int id=entry.toMap().value("id").toInt();
+            if (entry.toMap().value("ground").toBool()) continue;
+            const int family=id/1000;
+            borderFamilies.insert(family);
+            require(family>=20 && family<=22,"Ground border fixture emitted an unselected item");
+            require(family==22 ? center==10002 : family==20 ? center!=10001 && center!=10003 : center!=10002,
+                "Border was placed on the wrong ground");
+            bool neighbourMatches=false;
+            for (int dy=-1;dy<=1;++dy) for (int dx=-1;dx<=1;++dx) {
+                if (!dx && !dy) continue;
+                const int other=grounds.value(key+dy*65536+dx);
+                neighbourMatches |= family==20 ? other==10001 || other==10003 : family==21 ? other==10002 : other==10001;
+            }
+            require(neighbourMatches,"A border is unrelated to its neighbouring ground");
+        }
+    }
+    require(borderFamilies==QSet<int>{20,21,22},"A ground border set was skipped");
+    require(result.value("tiles")==run(brushFixture+customMapRecipe).value("tiles"),"Ground border selection is not deterministic");
+    require(!run(brushFixture+"for _,item in pairs(DME_PROFILE.itemInfo) do if not item.ground then item.blocked=true end end\n"+customMapRecipe)
+        .value("success").toBool(),"Blocking ground borders bypassed the connectivity check");
+
+    QVariantMap borderMaterials;
+    QVariantMap profileInfo{{"10000",QVariantMap{{"valid",true},{"ground",true},{"blocked",false}}},
+        {"10001",QVariantMap{{"valid",true},{"ground",true},{"blocked",false}}}};
+    for (int slot=1;slot<=12;++slot) {
+        borderMaterials["border"+QString::number(slot)]=QVariantList{QVariantMap{{"id",20000+slot},{"weight",25}}};
+        profileInfo[QString::number(20000+slot)]=QVariantMap{{"valid",true},{"ground",false},{"blocked",false}};
+    }
+    const QVariantMap borderSet{{"name","First ground"},{"groundIds",QVariantList{10001}},{"align","outer"},
+        {"to","*"},{"toGroundIds",QVariantList{}},{"zorder",1},{"materials",borderMaterials}};
+    const QVariantMap associated{{"version",1},{"name","Ground border profile"},{"kind","dungeon"},
+        {"width",24},{"height",24},{"rooms",2},{"seed",123},{"density",0},{"x",1000},{"y",1000},{"z",7},
+        {"bordersEnabled",true},{"groundBorders",QVariantList{borderSet}},
+        {"materials",QVariantMap{{"background",QVariantList{QVariantMap{{"id",10000},{"weight",1}}}},
+            {"floor",QVariantList{QVariantMap{{"id",10001},{"weight",1}}}}}}};
+    require(CustomGeneratorProfiles::validate(associated,&profileInfo).isEmpty(),"Valid ground border profile rejected");
+    require(CustomGeneratorProfiles::itemIds(associated).contains(20012),"Border items missing from client validation");
+    auto invalidBorderProfile=associated; auto invalidSet=borderSet;
+    invalidSet["groundIds"]=QVariantList{10002}; invalidBorderProfile["groundBorders"]=QVariantList{invalidSet};
+    require(!CustomGeneratorProfiles::validate(invalidBorderProfile).isEmpty(),"Border accepted for an unselected ground");
+    auto missingBorderInfo=profileInfo; missingBorderInfo.remove("20001");
+    require(!CustomGeneratorProfiles::validate(associated,&missingBorderInfo).isEmpty(),"Unknown border item accepted");
+    auto sparse=associated; auto sparseSet=borderSet;
+    sparseSet["materials"]=QVariantMap{{"border1",borderMaterials.value("border1")}};
+    sparse["groundBorders"]=QVariantList{sparseSet};
+    require(CustomGeneratorProfiles::validate(sparse,&profileInfo).isEmpty(),"Sparse brush border slots rejected");
+    CustomGeneratorProfiles borderStore(nullptr,directory.filePath("ground-border-profiles"));
+    const auto storedBorder=borderStore.save(associated);
+    require(storedBorder.value("success").toBool(),"Ground border profile save failed");
+    CustomGeneratorProfiles reopenedBorders(nullptr,directory.filePath("ground-border-profiles"));
+    const QString storedBorderId=storedBorder.value("profile").toMap().value("id").toString();
+    require(reopenedBorders.load(storedBorderId).value("groundBorders")==associated.value("groundBorders"),"Saved ground borders were lost");
+    const QUrl borderExport=QUrl::fromLocalFile(directory.filePath("ground-border-profile.json"));
+    require(borderStore.exportProfile(associated,borderExport).value("success").toBool(),"Ground border profile export failed");
+    const auto importedBorder=borderStore.importProfile(borderExport);
+    require(importedBorder.value("success").toBool() && importedBorder.value("profile").toMap().value("groundBorders")==associated.value("groundBorders"),
+        "Import lost ground border ownership or variants");
     if (argc>1) {
         const auto generated=LuaScriptEngine::execute(QString::fromLocal8Bit(argv[1]),"otmapgen",123,flag);
         if (!generated.value("success").toBool()) qFatal("Generator failed: %s",qPrintable(generated.value("error").toString()));

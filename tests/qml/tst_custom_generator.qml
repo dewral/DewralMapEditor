@@ -8,6 +8,28 @@ import "../../editor/qml/dialogs" as Dialogs
 Item {
     id:root
     width: 1200; height: 820
+    property var previousBrushes
+    QtObject {
+        id: brushes
+        property int revision:1
+        function groundBrushNames() { return ["Cave floor", "Stone floor", "Invalid floor"]; }
+        function wallBrushNames() { return ["Cave wall"]; }
+        function slots(base) {
+            const values=[[]];
+            for (let i=1;i<=12;++i) values.push([{id:base+i,chance:100}]);
+            values[1].push({id:base+13,chance:25});
+            return values;
+        }
+        function groundBrushEdit(name) {
+            if (name==="Cave floor") return {zorder:2,items:[{id:100,chance:100},{id:102,chance:40}],borders:[
+                {align:"outer",to:"*",tiles:slots(200)}, {align:"inner",to:"Stone floor",tiles:slots(220)}]};
+            if (name==="Stone floor") return {zorder:1,items:[{id:103,chance:100}],borders:[{align:"outer",to:"*",tiles:slots(300)}]};
+            return {items:[{id:100,chance:100},{id:104,chance:100}],borders:[]};
+        }
+        function advancedBrushEdit(kind,name) {
+            return {items:{"0":[[400,100]],"3":[[403,100]],"6":[[406,80],[416,20]],"9":[[409,100]]}};
+        }
+    }
     QtObject {
         id: mapStub
         property int floor: 7
@@ -18,7 +40,10 @@ Item {
         function applyLuaPreview() { applied++; luaPreviewActive=false; return {success:true}; }
         function centerOnTile(x,y) {}
         function luaGeneratorItemInfo(profile) {
-            return {"100":{valid:true,ground:true,blocked:false},"101":{valid:true,ground:false,blocked:false}};
+            const result={};
+            for (const role of Object.keys(profile.materials || {})) for (const entry of profile.materials[role])
+                result[String(entry.id)]={valid:entry.id>=100 && entry.id<=416,ground:entry.id===100 || (entry.id>=102 && entry.id<=104),blocked:entry.id===104};
+            return result;
         }
     }
     ListModel {
@@ -35,7 +60,11 @@ Item {
     TestCase {
         name: "CustomGeneratorPanel"
         when: windowShown
-        function initTestCase() { root.Window.window.width=1200; root.Window.window.height=820; Backend.otbReader=assets; }
+        function initTestCase() {
+            root.Window.window.width=1200; root.Window.window.height=820; Backend.otbReader=assets;
+            root.previousBrushes=Backend.brushStore; Backend.brushStore=brushes;
+        }
+        function cleanupTestCase() { Backend.brushStore=root.previousBrushes; }
         function init() {
             Backend.uiTheme.style="fluent-dark"; Backend.luaScripts.busy=false;
             mapStub.applied=0; dialog.awaitingResult=false;
@@ -101,11 +130,87 @@ Item {
             tryCompare(name,"text","Midhem — jaskinia");
             tryCompare(width,"value",70); tryCompare(kind,"currentIndex",0);
         }
+        function test_loadMultipleGroundBrushesAndEditTheirBorders() {
+            dialog.activeRole="floor";
+            mouseClick(findChild(dialog,"loadGeneratorBrush"));
+            compare(dialog.profile.materials.floor.length,2);
+            compare(dialog.profile.materials.floor[1].weight,40);
+            compare(dialog.profile.groundBorders.length,2);
+            verify(dialog.profile.bordersEnabled);
+            dialog.loadGroundBrush("floor","Stone floor");
+            compare(dialog.profile.materials.floor.length,3);
+            compare(dialog.profile.groundBorders.length,3);
+            const category=findChild(dialog,"customGeneratorCategory");
+            compare(category.model.length,7);
+            category.currentIndex=4;
+            compare(category.currentIndex,4);
+            compare(dialog.shownSlots[2].role,"border3");
+            grabImage(root).save("build/custom-generator-border-ui.png");
+            tryVerify(()=>findChild(dialog.contentItem,"materialSlot_border3")!==null);
+            compare(findChild(dialog.contentItem,"materialSlot_border3").entries[0].id,201);
+            dialog.addItem("border3",101);
+            compare(dialog.profile.groundBorders[0].materials.border3.length,3);
+            compare(dialog.profile.groundBorders[2].materials.border3[0].id,301);
+            verify(!dialog.profile.materials.border3);
+            category.currentIndex=6;
+            wait(0);
+            compare(findChild(dialog.contentItem,"materialSlot_border3").entries[0].id,301);
+            compare(dialog.profile.groundBorders[1].toGroundIds[0],103);
+            dialog.adopt(dialog.freshProfile());
+            compare(category.currentIndex,0);
+        }
+        function test_invalidGroundBrushIsAtomic() {
+            dialog.addItem("floor",100);
+            const before=JSON.stringify(dialog.profile);
+            dialog.loadGroundBrush("floor","Invalid floor");
+            verify(dialog.error); compare(JSON.stringify(dialog.profile),before);
+        }
+        function test_wallBrushLoadsEveryWeightedVariant() {
+            const picker=findChild(dialog,"customGeneratorBrushPicker");
+            picker.currentIndex=2;
+            findChild(dialog,"customGeneratorCategory").currentIndex=1;
+            compare(picker.currentIndex,0);
+            mouseClick(findChild(dialog,"loadGeneratorBrush"));
+            verify(dialog.profile.wallsEnabled);
+            compare(dialog.profile.materials.wall1,[{id:406,weight:80},{id:416,weight:20}]);
+            compare(dialog.profile.materials.wall2[0].id,409);
+            compare(dialog.profile.materials.wall3[0].id,400);
+            compare(dialog.profile.materials.wall4[0].id,403);
+        }
+        function test_groundTargetFollowsTheActiveSlot() {
+            const target=findChild(dialog,"customGeneratorGroundTarget");
+            target.currentIndex=2; target.activated(2);
+            compare(dialog.activeRole,"secondary");
+            dialog.activeRole="floor";
+            compare(target.currentIndex,1);
+            dialog.loadGroundBrush(dialog.activeRole,"Cave floor");
+            compare(dialog.profile.materials.floor.length,2);
+            verify(!dialog.profile.materials.secondary);
+        }
+        function test_removingGroundPrunesItsBorderSets() {
+            dialog.loadGroundBrush("floor","Cave floor");
+            dialog.editMaterials("floor",[{id:102,weight:40}]);
+            compare(dialog.profile.groundBorders[0].groundIds,[102]);
+            dialog.editMaterials("floor",[]);
+            compare(dialog.profile.groundBorders.length,0);
+        }
+        function test_profileTooltips() {
+            const button=findChild(dialog,"exportGeneratorProfile");
+            verify(button.ToolTip.text.indexOf("generator profile")>=0);
+            verify(button.ToolTip.text.indexOf("OTBM")>=0);
+            mouseMove(root,0,0);
+            mouseMove(button,button.width/2,button.height/2);
+            tryCompare(button.ToolTip,"visible",true,1500);
+        }
         function test_layout() {
             dialog.addItem("background",100); dialog.addItem("floor",100);
             wait(100);
             const slot=findChild(dialog.contentItem,"materialSlot_floor");
             verify(slot.width>200); verify(slot.height>60);
+            const panel=findChild(dialog,"customGeneratorItemsPanel");
+            const grid=findChild(dialog,"customGeneratorItemsGrid");
+            compare(grid.width,4*grid.cellWidth);
+            compare(panel.width,grid.width+20);
             grabImage(root).save("build/custom-generator-ui.png");
         }
         function test_closeClearsPreview() {

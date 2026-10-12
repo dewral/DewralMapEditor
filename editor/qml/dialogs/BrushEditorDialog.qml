@@ -1,5 +1,7 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs as FileDialogs
+import QtCore
 import Tibia 1.0
 import "../style"
 
@@ -100,6 +102,63 @@ DmeDialog {
     function borderPrimaryId(bt) {
         var variants = borderSlots[bt] || [];
         return variants.length > 0 ? Number(variants[0].id) : 0;
+    }
+
+    function groundExportCells() {
+        // 8x8 stepped outline: -1 is empty, 0 is ground, 1..12 are border slots.
+        // Borders face inward (CSE/DSE at the upper left, mirrored elsewhere).
+        var layout = [
+            [-1, -1, 11,  3,  3, 12, -1, -1],
+            [-1, 11,  8,  0,  0,  7, 12, -1],
+            [11,  8,  0,  0,  0,  0,  7, 12],
+            [ 2,  0,  0,  0,  0,  0,  0,  4],
+            [ 2,  0,  0,  0,  0,  0,  0,  4],
+            [10,  6,  0,  0,  0,  0,  5,  9],
+            [-1, 10,  6,  0,  0,  5,  9, -1],
+            [-1, -1, 10,  1,  1,  9, -1, -1]
+        ];
+        var used = {};
+        var groundIndex = 0;
+        var cells = [];
+        for (var y = 0; y < 8; ++y) {
+            for (var x = 0; x < 8; ++x) {
+                var bt = layout[y][x];
+                if (bt < 0) {
+                    cells.push(0);
+                } else if (bt === 0) {
+                    cells.push(gItems.count > 0 ? Number(gItems.get(groundIndex % gItems.count).sid) : 0);
+                    ++groundIndex;
+                } else {
+                    var variants = borderSlots[bt] || [];
+                    var index = used[bt] || 0;
+                    cells.push(variants.length > 0 ? Number(variants[index % variants.length].id) : 0);
+                    used[bt] = index + 1;
+                }
+            }
+        }
+        return cells;
+    }
+
+    FileDialogs.FileDialog {
+        id: groundExportDialog
+        property var cells: []
+        title: "Export ground brush as PNG"
+        fileMode: FileDialogs.FileDialog.SaveFile
+        nameFilters: ["PNG images (*.png)"]
+        defaultSuffix: "png"
+        onAccepted: {
+            var error = Backend.exportGroundBrush(cells, selectedFile);
+            if (error !== "") {
+                groundExportError.text = error;
+                groundExportError.open();
+            }
+        }
+    }
+
+    FileDialogs.MessageDialog {
+        id: groundExportError
+        title: "Brush export failed"
+        buttons: FileDialogs.MessageDialog.Ok
     }
 
     function addBorderVariant(bt, sid) {
@@ -1912,6 +1971,20 @@ DmeDialog {
                         text: "Save"
                         width: 90
                         onClicked: root.saveGround()
+                    }
+                    DmeButton {
+                        objectName: "brushManagerExportGround"
+                        text: "Export PNG…"
+                        width: 110
+                        enabled: gItems.count > 0
+                        onClicked: {
+                            groundExportDialog.cells = root.groundExportCells();
+                            var name = groundNameField.text.trim().replace(/[^a-zA-Z0-9_-]/g, "_") || "ground-brush";
+                            var folder = StandardPaths.writableLocation(StandardPaths.DownloadLocation);
+                            groundExportDialog.currentFolder = folder;
+                            groundExportDialog.selectedFile = folder + "/" + name + ".png";
+                            groundExportDialog.open();
+                        }
                     }
                     DmeButton {
                         text: root.optionalBorderMode ? "Use Optional Border Tool" : "Test on map"

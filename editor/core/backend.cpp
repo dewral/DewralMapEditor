@@ -1,4 +1,5 @@
 #include "backend.h"
+#include "groundbrushexport.h"
 
 #include <QDir>
 #include <QImageWriter>
@@ -59,4 +60,12 @@ QString Backend::exportSprite(int serverId, const QUrl &destination) const
     if (!file.commit())
         return tr("Could not save the sprite: %1").arg(file.errorString());
     return {};
+}
+
+QString Backend::exportGroundBrush(const QVariantList &cells, const QUrl &destination)
+{
+    return GroundBrushExport::save(cells, destination, [this](int serverId, int variation) {
+        const auto *item = m_datReader.itemByClientId(m_otbReader.clientIdForServerId(serverId));
+        return item ? m_sprReader.itemPatternImage(*item, variation) : QImage();
+    });
 }

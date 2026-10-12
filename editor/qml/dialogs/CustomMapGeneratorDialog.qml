@@ -20,7 +20,7 @@ DmeDialog {
     property bool awaitingResult: false
     property bool resultInvalidated: false
     property bool error: false
-    property string status: "Add background and floor materials to begin."
+    property string status: "Choose a ground brush for Background and Rooms and corridors to begin."
     property string executionLog: ""
     readonly property var groundRoles: ["background", "floor", "secondary"]
     readonly property var groundRoleLabels: ["Background", "Rooms and corridors", "Secondary floor"]
@@ -81,6 +81,26 @@ DmeDialog {
             ? groundBorders[borderSetIndex].materials : profile.materials;
         return materials[role] || [];
     }
+    function slotSummary(role) {
+        const entries=slotEntries(role);
+        if (!entries.length) return "";
+        const ids=entries.map(entry => entry.id);
+        const names=[];
+        if (groundRoles.indexOf(role)>=0) {
+            for (const set of groundBorders) {
+                if (set.brush && set.groundIds.some(id => ids.indexOf(id)>=0) && names.indexOf(set.brush)<0)
+                    names.push(set.brush);
+            }
+        }
+        return (names.length ? names.join(", ")+" · " : "")+entries.length+(entries.length===1 ? " item" : " items");
+    }
+    function chooseBrush(index) {
+        if (Backend.luaScripts.busy || index<=0 || index>brushNames.length) return;
+        const name=brushNames[index-1];
+        if (category.currentIndex===1) loadWallBrush(name);
+        else if (category.currentIndex===0) loadGroundBrush(activeRole,name);
+    }
+    onActiveRoleChanged: brushPicker.reset()
     function validEntries(role, entries) {
         const probe={materials:{}}; probe.materials[role]=entries;
         const metadata=mapCtrl.luaGeneratorItemInfo(probe);
@@ -158,7 +178,7 @@ DmeDialog {
         error=false; status="Added #"+id+" to "+role+". Weight controls variant frequency.";
     }
     function report(result) { error=result.success!==true; status=error ? result.error : "Profile saved."; }
-    function adopt(value) { invalidate(); category.currentIndex=0; activeRole="background"; profile=value; error=false; status="Profile loaded. Check materials before generating."; }
+    function adopt(value) { invalidate(); category.currentIndex=0; activeRole="background"; brushPicker.reset(); profile=value; error=false; status="Profile loaded. Check materials before generating."; }
     onOpened: targetDocument=Backend.otbmReader
     onClosed: { invalidate(); if (awaitingResult) Backend.luaScripts.cancel(); }
     onClientKeyChanged: {
@@ -325,20 +345,30 @@ DmeDialog {
                         onActivated:index => dialog.activeRole=dialog.groundRoles[index]
                     }
                     Binding { target:groundTarget; property:"currentIndex"; value:Math.max(0,dialog.groundRoles.indexOf(dialog.activeRole)) }
-                    Row {
-                        width:parent.width; spacing:6
-                        DmeComboBox {
-                            id:brushPicker; objectName:"customGeneratorBrushPicker"; width:parent.width-96; model:dialog.brushNames
-                            currentIndex:dialog.brushNames.length ? 0 : -1
-                            onModelChanged:currentIndex=model.length ? 0 : -1
+                    DmeComboBox {
+                        id:brushPicker; objectName:"customGeneratorBrushPicker"; width:parent.width
+                        property bool pendingChoice:false
+                        function reset() { pendingChoice=false; currentIndex=0; }
+                        model:[category.currentIndex===1 ? "Choose wall brush…" : "Choose ground brush…"].concat(dialog.brushNames)
+                        currentIndex:0
+                        onModelChanged:reset()
+                        onActivated:index => {
+                            // Type-ahead activates matches while the menu is open. Add only the final choice.
+                            if (open) pendingChoice=true;
+                            else dialog.chooseBrush(index);
                         }
-                        DmeButton {
-                            objectName:"loadGeneratorBrush"; text:"Load brush"; width:90; enabled:brushPicker.currentIndex>=0
-                            onClicked: {
-                                if (category.currentIndex===1) dialog.loadWallBrush(brushPicker.currentText);
-                                else dialog.loadGroundBrush(dialog.activeRole,brushPicker.currentText);
+                        onOpenChanged: {
+                            if (!open && pendingChoice) {
+                                pendingChoice=false;
+                                dialog.chooseBrush(currentIndex);
                             }
                         }
+                    }
+                    Text {
+                        width:parent.width; wrapMode:Text.WordWrap
+                        text:category.currentIndex===1 ? "Choosing a brush fills the four wall slots."
+                            : "Choosing a brush adds it to "+dialog.groundRoleLabels[groundTarget.currentIndex]+". You can add multiple brushes."
+                        color:Colors.c("muted"); font.family:Colors.fontFamily; font.pixelSize:11
                     }
                 }
                 Text {
@@ -358,6 +388,8 @@ DmeDialog {
                                 required property var modelData
                                 roleKey:modelData.role; label:modelData.label
                                 entries:dialog.slotEntries(roleKey)
+                                summary:dialog.slotSummary(roleKey)
+                                emptyHint:dialog.groundRoles.indexOf(roleKey)>=0 ? "Choose a ground brush above, or drop ground items here." : "Drop items here"
                                 selected:dialog.activeRole===roleKey; editable:!Backend.luaScripts.busy
                                 onActivated:dialog.activeRole=roleKey
                                 onAddRequested: id => dialog.addItem(roleKey,id)
@@ -416,6 +448,13 @@ DmeDialog {
                         if (!settings.generatorDirectory) { dialog.error=true; dialog.status="Choose the otMapGenPublic folder first."; return; }
                         if (dialog.profile.clientKey && dialog.profile.clientKey!==dialog.clientKey) {
                             dialog.error=true; dialog.status="This profile belongs to another client. Duplicate it for this client and check the materials."; return;
+                        }
+                        const missing=["background","floor"].filter(role => !dialog.slotEntries(role).length);
+                        if (missing.length) {
+                            dialog.error=true;
+                            category.currentIndex=0; dialog.activeRole=missing[0];
+                            dialog.status="Add ground materials to "+missing.map(role => dialog.groundRoleLabels[dialog.groundRoles.indexOf(role)]).join(" and ")+". Choose a brush above or add ground items to the highlighted slot.";
+                            return;
                         }
                         dialog.targetDocument=Backend.otbmReader; dialog.targetClient=dialog.clientKey;
                         dialog.resultInvalidated=false; dialog.awaitingResult=true; dialog.status="Generating…";

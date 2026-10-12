@@ -16,7 +16,8 @@ execute_process(
         --no-system-dxc-compiler
         --verbose 0
         --skip-plugin-types generic,qmltooling,networkinformation
-        --exclude-plugins qgif,qico,qjpeg
+        --exclude-plugins qgif,qico,qjpeg,qsqlibase,qsqlmimer,qsqloci,qsqlodbc,qsqlpsql,qsqlmysql
+        --include-plugins qsqlite
         --no-quickcontrols2imagine
         --no-quickcontrols2imaginestyleimpl
         --no-quickcontrols2material
@@ -30,6 +31,19 @@ execute_process(
 
 if(NOT deploy_result EQUAL 0)
     message(FATAL_ERROR "windeployqt failed with exit code ${deploy_result}")
+endif()
+
+# Activity uses a local SQLite queue; other SQL drivers require client libraries
+# that do not belong in DME. Also remove drivers left by earlier deployments.
+file(GLOB deployed_sql_drivers "${APPLICATION_DIRECTORY}/sqldrivers/*.dll")
+foreach(sql_driver IN LISTS deployed_sql_drivers)
+    get_filename_component(sql_driver_name "${sql_driver}" NAME)
+    if(NOT sql_driver_name STREQUAL "qsqlite.dll")
+        file(REMOVE "${sql_driver}")
+    endif()
+endforeach()
+if(NOT EXISTS "${APPLICATION_DIRECTORY}/sqldrivers/qsqlite.dll")
+    message(FATAL_ERROR "The SQLite driver required by DME Activity was not deployed")
 endif()
 
 # windeployqt does not remove files left by an older, broader deployment and

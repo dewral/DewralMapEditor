@@ -34,11 +34,13 @@ w danych aktualnego klienta przed każdym uruchomieniem.
    w dropdownie kategorii, razem z przypisaniem do ground ID, kierunkami,
    rodzajem inner/outer i docelowym gruntem. Kolejne brushe można dodać do
    tego samego slotu; ich bordery pozostają oddzielne.
-5. Opcjonalnie dodaj **Secondary floor**. Zastąpi około 15% pól podłogi.
+5. Opcjonalnie dodaj **Secondary floor**. Domyślnie zastąpi około 15% pól podłogi;
+   udział można zmienić w **Advanced settings…**.
 6. W **Decorations** dodaj pojedyncze kamienie, grzyby lub inne itemy.
    Nie dodawaj fragmentów obiektów składanych z wielu pól.
 7. Ustaw rozmiar, liczbę pomieszczeń, seed, gęstość dekoracji i docelowe X/Y/Z.
    Na początek użyj 70 × 70, 8 pomieszczeń i 8% dekoracji.
+   Współrzędne **Destination X, Y i Z / floor** są w jednym poziomym wierszu.
 8. Kliknij **Save**, potem **Generate preview**. Obejrzyj wynik na mapie.
 9. **Apply** zatwierdza cały wynik. **Cancel preview** lub zamknięcie panelu
    usuwa go bez zmiany dokumentu.
@@ -46,6 +48,31 @@ w danych aktualnego klienta przed każdym uruchomieniem.
 Nie ma przykładowych ID Midhem wpisanych na stałe: profile muszą odpowiadać
 Twojej wersji grafik. Waga 10 oznacza dziesięć razy większą szansę wyboru niż
 waga 1 w tej samej kategorii. Można usunąć wpis przyciskiem ×.
+
+## Ustawienia zaawansowane
+
+Przycisk **Advanced settings…** otwiera osobny panel. Zmiany działają od razu
+w bieżącym profilu i usuwają wcześniejszy podgląd; wygeneruj go ponownie.
+
+| Ustawienie | Zakres | Domyślnie | Efekt |
+| --- | --- | --- | --- |
+| Room width / height | 5–21 pól | 7 / 7 | Rozmiar pokoi Dungeon; przybliżony rozmiar komór Cave, który biblioteka losowo zmienia. |
+| Room center spacing | 6–40 pól | 8 | Odstęp siatki centrów pomieszczeń. Większy odstęp zmniejsza liczbę pomieszczeń mieszczących się w mapie. Duże pokoje mogą się nakładać. |
+| Corridor width | 3–5 pól | 3 | Szerokość ścieżek łączących pomieszczenia. |
+| Room connections | Chain / Nearest network | Chain | Losowy łańcuch pokoi albo sieć dołączająca najbliższy niepołączony pokój. |
+| Extra room connections | 0–16 | 0 | Dodatkowe trasy między pokojami, do liczby dostępnych niepołączonych par. |
+| Cave tunnels | Winding / Direct | Winding | Kręte albo bezpośrednie tunele. Aktywne tylko dla Cave. |
+| Secondary floor | 0–100% | 15% | Szansa zastąpienia pola podłogi wariantem Secondary floor. Aktywne po dodaniu materiałów do tego slotu. |
+
+**Reset advanced defaults** resetuje tylko powyższe ustawienia. Są zapisywane,
+importowane i eksportowane razem z profilem. Starsze profile bez tych pól
+używają wartości domyślnych i zachowują dotychczasowy wynik dla tego samego seeda.
+Wielkość pokoi, odstępy i wymiary mapy są sprawdzane przed generowaniem.
+
+Parametry rozmiaru pokoi i szerokości korytarzy korzystają z bibliotek
+[otMapGenPublic](https://github.com/abecek/otMapGenPublic/tree/main/lib/classes).
+Siatka centrów, sieć połączeń i procent Secondary floor są ustawieniami przepisu
+DME, który używa podanych materiałów oraz ścieżek i brushy tej biblioteki.
 
 ## Ściany i bordery
 
@@ -61,6 +88,12 @@ zestawem dla dowolnego gruntu. Bordery są generowane po wyborze podłogi,
 więc warianty i secondary floor zachowują właściwe zestawy borderów.
 Dodanie pojedynczego ground ID tworzy pusty zestaw **Borders · Ground #ID**,
 który można uzupełnić ręcznie. Usunięcie ground ID usuwa jego przypisanie.
+Cel **no neighboring ground** oznacza brak gruntu na sąsiednim polu, a nie
+puste sloty bordera. Cel **any other ground** dotyczy innych gruntów.
+W Brush Managerze sprawdzaj tę samą parę Alignment + Border target:
+**Inside ground / Empty (no neighbor)** i **Inside ground / Any other brush**
+to dwa oddzielne zestawy. Generator importuje tylko zestawy z itemami;
+nie dodaje inner borderów do brusha zawierającego wyłącznie outer bordery.
 Numery odpowiadają tablicom bibliotek otMapGen:
 
 | Slot | Wariant bordera |
@@ -88,7 +121,7 @@ Biblioteka znajduje się w katalogu danych aplikacji `custom-generator/profiles.
 
 Generowanie odbywa się w tle; przycisk Generate zmienia się w **Cancel generation**.
 Obowiązują limity Lua: 120 sekund i 256 MiB. Rozmiar wynosi 24–200 pól na oś,
-liczba pomieszczeń 2–16, dekoracje 0–30%. Zbyt mały obszar zwraca komunikat.
+liczba pomieszczeń 2–64, dekoracje 0–30%. Zbyt mały obszar zwraca komunikat.
 Ta sama konfiguracja i seed dają ten sam wynik przy tej samej wersji bibliotek.
 Puste kategorie opcjonalne są pomijane.
 

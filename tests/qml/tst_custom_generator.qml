@@ -21,7 +21,7 @@ Item {
     QtObject {
         id: brushes
         property int revision:1
-        function groundBrushNames() { return ["Cave floor", "Stone floor", "Invalid floor"]; }
+        function groundBrushNames() { return ["Cave floor", "Stone floor", "Invalid floor", "Outer-only floor"]; }
         function wallBrushNames() { return ["Cave wall"]; }
         function slots(base) {
             const values=[[]];
@@ -33,6 +33,10 @@ Item {
             if (name==="Cave floor") return {zorder:2,items:[{id:100,chance:100},{id:102,chance:40}],borders:[
                 {align:"outer",to:"*",tiles:slots(200)}, {align:"inner",to:"Stone floor",tiles:slots(220)}]};
             if (name==="Stone floor") return {zorder:1,items:[{id:103,chance:100}],borders:[{align:"outer",to:"*",tiles:slots(300)}]};
+            if (name==="Outer-only floor") return {zorder:1,items:[{id:103,chance:100}],borders:[
+                {align:"outer",to:"",tiles:slots(300)},
+                {align:"inner",to:"*",tiles:Array.from({length:13},()=>[])},
+                {align:"inner",to:"",tiles:Array.from({length:13},()=>[])}]};
             return {items:[{id:100,chance:100},{id:104,chance:100}],borders:[]};
         }
         function advancedBrushEdit(kind,name) {
@@ -80,6 +84,7 @@ Item {
             mapStub.applied=0; dialog.awaitingResult=false;
             dialog.adopt(dialog.freshProfile()); dialog.open();
             findChild(dialog,"customGeneratorSettings").generatorDirectory="test-folder";
+            tryCompare(dialog,"opened",true);
         }
         function cleanup() { dialog.close(); Backend.luaScripts.busy=false; }
         function addRequiredMaterials() {
@@ -146,6 +151,55 @@ Item {
             tryCompare(name,"text","Midhem — jaskinia");
             tryCompare(width,"value",70); tryCompare(kind,"currentIndex",0);
         }
+        function test_destinationControlsShareOneRow() {
+            const x=findChild(dialog.contentItem,"customGenerator_x");
+            const y=findChild(dialog.contentItem,"customGenerator_y");
+            const z=findChild(dialog.contentItem,"customGenerator_z");
+            compare(x.mapToItem(dialog.contentItem,0,0).y,y.mapToItem(dialog.contentItem,0,0).y);
+            compare(y.mapToItem(dialog.contentItem,0,0).y,z.mapToItem(dialog.contentItem,0,0).y);
+            verify(x.mapToItem(dialog.contentItem,0,0).x<y.mapToItem(dialog.contentItem,0,0).x);
+            verify(y.mapToItem(dialog.contentItem,0,0).x<z.mapToItem(dialog.contentItem,0,0).x);
+            verify(z.width<x.width); compare(x.to,65535); compare(y.to,65535); compare(z.to,15);
+            x.value=65000; x.valueModified(); z.value=15; z.valueModified();
+            compare(dialog.profile.x,65000); compare(dialog.profile.z,15);
+        }
+        function test_advancedSettingsEditRestoreAndReset() {
+            wait(50);
+            mouseClick(findChild(dialog.contentItem,"customGeneratorAdvancedButton"));
+            const advanced=findChild(dialog,"customGeneratorAdvancedDialog");
+            tryCompare(advanced,"opened",true);
+            verify(advanced.y+advanced.height<=root.Window.window.height);
+            const width=findChild(advanced,"customGenerator_roomWidth");
+            const spacing=findChild(advanced,"customGenerator_roomSpacing");
+            compare(width.value,7); compare(spacing.value,8);
+            mapStub.luaPreviewActive=true;
+            width.value=15; width.valueModified();
+            compare(dialog.profile.roomWidth,15); verify(!mapStub.luaPreviewActive);
+            spacing.value=20; spacing.valueModified();
+            compare(dialog.profile.roomSpacing,20);
+            findChild(advanced,"customGeneratorConnectionMode").handleActivation(1);
+            compare(dialog.profile.connectionMode,"nearest");
+            verify(!findChild(advanced,"customGeneratorCavePaths").enabled);
+            verify(!findChild(advanced,"customGenerator_secondaryDensity").enabled);
+            dialog.addItem("secondary",100);
+            verify(findChild(advanced,"customGenerator_secondaryDensity").enabled);
+            dialog.edit("kind","cave");
+            verify(findChild(advanced,"customGeneratorCavePaths").enabled);
+            findChild(advanced,"customGeneratorCavePaths").handleActivation(1);
+            compare(dialog.profile.cavePaths,"direct");
+            const profile=dialog.freshProfile(); delete profile.roomWidth; delete profile.roomSpacing;
+            dialog.adopt(profile);
+            compare(width.value,7); compare(spacing.value,8);
+            width.value=11; width.valueModified();
+            mouseClick(findChild(advanced,"resetCustomGeneratorAdvanced"));
+            compare(width.value,7); compare(dialog.profile.roomWidth,7);
+            compare(dialog.profile.width,70); compare(dialog.profile.connectionMode,"chain");
+            Backend.luaScripts.busy=true; verify(!width.enabled);
+            verify(!findChild(advanced,"resetCustomGeneratorAdvanced").enabled);
+            Backend.luaScripts.busy=false;
+            wait(50); grabImage(root).save("build/custom-generator-advanced-ui.png");
+            dialog.close(); tryCompare(advanced,"opened",false);
+        }
         function test_loadMultipleGroundBrushesAndEditTheirBorders() {
             dialog.activeRole="floor";
             findChild(dialog,"customGeneratorBrushPicker").handleActivation(1);
@@ -180,6 +234,40 @@ Item {
             const before=JSON.stringify(dialog.profile);
             dialog.loadGroundBrush("floor","Invalid floor");
             verify(dialog.error); compare(JSON.stringify(dialog.profile),before);
+        }
+        function test_outerOnlyBrushKeepsItsTargetAndDoesNotCreateInnerBorders() {
+            dialog.loadGroundBrush("floor","Outer-only floor");
+            compare(dialog.profile.groundBorders.length,1);
+            const set=dialog.profile.groundBorders[0];
+            compare(set.align,"outer"); compare(set.to,"");
+            compare(set.name,"Outer-only floor · outer → no neighboring ground");
+            compare(set.materials.border3,[{id:301,weight:100},{id:313,weight:25}]);
+            dialog.loadGroundBrush("floor","Outer-only floor");
+            compare(dialog.profile.groundBorders.length,1);
+            compare(dialog.profile.materials.floor.length,1);
+        }
+        function test_borderLabelsDistinguishTheTargetFromEmptyContents() {
+            dialog.loadGroundBrush("background","Cave floor");
+            compare(dialog.profile.groundBorders[0].name,"Cave floor · outer → any other ground");
+            compare(dialog.profile.groundBorders[1].name,"Cave floor · inner → Stone floor");
+            verify(dialog.profile.groundBorders[1].materials.border3.length>0);
+            dialog.loadGroundBrush("floor","Outer-only floor");
+            const category=findChild(dialog,"customGeneratorCategory");
+            verify(category.model.indexOf("Borders · Outer-only floor · outer → no neighboring ground")>=0);
+            category.currentIndex=6;
+            verify(findChild(dialog,"customGeneratorBorderHint").text.indexOf("Border target: no neighboring ground")>=0);
+        }
+        function test_existingProfileGetsClearLabelsWithoutChangingItsRules() {
+            const profile=dialog.freshProfile();
+            profile.materials.floor=[{id:103,weight:100}];
+            profile.groundBorders=[{name:"Stone floor · outer → empty",brush:"Stone floor",groundIds:[103],align:"outer",to:"",toGroundIds:[],zorder:1,materials:{border3:[{id:301,weight:100}]}},
+                {name:"My custom rule",brush:"Stone floor",groundIds:[103],align:"inner",to:"*",toGroundIds:[],zorder:1,materials:{}}];
+            const before=JSON.stringify(profile);
+            dialog.adopt(profile);
+            const category=findChild(dialog,"customGeneratorCategory");
+            compare(category.model[4],"Borders · Stone floor · outer → no neighboring ground");
+            compare(category.model[5],"Borders · My custom rule");
+            compare(JSON.stringify(dialog.profile),before);
         }
         function test_wallBrushLoadsEveryWeightedVariant() {
             const picker=findChild(dialog,"customGeneratorBrushPicker");

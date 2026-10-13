@@ -7,6 +7,7 @@
 #include <QStandardPaths>
 #include <QUuid>
 #include <QSet>
+#include <algorithm>
 #include <cmath>
 
 namespace {
@@ -46,14 +47,32 @@ QString CustomGeneratorProfiles::validate(const QVariantMap &p,const QVariantMap
     if (p.value("kind")!="dungeon" && p.value("kind")!="cave") return "Choose Dungeon or Cave.";
     for (const QString &field : {QString("width"),QString("height")})
         if (!number(p.value(field),24,200)) return "Map dimensions must be between 24 and 200.";
-    if (!number(p.value("rooms"),2,16) || !number(p.value("seed"),1,2147483647)
+    if (!number(p.value("rooms"),2,64) || !number(p.value("seed"),1,2147483647)
         || !number(p.value("density"),0,30)) return "Invalid room count, seed or decoration density.";
+    const struct { const char *key; int min; int max; } advancedFields[] = {
+        {"roomWidth",5,21},{"roomHeight",5,21},{"roomSpacing",6,40},
+        {"corridorWidth",3,5},{"secondaryDensity",0,100},{"extraConnections",0,16}
+    };
+    for (const auto &field : advancedFields)
+        if (p.contains(field.key) && !number(p.value(field.key),field.min,field.max))
+            return QString("%1 must be between %2 and %3.").arg(field.key).arg(field.min).arg(field.max);
+    if (p.contains("connectionMode") && p.value("connectionMode")!="chain" && p.value("connectionMode")!="nearest")
+        return "Choose Chain or Nearest network for room connections.";
+    if (p.contains("cavePaths") && p.value("cavePaths")!="winding" && p.value("cavePaths")!="direct")
+        return "Choose Winding or Direct cave tunnels.";
     if (!number(p.value("x"),0,65535) || !number(p.value("y"),0,65535)
         || !number(p.value("z"),0,15)) return "Invalid destination coordinates.";
     if (p.value("x").toInt()+p.value("width").toInt()>65536
         || p.value("y").toInt()+p.value("height").toInt()>65536) return "The map exceeds coordinate limits.";
-    const int capacity=((p.value("width").toInt()-16)/8+1)*((p.value("height").toInt()-16)/8+1);
-    if (p.value("rooms").toInt()>capacity) return "Too many rooms for this area. Increase the map size.";
+    const int roomSize=std::max(p.value("roomWidth",7).toInt(),p.value("roomHeight",7).toInt());
+    const int maxSize=p.value("kind")=="cave" ? roomSize*4/3 : roomSize;
+    const int margin=std::max(8,(maxSize+1)/2+p.value("corridorWidth",3).toInt()/2+1);
+    const int spacing=p.value("roomSpacing",8).toInt();
+    const int availableX=p.value("width").toInt()-2*margin;
+    const int availableY=p.value("height").toInt()-2*margin;
+    if (availableX<0 || availableY<0) return "The rooms do not fit this area. Reduce room size or increase map dimensions.";
+    const int capacity=(availableX/spacing+1)*(availableY/spacing+1);
+    if (p.value("rooms").toInt()>capacity) return "Too many rooms for this area. Increase map size or reduce room count or room spacing.";
     if (p.value("materials").metaType().id()!=QMetaType::QVariantMap) return "Invalid material categories.";
     const auto materials=p.value("materials").toMap();
     const auto known=roles();

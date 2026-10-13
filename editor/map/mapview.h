@@ -714,6 +714,8 @@ public:
                                              const QVariantMap &context);
     Q_INVOKABLE QVariantMap applyLuaPatch(const QVariantMap &patch, int x, int y, int z);
     Q_INVOKABLE QVariantMap luaGeneratorItemInfo(const QVariantMap &profile) const;
+    QString previewGeneratedMap(OtbmReader *source, int x, int y, int z, int baseZ, int width, int height, int floors);
+    QString applyGeneratedMap(OtbmReader *source, int x, int y, int z, int baseZ, int width, int height, int floors);
     Q_INVOKABLE QVariantMap setLuaPreview(const QVariantMap &patch, int x, int y, int z);
     Q_INVOKABLE QVariantMap applyLuaPreview();
     Q_INVOKABLE void clearLuaPreview();

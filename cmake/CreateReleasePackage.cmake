@@ -91,8 +91,24 @@ if(RUNTIME_DEPENDENCY_COMMAND)
         DIRECTORIES "${package_directory}" "${qt_runtime_directory}"
         PRE_EXCLUDE_REGEXES "^(api-ms-|ext-ms-)"
         POST_EXCLUDE_REGEXES ".*[/\\\\][Ss][Yy][Ss][Tt][Ee][Mm]32[/\\\\].*"
+        CONFLICTING_DEPENDENCIES_PREFIX runtime_conflicts
         RESOLVED_DEPENDENCIES_VAR resolved_libraries
         UNRESOLVED_DEPENDENCIES_VAR unresolved_libraries)
+    # The executable directory and the Qt kit can both contain the same DLL.
+    # Accept identical copies, while still rejecting incompatible builds.
+    foreach(runtime_name IN LISTS runtime_conflicts_FILENAMES)
+        set(reference_hash "")
+        set(reference_path "")
+        foreach(candidate IN LISTS runtime_conflicts_${runtime_name})
+            file(SHA256 "${candidate}" candidate_hash)
+            if(reference_hash AND NOT reference_hash STREQUAL candidate_hash)
+                message(FATAL_ERROR "Conflicting runtime versions for ${runtime_name}: ${runtime_conflicts_${runtime_name}}")
+            endif()
+            set(reference_hash "${candidate_hash}")
+            set(reference_path "${candidate}")
+        endforeach()
+        list(APPEND resolved_libraries "${reference_path}")
+    endforeach()
     if(unresolved_libraries)
         message(FATAL_ERROR "Unresolved release dependencies: ${unresolved_libraries}")
     endif()

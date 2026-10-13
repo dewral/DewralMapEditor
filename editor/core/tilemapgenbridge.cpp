@@ -1,0 +1,330 @@
+#include "tilemapgenbridge.h"
+#include "backend.h"
+#include "mapview.h"
+#include "tilemapgenmaterials.h"
+#include <QBuffer>
+#include <QCryptographicHash>
+#include <QDir>
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QSaveFile>
+#include <QSqlDatabase>
+#include <QSqlQuery>
+#include <QThread>
+#include <QUuid>
+#include <QtConcurrent>
+
+namespace {
+QString fingerprint(const QJsonObject &catalog) {
+    return QString::fromLatin1(QCryptographicHash::hash(QJsonDocument(catalog).toJson(QJsonDocument::Compact), QCryptographicHash::Sha256).toHex());
+}
+}
+
+TileMapGenBridge::TileMapGenBridge(Backend *backend) : QObject(backend), m_backend(backend) {
+    connect(&m_watcher, &QFutureWatcher<TmgFormat::Result>::finished, this, [this] {
+        auto result = m_watcher.result(); m_busy = false;
+        if (m_cancel->load()) result.error = tr("Import cancelled");
+        if (result.error.isEmpty() && fingerprint(catalogJson()) != m_importFingerprint)
+            result.error = tr("The active client or materials changed during import. Import again.");
+        if (result.error.isEmpty() && m_placement) {
+            if (!m_view || !m_target || m_target != m_backend->otbmReader()) result.error = tr("The destination document changed during import.");
+            else {
+                const auto request = result.manifest.value("request").toObject();
+                result.error = m_view->previewGeneratedMap(result.document.data(), m_x, m_y, m_z,
+                    request["start_z"].toInt(), request["width"].toInt(), request["height"].toInt(), request["floors"].toInt());
+                if (result.error.isEmpty()) {
+                    m_preview = result;
+                    m_view->centerOnPosition(m_x + request["width"].toInt() / 2,
+                                            m_y + request["height"].toInt() / 2, m_z);
+                }
+            }
+        } else if (result.error.isEmpty()) {
+            const auto profile = m_backend->docMgr()->currentProfileKey();
+            auto *target = m_backend->docMgr()->newDocument();
+            target->adoptLoadedState(*result.document); target->finishLoading(true);
+            m_backend->docMgr()->setCurrentProfileKey(profile);
+        }
+        m_status = result.error.isEmpty() ? (m_placement ? tr("Preview ready. Apply as one undoable edit or cancel.") : tr("Opened as a new unsaved map. Save in Dewral to write OTBM and spawns.")) : result.error;
+        emit changed(); emit finished(result.error.isEmpty());
+    });
+    connect(&m_generator, &TileMapGenProcess::progressChanged, this, [this](int value, const QString &stage) {
+        m_progress = value; m_status = stage; emit changed();
+    });
+    connect(&m_generator, &TileMapGenProcess::finished, this, [this](bool success, const QString &error) {
+        m_generating = false;
+        if (!success) { failGeneration(error); return; }
+        if (fingerprint(catalogJson()) != m_importFingerprint) {
+            failGeneration(tr("The active client or materials changed during generation. Generate again.")); return;
+        }
+        if (m_placement && (!m_target || m_target != m_backend->otbmReader())) {
+            failGeneration(tr("The destination document changed during generation.")); return;
+        }
+        m_busy = false;
+        importMap(QUrl::fromLocalFile(m_workDirectory->filePath(QStringLiteral("output/map.tmg"))),
+                  m_placement, m_view, m_x, m_y, m_z);
+    });
+    connect(backend->docMgr(), &DocumentManager::currentChanged, this, [this] {
+        if (m_busy) cancel();
+        else clearPreview();
+    });
+}
+TileMapGenBridge::~TileMapGenBridge() {
+    disconnect(&m_generator, nullptr, this, nullptr);
+    m_generator.shutdown();
+    if (m_cancel) m_cancel->store(true);
+    m_watcher.waitForFinished();
+}
+
+QJsonObject TileMapGenBridge::catalogJson() const {
+    auto *otb = m_backend->otbReader(); auto *dat = m_backend->datReader();
+    QJsonObject result = m_backend->brushStore()->generationCatalog();
+    const auto sourceHash = [this](const QString &path) {
+        const QFileInfo info(path);
+        const QString key = path + QStringLiteral(":%1:%2").arg(info.size()).arg(info.lastModified().toMSecsSinceEpoch());
+        if (m_fileHashes.contains(key)) return m_fileHashes.value(key);
+        QFile file(path); if (!file.open(QIODevice::ReadOnly)) return QString();
+        QCryptographicHash hash(QCryptographicHash::Sha256); if (!hash.addData(&file)) return QString();
+        const auto value = QString::fromLatin1(hash.result().toHex()); m_fileHashes.insert(key, value); return value;
+    };
+    QJsonArray items, creatures;
+    for (int row = 0; row < otb->rowCount(); ++row) {
+        const int sid = otb->data(otb->index(row), OtbReader::ServerIdRole).toInt();
+        const int cid = otb->clientIdForServerId(sid); const auto *item = dat->itemByClientId(cid);
+        if (sid <= 0 || !item) continue;
+        items.append(QJsonObject{{"id", sid}, {"name", otb->nameForServerId(sid)},
+            {"ground", otb->isClientGroundForServerId(sid)},
+            {"blocked", otb->isUnpassableForServerId(sid) || otb->isClientUnpassableForServerId(sid)},
+            {"block_path", otb->blocksPathForServerId(sid)}, {"floor_change", qint64(otb->floorChangeFlagsForServerId(sid))},
+            {"top_order", otb->topOrderForServerId(sid)}, {"sprite_width", item->width * 32}, {"sprite_height", item->height * 32},
+            {"offset_x", item->offset_x}, {"offset_y", item->offset_y}});
+    }
+    for (const auto &c : m_backend->creatureStore()->creatureTypes())
+        creatures.append(QJsonObject{{"name", c.name}, {"is_npc", c.isNpc}, {"look_type", c.lookType}, {"look_item", c.lookItem}});
+    result["items"] = items; result["creatures"] = creatures;
+    result["client"] = QJsonObject{{"key", m_backend->docMgr()->currentProfileKey()}, {"version", dat->clientVersion()}, {"otb_major", int(otb->majorVersion())}, {"otb_minor", int(otb->minorVersion())},
+        {"dat_sha256", sourceHash(dat->sourceFilePath())}, {"spr_sha256", sourceHash(m_backend->sprReader()->sourceFilePath())}};
+    return result;
+}
+TmgFormat::Catalog TileMapGenBridge::catalog() const {
+    const auto data = catalogJson(); TmgFormat::Catalog out; out.fingerprint = fingerprint(data);
+    const auto client = data["client"].toObject(); out.version = client["version"].toInt(); out.major = client["otb_major"].toInt(); out.minor = client["otb_minor"].toInt();
+    for (const auto &value : data["items"].toArray()) { const auto i = value.toObject(); out.items.insert(i["id"].toInt(), {i["ground"].toBool(), i["blocked"].toBool(), quint32(i["floor_change"].toInteger())}); }
+    for (const auto &value : data["creatures"].toArray()) { const auto c = value.toObject(); if (!c["is_npc"].toBool()) out.monsters.insert(c["name"].toString()); }
+    return out;
+}
+
+QString TileMapGenBridge::exportAssets(const QUrl &path, int downId, int upId) {
+    if (m_busy) return tr("Wait for the current import to finish.");
+    return writeAssets(path, downId, upId, true);
+}
+
+QString TileMapGenBridge::writeAssets(const QUrl &path, int downId, int upId, bool sprites,
+                                    const QVariantMap &palette) {
+    if (!path.isLocalFile() || !m_backend->otbReader()->isLoaded()) return tr("Load client data and choose a local .tmgpack file.");
+    QJsonObject pack = catalogJson();
+    const auto sourceFingerprint = fingerprint(pack);
+    if (!sprites) {
+        // Only selected brushes are used by the CLI. Unrelated, stale material
+        // definitions must not prevent generation with a valid palette.
+        const auto keep = [](const QJsonArray &definitions, const QSet<QString> &names) {
+            QJsonArray result;
+            for (const auto &definition : definitions)
+                if (names.contains(definition.toObject()["name"].toString())) result.append(definition);
+            return result;
+        };
+        QSet<QString> grounds, decorations;
+        for (const auto &role : {"floor", "background", "secondary", "water", "lava"})
+            grounds.insert(palette.value(QLatin1String(role)).toString());
+        for (const auto &name : palette.value("decorations").toList()) decorations.insert(name.toString());
+        pack["grounds"] = keep(pack["grounds"].toArray(), grounds);
+        pack["walls"] = keep(pack["walls"].toArray(), {palette.value("wall").toString()});
+        pack["prefabs"] = keep(pack["prefabs"].toArray(), decorations);
+    }
+    QJsonArray connectors;
+    auto *otb = m_backend->otbReader();
+    if (downId || upId) {
+        const quint32 down = otb->floorChangeFlagsForServerId(downId), up = otb->floorChangeFlagsForServerId(upId);
+        if (!otb->clientIdForServerId(downId) || !otb->clientIdForServerId(upId) || !(down & 256) || (up & 256) || !(up & 0x7e00))
+            return tr("Choose a downward stair and a directional upward stair from this client.");
+        const int dx = !!(up & (1 << 10)) - !!(up & (1 << 12)) + 2 * !!(up & (1 << 14));
+        const int dy = !!(up & (1 << 11)) - !!(up & (1 << 9)) + 2 * !!(up & (1 << 13));
+        connectors.append(QJsonObject{{"id", "stairs"}, {"name", QStringLiteral("Stairs %1 / %2").arg(downId).arg(upId)},
+            {"activation", "step"}, {"server_action_confirmed", false},
+            {"upper_entry", QJsonArray{0, 0, 0}}, {"lower_entry", QJsonArray{0, 0, 1}},
+            {"upper_landing", QJsonArray{dx, dy, 0}}, {"lower_landing", QJsonArray{-dx, -dy, 1}},
+            {"tiles", QJsonArray{QJsonObject{{"dx", 0}, {"dy", 0}, {"dz", 0}, {"items", QJsonArray{downId}}}, QJsonObject{{"dx", 0}, {"dy", 0}, {"dz", 1}, {"items", QJsonArray{upId}}}}}});
+    }
+    pack["schema_version"] = 1; pack["id"] = sourceFingerprint.left(16); pack["name"] = QStringLiteral("Dewral %1 materials").arg(m_backend->datReader()->clientVersion());
+    pack["fingerprint"] = sourceFingerprint; pack["synthetic"] = false; pack["connectors"] = connectors;
+    // Stale brushes are reported, rather than silently rewriting material definitions.
+    const auto valid = catalog();
+    QString floor;
+    for (const auto &v : pack["grounds"].toArray()) {
+        const auto brush = v.toObject(); bool usable = true;
+        for (const auto &entry : brush["items"].toArray()) { const int id = entry.toObject()["id"].toInt(); const auto item = valid.items.value(id); usable &= valid.items.contains(id) && item.ground && !item.blocked && !item.floorChange; }
+        if (usable) { floor = brush["name"].toString(); break; }
+    }
+    pack["palette"] = QJsonObject{{"floor", floor}, {"background", ""}, {"secondary", ""}, {"water", ""}, {"lava", ""}, {"wall", ""}, {"decorations", QJsonArray{}}, {"connector", connectors.isEmpty() ? "" : "stairs"}, {"creatures", QJsonArray{}}};
+    const QString name = QUuid::createUuid().toString(), temporary = path.toLocalFile() + "." + QUuid::createUuid().toString(QUuid::WithoutBraces) + ".partial";
+    QString error;
+    {
+        auto db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), name); db.setDatabaseName(temporary);
+        if (!db.open()) error = tr("Cannot create the asset pack.");
+        else {
+            QSqlQuery q(db);
+            for (const auto &sql : {"PRAGMA application_id=1414350641", "PRAGMA user_version=1", "CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL)", "CREATE TABLE assets(id INTEGER PRIMARY KEY,png BLOB NOT NULL)"}) if (!q.exec(QLatin1String(sql))) error = tr("Cannot initialize the asset pack.");
+            if (error.isEmpty() && db.transaction()) {
+                q.prepare("INSERT INTO metadata VALUES(?,?)"); q.addBindValue("kind"); q.addBindValue("asset-pack"); if (!q.exec()) error = tr("Cannot write asset metadata.");
+                q.prepare("INSERT INTO metadata VALUES(?,?)"); q.addBindValue("pack"); q.addBindValue(QString::fromUtf8(QJsonDocument(pack).toJson(QJsonDocument::Compact))); if (!q.exec()) error = tr("Cannot write asset metadata.");
+                for (const auto &value : pack["items"].toArray()) {
+                    if (!sprites) break;
+                    const int sid = value.toObject()["id"].toInt();
+                    const auto *item = m_backend->datReader()->itemByClientId(otb->clientIdForServerId(sid));
+                    const QImage image = item ? m_backend->sprReader()->itemPatternImage(*item, 0) : QImage();
+                    if (image.isNull()) continue;
+                    QByteArray bytes; QBuffer buffer(&bytes); buffer.open(QIODevice::WriteOnly); image.save(&buffer, "PNG");
+                    q.prepare("INSERT INTO assets VALUES(?,?)"); q.addBindValue(sid); q.addBindValue(bytes); if (!q.exec()) { error = tr("Cannot write sprite preview."); break; }
+                }
+                if (error.isEmpty()) { if (!db.commit()) error = tr("Cannot commit the asset pack."); } else db.rollback();
+            } else if (error.isEmpty()) error = tr("Cannot start asset export transaction.");
+        }
+        db.close();
+    }
+    QSqlDatabase::removeDatabase(name);
+    if (error.isEmpty()) {
+        QFile input(temporary); QSaveFile output(path.toLocalFile());
+        if (!input.open(QIODevice::ReadOnly) || !output.open(QIODevice::WriteOnly)) error = tr("Cannot publish the asset pack.");
+        else { while (!input.atEnd()) { const auto bytes = input.read(1024 * 1024); if (output.write(bytes) != bytes.size()) { error = tr("Cannot finish writing the asset pack."); break; } }
+            if (error.isEmpty() && !output.commit()) error = tr("Cannot publish the asset pack."); }
+    }
+    QFile::remove(temporary); return error;
+}
+
+void TileMapGenBridge::importMap(const QUrl &path, bool placement, QObject *mapView, int x, int y, int z) {
+    if (m_busy) return;
+    clearPreview();
+    if (!path.isLocalFile() || !m_backend->otbReader()->isLoaded()) { m_status = tr("Load client data and select a local .tmg file."); emit changed(); return; }
+    m_view = qobject_cast<MapView *>(mapView); m_target = m_backend->otbmReader();
+    m_placement = placement; m_x = x; m_y = y; m_z = z;
+    const auto data = catalog(); m_importFingerprint = data.fingerprint;
+    m_cancel = std::make_shared<std::atomic_bool>(false); const auto cancelled = m_cancel;
+    m_busy = true; m_progress = 0; m_status = tr("Validating the generated map..."); emit changed();
+    auto *ownerThread = thread();
+    m_watcher.setFuture(QtConcurrent::run([this, data, path, cancelled, placement, ownerThread] {
+        auto result = TmgFormat::load(path.toLocalFile(), data, [this](int progress, const QString &stage) {
+            QMetaObject::invokeMethod(this, [this, progress, stage] { m_progress = progress; m_status = stage; emit changed(); }, Qt::QueuedConnection);
+        }, [cancelled] { return cancelled->load(); }, placement);
+        if (result.document) result.document->moveToThread(ownerThread);
+        return result;
+    }));
+}
+void TileMapGenBridge::cancel() {
+    if (m_generating) m_generator.cancel();
+    if (m_cancel) m_cancel->store(true);
+    clearPreview();
+}
+void TileMapGenBridge::clearPreview() {
+    if (m_preview.document) {
+        if (m_view) m_view->clearLuaPreview();
+        m_status = tr("Preview discarded. Generate or import again to apply a map.");
+    }
+    m_preview = {}; emit changed();
+}
+QString TileMapGenBridge::applyPreview() {
+    if (!m_preview.document || !m_view || m_target != m_backend->otbmReader()) return tr("No preview for the current document.");
+    if (fingerprint(catalogJson()) != m_importFingerprint) return tr("The active assets changed. Import again.");
+    const auto r = m_preview.manifest["request"].toObject();
+    const auto error = m_view->applyGeneratedMap(m_preview.document.data(), m_x, m_y, m_z, r["start_z"].toInt(), r["width"].toInt(), r["height"].toInt(), r["floors"].toInt());
+    if (error.isEmpty()) { clearPreview(); m_status = tr("Placed as one undoable edit."); emit changed(); }
+    return error;
+}
+
+QVariantMap TileMapGenBridge::generationMaterials() const {
+    const auto pack = catalogJson();
+    QHash<int, QJsonObject> items;
+    for (const auto &v : pack["items"].toArray()) items.insert(v.toObject()["id"].toInt(), v.toObject());
+    QStringList floors, backgrounds, walls, decorations, monsters;
+    const auto grounds = TileMapGenMaterials::groundChoices(pack);
+    for (const auto &v : grounds) {
+        const auto name = v.toMap().value("name").toString();
+        // Use the same brush names as the editor palette. Mixed or custom
+        // variant metadata is validated on generation, not hidden from pickers.
+        floors.append(name); backgrounds.append(name);
+    }
+    for (const auto &v : pack["walls"].toArray()) walls.append(v.toObject()["name"].toString());
+    for (const auto &v : pack["prefabs"].toArray()) {
+        const auto prefab = v.toObject(); bool usable = true;
+        for (const auto &variant : prefab["variants"].toArray()) for (const auto &tile : variant.toArray()) {
+            const auto record = tile.toObject(); usable &= record["dz"].toInt() == 0;
+            for (const auto &id : record["items"].toArray()) {
+                const auto item = items.value(id.toInt());
+                usable &= !item.isEmpty() && !item["ground"].toBool() && item["floor_change"].toInt() == 0;
+            }
+        }
+        if (usable) decorations.append(prefab["name"].toString());
+    }
+    for (const auto &v : pack["creatures"].toArray()) if (!v.toObject()["is_npc"].toBool()) monsters.append(v.toObject()["name"].toString());
+    return {{"grounds", grounds}, {"floors", floors}, {"backgrounds", backgrounds}, {"walls", walls},
+            {"decorations", decorations}, {"monsters", monsters}};
+}
+
+void TileMapGenBridge::failGeneration(const QString &error) {
+    m_busy = false; m_generating = false; m_status = error;
+    emit changed(); emit finished(false);
+}
+
+void TileMapGenBridge::generateMap(const QVariantMap &options, QObject *mapView) {
+    if (m_busy) return;
+    clearPreview();
+    const auto recipeError = TileMapGenProfiles::validateRecipe(options);
+    if (!recipeError.isEmpty()) { failGeneration(recipeError); return; }
+    if (!available()) { failGeneration(tr("Tile Map Generator was not found in %1.").arg(generatorDirectory())); return; }
+    if (!m_backend->otbReader()->isLoaded() || !m_backend->otbmReader()->isLoaded()) {
+        failGeneration(tr("Load client data and open a destination map first.")); return;
+    }
+    m_view = qobject_cast<MapView *>(mapView); m_target = m_backend->otbmReader();
+    m_placement = options.value("placement", true).toBool();
+    m_x = options.value("x", 1000).toInt(); m_y = options.value("y", 1000).toInt(); m_z = options.value("z", 7).toInt();
+    const int width = options.value("width", 96).toInt(), height = options.value("height", 96).toInt(), floors = options.value("floors", 1).toInt();
+    if (width < 24 || width > 65535 || height < 24 || height > 65535 || floors < 1 || floors > 16
+        || m_z < 0 || m_z + floors > 16 || (m_placement && (m_x < 0 || m_y < 0 || qint64(m_x) + width > 65536 || qint64(m_y) + height > 65536))) {
+        failGeneration(tr("Choose valid dimensions and an origin that fits within map coordinates and floors 0–15.")); return;
+    }
+    if (m_placement && (!m_view || qint64(width) * height * floors > 100000)) {
+        failGeneration(tr("Placement supports up to 100,000 cells. Reduce the size or choose a new map document.")); return;
+    }
+    const QString style = options.value("generator", "hunting").toString();
+    const QString seed = options.value("seed").toString().trimmed();
+    if (!QStringList{"hunting", "cave", "linear"}.contains(style) || seed.isEmpty() || seed.size() > 256) {
+        failGeneration(tr("Choose a generator style and a seed of 1–256 characters.")); return;
+    }
+    if (options.value("palette").toMap().value("floor").toString().isEmpty()) {
+        failGeneration(tr("Choose a walking floor from the active client's materials.")); return;
+    }
+    const int down = options.value("downId").toInt(), up = options.value("upId").toInt();
+    if (floors > 1 && (!down || !up)) { failGeneration(tr("Multiple floors require matching down and up stair IDs.")); return; }
+    m_workDirectory = std::make_unique<QTemporaryDir>(QDir::tempPath() + QStringLiteral("/DME-TileMapGen-XXXXXX"));
+    if (!m_workDirectory->isValid()) { failGeneration(tr("Cannot create the temporary generation directory.")); return; }
+    const auto packPath = m_workDirectory->filePath(QStringLiteral("materials.tmgpack"));
+    m_importFingerprint = fingerprint(catalogJson());
+    m_status = tr("Preparing the active client's materials..."); m_progress = 0; m_busy = true; emit changed();
+    // The CLI consumes material definitions; sprite PNGs are only needed by the external studio.
+    const auto error = writeAssets(QUrl::fromLocalFile(packPath), down, up, false, options.value("palette").toMap());
+    if (!error.isEmpty()) { failGeneration(error); return; }
+    auto palette = QJsonObject::fromVariantMap(options.value("palette").toMap());
+    palette["connector"] = floors > 1 ? QStringLiteral("stairs") : QString();
+    QJsonObject request{{"schema_version", 1}, {"generator", style}, {"width", width}, {"height", height},
+        {"floors", floors}, {"start_z", m_z}, {"seed", seed}, {"asset_pack", m_importFingerprint.left(16)},
+        {"asset_fingerprint", m_importFingerprint}, {"palette", palette},
+        {"settings", QJsonObject::fromVariantMap(options.value("settings").toMap())}};
+    const auto requestPath = m_workDirectory->filePath(QStringLiteral("request.json"));
+    QSaveFile file(requestPath);
+    const auto bytes = QJsonDocument(request).toJson();
+    if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit()) {
+        failGeneration(tr("Cannot write the generation request.")); return;
+    }
+    m_generating = true; m_cancel.reset();
+    m_status = tr("Generating with Tile Map Generator..."); emit changed();
+    m_generator.start(generatorDirectory(), requestPath, packPath, m_workDirectory->filePath(QStringLiteral("output")));
+}

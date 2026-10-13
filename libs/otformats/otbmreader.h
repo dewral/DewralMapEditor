@@ -452,6 +452,7 @@ signals:
     void loadingStageChanged();
 
 private:
+    friend class TmgFormat;
     bool saveFileInternal(const QString &path, bool recoveryMode);
     void reset();
     void setError(const QString &message);

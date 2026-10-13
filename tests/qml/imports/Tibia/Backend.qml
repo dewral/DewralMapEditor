@@ -1,6 +1,37 @@
 pragma Singleton
 import QtQuick
 QtObject {
+    property QtObject tileMapGenProfiles: QtObject {
+        property var profiles: []
+        property int nextId: 1
+        function load(id) { return profiles.find(p => p.id === id) || {}; }
+        function save(profile, id) {
+            const p = JSON.parse(JSON.stringify(profile)); p.id = id || String(nextId++);
+            const copy = profiles.filter(existing => existing.id !== p.id); copy.push(p); profiles = copy;
+            return {success: true, profile: p};
+        }
+        function remove(id) { profiles = profiles.filter(p => p.id !== id); return {success: true}; }
+    }
+    property QtObject tileMapGen: QtObject {
+        property bool available: true
+        property string generatorDirectory: "C:/github2/TileMapGenerator"
+        property bool busy: false
+        property bool previewReady: false
+        property int progress: 0
+        property int applied: 0
+        property string status: ""
+        property var lastOptions: ({})
+        property var materialChoices: ({grounds: [{name:"cave floor",label:"cave floor",serverId:100}, {name:"rock",label:"rock",serverId:101}], floors:["cave floor"], backgrounds:["rock"], walls:[], decorations:[], monsters:[]})
+        signal changed()
+        signal finished(bool success)
+        function generationMaterials() { return materialChoices; }
+        function generateMap(options, view) { lastOptions = options; busy = true; }
+        function clearPreview() { previewReady = false; }
+        function cancel() { busy = false; clearPreview(); }
+        function applyPreview() { ++applied; clearPreview(); return ""; }
+        function exportAssets(path, down, up) { return ""; }
+        function importMap(path, placement, view, x, y, z) { busy = true; }
+    }
     property QtObject generatorProfiles: QtObject {
         property var profiles: []
         function load(id) { return profiles.find(p=>p.id===id); }
@@ -41,6 +72,7 @@ QtObject {
         signal mapChanged()
     }
     property QtObject docMgr: QtObject {
+        property string currentProfileKey: "test"
         signal currentChanged()
         property int recoveryCount: 0
         property var recoveries: []
@@ -100,11 +132,12 @@ QtObject {
         function deleteTileset(kind, name) { return true }
     }
     property QtObject otbReader: QtObject {
+        property bool generatorPreviewMetadata: false
         property bool loaded: true
         property int itemCount: 2
         function clientIdForServerId(id) { return 0 }
-        function rowForServerId(id) { return -1 }
-        function detailsAt(row) { return {} }
+        function rowForServerId(id) { return generatorPreviewMetadata && (id === 100 || id === 101) ? id - 100 : -1 }
+        function detailsAt(row) { return generatorPreviewMetadata ? {spriteIds:[1],itemWidth:1,itemHeight:1,layers:1} : {} }
     }
     property QtObject datReader: QtObject {
         property bool loaded: true
@@ -113,10 +146,11 @@ QtObject {
         function outfitFramePreview(type,dir,walking,tick) { return {ids:previewSprites ? [1] : [],width:1,height:1}; }
     }
     property QtObject sprReader: QtObject {
+        property bool generatorPreviewSprites: false
         function outfitImageSource(ids,masks,width,height,head,body,legs,feet) { return Qt.resolvedUrl("../../../../editor/qml/components/fonts/otclient-name.png"); }
         function outfitColor(index) { return "#888888"; }
         property bool loaded: true
         property int itemImagesRevision: 1
-        function itemImageSource(spriteIds, width, height, layers) { return "" }
+        function itemImageSource(spriteIds, width, height, layers) { return generatorPreviewSprites ? Qt.resolvedUrl("../../../../editor/ui/github/app-icon.png") : "" }
     }
 }

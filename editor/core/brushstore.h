@@ -24,6 +24,7 @@ public:
     Q_INVOKABLE QStringList groundBrushNames() const;
     Q_INVOKABLE QStringList wallBrushNames() const;
     Q_INVOKABLE QStringList doodadBrushNames() const;
+    QJsonObject generationCatalog() const;
     int revision() const { return m_revision; }
 
     Q_INVOKABLE QStringList prefabPaletteNames() const;

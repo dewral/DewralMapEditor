@@ -27,7 +27,7 @@ DmeDialog {
     readonly property var groundBorders: profile.groundBorders || []
     readonly property int borderSetIndex: category.currentIndex - 4
     readonly property var categoryLabels: ["Floors", "Walls · 4 slots", "Borders · default floor", "Decorations"].concat(
-        groundBorders.map(set => "Borders · " + set.name))
+        groundBorders.map(set => "Borders · " + borderSetDisplayName(set)))
     readonly property var brushNames: {
         const revision = Backend.brushStore.revision;
         return category.currentIndex === 1 ? Backend.brushStore.wallBrushNames() : Backend.brushStore.groundBrushNames();
@@ -118,6 +118,16 @@ DmeDialog {
         const maximum=Math.max(100,...active.map(entry => entry.chance));
         return active.map(entry => ({id:entry.id,weight:Math.max(1,Math.round(entry.chance*100/maximum))}));
     }
+    function borderTargetLabel(target) {
+        return target==="*" ? "any other ground" : target || "no neighboring ground";
+    }
+    function borderSetLabel(name, align, target) {
+        return name+" · "+align+" → "+borderTargetLabel(target);
+    }
+    function borderSetDisplayName(set) {
+        const legacyName=set.brush+" · "+set.align+" → "+(set.to==="*" ? "any ground" : set.to || "empty");
+        return set.brush && set.name===legacyName ? borderSetLabel(set.brush,set.align,set.to) : set.name;
+    }
     function loadGroundBrush(role, name) {
         const brush=Backend.brushStore.groundBrushEdit(name);
         const entries=weightedEntries(brush.items || []);
@@ -135,7 +145,7 @@ DmeDialog {
             }
             if (!Object.keys(materials).some(key => materials[key].length)) continue;
             const target=block.to || "";
-            sets.push({name:name+" · "+block.align+" → "+(target==="*" ? "any ground" : target || "empty"),
+            sets.push({name:borderSetLabel(name,block.align,target),
                 brush:name,groundIds:entries.map(entry => entry.id),align:block.align,to:target,
                 toGroundIds:target && target!=="*" ? (Backend.brushStore.groundBrushEdit(target).items || []).map(entry => entry.id) : [],
                 zorder:brush.zorder || 0,materials:materials});
@@ -372,9 +382,14 @@ DmeDialog {
                     }
                 }
                 Text {
-                    id:borderHint; width:parent.width; visible:category.currentIndex===2 || dialog.borderSetIndex>=0
-                    text:dialog.borderSetIndex>=0 ? "Ground IDs: "+dialog.groundBorders[dialog.borderSetIndex].groundIds.join(", ")+" · "+dialog.groundBorders[dialog.borderSetIndex].align
-                        : "Used for room floor tiles without their own border set. Load a ground brush or add a ground item to edit its borders separately."
+                    id:borderHint; objectName:"customGeneratorBorderHint"; width:parent.width; visible:category.currentIndex===2 || dialog.borderSetIndex>=0
+                    text: {
+                        if (dialog.borderSetIndex>=0 && dialog.groundBorders[dialog.borderSetIndex]) {
+                            const set=dialog.groundBorders[dialog.borderSetIndex];
+                            return "Ground IDs: "+set.groundIds.join(", ")+" · "+set.align+"\nBorder target: "+dialog.borderTargetLabel(set.to)+". This describes the neighboring ground, not whether the border slots are filled.";
+                        }
+                        return "Used for room floor tiles without their own border set. Load a ground brush or add a ground item to edit its borders separately.";
+                    }
                     wrapMode:Text.WordWrap; color:Colors.c("muted"); font.family:Colors.fontFamily; font.pixelSize:11
                 }
                 Text { font.family:Colors.fontFamily; text:"Variant weights: 1–100"; color:Colors.c("muted"); font.pixelSize:11 }

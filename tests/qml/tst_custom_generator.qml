@@ -21,7 +21,7 @@ Item {
     QtObject {
         id: brushes
         property int revision:1
-        function groundBrushNames() { return ["Cave floor", "Stone floor", "Invalid floor"]; }
+        function groundBrushNames() { return ["Cave floor", "Stone floor", "Invalid floor", "Outer-only floor"]; }
         function wallBrushNames() { return ["Cave wall"]; }
         function slots(base) {
             const values=[[]];
@@ -33,6 +33,10 @@ Item {
             if (name==="Cave floor") return {zorder:2,items:[{id:100,chance:100},{id:102,chance:40}],borders:[
                 {align:"outer",to:"*",tiles:slots(200)}, {align:"inner",to:"Stone floor",tiles:slots(220)}]};
             if (name==="Stone floor") return {zorder:1,items:[{id:103,chance:100}],borders:[{align:"outer",to:"*",tiles:slots(300)}]};
+            if (name==="Outer-only floor") return {zorder:1,items:[{id:103,chance:100}],borders:[
+                {align:"outer",to:"",tiles:slots(300)},
+                {align:"inner",to:"*",tiles:Array.from({length:13},()=>[])},
+                {align:"inner",to:"",tiles:Array.from({length:13},()=>[])}]};
             return {items:[{id:100,chance:100},{id:104,chance:100}],borders:[]};
         }
         function advancedBrushEdit(kind,name) {
@@ -180,6 +184,40 @@ Item {
             const before=JSON.stringify(dialog.profile);
             dialog.loadGroundBrush("floor","Invalid floor");
             verify(dialog.error); compare(JSON.stringify(dialog.profile),before);
+        }
+        function test_outerOnlyBrushKeepsItsTargetAndDoesNotCreateInnerBorders() {
+            dialog.loadGroundBrush("floor","Outer-only floor");
+            compare(dialog.profile.groundBorders.length,1);
+            const set=dialog.profile.groundBorders[0];
+            compare(set.align,"outer"); compare(set.to,"");
+            compare(set.name,"Outer-only floor · outer → no neighboring ground");
+            compare(set.materials.border3,[{id:301,weight:100},{id:313,weight:25}]);
+            dialog.loadGroundBrush("floor","Outer-only floor");
+            compare(dialog.profile.groundBorders.length,1);
+            compare(dialog.profile.materials.floor.length,1);
+        }
+        function test_borderLabelsDistinguishTheTargetFromEmptyContents() {
+            dialog.loadGroundBrush("background","Cave floor");
+            compare(dialog.profile.groundBorders[0].name,"Cave floor · outer → any other ground");
+            compare(dialog.profile.groundBorders[1].name,"Cave floor · inner → Stone floor");
+            verify(dialog.profile.groundBorders[1].materials.border3.length>0);
+            dialog.loadGroundBrush("floor","Outer-only floor");
+            const category=findChild(dialog,"customGeneratorCategory");
+            verify(category.model.indexOf("Borders · Outer-only floor · outer → no neighboring ground")>=0);
+            category.currentIndex=6;
+            verify(findChild(dialog,"customGeneratorBorderHint").text.indexOf("Border target: no neighboring ground")>=0);
+        }
+        function test_existingProfileGetsClearLabelsWithoutChangingItsRules() {
+            const profile=dialog.freshProfile();
+            profile.materials.floor=[{id:103,weight:100}];
+            profile.groundBorders=[{name:"Stone floor · outer → empty",brush:"Stone floor",groundIds:[103],align:"outer",to:"",toGroundIds:[],zorder:1,materials:{border3:[{id:301,weight:100}]}},
+                {name:"My custom rule",brush:"Stone floor",groundIds:[103],align:"inner",to:"*",toGroundIds:[],zorder:1,materials:{}}];
+            const before=JSON.stringify(profile);
+            dialog.adopt(profile);
+            const category=findChild(dialog,"customGeneratorCategory");
+            compare(category.model[4],"Borders · Stone floor · outer → no neighboring ground");
+            compare(category.model[5],"Borders · My custom rule");
+            compare(JSON.stringify(dialog.profile),before);
         }
         function test_wallBrushLoadsEveryWeightedVariant() {
             const picker=findChild(dialog,"customGeneratorBrushPicker");

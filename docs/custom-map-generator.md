@@ -61,6 +61,12 @@ zestawem dla dowolnego gruntu. Bordery są generowane po wyborze podłogi,
 więc warianty i secondary floor zachowują właściwe zestawy borderów.
 Dodanie pojedynczego ground ID tworzy pusty zestaw **Borders · Ground #ID**,
 który można uzupełnić ręcznie. Usunięcie ground ID usuwa jego przypisanie.
+Cel **no neighboring ground** oznacza brak gruntu na sąsiednim polu, a nie
+puste sloty bordera. Cel **any other ground** dotyczy innych gruntów.
+W Brush Managerze sprawdzaj tę samą parę Alignment + Border target:
+**Inside ground / Empty (no neighbor)** i **Inside ground / Any other brush**
+to dwa oddzielne zestawy. Generator importuje tylko zestawy z itemami;
+nie dodaje inner borderów do brusha zawierającego wyłącznie outer bordery.
 Numery odpowiadają tablicom bibliotek otMapGen:
 
 | Slot | Wariant bordera |

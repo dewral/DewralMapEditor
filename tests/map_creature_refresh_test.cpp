@@ -210,6 +210,7 @@ bool atlasBudget(const QTemporaryDir &directory)
 #include "map_zone_overlay_checks.h"
 #include "map_hotkey_checks.h"
 #include "map_context_brush_checks.h"
+#include "map_selection_delete_checks.h"
 
 int main(int argc, char **argv)
 {
@@ -247,6 +248,8 @@ int main(int argc, char **argv)
                      && otb.loadFile(directory.filePath(QStringLiteral("test.otb")))
                      && spr.loadFile(directory.filePath(QStringLiteral("test.spr"))),
                  "Could not load creature refresh assets")) return 1;
+
+    if (!testSelectionDelete(otb, dat, spr)) return 1;
 
     const QString profile = QFileInfo(profileDirectory.path()).fileName();
     if (!testLuaPatch(otb,dat,spr,directory.path())) return 1;

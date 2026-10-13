@@ -17,6 +17,7 @@ class TileMapGenBridge : public QObject {
     Q_PROPERTY(bool busy READ busy NOTIFY changed)
     Q_PROPERTY(int progress READ progress NOTIFY changed)
     Q_PROPERTY(QString status READ status NOTIFY changed)
+    Q_PROPERTY(QString errorDetails READ errorDetails NOTIFY changed)
     Q_PROPERTY(bool previewReady READ previewReady NOTIFY changed)
     Q_PROPERTY(bool available READ available CONSTANT)
     Q_PROPERTY(QString generatorDirectory READ generatorDirectory CONSTANT)
@@ -26,6 +27,7 @@ public:
     bool busy() const { return m_busy; }
     int progress() const { return m_progress; }
     QString status() const { return m_status; }
+    QString errorDetails() const { return m_errorDetails; }
     bool previewReady() const { return !m_preview.document.isNull(); }
     QString generatorDirectory() const { return QStringLiteral("C:/github2/TileMapGenerator"); }
     bool available() const { return !TileMapGenProcess::programForDirectory(generatorDirectory()).isEmpty(); }
@@ -56,6 +58,7 @@ private:
     bool m_busy = false, m_placement = false, m_generating = false;
     int m_progress = 0, m_x = 0, m_y = 0, m_z = 7;
     QString m_status;
+    QString m_errorDetails;
     QString m_importFingerprint;
     mutable QHash<QString, QString> m_fileHashes;
 };

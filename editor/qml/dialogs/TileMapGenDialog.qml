@@ -39,15 +39,18 @@ DmeDialog {
         property alias upId: upId.value
     }
     function optional(combo) { return combo.currentIndex > 0 ? combo.currentText : ""; }
-    function groundEntries(noneLabel) {
-        const rows = noneLabel ? [{name: "", label: noneLabel, serverId: 0}] : [];
+    function groundEntries(noneLabel, walking) {
+        const rows = noneLabel ? [{name: "", label: noneLabel, clientId: 0, usable: true}] : [];
         const grounds = materials.grounds || [];
-        for (let i = 0; i < grounds.length; ++i) rows.push(grounds[i]);
+        for (let i = 0; i < grounds.length; ++i) {
+            if (walking ? grounds[i].walking : grounds[i].blocking)
+                rows.push(Object.assign({}, grounds[i], {usable: true}));
+        }
         return rows;
     }
     function selectGround(combo, name) {
         for (let i = 0; i < combo.model.length; ++i) if (combo.model[i].name === name) { combo.currentIndex = i; return; }
-        if (name) { const copy = Array.from(combo.model); copy.push({name: name, label: name + " (missing)", serverId: 0}); combo.model = copy; combo.currentIndex = copy.length - 1; }
+        if (name) { const copy = Array.from(combo.model); copy.push({name: name, label: name + " (unavailable)", clientId: 0, usable: false}); combo.model = copy; combo.currentIndex = copy.length - 1; }
         else combo.currentIndex = -1;
     }
     function selectChoice(combo, name) {
@@ -62,7 +65,7 @@ DmeDialog {
         const combos = [floorBrush, backgroundBrush, secondaryBrush, waterBrush, lavaBrush];
         const labels = ["", "Void", "None", "None", "None"];
         for (let i = 0; i < combos.length; ++i) {
-            combos[i].model = groundEntries(labels[i]);
+            combos[i].model = groundEntries(labels[i], i === 0 || i === 2);
             if (selected[i]) selectGround(combos[i], selected[i]);
             else combos[i].currentIndex = combos[i].model.length ? 0 : -1;
         }
@@ -357,12 +360,28 @@ DmeDialog {
                                       : "This size exceeds 100,000 cells. Choose New map document or reduce the size."
         }
         ProgressBar { Layout.fillWidth: true; visible: dialog.busy; from: 0; to: 100; value: Backend.tileMapGen.progress }
-        Caption { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: dialog.message; maximumLineCount: 4; elide: Text.ElideRight }
+        Caption { objectName: "tileMapStatus"; Layout.fillWidth: true; wrapMode: Text.Wrap; text: dialog.message }
+        RowLayout {
+            visible: Backend.tileMapGen.errorDetails.length > 0
+            DmeCheckBox { id: showError; objectName: "tileMapShowError"; text: "Show error details"; onClicked: checked = !checked }
+            DmeButton { objectName: "tileMapCopyError"; text: "Copy error"; onClicked: Backend.fileTools.setClipboard(Backend.tileMapGen.errorDetails) }
+        }
+        ScrollView {
+            visible: showError.checked && Backend.tileMapGen.errorDetails.length > 0
+            Layout.fillWidth: true; Layout.preferredHeight: 130; clip: true
+            TextArea {
+                objectName: "tileMapErrorDetails"; text: Backend.tileMapGen.errorDetails
+                readOnly: true; selectByMouse: true; wrapMode: TextEdit.Wrap
+                color: dialog.textColor; font.pixelSize: 12
+            }
+        }
         RowLayout {
             Layout.alignment: Qt.AlignRight
             DmeButton {
                 objectName: "generateTileMap"; visible: workflow.currentIndex === 0; text: "Generate"
-                enabled: !dialog.busy && Backend.tileMapGen.available && floorBrush.currentIndex >= 0
+                enabled: !dialog.busy && Backend.tileMapGen.available && floorBrush.currentName.length > 0
+                    && floorBrush.currentUsable && backgroundBrush.currentUsable && secondaryBrush.currentUsable
+                    && waterBrush.currentUsable && lavaBrush.currentUsable
                     && seed.text.trim().length > 0 && destinationZ.value + floors.value <= 16
                     && (destination.currentIndex !== 0 || dialog.fitsPlacement)
                     && (floors.value === 1 || (downId.value > 0 && upId.value > 0))

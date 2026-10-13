@@ -8,17 +8,14 @@ ComboBox {
     id: control
     textRole: "label"; valueRole: "name"
     readonly property string currentName: currentIndex >= 0 && currentIndex < count ? String(currentValue || "") : ""
+    readonly property bool currentUsable: currentIndex >= 0 && currentIndex < count && !!model[currentIndex].usable
     readonly property bool lightTheme: Backend.uiTheme.style === "windows-classic"
     readonly property color labelColor: lightTheme ? "#202020" : Colors.c("text")
     implicitHeight: 38; implicitWidth: 240
     function spriteSource(entry) {
-        if (!entry || !entry.serverId || !Backend.otbReader.loaded || !Backend.sprReader.loaded) return "";
+        if (!entry || !entry.clientId || !Backend.sprReader.loaded) return "";
         const revision = Backend.sprReader.itemImagesRevision;
-        const row = Backend.otbReader.rowForServerId(entry.serverId);
-        if (row < 0) return "";
-        const item = Backend.otbReader.detailsAt(row);
-        return item.spriteIds && item.spriteIds.length ? Backend.sprReader.itemImageSource(
-            item.spriteIds, item.itemWidth || 1, item.itemHeight || 1, item.layers || 1) : "";
+        return Backend.sprReader.itemImageSourceForClientId(entry.clientId);
     }
     background: Rectangle {
         radius: control.lightTheme ? 0 : 4

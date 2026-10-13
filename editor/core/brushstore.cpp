@@ -915,6 +915,12 @@ QStringList BrushStore::groundBrushNames() const
     return l;
 }
 
+int BrushStore::groundBrushLookId(const QString &name) const
+{
+    const auto *ground = groundDef(name);
+    return ground ? ground->lookid : 0;
+}
+
 QStringList BrushStore::wallBrushNames() const
 {
     QStringList l = m_walls.keys();

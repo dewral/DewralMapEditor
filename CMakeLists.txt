@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
     "Disable Qt Creator package-manager auto setup" FORCE)
 
-project(DewralMapEditor VERSION 1.1.25 LANGUAGES C CXX)
+project(DewralMapEditor VERSION 1.1.26 LANGUAGES C CXX)
 
 set(DME_RELEASE_REPOSITORY "dewral/DewralMapEditor" CACHE STRING
     "GitHub repository hosting the stable update packages")
@@ -414,6 +414,15 @@ if(BUILD_TESTING)
     target_include_directories(tilemapgen_settings_test PRIVATE editor/core)
     target_link_libraries(tilemapgen_settings_test PRIVATE Qt6::Core Qt6::Qml)
     add_test(NAME tilemapgen_settings COMMAND tilemapgen_settings_test)
+    add_executable(tilemapgen_materials_test EXCLUDE_FROM_ALL tests/tilemapgen_materials_test.cpp
+        editor/core/brushstore.cpp editor/core/tilemapgenmaterials.cpp)
+    target_include_directories(tilemapgen_materials_test PRIVATE editor/core)
+    target_link_libraries(tilemapgen_materials_test PRIVATE OTFormats Qt6::Gui)
+    add_test(NAME tilemapgen_materials COMMAND tilemapgen_materials_test)
+    if(WIN32)
+        set_tests_properties(tilemapgen_materials PROPERTIES
+            ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>" TIMEOUT 30)
+    endif()
     if(WIN32)
         set_tests_properties(tilemapgen_settings PROPERTIES
             ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>" TIMEOUT 30)

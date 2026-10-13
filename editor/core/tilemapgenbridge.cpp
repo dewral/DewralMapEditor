@@ -245,12 +245,17 @@ QVariantMap TileMapGenBridge::generationMaterials() const {
     QHash<int, QJsonObject> items;
     for (const auto &v : pack["items"].toArray()) items.insert(v.toObject()["id"].toInt(), v.toObject());
     QStringList floors, backgrounds, walls, decorations, monsters;
-    const auto grounds = TileMapGenMaterials::groundChoices(pack);
-    for (const auto &v : grounds) {
-        const auto name = v.toMap().value("name").toString();
-        // Use the same brush names as the editor palette. Mixed or custom
-        // variant metadata is validated on generation, not hidden from pickers.
-        floors.append(name); backgrounds.append(name);
+    QHash<QString, int> previewIds;
+    for (const auto &name : m_backend->brushStore()->groundBrushNames())
+        previewIds.insert(name, m_backend->brushStore()->groundBrushLookId(name));
+    auto grounds = TileMapGenMaterials::groundChoices(pack, previewIds);
+    for (auto &v : grounds) {
+        auto ground = v.toMap();
+        const auto name = ground.value("name").toString();
+        if (ground.value("walking").toBool()) floors.append(name);
+        if (ground.value("blocking").toBool()) backgrounds.append(name);
+        ground["clientId"] = m_backend->otbReader()->clientIdForServerId(ground.value("serverId").toInt());
+        v = ground;
     }
     for (const auto &v : pack["walls"].toArray()) walls.append(v.toObject()["name"].toString());
     for (const auto &v : pack["prefabs"].toArray()) {
@@ -270,12 +275,15 @@ QVariantMap TileMapGenBridge::generationMaterials() const {
 }
 
 void TileMapGenBridge::failGeneration(const QString &error) {
-    m_busy = false; m_generating = false; m_status = error;
+    m_busy = false; m_generating = false;
+    m_status = TileMapGenProcess::errorSummary(error);
+    m_errorDetails = m_status == error ? QString() : error;
     emit changed(); emit finished(false);
 }
 
 void TileMapGenBridge::generateMap(const QVariantMap &options, QObject *mapView) {
     if (m_busy) return;
+    m_errorDetails.clear();
     clearPreview();
     const auto recipeError = TileMapGenProfiles::validateRecipe(options);
     if (!recipeError.isEmpty()) { failGeneration(recipeError); return; }
@@ -299,9 +307,8 @@ void TileMapGenBridge::generateMap(const QVariantMap &options, QObject *mapView)
     if (!QStringList{"hunting", "cave", "linear"}.contains(style) || seed.isEmpty() || seed.size() > 256) {
         failGeneration(tr("Choose a generator style and a seed of 1–256 characters.")); return;
     }
-    if (options.value("palette").toMap().value("floor").toString().isEmpty()) {
-        failGeneration(tr("Choose a walking floor from the active client's materials.")); return;
-    }
+    const auto materialError = TileMapGenMaterials::paletteError(catalogJson(), options.value("palette").toMap());
+    if (!materialError.isEmpty()) { failGeneration(materialError); return; }
     const int down = options.value("downId").toInt(), up = options.value("upId").toInt();
     if (floors > 1 && (!down || !up)) { failGeneration(tr("Multiple floors require matching down and up stair IDs.")); return; }
     m_workDirectory = std::make_unique<QTemporaryDir>(QDir::tempPath() + QStringLiteral("/DME-TileMapGen-XXXXXX"));

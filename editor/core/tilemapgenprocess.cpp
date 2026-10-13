@@ -39,14 +39,26 @@ void TileMapGenProcess::shutdown() {
 QString TileMapGenProcess::programForDirectory(const QString &directory) {
     if (!QFileInfo(directory).isDir()) return {};
     const QDir root(directory);
+    // A source checkout can have a newer engine than its last packaged build.
+    const auto python = root.filePath(QStringLiteral(".venv/Scripts/python.exe"));
+    if (QFileInfo(python).isFile() && QFileInfo(root.filePath(QStringLiteral("src/tilemapgen/cli.py"))).isFile())
+        return python;
     for (const auto &relative : {"dist/TileMapGen/TileMapGen.exe", "TileMapGen.exe"}) {
         const auto path = root.filePath(QLatin1String(relative));
         if (QFileInfo(path).isFile()) return path;
     }
-    const auto python = root.filePath(QStringLiteral(".venv/Scripts/python.exe"));
-    if (QFileInfo(python).isFile() && QFileInfo(root.filePath(QStringLiteral("src/tilemapgen/cli.py"))).isFile())
-        return python;
     return {};
+}
+
+QString TileMapGenProcess::errorSummary(const QString &error) {
+    if (!error.contains(QStringLiteral("Traceback (most recent call last):"))) return error;
+    auto lines = error.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+    while (!lines.isEmpty() && lines.last().trimmed().startsWith(QStringLiteral("[PYI-"))) lines.removeLast();
+    if (lines.size() < 2) return error;
+    auto reason = lines.last().trimmed();
+    static const QRegularExpression exceptionType(QStringLiteral("^[\\w.]+(?:Error|Exception):\\s*"));
+    reason.remove(exceptionType);
+    return lines.first().trimmed() + QLatin1Char('\n') + reason;
 }
 
 void TileMapGenProcess::start(const QString &directory, const QString &request,

@@ -18,6 +18,10 @@ static bool check(bool condition, const QString &message) {
 
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    const QString traceback = "Tile Map Generator failed (exit 1).\nTraceback (most recent call last):\n  File \"launcher.py\", line 12\n  File \"tilemapgen/cli.py\", line 48\ntilemapgen.engine.GenerationError: background needs blocking ground";
+    if (!check(TileMapGenProcess::errorSummary(traceback) == "Tile Map Generator failed (exit 1).\nbackground needs blocking ground", "The actual generation error must be visible before traceback details")) return 1;
+    if (!check(TileMapGenProcess::errorSummary(traceback + "\n[PYI-1234:ERROR] Failed to execute script 'launcher' due to unhandled exception!")
+               == TileMapGenProcess::errorSummary(traceback), "PyInstaller's footer must not hide the useful error")) return 1;
     if (argc != 3) return 1;
     const QString generator = QString::fromLocal8Bit(argv[1]), fixture = QString::fromLocal8Bit(argv[2]);
     QTemporaryDir directory(QDir::tempPath() + "/DME generation test XXXXXX");

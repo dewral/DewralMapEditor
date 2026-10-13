@@ -38,7 +38,7 @@ Write-Output 'Configuring DME'
 & cmake @taskConfigureArguments
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Output 'Building DME and the native integration tests'
-& cmake --build $BuildDirectory --config Release --target DewralMapEditor tmg_import_test tilemapgen_process_test tilemapgen_settings_test map_creature_refresh_test lua_script_engine_test --parallel 1 -- /nr:false
+& cmake --build $BuildDirectory --config Release --target DewralMapEditor tmg_import_test tilemapgen_process_test tilemapgen_settings_test tilemapgen_materials_test map_creature_refresh_test lua_script_engine_test --parallel 1 -- /nr:false
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Output 'Running the native integration tests'
 & ctest --test-dir $BuildDirectory -C Release -R '^(tilemapgen_.*|dme_startup|map_creature_refresh|lua_script_engine)$' --output-on-failure

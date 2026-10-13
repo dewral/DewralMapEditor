@@ -93,6 +93,9 @@ public:
     Q_INVOKABLE QColor outfitColor(int colorIndex) const;
 
     int preloadItemImageSources(const DatReader *datReader);
+    Q_INVOKABLE QString itemImageSourceForClientId(int clientId) const {
+        return clientId > 0 ? QStringLiteral("image://paletteitem/%1/%2").arg(clientId).arg(m_itemImagesRevision) : QString();
+    }
     QImage preloadedItemImage(int clientId, int revision = -1) const;
     QImage itemPatternImage(const ClientItem &item, int variation);
     qsizetype thumbnailCacheBytes() const;

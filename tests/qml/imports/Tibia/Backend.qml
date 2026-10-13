@@ -20,8 +20,9 @@ QtObject {
         property int progress: 0
         property int applied: 0
         property string status: ""
+        property string errorDetails: ""
         property var lastOptions: ({})
-        property var materialChoices: ({grounds: [{name:"cave floor",label:"cave floor",serverId:100}, {name:"rock",label:"rock",serverId:101}], floors:["cave floor"], backgrounds:["rock"], walls:[], decorations:[], monsters:[]})
+        property var materialChoices: ({grounds: [{name:"cave floor",label:"cave floor",serverId:100,clientId:200,walking:true,blocking:false}, {name:"wooden floor",label:"wooden floor",serverId:102,clientId:202,walking:true,blocking:false}, {name:"rock",label:"rock",serverId:101,clientId:201,walking:false,blocking:true}], floors:["cave floor","wooden floor"], backgrounds:["rock"], walls:[], decorations:[], monsters:[]})
         signal changed()
         signal finished(bool success)
         function generationMaterials() { return materialChoices; }
@@ -151,6 +152,7 @@ QtObject {
         function outfitColor(index) { return "#888888"; }
         property bool loaded: true
         property int itemImagesRevision: 1
+        function itemImageSourceForClientId(clientId) { return generatorPreviewSprites ? Qt.resolvedUrl("../../../../editor/ui/github/app-icon.png") : "" }
         function itemImageSource(spriteIds, width, height, layers) { return generatorPreviewSprites ? Qt.resolvedUrl("../../../../editor/ui/github/app-icon.png") : "" }
     }
 }

@@ -19,8 +19,9 @@ Item {
             Backend.tileMapGen.previewReady = false;
             Backend.tileMapGen.available = true;
             Backend.tileMapGen.applied = 0;
+            Backend.tileMapGen.errorDetails = "";
             Backend.tileMapGenProfiles.profiles = [];
-            Backend.tileMapGen.materialChoices = {grounds:[{name:"cave floor",label:"cave floor",serverId:100},{name:"rock",label:"rock",serverId:101}], floors:["cave floor"], backgrounds:["rock"], walls:[], decorations:[], monsters:["Rat","Orc","Troll","Wolf","Dragon","Demon"]};
+            Backend.tileMapGen.materialChoices = {grounds:[{name:"cave floor",label:"cave floor",serverId:100,clientId:200,walking:true,blocking:false},{name:"wooden floor",label:"wooden floor",serverId:102,clientId:202,walking:true,blocking:false},{name:"rock",label:"rock",serverId:101,clientId:201,walking:false,blocking:true}], floors:["cave floor","wooden floor"], backgrounds:["rock"], walls:[], decorations:[], monsters:["Rat","Orc","Troll","Wolf","Dragon","Demon"]};
             dialog.open();
             dialog.monsters = []; dialog.activeProfileId = "";
             field("tileMapProfileName").text = "";
@@ -88,9 +89,9 @@ Item {
         }
         function test_groundChoicesAndSprites() {
             const floor = field("tileMapFloor"), background = field("tileMapBackground");
-            compare(floor.count, 2); compare(background.count, 3);
+            compare(floor.count, 2); compare(background.count, 2);
             compare(floor.currentName, "cave floor");
-            background.currentIndex = 2;
+            background.currentIndex = 1;
             compare(dialog.generationOptions().palette.background, "rock");
             Backend.otbReader.generatorPreviewMetadata = true;
             Backend.sprReader.generatorPreviewSprites = true;
@@ -101,14 +102,14 @@ Item {
             verify(String(firstRow.contentItem.children[0].source).length > 0);
             mouseClick(floor.popup.contentItem.itemAtIndex(1));
             tryCompare(floor, "currentIndex", 1);
-            compare(dialog.generationOptions().palette.floor, "rock");
+            compare(dialog.generationOptions().palette.floor, "wooden floor");
             floor.popup.close();
         }
         function test_liveBrushRefreshPreservesSelection() {
             field("tileMapFloor").currentIndex = 1;
-            Backend.tileMapGen.materialChoices = {grounds:[{name:"grass",label:"grass",serverId:100},{name:"rock",label:"rock",serverId:101}], floors:[],backgrounds:[],walls:[],decorations:[],monsters:[]};
+            Backend.tileMapGen.materialChoices = {grounds:[{name:"grass",label:"grass",serverId:100,clientId:200,walking:true},{name:"wooden floor",label:"wooden floor",serverId:102,clientId:202,walking:true}], floors:[],backgrounds:[],walls:[],decorations:[],monsters:[]};
             Backend.brushStore.brushesChanged();
-            compare(field("tileMapFloor").currentName, "rock");
+            compare(field("tileMapFloor").currentName, "wooden floor");
             compare(field("tileMapFloor").model[0].name, "grass");
         }
         function test_weightedMonstersLimitAndRemove() {
@@ -125,7 +126,7 @@ Item {
         }
         function test_profileRestoresCompleteRecipeAndUpdates() {
             field("tileMapProfileName").text = "Hunting profile";
-            field("tileMapBackground").currentIndex = 2;
+            field("tileMapBackground").currentIndex = 1;
             dialog.addMonster(); dialog.addMonster(); dialog.editMonster(0,"weight",75);
             const recipe = JSON.stringify(dialog.generationOptions());
             dialog.saveProfile(false); const id = dialog.activeProfileId;
@@ -146,6 +147,26 @@ Item {
         }
         function test_themeLayout_data() {
             return ["fluent-dark", "github", "gray-dark", "gray-modern", "classic", "windows-classic"].map(style => ({tag: style, style: style}));
+        }
+        function test_incompatibleSavedBrushDisablesGeneration() {
+            dialog.selectGround(field("tileMapFloor"), "rock");
+            compare(field("tileMapFloor").currentName, "rock");
+            verify(!field("generateTileMap").enabled);
+            dialog.selectGround(field("tileMapFloor"), "cave floor");
+            verify(field("generateTileMap").enabled);
+            dialog.selectGround(field("tileMapBackground"), "cave floor");
+            verify(!field("generateTileMap").enabled);
+        }
+        function test_completeErrorCanBeReadAndCopied() {
+            const traceback = "Tile Map Generator failed (exit 1).\nTraceback (most recent call last):\n  File launcher.py, line 12\n  File tilemapgen/cli.py, line 48\nGenerationError: the selected background must block walking";
+            Backend.tileMapGen.errorDetails = traceback;
+            Backend.tileMapGen.status = "Tile Map Generator failed (exit 1).\nthe selected background must block walking";
+            Backend.tileMapGen.changed();
+            compare(field("tileMapStatus").text, Backend.tileMapGen.status);
+            mouseClick(field("tileMapShowError"));
+            tryCompare(field("tileMapErrorDetails"), "visible", true);
+            compare(field("tileMapErrorDetails").text, traceback);
+            mouseClick(field("tileMapCopyError")); compare(Backend.fileTools.text, traceback);
         }
         function test_themeLayout(data) {
             Backend.uiTheme.style = data.style;

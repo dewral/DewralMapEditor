@@ -10,6 +10,7 @@ public:
     explicit TileMapGenProcess(QObject *parent = nullptr);
     ~TileMapGenProcess() override;
     static QString programForDirectory(const QString &directory);
+    static QString errorSummary(const QString &error);
     void start(const QString &directory, const QString &request,
                const QString &pack, const QString &output);
     void cancel();

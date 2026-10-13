@@ -4,6 +4,12 @@ constexpr const char *customMapRecipe = R"lua(
 local cfg=DME_PROFILE
 local materials=cfg.materials
 local meta=cfg.itemInfo
+local roomWidth,roomHeight=cfg.roomWidth or 7,cfg.roomHeight or 7
+local roomSpacing,corridorWidth=cfg.roomSpacing or 8,cfg.corridorWidth or 3
+local secondaryDensity=cfg.secondaryDensity or 15
+local maxRoomSize=math.max(roomWidth,roomHeight)
+if cfg.kind=='cave' then maxRoomSize=math.floor(maxRoomSize*4/3) end
+local margin=math.max(8,math.ceil(maxRoomSize/2)+math.floor(corridorWidth/2)+1)
 local bg,walk,second=80000,80001,80002
 local markerRoles={[bg]='background',[walk]='floor',[second]='secondary'}
 for i=1,4 do markerRoles[80100+i]='wall'..i end
@@ -36,8 +42,8 @@ else map=GroundMapper.new(pos,cfg.width-1,cfg.height-1,1,6) end
 map:doMainGround(ITEMS_TABLE,7)
 -- Bounded grid sampling avoids upstream's unbounded waypoint retries and factorial TSP.
 local candidates={}
-for y=pos.y+8,maxY-7,8 do
- for x=pos.x+8,maxX-7,8 do candidates[#candidates+1]={x=x,y=y,z=7} end
+for y=pos.y+margin,maxY-margin+1,roomSpacing do
+ for x=pos.x+margin,maxX-margin+1,roomSpacing do candidates[#candidates+1]={x=x,y=y,z=7} end
 end
 assert(#candidates>=cfg.rooms,'Too many rooms for this map size')
 for i=#candidates,2,-1 do local j=math.random(i); candidates[i],candidates[j]=candidates[j],candidates[i] end
@@ -47,19 +53,46 @@ local cursor=Cursor.new(pos)
 local paths
 if cfg.kind=='cave' then
  paths=CaveWayPointer.new(map,cursor,points,Brush.new())
- CaveRoomBuilder.new(map,points[7]):createRooms(ITEMS_TABLE,7,7,7)
+ CaveRoomBuilder.new(map,points[7]):createRooms(ITEMS_TABLE,roomWidth,roomHeight,7)
 else
  paths=WayPointer.new(map,cursor,points)
- local shape={height=7,width=7,shape={}}
- for y=1,7 do shape.shape[y]={}; for x=1,7 do shape.shape[y][x]=1 end end
+ local shape={height=roomHeight,width=roomWidth,shape={}}
+ for y=1,roomHeight do shape.shape[y]={}; for x=1,roomWidth do shape.shape[y][x]=1 end end
  DungeonRoomBuilder.new(map,points[7]):createRooms(ITEMS_TABLE,{shape},7)
 end
 local function copy(p) return {x=p.x,y=p.y,z=p.z} end
--- Join every room into one network using the original otMapGen brush/path builders.
-for i=2,cfg.rooms do
- local a,b=copy(points[7][i-1].pos),copy(points[7][i].pos)
- if cfg.kind=='cave' then paths:_connectTwoPoints(ITEMS_TABLE,a,b,3)
- else paths:_createPathBetweenTwoPointsTSP(ITEMS_TABLE,a,b,3,7) end
+-- Join every room without upstream's factorial TSP; remember pairs before adding loops.
+local edges={}
+local function edgeKey(i,j) return math.min(i,j)*cfg.rooms+math.max(i,j) end
+local function connect(i,j)
+ local a,b=copy(points[7][i].pos),copy(points[7][j].pos)
+ if cfg.kind=='cave' then
+  if cfg.cavePaths=='direct' then paths:_createPathBetweenTwoPoints(ITEMS_TABLE,a,b,corridorWidth)
+  else paths:_connectTwoPoints(ITEMS_TABLE,a,b,corridorWidth) end
+ else paths:_createPathBetweenTwoPointsTSP(ITEMS_TABLE,a,b,corridorWidth,7) end
+ edges[edgeKey(i,j)]=true
+end
+if cfg.connectionMode=='nearest' then
+ local joined={[1]=true}
+ for count=2,cfg.rooms do
+  local bestI,bestJ,bestDistance
+  for i=1,cfg.rooms do if joined[i] then
+   for j=1,cfg.rooms do if not joined[j] then
+    local a,b=points[7][i].pos,points[7][j].pos
+    local distance=(a.x-b.x)^2+(a.y-b.y)^2
+    if not bestDistance or distance<bestDistance then bestI,bestJ,bestDistance=i,j,distance end
+   end end
+  end end
+  connect(bestI,bestJ); joined[bestJ]=true
+ end
+else for i=2,cfg.rooms do connect(i-1,i) end end
+if (cfg.extraConnections or 0)>0 then
+ local pairs={}
+ for i=1,cfg.rooms do for j=i+1,cfg.rooms do
+  if not edges[edgeKey(i,j)] then pairs[#pairs+1]={i,j} end
+ end end
+ for i=#pairs,2,-1 do local j=math.random(i); pairs[i],pairs[j]=pairs[j],pairs[i] end
+ for i=1,math.min(cfg.extraConnections,#pairs) do connect(pairs[i][1],pairs[i][2]) end
 end
 if cfg.wallsEnabled then
  local walls={}; for i=1,4 do walls[i]={80100+i} end
@@ -88,7 +121,7 @@ elseif cfg.bordersEnabled then
   resolvedGrounds[y]={}
   for x=pos.x,maxX do
    local id=groundAt(x,y)
-   if id==walk and #(materials.secondary or {})>0 and math.random(100)<=15 then id=second end
+   if id==walk and #(materials.secondary or {})>0 and secondaryDensity>0 and math.random(100)<=secondaryDensity then id=second end
    local role=markerRoles[id]
    resolvedGrounds[y][x]=role and choose(role) or id
   end
@@ -252,7 +285,7 @@ for y=pos.y,maxY do for x=pos.x,maxX do
   local v=stack[index]; local id=v.itemid; local ground=isGround(id)
   if ground and resolvedGrounds then id=resolvedGrounds[y][x]
   else
-   if id==walk and #(materials.secondary or {})>0 and math.random(100)<=15 then id=second end
+   if id==walk and #(materials.secondary or {})>0 and secondaryDensity>0 and math.random(100)<=secondaryDensity then id=second end
    local role=markerRoles[id]
    if role then id=choose(role) end
   end

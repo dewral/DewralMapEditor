@@ -128,6 +128,41 @@ CaveRoomBuilder=DungeonRoomBuilder
     }
     require(borderFamilies==QSet<int>{20,21,22},"A ground border set was skipped");
     require(result.value("tiles")==run(brushFixture+customMapRecipe).value("tiles"),"Ground border selection is not deterministic");
+    // Percentages change actual floor selection both with and without ground-specific borders.
+    for (const bool borders : {false,true}) for (const int percent : {0,100}) {
+        const QByteArray settings="DME_PROFILE.secondaryDensity="+QByteArray::number(percent)
+            +"; DME_PROFILE.bordersEnabled="+(borders ? QByteArray("true") : QByteArray("false"))+"\n";
+        const auto coverage=run(brushFixture+settings+customMapRecipe);
+        require(coverage.value("success").toBool(),"Secondary floor coverage failed");
+        int secondaryCount=0,primaryCount=0;
+        for (const QVariant &tile : coverage.value("tiles").toList()) for (const QVariant &item : tile.toMap().value("items").toList()) {
+            const int id=item.toMap().value("id").toInt();
+            secondaryCount+=id==10003; primaryCount+=id==10001 || id==10002;
+        }
+        require(percent==0 ? secondaryCount==0 && primaryCount>0 : secondaryCount>0 && primaryCount==0,
+            "Secondary floor percentage was ignored");
+    }
+    const QByteArray advancedFixture=brushFixture+R"lua(
+DME_PROFILE.rooms=4; DME_PROFILE.roomSpacing=6; DME_PROFILE.roomWidth=5; DME_PROFILE.roomHeight=9
+DME_PROFILE.corridorWidth=5; DME_PROFILE.connectionMode='nearest'; DME_PROFILE.extraConnections=2
+local connections={}
+WayPointer.new=function()
+ return {_createPathBetweenTwoPointsTSP=function(_,items,a,b,width)
+  assert(width==5,'Corridor width not forwarded')
+  local ka,kb=a.x..':'..a.y,b.x..':'..b.y
+  local k=ka<kb and ka..'/'..kb or kb..'/'..ka
+  assert(not connections[k],'Duplicate room connection'); connections[k]=true
+ end}
+end
+DungeonRoomBuilder.new=function()
+ return {createRooms=function(_,items,shapes)
+  assert(shapes[1].width==5 and shapes[1].height==9,'Room dimensions not forwarded')
+ end}
+end
+function checkConnections() local count=0; for _ in pairs(connections) do count=count+1 end; assert(count==5,'Extra connections not generated') end
+)lua";
+    result=run(advancedFixture+customMapRecipe+"\ncheckConnections()\n");
+    require(result.value("success").toBool(),"Advanced layout parameters were not used");
     require(!run(brushFixture+"for _,item in pairs(DME_PROFILE.itemInfo) do if not item.ground then item.blocked=true end end\n"+customMapRecipe)
         .value("success").toBool(),"Blocking ground borders bypassed the connectivity check");
 
@@ -146,6 +181,26 @@ CaveRoomBuilder=DungeonRoomBuilder
         {"materials",QVariantMap{{"background",QVariantList{QVariantMap{{"id",10000},{"weight",1}}}},
             {"floor",QVariantList{QVariantMap{{"id",10001},{"weight",1}}}}}}};
     require(CustomGeneratorProfiles::validate(associated,&profileInfo).isEmpty(),"Valid ground border profile rejected");
+    auto advanced=associated;
+    const QVariantMap advancedValues{{"roomWidth",9},{"roomHeight",11},{"roomSpacing",12},{"corridorWidth",5},
+        {"secondaryDensity",40},{"connectionMode","nearest"},{"extraConnections",4},{"cavePaths","direct"}};
+    for (auto it=advancedValues.cbegin();it!=advancedValues.cend();++it) advanced[it.key()]=it.value();
+    advanced["width"]=70; advanced["height"]=70; advanced["rooms"]=20;
+    require(CustomGeneratorProfiles::validate(advanced,&profileInfo).isEmpty(),"Advanced settings rejected");
+    for (const QString &key : {QString("roomWidth"),QString("roomHeight"),QString("roomSpacing"),QString("corridorWidth"),QString("secondaryDensity"),QString("extraConnections")}) {
+        auto invalid=advanced; invalid[key]=-1;
+        require(!CustomGeneratorProfiles::validate(invalid).isEmpty(),"Invalid advanced value accepted");
+        invalid[key]=2.5;
+        require(!CustomGeneratorProfiles::validate(invalid).isEmpty(),"Fractional advanced value accepted");
+    }
+    for (const QString &key : {QString("connectionMode"),QString("cavePaths")}) {
+        auto invalid=advanced; invalid[key]="unknown";
+        require(!CustomGeneratorProfiles::validate(invalid).isEmpty(),"Unknown layout mode accepted");
+    }
+    auto tooLarge=associated; tooLarge["roomWidth"]=21;
+    require(!CustomGeneratorProfiles::validate(tooLarge).isEmpty(),"Rooms exceeding map bounds accepted");
+    auto tooSparse=associated; tooSparse["roomSpacing"]=40;
+    require(!CustomGeneratorProfiles::validate(tooSparse).isEmpty(),"Too many rooms for advanced spacing accepted");
     require(CustomGeneratorProfiles::itemIds(associated).contains(20012),"Border items missing from client validation");
     auto invalidBorderProfile=associated; auto invalidSet=borderSet;
     invalidSet["groundIds"]=QVariantList{10002}; invalidBorderProfile["groundBorders"]=QVariantList{invalidSet};
@@ -167,6 +222,14 @@ CaveRoomBuilder=DungeonRoomBuilder
     const auto importedBorder=borderStore.importProfile(borderExport);
     require(importedBorder.value("success").toBool() && importedBorder.value("profile").toMap().value("groundBorders")==associated.value("groundBorders"),
         "Import lost ground border ownership or variants");
+    const auto savedAdvanced=borderStore.save(advanced);
+    require(savedAdvanced.value("success").toBool(),"Advanced profile save failed");
+    CustomGeneratorProfiles restoredAdvanced(nullptr,directory.filePath("ground-border-profiles"));
+    const auto advancedProfile=restoredAdvanced.load(savedAdvanced.value("profile").toMap().value("id").toString());
+    require(borderStore.exportProfile(advanced,borderExport).value("success").toBool(),"Advanced profile export failed");
+    const auto importedAdvanced=borderStore.importProfile(borderExport).value("profile").toMap();
+    for (auto it=advancedValues.cbegin();it!=advancedValues.cend();++it)
+        require(advancedProfile.value(it.key())==it.value() && importedAdvanced.value(it.key())==it.value(),"Advanced settings lost during save or import/export");
     if (argc>1) {
         const auto generated=LuaScriptEngine::execute(QString::fromLocal8Bit(argv[1]),"otmapgen",123,flag);
         if (!generated.value("success").toBool()) qFatal("Generator failed: %s",qPrintable(generated.value("error").toString()));
@@ -213,9 +276,42 @@ CaveRoomBuilder=DungeonRoomBuilder
             require(frequency[50002]>frequency[50003]*10,"Material weights were ignored");
             auto again=LuaScriptEngine::execute(generatorRoot.filePath("config.lua"),"profile",123,flag,120000,profile);
             require(again.value("tiles")==custom.value("tiles"),"Custom seed is not deterministic");
+            auto defaults=profile;
+            const QVariantMap defaultAdvanced{{"roomWidth",7},{"roomHeight",7},{"roomSpacing",8},{"corridorWidth",3},
+                {"secondaryDensity",15},{"connectionMode","chain"},{"extraConnections",0},{"cavePaths","winding"}};
+            for (auto it=defaultAdvanced.cbegin();it!=defaultAdvanced.cend();++it) defaults[it.key()]=it.value();
+            const auto defaultOutput=LuaScriptEngine::execute(generatorRoot.filePath("config.lua"),"profile",123,flag,120000,defaults);
+            require(defaultOutput.value("success").toBool() && defaultOutput.value("tiles")==custom.value("tiles"),"Advanced defaults changed legacy profiles");
+            auto tuned=profile;
+            tuned["width"]=70; tuned["height"]=70; tuned["rooms"]=12; tuned["density"]=0;
+            tuned["roomWidth"]=11; tuned["roomHeight"]=9; tuned["roomSpacing"]=12; tuned["corridorWidth"]=5;
+            tuned["connectionMode"]="nearest"; tuned["extraConnections"]=3; tuned["cavePaths"]="direct"; tuned["secondaryDensity"]=100;
+            auto tunedMaterials=materials; tunedMaterials["secondary"]=QVariantList{QVariantMap{{"id",50006},{"weight",1}}};
+            auto tunedInfo=info; tunedInfo["50006"]=QVariantMap{{"valid",true},{"ground",true},{"blocked",false}};
+            tuned["materials"]=tunedMaterials; tuned["itemInfo"]=tunedInfo;
+            const auto tunedOutput=LuaScriptEngine::execute(generatorRoot.filePath("config.lua"),"profile",123,flag,120000,tuned);
+            if (!tunedOutput.value("success").toBool()) qFatal("Advanced %s recipe: %s",qPrintable(kind),qPrintable(tunedOutput.value("error").toString()));
+            require(tunedOutput.value("tileCount").toInt()==4900,"Advanced layout changed requested map bounds");
+            int tunedFloorCount=0;
+            for (const QVariant &tile : tunedOutput.value("tiles").toList()) for (const QVariant &item : tile.toMap().value("items").toList()) {
+                const int id=item.toMap().value("id").toInt();
+                require(tunedInfo.contains(QString::number(id)),"Advanced layout emitted an unselected item");
+                require(id!=50002 && id!=50003,"100 percent secondary floor ignored in upstream integration");
+                tunedFloorCount+=id==50006;
+            }
+            require(tunedFloorCount>300,"Advanced layout produced no useful floor area");
+            const auto tunedAgain=LuaScriptEngine::execute(generatorRoot.filePath("config.lua"),"profile",123,flag,120000,tuned);
+            require(tunedAgain.value("success").toBool() && tunedAgain.value("tiles")==tunedOutput.value("tiles"),"Advanced layout is not deterministic");
             qInfo() << "Custom" << kind << "passed:" << custom.value("itemCount") << "items";
         }
         // Optional categories must never introduce upstream's stock IDs.
+        auto maximum=profile;
+        maximum["kind"]="cave"; maximum["width"]=200; maximum["height"]=200; maximum["rooms"]=64; maximum["density"]=0;
+        maximum["roomWidth"]=21; maximum["roomHeight"]=21; maximum["roomSpacing"]=20; maximum["corridorWidth"]=5;
+        maximum["connectionMode"]="nearest"; maximum["extraConnections"]=16; maximum["cavePaths"]="direct";
+        const auto maximumOutput=LuaScriptEngine::execute(generatorRoot.filePath("config.lua"),"profile",123,flag,120000,maximum);
+        if (!maximumOutput.value("success").toBool()) qFatal("Maximum advanced map failed: %s",qPrintable(maximumOutput.value("error").toString()));
+        require(maximumOutput.value("tileCount").toInt()==40000,"Maximum advanced map changed output bounds");
         auto full=profile;
         auto fullMaterials=materials; auto fullInfo=info;
         fullMaterials["secondary"]=QVariantList{QVariantMap{{"id",50006},{"weight",1}}};

@@ -33,9 +33,23 @@ void MapView::deleteSelectedTop()
         for (quint64 key : m_selectionController.selected()) {
             const int x = selX(key), y = selY(key), z = selZ(key);
 
-            if (m_otbm->clearCreatureAt(x, y, z)) { any = true; onTileEdited(x, y, z); continue; }
-            if (m_otbm->clearSpawnAt(x, y, z))    { any = true; invalidateSpawnIndex(); onTileEdited(x, y, z); continue; }
-            if (m_otbm->removeTopItem(x, y, z)) { any = true; onTileEdited(x, y, z); }
+            bool removedHere = false;
+            if (m_selectionController.wholeStack()) {
+                while (m_otbm->removeTopItem(x, y, z)) removedHere = true;
+                if (m_otbm->clearCreatureAt(x, y, z)) removedHere = true;
+                if (m_otbm->clearSpawnAt(x, y, z)) {
+                    removedHere = true;
+                    invalidateSpawnIndex();
+                }
+            } else if (m_otbm->clearCreatureAt(x, y, z)) {
+                removedHere = true;
+            } else if (m_otbm->clearSpawnAt(x, y, z)) {
+                removedHere = true;
+                invalidateSpawnIndex();
+            } else if (m_otbm->removeTopItem(x, y, z)) {
+                removedHere = true;
+            }
+            if (removedHere) { any = true; onTileEdited(x, y, z); }
         }
         m_otbm->endUndoGroup();
         flushEditedChunksLocked();

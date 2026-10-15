@@ -16,8 +16,9 @@ brush and optional blocking background, secondary ground, water, lava, walls,
 decoration prefab and up to five distinct monsters with relative weights.
 For example, weights 75 and 25 give a 3:1 spawn ratio. Advanced settings control rooms, corridors,
 caves, terrain, decoration and spawn density, spacing and respawn time.
-Material IDs and movement flags come from the active client. Incompatible or
-stale material references are reported by the generator.
+Material IDs and movement flags come from the active client. Creature names are
+exported once; when a monster and NPC share a name, generation uses the monster.
+Incompatible or stale material references are reported by the generator.
 
 Ground pickers use the active editor's ground definitions and their configured
 preview items, resolved through the loaded client's OTB mapping. Each brush shows

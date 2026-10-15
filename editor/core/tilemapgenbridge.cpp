@@ -14,6 +14,7 @@
 #include <QThread>
 #include <QUuid>
 #include <QtConcurrent>
+#include <algorithm>
 
 namespace {
 QString fingerprint(const QJsonObject &catalog) {
@@ -101,7 +102,7 @@ QJsonObject TileMapGenBridge::catalogJson() const {
     }
     for (const auto &c : m_backend->creatureStore()->creatureTypes())
         creatures.append(QJsonObject{{"name", c.name}, {"is_npc", c.isNpc}, {"look_type", c.lookType}, {"look_item", c.lookItem}});
-    result["items"] = items; result["creatures"] = creatures;
+    result["items"] = items; result["creatures"] = TileMapGenMaterials::uniqueCreatures(creatures);
     result["client"] = QJsonObject{{"key", m_backend->docMgr()->currentProfileKey()}, {"version", dat->clientVersion()}, {"otb_major", int(otb->majorVersion())}, {"otb_minor", int(otb->minorVersion())},
         {"dat_sha256", sourceHash(dat->sourceFilePath())}, {"spr_sha256", sourceHash(m_backend->sprReader()->sourceFilePath())}};
     return result;
@@ -243,7 +244,15 @@ QString TileMapGenBridge::applyPreview() {
 QVariantMap TileMapGenBridge::generationMaterials() const {
     const auto pack = catalogJson();
     QHash<int, QJsonObject> items;
+    QSet<int> visibleIds;
     for (const auto &v : pack["items"].toArray()) items.insert(v.toObject()["id"].toInt(), v.toObject());
+    for (auto it = items.cbegin(); it != items.cend(); ++it) {
+        const auto *item = m_backend->datReader()->itemByClientId(m_backend->otbReader()->clientIdForServerId(it.key()));
+        if (!item) continue;
+        const auto count = std::min(item->sprite_ids.size(), size_t(item->width) * item->height * item->layers);
+        if (std::any_of(item->sprite_ids.begin(), item->sprite_ids.begin() + count, [](auto id) { return id != 0; }))
+            visibleIds.insert(it.key());
+    }
     QStringList floors, backgrounds, walls, decorations, monsters;
     QHash<QString, int> previewIds;
     for (const auto &name : m_backend->brushStore()->groundBrushNames())
@@ -257,7 +266,16 @@ QVariantMap TileMapGenBridge::generationMaterials() const {
         ground["clientId"] = m_backend->otbReader()->clientIdForServerId(ground.value("serverId").toInt());
         v = ground;
     }
-    for (const auto &v : pack["walls"].toArray()) walls.append(v.toObject()["name"].toString());
+    previewIds.clear();
+    for (const auto &name : m_backend->brushStore()->wallBrushNames())
+        previewIds.insert(name, m_backend->brushStore()->advancedBrushEdit("walls", name).value("lookid").toInt());
+    auto wallChoices = TileMapGenMaterials::wallChoices(pack, previewIds, &visibleIds);
+    for (auto &v : wallChoices) {
+        auto wall = v.toMap();
+        walls.append(wall.value("name").toString());
+        wall["clientId"] = m_backend->otbReader()->clientIdForServerId(wall.value("serverId").toInt());
+        v = wall;
+    }
     for (const auto &v : pack["prefabs"].toArray()) {
         const auto prefab = v.toObject(); bool usable = true;
         for (const auto &variant : prefab["variants"].toArray()) for (const auto &tile : variant.toArray()) {
@@ -270,7 +288,7 @@ QVariantMap TileMapGenBridge::generationMaterials() const {
         if (usable) decorations.append(prefab["name"].toString());
     }
     for (const auto &v : pack["creatures"].toArray()) if (!v.toObject()["is_npc"].toBool()) monsters.append(v.toObject()["name"].toString());
-    return {{"grounds", grounds}, {"floors", floors}, {"backgrounds", backgrounds}, {"walls", walls},
+    return {{"grounds", grounds}, {"floors", floors}, {"backgrounds", backgrounds}, {"walls", walls}, {"wallChoices", wallChoices},
             {"decorations", decorations}, {"monsters", monsters}};
 }
 

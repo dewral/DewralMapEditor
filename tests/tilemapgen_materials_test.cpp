@@ -17,6 +17,15 @@
 
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    if (argc == 4 && QString::fromLocal8Bit(argv[1]) == "--normalize-creatures") {
+        QFile input(QString::fromLocal8Bit(argv[2])); CHECK(input.open(QIODevice::ReadOnly));
+        auto pack = QJsonDocument::fromJson(input.readAll()).object();
+        CHECK(!pack.isEmpty());
+        pack["creatures"] = TileMapGenMaterials::uniqueCreatures(pack["creatures"].toArray());
+        QFile output(QString::fromLocal8Bit(argv[3])); CHECK(output.open(QIODevice::WriteOnly));
+        CHECK(output.write(QJsonDocument(pack).toJson()) > 0);
+        return 0;
+    }
     if (argc == 4 && QString::fromLocal8Bit(argv[1]) == "--import") {
         QFile file(QString::fromLocal8Bit(argv[3])); CHECK(file.open(QIODevice::ReadOnly));
         const auto pack = QJsonDocument::fromJson(file.readAll()).object();
@@ -26,6 +35,10 @@ int main(int argc, char **argv) {
         for (const auto &value : pack["items"].toArray()) {
             const auto item = value.toObject();
             catalog.items.insert(item["id"].toInt(), {item["ground"].toBool(), item["blocked"].toBool(), quint32(item["floor_change"].toInteger())});
+        }
+        for (const auto &value : pack["creatures"].toArray()) {
+            const auto creature = value.toObject();
+            if (!creature["is_npc"].toBool()) catalog.monsters.insert(creature["name"].toString());
         }
         const auto result = TmgFormat::load(QString::fromLocal8Bit(argv[2]), catalog, {}, {}, true);
         if (!result.error.isEmpty()) qCritical().noquote() << result.error;
@@ -94,12 +107,34 @@ int main(int argc, char **argv) {
                 CHECK(spr.itemPatternImage(*item, 0).save(output + "/" + QString::number(preview) + ".png"));
             }
         }
+        QSet<int> visibleIds;
+        QHash<QString, int> wallPreviews;
+        for (const auto &value : catalog["items"].toArray()) {
+            const int id = value.toObject()["id"].toInt();
+            const auto *item = dat.itemByClientId(otb.clientIdForServerId(id));
+            const auto count = item ? std::min(item->sprite_ids.size(), size_t(item->width) * item->height * item->layers) : 0;
+            if (item && std::any_of(item->sprite_ids.begin(), item->sprite_ids.begin() + count, [](auto id) { return id != 0; }))
+                visibleIds.insert(id);
+        }
+        for (const auto &name : brushes.wallBrushNames())
+            wallPreviews.insert(name, brushes.advancedBrushEdit("walls", name).value("lookid").toInt());
+        QJsonArray wallPreviewRows;
+        for (const auto &value : TileMapGenMaterials::wallChoices(catalog, wallPreviews, &visibleIds)) {
+            const auto choice = value.toMap(); const int id = choice.value("serverId").toInt();
+            if (id) {
+                const auto *item = dat.itemByClientId(otb.clientIdForServerId(id)); CHECK(item);
+                CHECK(spr.itemPatternImage(*item, 0).save(output + "/wall-" + QString::number(id) + ".png"));
+            }
+            wallPreviewRows.append(QJsonObject::fromVariantMap(choice));
+        }
+        QFile wallFile(output + "/wall-previews.json"); CHECK(wallFile.open(QIODevice::WriteOnly));
+        CHECK(wallFile.write(QJsonDocument(wallPreviewRows).toJson()) > 0);
         qInfo() << "Ground brushes" << choices.size() << "walking" << walking << "blocking" << blocking << "DAT" << dat.itemCount() << "OTB" << otb.rowCount();
         return 0;
     }
     QTemporaryDir directory;
     QFile file(directory.filePath("brushes.json")); CHECK(file.open(QIODevice::WriteOnly));
-    CHECK(file.write(R"({"grounds":{"weighted floor":{"lookid":102,"items":[[100,3],[101,7]],"zorder":10,"borders":[],"friends":[]}}})") > 0);
+    CHECK(file.write(R"({"grounds":{"weighted floor":{"lookid":102,"items":[[100,3],[101,7]],"zorder":10,"borders":[],"friends":[]}},"walls":{"weighted wall":{"lookid":105,"items":{"0":[[103,3],[104,7]]}}}})") > 0);
     file.close(); CHECK(brushes.loadForDir(directory.path()));
     const auto ground = brushes.generationCatalog()["grounds"].toArray()[0].toObject();
     CHECK(ground["items"].toArray() == QJsonArray({QJsonObject{{"id",100},{"weight",3}}, QJsonObject{{"id",101},{"weight",7}}}));
@@ -115,6 +150,39 @@ int main(int argc, char **argv) {
     CHECK(TileMapGenMaterials::paletteError(catalog, {{"floor", "weighted floor"}, {"background", "weighted floor"}}).contains("blocking ground"));
     CHECK(TileMapGenMaterials::paletteError(catalog, {{"floor", "missing floor"}}).contains("unavailable"));
     CHECK(brushes.generationCatalog()["grounds"].toArray()[0].toObject() == ground);
-    qInfo() << "Brush preview IDs, weighted variants and ground role validation passed";
+    const auto walls = brushes.generationCatalog()["walls"].toArray();
+    CHECK(walls.size() == 1);
+    CHECK(walls[0].toObject()["slots"].toArray()[0].toArray() == QJsonArray({QJsonObject{{"id",103},{"weight",3}}, QJsonObject{{"id",104},{"weight",7}}}));
+    auto wallItems = catalog["items"].toArray();
+    for (int id : {103,104,105}) wallItems.append(QJsonObject{{"id",id}});
+    catalog["items"] = wallItems;
+    const int wallLook = brushes.advancedBrushEdit("walls", "weighted wall").value("lookid").toInt();
+    CHECK(wallLook == 105);
+    auto wallChoices = TileMapGenMaterials::wallChoices(catalog, {{"weighted wall", wallLook}});
+    CHECK(wallChoices[0].toMap().value("serverId") == 105 && wallChoices[0].toMap().value("usable").toBool());
+    wallChoices = TileMapGenMaterials::wallChoices(catalog, {{"weighted wall", 999}});
+    CHECK(wallChoices[0].toMap().value("serverId") == 103);
+    const QSet<int> visibleIds{104};
+    wallChoices = TileMapGenMaterials::wallChoices(catalog, {{"weighted wall", wallLook}}, &visibleIds);
+    CHECK(wallChoices[0].toMap().value("serverId") == 104 && wallChoices[0].toMap().value("usable").toBool());
+    const QSet<int> blankSprites;
+    CHECK(!TileMapGenMaterials::wallChoices(catalog, {}, &blankSprites)[0].toMap().value("usable").toBool());
+    auto incomplete = catalog;
+    incomplete["items"] = QJsonArray{QJsonObject{{"id",103}}};
+    CHECK(!TileMapGenMaterials::wallChoices(incomplete)[0].toMap().value("usable").toBool());
+    CHECK(brushes.generationCatalog()["walls"].toArray() == walls);
+    const QJsonObject cobraNpc{{"name", "Cobra"}, {"is_npc", true}, {"look_type", 1}, {"look_item", 0}};
+    const QJsonObject cobraMonster{{"name", "Cobra"}, {"is_npc", false}, {"look_type", 81}, {"look_item", 0}};
+    const QJsonObject skeleton{{"name", "Demon Skeleton"}, {"is_npc", false}, {"look_type", 37}, {"look_item", 0}};
+    const QJsonObject otherSkeleton{{"name", "Demon Skeleton"}, {"is_npc", false}, {"look_type", 99}, {"look_item", 0}};
+    const QJsonObject guide{{"name", "Guide"}, {"is_npc", true}, {"look_type", 128}, {"look_item", 0}};
+    const QJsonArray creatures{cobraNpc, skeleton, cobraMonster, otherSkeleton, cobraNpc, guide, guide};
+    const QJsonArray expected{cobraMonster, skeleton, guide};
+    CHECK(TileMapGenMaterials::uniqueCreatures(creatures) == expected);
+    CHECK(TileMapGenMaterials::uniqueCreatures(QJsonArray{cobraMonster, cobraNpc}) == QJsonArray{cobraMonster});
+    CHECK(TileMapGenMaterials::uniqueCreatures(expected) == expected);
+    CHECK(TileMapGenMaterials::uniqueCreatures({}).isEmpty());
+    CHECK(creatures.size() == 7);
+    qInfo() << "Brush preview IDs, weighted variants, ground roles and unique creature export passed";
     return 0;
 }

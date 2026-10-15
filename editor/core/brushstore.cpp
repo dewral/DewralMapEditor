@@ -1452,7 +1452,20 @@ QString BrushStore::getBrushTo(const QString &firstName, const QString &secondNa
 
     if (first) {
         if (second) {
-            if (first->zorder < second->zorder && second->outerBorderFlag()) {
+            bool secondOnTop = first->zorder < second->zorder;
+            if (first->zorder == second->zorder && second->outerBorderFlag()) {
+                const auto hasMatchingOuter = [](const GroundDef &brush, const QString &to) {
+                    for (const auto &border : brush.borders)
+                        if (border.outer && (border.to == to || border.to == QStringLiteral("*")))
+                            return true;
+                    return false;
+                };
+                // Equal priorities still need a border owner. Prefer the only
+                // compatible rule, or use a stable name order if both define one.
+                secondOnTop = hasMatchingOuter(*second, firstName)
+                    && (!hasMatchingOuter(*first, secondName) || firstName < secondName);
+            }
+            if (secondOnTop && second->outerBorderFlag()) {
                 if (first->innerBorderFlag()) {
                     for (const BorderBlock &bb : first->borders) {
                         if (bb.outer) continue;

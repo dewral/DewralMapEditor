@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
     "Disable Qt Creator package-manager auto setup" FORCE)
 
-project(DewralMapEditor VERSION 1.1.26 LANGUAGES C CXX)
+project(DewralMapEditor VERSION 1.1.27 LANGUAGES C CXX)
 
 set(DME_RELEASE_REPOSITORY "dewral/DewralMapEditor" CACHE STRING
     "GitHub repository hosting the stable update packages")
@@ -408,6 +408,15 @@ if(BUILD_TESTING)
     target_link_libraries(map_dungeon_generator_test PRIVATE Qt6::Core)
     add_test(NAME map_dungeon_generator COMMAND map_dungeon_generator_test)
     add_executable(tmg_import_test EXCLUDE_FROM_ALL tests/tmg_import_test.cpp editor/core/brushstore.cpp)
+    add_executable(ground_border_priority_test EXCLUDE_FROM_ALL
+        tests/ground_border_priority_test.cpp editor/core/brushstore.cpp)
+    target_include_directories(ground_border_priority_test PRIVATE editor/core)
+    target_link_libraries(ground_border_priority_test PRIVATE OTFormats Qt6::Core)
+    add_test(NAME ground_border_priority COMMAND ground_border_priority_test)
+    if(WIN32)
+        set_tests_properties(ground_border_priority PROPERTIES
+            ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>" TIMEOUT 30)
+    endif()
     add_executable(tilemapgen_settings_test EXCLUDE_FROM_ALL tests/tilemapgen_settings_test.cpp
         editor/core/tilemapgenprofiles.cpp editor/core/tilemapgenprofiles.h
         editor/core/tilemapgenmaterials.cpp editor/core/tilemapgenmaterials.h)

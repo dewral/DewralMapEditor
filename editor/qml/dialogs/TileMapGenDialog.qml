@@ -15,7 +15,7 @@ DmeDialog {
     modal: false; dim: false
     width: Math.min(800, (Overlay.overlay ? Overlay.overlay.width : 832) - 32)
     height: Math.min(720, (Overlay.overlay ? Overlay.overlay.height : 752) - 32)
-    property var materials: ({grounds: [], floors: [], backgrounds: [], walls: [], decorations: [], monsters: []})
+    property var materials: ({grounds: [], floors: [], backgrounds: [], walls: [], wallChoices: [], decorations: [], monsters: []})
     property var monsters: []
     property string activeProfileId: ""
     readonly property var profileEntries: Backend.tileMapGenProfiles.profiles
@@ -61,6 +61,7 @@ DmeDialog {
     }
     function refreshMaterials() {
         const selected = [floorBrush.currentName, backgroundBrush.currentName, secondaryBrush.currentName, waterBrush.currentName, lavaBrush.currentName];
+        const selectedWall = wallBrush.currentName;
         materials = Backend.tileMapGen.generationMaterials();
         const combos = [floorBrush, backgroundBrush, secondaryBrush, waterBrush, lavaBrush];
         const labels = ["", "Void", "None", "None", "None"];
@@ -69,6 +70,8 @@ DmeDialog {
             if (selected[i]) selectGround(combos[i], selected[i]);
             else combos[i].currentIndex = combos[i].model.length ? 0 : -1;
         }
+        wallBrush.model = [{name: "", label: "None", clientId: 0, usable: true}].concat(Array.from(materials.wallChoices || []));
+        selectGround(wallBrush, selectedWall);
     }
     function monsterChoices(index) {
         const selected = monsters[index] ? monsters[index].name : "";
@@ -119,7 +122,7 @@ DmeDialog {
         downId.value = o.downId; upId.value = o.upId;
         selectGround(floorBrush, palette.floor); selectGround(backgroundBrush, palette.background);
         selectGround(secondaryBrush, palette.secondary); selectGround(waterBrush, palette.water); selectGround(lavaBrush, palette.lava);
-        selectChoice(wallBrush, palette.wall); selectChoice(decoration, palette.decorations.length ? palette.decorations[0] : "");
+        selectGround(wallBrush, palette.wall); selectChoice(decoration, palette.decorations.length ? palette.decorations[0] : "");
         monsters = palette.creatures.map(entry => ({name: entry.name, weight: entry.weight}));
         rooms.value = settings.rooms; roomMin.value = settings.room_min; roomMax.value = settings.room_max;
         corridorWidth.value = settings.corridor_width; loops.value = Math.round(settings.loops * 100);
@@ -142,7 +145,7 @@ DmeDialog {
             palette: {
                 floor: floorBrush.currentName, background: backgroundBrush.currentName,
                 secondary: secondaryBrush.currentName, water: waterBrush.currentName, lava: lavaBrush.currentName,
-                wall: optional(wallBrush), decorations: decoration.currentIndex > 0 ? [decoration.currentText] : [],
+                wall: wallBrush.currentName, decorations: decoration.currentIndex > 0 ? [decoration.currentText] : [],
                 creatures: monsters.map(entry => ({name: entry.name, weight: entry.weight}))
             },
             settings: {
@@ -245,7 +248,7 @@ DmeDialog {
                     Caption { text: "Secondary floor" }
                     GroundChoice { id: secondaryBrush }
                     Caption { text: "Walls" }
-                    Choice { id: wallBrush; model: ["None"].concat(Array.from(dialog.materials.walls)) }
+                    GroundChoice { id: wallBrush; objectName: "tileMapWall" }
                 }
                 Caption { visible: workflow.currentIndex !== 2; Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "For multiple floors, enter matching down and up stair server IDs from this client." }
                 ColumnLayout {
@@ -381,7 +384,7 @@ DmeDialog {
                 objectName: "generateTileMap"; visible: workflow.currentIndex === 0; text: "Generate"
                 enabled: !dialog.busy && Backend.tileMapGen.available && floorBrush.currentName.length > 0
                     && floorBrush.currentUsable && backgroundBrush.currentUsable && secondaryBrush.currentUsable
-                    && waterBrush.currentUsable && lavaBrush.currentUsable
+                    && waterBrush.currentUsable && lavaBrush.currentUsable && wallBrush.currentUsable
                     && seed.text.trim().length > 0 && destinationZ.value + floors.value <= 16
                     && (destination.currentIndex !== 0 || dialog.fitsPlacement)
                     && (floors.value === 1 || (downId.value > 0 && upId.value > 0))

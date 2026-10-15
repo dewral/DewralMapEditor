@@ -105,6 +105,38 @@ Item {
             compare(dialog.generationOptions().palette.floor, "wooden floor");
             floor.popup.close();
         }
+        function test_wallChoicesAndSprites() {
+            Backend.tileMapGen.materialChoices.wallChoices = [
+                {name:"stone wall",label:"stone wall",serverId:103,clientId:203,usable:true},
+                {name:"wooden wall",label:"wooden wall",serverId:104,clientId:204,usable:true}
+            ];
+            dialog.refreshMaterials();
+            const wall = field("tileMapWall");
+            compare(wall.count, 3);
+            wall.currentIndex = 0;
+            compare(dialog.generationOptions().palette.wall, "");
+            compare(String(field("tileMapWallSelectedSprite").source), "");
+            Backend.sprReader.generatorPreviewSprites = true;
+            wall.currentIndex = 1;
+            compare(dialog.generationOptions().palette.wall, "stone wall");
+            tryVerify(() => String(field("tileMapWallSelectedSprite").source).length > 0);
+            wall.popup.open(); wait(50);
+            const row = wall.popup.contentItem.itemAtIndex(1);
+            verify(row !== null && String(row.contentItem.children[0].source).length > 0);
+            mouseClick(wall.popup.contentItem.itemAtIndex(2));
+            tryCompare(wall, "currentIndex", 2);
+            compare(dialog.generationOptions().palette.wall, "wooden wall");
+            wall.popup.close();
+            field("tileMapProfileName").text = "Wall preview recipe";
+            dialog.saveProfile(false);
+            const id = dialog.activeProfileId;
+            wall.currentIndex = 0;
+            dialog.loadProfile(id);
+            compare(wall.currentName, "wooden wall");
+            Backend.tileMapGen.materialChoices.wallChoices.reverse();
+            dialog.refreshMaterials();
+            compare(wall.currentName, "wooden wall");
+        }
         function test_liveBrushRefreshPreservesSelection() {
             field("tileMapFloor").currentIndex = 1;
             Backend.tileMapGen.materialChoices = {grounds:[{name:"grass",label:"grass",serverId:100,clientId:200,walking:true},{name:"wooden floor",label:"wooden floor",serverId:102,clientId:202,walking:true}], floors:[],backgrounds:[],walls:[],decorations:[],monsters:[]};

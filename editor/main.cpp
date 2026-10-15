@@ -91,7 +91,13 @@ int main(int argc, char *argv[])
     format.setSwapInterval(vsyncEnabled ? 1 : 0);
     QSurfaceFormat::setDefaultFormat(format);
 
-    // QRhi chooses the platform backend. QSG_RHI_BACKEND can override it.
+    // D3D11 can lose the device when the first map frame is presented on
+    // Windows, leaving the entire Qt Quick window black. Use the OpenGL QRhi
+    // backend by default, while preserving explicit backend overrides.
+#ifdef Q_OS_WIN
+    if (qEnvironmentVariableIsEmpty("QSG_RHI_BACKEND"))
+        qputenv("QSG_RHI_BACKEND", QByteArrayLiteral("opengl"));
+#endif
     // VSync applies to the swapchain and takes effect at application startup.
     if (!vsyncEnabled) qputenv("QSG_NO_VSYNC", QByteArrayLiteral("1"));
 

@@ -289,7 +289,12 @@ DmeWindow {
         var paths = Object.assign({}, app.clientPaths);
         paths[String(clientVersion)] = clientFolder;
         app.clientPaths = paths;
-        startupScreen.beginLoadMap(mapPath, String(clientVersion));
+        // A repeat can start before the first frame dismisses the startup
+        // dialog. Its loadingMap guard still belongs to the previous load.
+        if (app.started)
+            app.loadEverything(mapPath, String(clientVersion));
+        else
+            startupScreen.beginLoadMap(mapPath, String(clientVersion));
     }
 
     function profileReload(mapPath, clientFolder, clientVersion) {

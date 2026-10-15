@@ -141,6 +141,7 @@ public:
 
     Q_PROPERTY(int clientVersion READ clientVersion WRITE setClientVersion NOTIFY clientVersionChanged)
 
+    QString sourceFilePath() const { return m_sourceFilePath; }
     int clientVersion() const { return m_clientVersion; }
     Q_INVOKABLE void setClientVersion(int v);
 
@@ -200,6 +201,7 @@ private:
     bool m_otfiExtended = false;
     bool m_otfiFrameDurations = false;
     bool m_otfiFrameGroups = false;
+    QString m_sourceFilePath;
     uint32_t m_signature = 0;
     uint16_t m_maxItemId = 0;
     bool m_loaded = false;

@@ -29,6 +29,11 @@ execute_process(
     RESULT_VARIABLE deploy_result
 )
 
+# Resolve the deployed QML modules and SQLite driver relative to the executable,
+# including Qt builds whose compiled prefix still points at a development kit.
+file(WRITE "${APPLICATION_DIRECTORY}/qt.conf"
+    "[Paths]\nPrefix=.\nPlugins=.\nQmlImports=qml\nTranslations=translations\n")
+
 if(NOT deploy_result EQUAL 0)
     message(FATAL_ERROR "windeployqt failed with exit code ${deploy_result}")
 endif()

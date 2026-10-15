@@ -25,14 +25,39 @@ DmeDialog {
 
 
     function brushIcon(name, kind) {
+        // Keep previews current when the manager saves pieces or sprites reload.
+        const brushRevision = Backend.brushStore.revision;
+        const imageRevision = Backend.sprReader.itemImagesRevision;
         if (!name || name === "None" || name === "Automatic") return "";
         const data = kind === "ground" ? Backend.brushStore.groundBrushEdit(name)
                                      : Backend.brushStore.advancedBrushEdit(kind, name);
         let id = Number(data.lookid || 0);
+        let candidates = [];
+        if (kind === "walls") {
+            // Editing wall pieces can leave lookid pointing at an old item.
+            // Use the enabled variants from the same draft as the wall editor.
+            for (const pairs of Object.values(data.items || {}))
+                for (const pair of pairs)
+                    if (Number(pair[0]) > 0 && Number(pair[1]) > 0
+                            && candidates.indexOf(Number(pair[0])) < 0)
+                        candidates.push(Number(pair[0]));
+            if (candidates.indexOf(id) >= 0)
+                candidates = [id].concat(candidates.filter(value => value !== id));
+        }
         if (!id && data.items && kind === "ground" && data.items.length)
             id = Number(data.items[0].id);
-        const clientId = Backend.otbReader.clientIdForServerId(id);
-        return clientId > 0 ? "image://paletteitem/" + clientId + "/" + Backend.sprReader.itemImagesRevision : "";
+        if (kind !== "walls") candidates = [id];
+        for (const candidate of candidates) {
+            if (candidate <= 0) continue;
+            const row = Backend.otbReader.rowForServerId(candidate);
+            if (row < 0) continue;
+            const details = Backend.otbReader.detailsAt(row);
+            if (!details.spriteIds || !details.spriteIds.length) continue;
+            const source = Backend.sprReader.itemImageSource(details.spriteIds,
+                details.itemWidth, details.itemHeight, details.layers);
+            if (source) return source;
+        }
+        return "";
     }
 
     component BrushPicker: Row {
@@ -48,6 +73,7 @@ DmeDialog {
             width: 40; height: 40
             color: "#161b22"; border.color: "#484f58"; radius: 3
             Image {
+                objectName: "generatorBrushIcon"
                 anchors.fill: parent; anchors.margins: 3
                 source: dialog.brushIcon(choice.currentText, picker.kind)
                 fillMode: Image.PreserveAspectFit; smooth: false
@@ -55,6 +81,7 @@ DmeDialog {
         }
         ComboBox {
             id: choice
+            objectName: "generatorBrushChoice"
             width: picker.width - 48
             palette.text: "#eeeeee"
             palette.buttonText: "#eeeeee"
@@ -70,6 +97,7 @@ DmeDialog {
                 contentItem: Row {
                     spacing: 8
                     Image {
+                        objectName: "generatorBrushOptionIcon" + index
                         width: 36; height: 36; smooth: false
                         fillMode: Image.PreserveAspectFit
                         source: dialog.brushIcon(String(modelData), picker.kind)
@@ -140,10 +168,22 @@ DmeDialog {
                 if (ids.indexOf(item.id) < 0) ids.push(item.id);
         groundIdText = ids.length > 0 ? "Server IDs: " + ids.join(", ") : "No ground IDs";
         ids = [];
-        const walls = Backend.brushStore.wallBrushEdit(selectedWallBrush());
-        for (let id of walls)
-            if (id > 0 && ids.indexOf(id) < 0) ids.push(id);
+        const walls = Backend.brushStore.advancedBrushEdit("walls", selectedWallBrush());
+        for (const pairs of Object.values(walls.items || {}))
+            for (const pair of pairs) {
+                const id = Number(pair[0]);
+                if (id > 0 && Number(pair[1]) > 0 && ids.indexOf(id) < 0) ids.push(id);
+            }
         wallIdText = ids.length > 0 ? "Server IDs: " + ids.join(", ") : "No wall IDs";
+    }
+    Connections {
+        target: Backend.brushStore
+        function onBrushesChanged() {
+            const selectedWall = dialog.selectedWallBrush();
+            dialog.wallBrushNames = Backend.brushStore.wallBrushNames();
+            wallBrush.currentIndex = dialog.wallBrushNames.indexOf(selectedWall);
+            dialog.refreshBrushIds();
+        }
     }
     function generatePreview() {
         const result = mapCtrl.generateDungeonPreview({
@@ -244,7 +284,7 @@ DmeDialog {
             Text { text: "Accent coverage (%)"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
             DmeSpinBox { id: accentCoverage; width: 330; from: 0; to: 40; value: 10 }
             Text { visible: !dialog.caveMode; text: "Wall brush"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
-            BrushPicker { visible: !dialog.caveMode; id: wallBrush; kind: "walls"; width: 330; model: dialog.wallBrushNames; onCurrentIndexChanged: dialog.refreshBrushIds() }
+            BrushPicker { visible: !dialog.caveMode; id: wallBrush; objectName: "generatorWallBrush"; kind: "walls"; width: 330; model: dialog.wallBrushNames; onCurrentIndexChanged: dialog.refreshBrushIds() }
             Text { visible: !dialog.caveMode; text: "Dungeon style"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }
             DmeComboBox { visible: !dialog.caveMode; id: style; width: 330; model: ["Tomb", "Cave", "Mixed"]; currentIndex: 0 }
             Text { text: "Seed"; color: "#c9d1d9"; width: 130; height: 24; verticalAlignment: Text.AlignVCenter }

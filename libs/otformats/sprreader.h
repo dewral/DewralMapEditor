@@ -48,6 +48,7 @@ public:
     explicit SprReader(QObject *parent = nullptr);
     ~SprReader() override;
 
+    QString sourceFilePath() const { return m_file.fileName(); }
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
@@ -92,6 +93,9 @@ public:
     Q_INVOKABLE QColor outfitColor(int colorIndex) const;
 
     int preloadItemImageSources(const DatReader *datReader);
+    Q_INVOKABLE QString itemImageSourceForClientId(int clientId) const {
+        return clientId > 0 ? QStringLiteral("image://paletteitem/%1/%2").arg(clientId).arg(m_itemImagesRevision) : QString();
+    }
     QImage preloadedItemImage(int clientId, int revision = -1) const;
     QImage itemPatternImage(const ClientItem &item, int variation);
     qsizetype thumbnailCacheBytes() const;

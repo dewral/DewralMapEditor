@@ -189,8 +189,15 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (app.arguments().contains(QStringLiteral("--smoke-test")))
+    if (app.arguments().contains(QStringLiteral("--smoke-test"))) {
+        if (app.arguments().contains(QStringLiteral("--smoke-tilemapgen"))) {
+            QVariant ready;
+            if (!QMetaObject::invokeMethod(engine.rootObjects().first(), "smokeTileMapGen",
+                                          Q_RETURN_ARG(QVariant, ready)) || !ready.toBool())
+                return 2;
+        }
         QTimer::singleShot(0, &app, &QCoreApplication::quit);
+    }
 
     return app.exec();
 }

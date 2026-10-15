@@ -1,5 +1,12 @@
 # Dewral Map Editor
 
+**Tools → Tile Map Generator…** connects to the local generator in
+`C:\github2\TileMapGenerator` when its executable or prepared Python environment
+is present. Choose a style, dimensions, floors, seed and active-client materials
+to generate directly in DME. Preview and apply a small result into an empty area
+with one Undo, or open a larger result as a new map. See the
+[Tile Map Generator guide](docs/tile-map-generator.md).
+
 **Tools → Custom Map Generator…** creates single-floor dungeons and caves with
 your own client materials, weighted variants and reusable JSON profiles. It
 provides a non-destructive map preview and applies the result with one Undo.

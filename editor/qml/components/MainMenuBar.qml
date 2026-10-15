@@ -31,6 +31,7 @@ DmeMenuBar {
     required property var brushEditorDialog
     required property var aiMapAssistantDialog
     required property var luaGeneratorDialog
+    required property var tileMapGenDialog
     required property var customMapGeneratorDialog
     required property var terrainGeneratorDialog
     required property var dungeonGeneratorDialog
@@ -497,6 +498,12 @@ DmeMenuBar {
 
     DmeMenu {
         title: "Tools"
+        DmeMenuItem {
+            text: "Tile Map Generator..."
+            visible: Backend.tileMapGen.available
+            enabled: Backend.otbReader.loaded && Backend.otbmReader.loaded
+            onTriggered: menuBar.tileMapGenDialog.open()
+        }
         Action {
             text: "Custom Map Generator..."
             enabled: Backend.otbmReader.loaded

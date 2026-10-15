@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
     "Disable Qt Creator package-manager auto setup" FORCE)
 
-project(DewralMapEditor VERSION 1.1.24 LANGUAGES C CXX)
+project(DewralMapEditor VERSION 1.1.26 LANGUAGES C CXX)
 
 set(DME_RELEASE_REPOSITORY "dewral/DewralMapEditor" CACHE STRING
     "GitHub repository hosting the stable update packages")
@@ -43,6 +43,8 @@ add_library(OTFormats STATIC
     libs/otformats/datreader.h
     libs/otformats/otbreader.cpp
     libs/otformats/otbreader.h
+    libs/otformats/tmgformat.cpp
+    libs/otformats/tmgformat.h
     libs/otformats/otbmreader.cpp
     libs/otformats/otbmreader.h
     libs/otformats/nodefilereader.cpp
@@ -68,6 +70,7 @@ target_link_libraries(OTFormats
     PUBLIC
         Qt6::Core
         Qt6::Gui
+        Qt6::Sql
         Qt6::Qml
 )
 
@@ -79,6 +82,12 @@ add_executable(DewralMapEditor
     editor/core/dmewindow.h
     editor/core/backend.cpp
     editor/core/backend.h
+    editor/core/tilemapgenprocess.cpp
+    editor/core/tilemapgenprocess.h
+    editor/core/tilemapgenprofiles.cpp
+    editor/core/tilemapgenprofiles.h
+    editor/core/tilemapgenmaterials.cpp
+    editor/core/tilemapgenmaterials.h
     editor/core/groundbrushexport.cpp
     editor/core/groundbrushexport.h
     editor/core/aimapassistant.cpp
@@ -112,6 +121,9 @@ add_executable(DewralMapEditor
     editor/core/hotkeysettings.cpp
     editor/core/hotkeysettings.h
     editor/map/mapview.cpp
+    editor/core/tilemapgenbridge.cpp
+    editor/core/tilemapgenbridge.h
+    editor/map/mapview_tmg.cpp
     editor/map/mapview_lua.cpp
     editor/map/mapview_edit.cpp
     editor/map/mapview_brush_core.cpp
@@ -188,6 +200,8 @@ qt_add_qml_module(DewralMapEditor
     SOURCES
         editor/core/dmewindow.h
         editor/core/backend.h
+        editor/core/tilemapgenbridge.h
+        editor/core/tilemapgenprofiles.h
         editor/core/aimapassistant.h
         editor/map/mapview.h
         editor/map/maprhiview.h
@@ -393,6 +407,46 @@ if(BUILD_TESTING)
     target_include_directories(map_dungeon_generator_test PRIVATE editor/map)
     target_link_libraries(map_dungeon_generator_test PRIVATE Qt6::Core)
     add_test(NAME map_dungeon_generator COMMAND map_dungeon_generator_test)
+    add_executable(tmg_import_test EXCLUDE_FROM_ALL tests/tmg_import_test.cpp editor/core/brushstore.cpp)
+    add_executable(tilemapgen_settings_test EXCLUDE_FROM_ALL tests/tilemapgen_settings_test.cpp
+        editor/core/tilemapgenprofiles.cpp editor/core/tilemapgenprofiles.h
+        editor/core/tilemapgenmaterials.cpp editor/core/tilemapgenmaterials.h)
+    target_include_directories(tilemapgen_settings_test PRIVATE editor/core)
+    target_link_libraries(tilemapgen_settings_test PRIVATE Qt6::Core Qt6::Qml)
+    add_test(NAME tilemapgen_settings COMMAND tilemapgen_settings_test)
+    add_executable(tilemapgen_materials_test EXCLUDE_FROM_ALL tests/tilemapgen_materials_test.cpp
+        editor/core/brushstore.cpp editor/core/tilemapgenmaterials.cpp)
+    target_include_directories(tilemapgen_materials_test PRIVATE editor/core)
+    target_link_libraries(tilemapgen_materials_test PRIVATE OTFormats Qt6::Gui)
+    add_test(NAME tilemapgen_materials COMMAND tilemapgen_materials_test)
+    if(WIN32)
+        set_tests_properties(tilemapgen_materials PROPERTIES
+            ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>" TIMEOUT 30)
+    endif()
+    if(WIN32)
+        set_tests_properties(tilemapgen_settings PROPERTIES
+            ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>" TIMEOUT 30)
+    endif()
+    target_include_directories(tmg_import_test PRIVATE editor/core)
+    target_link_libraries(tmg_import_test PRIVATE OTFormats Qt6::Core Qt6::Sql)
+    set(TILEMAPGEN_FIXTURE_DIR "" CACHE PATH "Fixture from TileMapGen scripts/make_dewral_fixture.py")
+    if(TILEMAPGEN_FIXTURE_DIR)
+        add_test(NAME tilemapgen_import COMMAND tmg_import_test "${TILEMAPGEN_FIXTURE_DIR}")
+    endif()
+    add_executable(tilemapgen_process_test EXCLUDE_FROM_ALL tests/tilemapgen_process_test.cpp
+        editor/core/tilemapgenprocess.cpp editor/core/tilemapgenprocess.h)
+    target_include_directories(tilemapgen_process_test PRIVATE editor/core)
+    target_link_libraries(tilemapgen_process_test PRIVATE OTFormats Qt6::Core)
+    set(TILEMAPGEN_DIRECTORY "" CACHE PATH "Local Tile Map Generator installation for integration tests")
+    if(TILEMAPGEN_FIXTURE_DIR AND TILEMAPGEN_DIRECTORY)
+        add_test(NAME tilemapgen_process COMMAND tilemapgen_process_test
+            "${TILEMAPGEN_DIRECTORY}" "${TILEMAPGEN_FIXTURE_DIR}")
+        set_tests_properties(tilemapgen_process PROPERTIES TIMEOUT 180)
+    endif()
+    add_test(NAME tilemapgen_dialog COMMAND DewralMapEditor --smoke-test --smoke-tilemapgen)
+    set_tests_properties(tilemapgen_dialog PROPERTIES
+        ENVIRONMENT "QT_QUICK_BACKEND=software;QML_IMPORT_PATH=$<TARGET_FILE_DIR:DewralMapEditor>/qml"
+        TIMEOUT 30)
     add_executable(otbm_background_load_test EXCLUDE_FROM_ALL
         tests/otbm_background_load_test.cpp)
     target_include_directories(otbm_background_load_test PRIVATE libs/otformats)
@@ -419,7 +473,7 @@ if(BUILD_TESTING)
     target_include_directories(map_creature_refresh_test PRIVATE
         libs/otformats editor/map editor/core)
     target_link_libraries(map_creature_refresh_test PRIVATE
-        OTFormats Qt6::Quick Qt6::Concurrent)
+        OTFormats DmeLuaScripts Qt6::Quick Qt6::Concurrent)
     target_compile_options(map_creature_refresh_test PRIVATE
         $<$<CXX_COMPILER_ID:MSVC>:/MP4>)
     add_test(NAME map_creature_refresh COMMAND map_creature_refresh_test)

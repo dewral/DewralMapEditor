@@ -80,6 +80,7 @@ void DatReader::reset()
     m_items.clear();
     m_effects.clear();
     m_outfits.clear();
+    m_sourceFilePath.clear();
     m_signature = 0;
     m_maxItemId = 0;
     m_loaded = false;
@@ -99,6 +100,7 @@ bool DatReader::loadFile(const QString &path, quint32 expectedSignature)
 {
     reset();
 
+    m_sourceFilePath = path;
     BinaryReader reader(path);
     if (!reader.isOpen()) {
         setError(QStringLiteral("Cannot open file: %1").arg(path));

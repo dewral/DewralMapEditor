@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
     "Disable Qt Creator package-manager auto setup" FORCE)
 
-project(DewralMapEditor VERSION 1.1.27 LANGUAGES C CXX)
+project(DewralMapEditor VERSION 1.1.28 LANGUAGES C CXX)
 
 set(DME_RELEASE_REPOSITORY "dewral/DewralMapEditor" CACHE STRING
     "GitHub repository hosting the stable update packages")
@@ -269,6 +269,13 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QUICK_BACKEND=software;QML_IMPORT_PATH=$<TARGET_FILE_DIR:DewralMapEditor>/qml"
         TIMEOUT 30)
     if(WIN32)
+        find_program(DME_POWERSHELL NAMES pwsh powershell)
+        if(DME_POWERSHELL)
+            add_test(NAME profile_map_loading_script COMMAND "${DME_POWERSHELL}"
+                -NoProfile -ExecutionPolicy Bypass -File
+                "${CMAKE_SOURCE_DIR}/tests/profile_map_loading_test.ps1")
+            set_tests_properties(profile_map_loading_script PROPERTIES TIMEOUT 30)
+        endif()
         add_executable(dme_window_test EXCLUDE_FROM_ALL
             tests/dme_window_test.cpp
             editor/windows/DME.rc

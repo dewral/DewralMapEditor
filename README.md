@@ -133,6 +133,11 @@ Fluent Dark, the modern GitHub-inspired layout or the textured, Tibia-inspired C
 House and spawn XML sidecar files are optional. When present, DME loads them
 with the map. When absent, the map still opens normally.
 
+On Windows, DME uses the OpenGL QRhi backend by default. This avoids a
+Direct3D 11 device-loss issue that can turn the editor black when opening a
+map. For graphics diagnostics, an explicit `QSG_RHI_BACKEND` environment
+variable still takes precedence (for example, `d3d11` or `opengl`).
+
 ### Release files
 
 Each release provides two independent archives:

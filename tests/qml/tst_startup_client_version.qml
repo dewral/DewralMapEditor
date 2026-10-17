@@ -78,7 +78,7 @@ TestCase {
 
     function test_standardVersionSurvivesRestart() {
         let session = newSession();
-        compare(combo(session).selKey, "760");
+        compare(combo(session).selKey, "740");
         selectProfile(session, "1098");
         closeSession(session);
 
@@ -103,7 +103,7 @@ TestCase {
         session = newSession(false);
         // StartupWindow is constructed before AppController loads custom profiles.
         compare(session.settings.selectedClientKey, "Other");
-        compare(combo(session).selKey, "760");
+        compare(combo(session).selKey, "740");
         session.profiles.load();
         compare(combo(session).selKey, "Other");
         compare(combo(session).currentText, "Other  (10.98)");
@@ -124,7 +124,7 @@ TestCase {
         closeSession(session);
 
         session = newSession();
-        compare(combo(session).selKey, "760");
+        compare(combo(session).selKey, "740");
         selectProfile(session, "860");
         closeSession(session);
 

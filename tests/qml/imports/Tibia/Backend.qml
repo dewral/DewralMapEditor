@@ -15,7 +15,7 @@ QtObject {
         signal finished(var result)
         function generatorScripts(directory) { return ["test30.lua"]; }
         function run(path, mode, seed) { lastMode = mode; busy = true; }
-        function runProfile(directory,profile,info) { lastMode="profile"; busy=true; }
+        function runProfile(profile,info) { lastMode="profile"; busy=true; }
         function cancel() { busy = false; finished({success: false, error: "Cancelled"}); }
     }
     property var hotkeys: QtObject {
@@ -38,12 +38,17 @@ QtObject {
         property bool loaded: true
         property int undoCount: 0
         property int redoCount: 0
+        property var fileHeader: ({success: false})
+        function inspectFileHeader(path) { return fileHeader; }
+        function finishLoading(success) { loading = false; }
         signal mapChanged()
     }
     property QtObject docMgr: QtObject {
         signal currentChanged()
+        signal autosaveFailed(string title, string error)
         property int recoveryCount: 0
         property var recoveries: []
+        function indexOfPath(path) { return -1; }
     }
     property QtObject updateService: QtObject {
         property string currentVersion: "test"
@@ -68,6 +73,7 @@ QtObject {
     property QtObject fileTools: QtObject {
         property string text: ""
         function fileName(path) { return path.split(/[\\/]/).pop(); }
+        function toLocalFile(url) { return String(url); }
         function clipboardText() { return text }
         function setClipboard(value) { text = value }
     }

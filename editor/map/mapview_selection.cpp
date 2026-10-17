@@ -72,11 +72,13 @@ void MapView::copySelection()
             ct.creature = t->creature_name;
             ct.spawntime = t->creature_spawntime;
             ct.npc = t->creature_is_npc;
+            ct.direction = t->creature_direction;
             ct.spawnRadius = t->spawn_radius;
         } else if (!t->creature_name.isEmpty()) {
             ct.creature = t->creature_name;
             ct.spawntime = t->creature_spawntime;
             ct.npc = t->creature_is_npc;
+            ct.direction = t->creature_direction;
         } else if (!t->items.empty()) {
             ct.items.push_back(t->items.back());
         }
@@ -236,7 +238,7 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
     struct Snap {
         int x, y, z, nx, ny;
         std::vector<OtbmMapItem> items;
-        QString creature; int spawntime = 60; bool npc = false;
+        QString creature; int spawntime = 60; bool npc = false; uint8_t direction = 0;
         int spawnRadius = 0;
     };
     std::vector<Snap> snap;
@@ -256,12 +258,14 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
             s.creature = t->creature_name;
             s.spawntime = t->creature_spawntime;
             s.npc = t->creature_is_npc;
+            s.direction = static_cast<uint8_t>((t->creature_direction + quarterTurns + 4) % 4);
             s.spawnRadius = t->spawn_radius;
         } else if (!t->creature_name.isEmpty()) {
 
             s.creature = t->creature_name;
             s.spawntime = t->creature_spawntime;
             s.npc = t->creature_is_npc;
+            s.direction = static_cast<uint8_t>((t->creature_direction + quarterTurns + 4) % 4);
         } else if (!t->items.empty()) {
             s.items.push_back(t->items.back());
         } else if (t->spawn_radius > 0) {
@@ -325,7 +329,7 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
             placeItemOnFloor(nx, ny, nz, it);
         }
         if (!s.creature.isEmpty()) {
-            m_otbm->setCreatureAt(nx, ny, nz, s.creature, s.spawntime, s.npc);
+            m_otbm->setCreatureAt(nx, ny, nz, s.creature, s.spawntime, s.npc, s.direction);
             onTileEdited(nx, ny, nz);
         }
         if (s.spawnRadius > 0) {
@@ -801,7 +805,7 @@ void MapView::commitPasteAt(int px, int py)
         for (const OtbmMapItem &ci : ct.items)
             placeItemOnFloor(tx, ty, tz, ci);
         if (!ct.creature.isEmpty()) {
-            m_otbm->setCreatureAt(tx, ty, tz, ct.creature, ct.spawntime, ct.npc);
+            m_otbm->setCreatureAt(tx, ty, tz, ct.creature, ct.spawntime, ct.npc, ct.direction);
             onTileEdited(tx, ty, tz);
         }
         if (ct.spawnRadius > 0) {

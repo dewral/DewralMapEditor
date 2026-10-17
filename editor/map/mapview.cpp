@@ -125,6 +125,7 @@ bool MapView::loadMap(const QString &path)
     m_optionalBorderOverrides.clear();
 
     OtbmReader *target = m_otbm;
+    const OtbmItemTypes itemTypes = m_otb ? m_otb->otbmItemTypes() : OtbmItemTypes{};
     if (m_mapLoadCancel) m_mapLoadCancel->store(true, std::memory_order_release);
     const auto cancel = std::make_shared<std::atomic_bool>(false);
     m_mapLoadCancel = cancel;
@@ -145,8 +146,9 @@ bool MapView::loadMap(const QString &path)
     };
     auto result = std::make_shared<LoadResult>();
 
-    std::thread([guard, targetGuard, guiThread, generation, path, result, cancel] {
+    std::thread([guard, targetGuard, guiThread, generation, path, result, cancel, itemTypes] {
         result->reader = std::make_unique<OtbmReader>();
+        result->reader->setItemTypes(itemTypes);
         const auto publishProgress = [guard, targetGuard, generation](int value, const QString &stage) {
             if (!guard || !targetGuard) return;
             QMetaObject::invokeMethod(guard, [guard, targetGuard, generation, value, stage] {
@@ -305,6 +307,7 @@ QVariantMap MapView::importMap(const QString &path, int offsetX, int offsetY,
 
     {
         std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+        if (m_otb) m_otbm->setItemTypes(m_otb->otbmItemTypes());
         result = m_otbm->importFile(path, offsetX, offsetY, offsetZ,
                                     importHouses, importSpawns, collisionMode);
     }
@@ -357,6 +360,7 @@ void MapView::setOtbm(OtbmReader *reader)
     m_mapLoadGeneration.fetch_add(1, std::memory_order_acq_rel);
     if (m_otbm && m_otbm->isLoading()) m_otbm->finishLoading(false);
     m_otbm = reader;
+    if (m_otbm && m_otb) m_otbm->setItemTypes(m_otb->otbmItemTypes());
     m_optionalBorderTiles.clear();
     m_optionalBorderOverrides.clear();
     if (m_otbm) connect(m_otbm, &OtbmReader::loadedChanged, this, &MapView::onMapLoaded);
@@ -367,7 +371,15 @@ void MapView::setOtbm(OtbmReader *reader)
 void MapView::setOtb(OtbReader *reader)
 {
     if (m_otb == reader) return;
+    if (m_otb) disconnect(m_otb, nullptr, this, nullptr);
     m_otb = reader;
+    if (m_otb) {
+        const auto updateTypes = [this] {
+            if (m_otbm) m_otbm->setItemTypes(m_otb->otbmItemTypes());
+        };
+        connect(m_otb, &OtbReader::loadedChanged, this, updateTypes);
+        updateTypes();
+    }
     emit readersChanged();
     onMapLoaded();
 }
@@ -841,9 +853,8 @@ void MapView::onMapLoaded()
                                       QStringLiteral("Preparing map canvas..."));
     {
         std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
-        // During background loading the client profile is selected only after
-        // map adoption. Defer atlas construction so an atlas for the previous
-        // client is not built and immediately discarded.
+        // The controller finalizes the atlas after map adoption. Defer this
+        // build so the same map is not queued twice during loading.
         if (reportProgress || !m_otbm || !m_otbm->isLoaded()) {
             // Keep the atlas until the profile identity is checked. Stop jobs
             // for the previous document without discarding reusable sprites.

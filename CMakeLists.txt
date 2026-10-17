@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
     "Disable Qt Creator package-manager auto setup" FORCE)
 
-project(DewralMapEditor VERSION 1.1.16 LANGUAGES C CXX)
+project(DewralMapEditor VERSION 1.1.26 LANGUAGES C CXX)
 
 set(DME_RELEASE_REPOSITORY "dewral/DewralMapEditor" CACHE STRING
     "GitHub repository hosting the stable update packages")
@@ -45,6 +45,8 @@ add_library(OTFormats STATIC
     libs/otformats/otbreader.h
     libs/otformats/otbmreader.cpp
     libs/otformats/otbmreader.h
+    libs/otformats/otbmitemtypes.h
+    libs/otformats/otbmtextcodec.h
     libs/otformats/nodefilereader.cpp
     libs/otformats/nodefilereader.h
     libs/otformats/binaryreader.cpp
@@ -229,6 +231,19 @@ target_link_libraries(DewralMapEditor
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dat_legacy_740_test EXCLUDE_FROM_ALL tests/dat_legacy_740_test.cpp)
+    target_include_directories(dat_legacy_740_test PRIVATE editor/map)
+    target_link_libraries(dat_legacy_740_test PRIVATE OTFormats)
+    add_test(NAME dat_legacy_740 COMMAND dat_legacy_740_test)
+    add_executable(otbm_rme_compatibility_test EXCLUDE_FROM_ALL tests/otbm_rme_compatibility_test.cpp)
+    target_link_libraries(otbm_rme_compatibility_test PRIVATE OTFormats)
+    add_test(NAME otbm_rme_compatibility COMMAND otbm_rme_compatibility_test)
+    add_executable(otbm_legacy_subtypes_test EXCLUDE_FROM_ALL tests/otbm_legacy_subtypes_test.cpp)
+    target_include_directories(otbm_legacy_subtypes_test PRIVATE editor/map)
+    target_link_libraries(otbm_legacy_subtypes_test PRIVATE OTFormats)
+    add_test(NAME otbm_legacy_subtypes COMMAND otbm_legacy_subtypes_test)
+    set_tests_properties(dat_legacy_740 otbm_rme_compatibility otbm_legacy_subtypes PROPERTIES
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
     add_executable(lua_script_engine_test EXCLUDE_FROM_ALL tests/lua_script_engine_test.cpp)
     target_link_libraries(lua_script_engine_test PRIVATE DmeLuaScripts)
     add_test(NAME lua_script_engine COMMAND lua_script_engine_test)
@@ -410,7 +425,7 @@ if(BUILD_TESTING)
     target_include_directories(map_creature_refresh_test PRIVATE
         libs/otformats editor/map editor/core)
     target_link_libraries(map_creature_refresh_test PRIVATE
-        OTFormats Qt6::Quick Qt6::Concurrent)
+        OTFormats DmeLuaScripts Qt6::Quick Qt6::Concurrent)
     target_compile_options(map_creature_refresh_test PRIVATE
         $<$<CXX_COMPILER_ID:MSVC>:/MP4>)
     add_test(NAME map_creature_refresh COMMAND map_creature_refresh_test)
@@ -447,7 +462,7 @@ if(BUILD_TESTING)
     target_link_libraries(update_version_test PRIVATE Qt6::Core)
     add_test(NAME update_version COMMAND update_version_test)
     if(WIN32)
-        set_tests_properties(otbm_compact_storage otbm_editing_storage
+        set_tests_properties(otbm_legacy_subtypes otbm_compact_storage otbm_editing_storage
                              otbm_background_load atlas_background_build map_path_builder
                              map_terrain_generator map_terrain_profile map_dungeon_generator
                              map_ground_cluster_generator map_selection_rotation

@@ -210,6 +210,8 @@ bool atlasBudget(const QTemporaryDir &directory)
 #include "map_zone_overlay_checks.h"
 #include "map_hotkey_checks.h"
 #include "map_context_brush_checks.h"
+#include "map_legacy_subtype_checks.h"
+#include "map_hangable_checks.h"
 
 int main(int argc, char **argv)
 {
@@ -238,6 +240,8 @@ int main(int argc, char **argv)
     if (!require(directory.isValid() && profileDirectory.isValid() && writeAssets(directory),
                  "Could not create creature refresh fixtures")) return 1;
     if (!testHouseTools(directory)) return 1;
+    if (!testLegacySubtypeBackgroundLoad(directory)) return 1;
+    if (!testHangableRendering(directory)) return 1;
 
     DatReader dat;
     dat.setClientVersion(860);

@@ -1213,6 +1213,17 @@ void MapView::renderCollectGhostInstances(std::vector<float> &out)
     if (m_hoverX < 0 || atlasSlots.empty() || !m_otb || !m_dat)
         return;
 
+    const auto currentHook = [this](const ClientItem *item, int x, int y, int z) {
+        return item->has(ClientProperty::Hangable)
+            ? hookPatternForTile(m_otbm ? m_otbm->tileAt(x, y, z) : nullptr, m_otb, m_dat) : 0;
+    };
+
+    const auto overlayHook = [this, &currentHook](const ClientItem *item, int x, int y, int z,
+                                                 const auto &overlay) {
+        return item->has(ClientProperty::Hangable)
+            ? mergeHookPatterns(currentHook(item, x, y, z), hookPatternForItems(overlay, m_otb, m_dat)) : 0;
+    };
+
     if (m_groundClusterStampActive) {
         for (const TerrainPreviewSprite &preview : m_groundClusterStampPreviewSprites) {
             const int tx = m_hoverX + preview.x;
@@ -1229,7 +1240,8 @@ void MapView::renderCollectGhostInstances(std::vector<float> &out)
                     for (int xx = 0; xx < width; ++xx) {
                         const uint32_t spriteId = cellSpriteId(
                             item, xx, yy, layer, width, height, tx, ty,
-                            m_navigationController.floor());
+                            m_navigationController.floor(), -1, 0,
+                            currentHook(item, tx, ty, m_navigationController.floor()));
                         const int atlasSlot = spriteId > 0
                             ? atlasSlotForSprite(spriteId) : -1;
                         if (atlasSlot < 0) continue;
@@ -1264,7 +1276,8 @@ void MapView::renderCollectGhostInstances(std::vector<float> &out)
                             for (int xx = 0; xx < width; ++xx) {
                                 const uint32_t spriteId = cellSpriteId(
                                     item, xx, yy, layer, width, height, tx, ty,
-                                    m_navigationController.floor());
+                                    m_navigationController.floor(), -1, 0,
+                                    overlayHook(item, tx, ty, m_navigationController.floor(), tile.items));
                                 const int atlasSlot = spriteId > 0
                                     ? atlasSlotForSprite(spriteId) : -1;
                                 if (atlasSlot < 0) continue;
@@ -1295,7 +1308,8 @@ void MapView::renderCollectGhostInstances(std::vector<float> &out)
                     for (int hh = 0; hh < h; ++hh)
                         for (int ww = 0; ww < w; ++ww) {
                             const uint32_t sp = cellSpriteId(c, ww, hh, l, w, h, tx, ty,
-                                                             m_navigationController.floor(), ci.count);
+                                                             m_navigationController.floor(), ci.count, 0,
+                                overlayHook(c, tx, ty, m_navigationController.floor(), ct.items));
                             if (sp == 0) continue;
                             const int as = atlasSlotForSprite(sp);
                             if (as < 0) continue;
@@ -1328,9 +1342,8 @@ void MapView::renderCollectGhostInstances(std::vector<float> &out)
 
         const int width = std::max<int>(1, outfit->width);
         const int height = std::max<int>(1, outfit->height);
-        const int directions = std::max<int>(1, outfit->pattern_x);
         const int layers = std::max<int>(1, outfit->layers);
-        const int direction = isOutfit ? std::min(2, directions - 1) : 0;
+        const int direction = 0;
         const int renderedLayers = isOutfit ? 1 : layers;
         for (int layer = 0; layer < renderedLayers; ++layer)
             for (int yy = 0; yy < height; ++yy) {
@@ -1373,7 +1386,9 @@ void MapView::renderCollectGhostInstances(std::vector<float> &out)
                 for (int l = 0; l < layers; ++l)
                     for (int hh = 0; hh < h; ++hh)
                         for (int ww = 0; ww < w; ++ww) {
-                            const uint32_t sp = cellSpriteId(c, ww, hh, l, w, h, tx, ty, m_navigationController.floor());
+                            const uint32_t sp = cellSpriteId(c, ww, hh, l, w, h, tx, ty,
+                                m_navigationController.floor(), -1, 0,
+                                overlayHook(c, tx, ty, m_navigationController.floor(), dt.items));
                             if (sp == 0) continue;
                             const int as = atlasSlotForSprite(sp);
                             if (as < 0) continue;
@@ -1409,7 +1424,8 @@ void MapView::renderCollectGhostInstances(std::vector<float> &out)
                         for (int hh = 0; hh < h; ++hh)
                             for (int ww = 0; ww < w; ++ww) {
                                 const uint32_t sp = cellSpriteId(c, ww, hh, l, w, h,
-                                                                 tx, ty, m_navigationController.floor());
+                                    tx, ty, m_navigationController.floor(), -1, 0,
+                                    currentHook(c, tx, ty, m_navigationController.floor()));
                                 if (sp == 0) continue;
                                 const int as = atlasSlotForSprite(sp);
                                 if (as < 0) continue;
@@ -1447,6 +1463,18 @@ void MapView::renderCollectGhostInstances(std::vector<float> &out)
         previewTile.x = static_cast<uint16_t>(targetX);
         previewTile.y = static_cast<uint16_t>(targetY);
         previewTile.z = static_cast<uint8_t>(targetZ);
+        if (!m_selectionController.wholeStack() && !tile->items.empty()) {
+            const OtbmMapItem &top = tile->items.back();
+            const int clientId = m_otb->clientIdForServerId(top.server_id);
+            const ClientItem *client = clientId > 0
+                ? m_dat->itemByClientId(static_cast<uint16_t>(clientId)) : nullptr;
+            if (client && client->has(ClientProperty::Hangable)) {
+                previewTile.items.clear();
+                if (const OtbmTile *target = m_otbm->tileAt(targetX, targetY, targetZ))
+                    previewTile.items.assign(target->items.begin(), target->items.end());
+                previewTile.items.push_back(top);
+            }
+        }
         quads.clear();
         appendTopItemQuads(&previewTile, quads);
         for (const QuadRef &q : quads) {

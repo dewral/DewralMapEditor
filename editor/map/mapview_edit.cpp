@@ -397,8 +397,7 @@ void MapView::placeItemAt(int x, int y, int serverId)
 void MapView::placeItemOnFloor(int x, int y, int z, int serverId)
 {
     if (serverId <= 0) return;
-    OtbmMapItem item;
-    item.server_id = static_cast<uint16_t>(serverId);
+    OtbmMapItem item = m_otbm ? m_otbm->makeItem(static_cast<uint16_t>(serverId)) : OtbmMapItem{};
     placeItemOnFloor(x, y, z, item);
 }
 

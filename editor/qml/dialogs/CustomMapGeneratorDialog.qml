@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
-import QtCore
 import Tibia 1.0
 import "../style"
 import "../components"
@@ -74,7 +73,6 @@ DmeDialog {
         invalidate(); selectedId=0;
         if (awaitingResult) status="Client changed. Generate again with matching materials.";
     }
-    Settings { id: settings; objectName:"customGeneratorSettings"; category: "luaGenerator"; property string generatorDirectory: "" }
     Connections {
         target: Backend
         function onOtbmReaderChanged() { dialog.invalidate(); dialog.status="Map changed. Generate again for this map."; }
@@ -102,10 +100,6 @@ DmeDialog {
                 dialog.mapCtrl.centerOnTile(dialog.profile.x+Math.floor(dialog.profile.width/2),dialog.profile.y+Math.floor(dialog.profile.height/2));
             }
         }
-    }
-    FolderDialog {
-        id: folderPicker; title: "Select otMapGenPublic folder"
-        onAccepted: { dialog.invalidate(); settings.generatorDirectory=Backend.fileTools.toLocalFile(selectedFolder); }
     }
     FileDialog {
         id: importPicker; title: "Import material profile"; nameFilters:["Generator profiles (*.json)"]
@@ -254,8 +248,6 @@ DmeDialog {
                         }
                         DmeCheckBox { text:"Generate walls"; checked:dialog.profile.wallsEnabled; onClicked:dialog.edit("wallsEnabled",!checked) }
                         DmeCheckBox { text:"Generate borders"; checked:dialog.profile.bordersEnabled; onClicked:dialog.edit("bordersEnabled",!checked) }
-                        DmeButton { text:"Choose otMapGen folder…"; width:parent.width; onClicked:folderPicker.open() }
-                        Text { font.family:Colors.fontFamily; width:parent.width; text:settings.generatorDirectory || "Select the folder containing config.lua and lib/."; color:Colors.c("muted"); font.pixelSize:10; wrapMode:Text.WrapAnywhere }
                     }
                 }
             }
@@ -271,13 +263,12 @@ DmeDialog {
                     onClicked: {
                         if (dialog.awaitingResult) { dialog.invalidate(); return; }
                         dialog.invalidate(); dialog.error=false;
-                        if (!settings.generatorDirectory) { dialog.error=true; dialog.status="Choose the otMapGenPublic folder first."; return; }
                         if (dialog.profile.clientKey && dialog.profile.clientKey!==dialog.clientKey) {
                             dialog.error=true; dialog.status="This profile belongs to another client. Duplicate it for this client and check the materials."; return;
                         }
                         dialog.targetDocument=Backend.otbmReader; dialog.targetClient=dialog.clientKey;
                         dialog.resultInvalidated=false; dialog.awaitingResult=true; dialog.status="Generating…";
-                        Backend.luaScripts.runProfile(settings.generatorDirectory,dialog.profile,dialog.mapCtrl.luaGeneratorItemInfo(dialog.profile));
+                        Backend.luaScripts.runProfile(dialog.profile,dialog.mapCtrl.luaGeneratorItemInfo(dialog.profile));
                     }
                 }
                 DmeButton { objectName:"applyCustomMap"; text:"Apply"; width:80; variant:"primary"; enabled:dialog.mapCtrl.luaPreviewActive && !Backend.luaScripts.busy; onClicked: {

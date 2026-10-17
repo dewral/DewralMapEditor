@@ -9,6 +9,7 @@
 #include <QtQml/qqmlregistration.h>
 #include <cstdint>
 #include <vector>
+#include "otbmitemtypes.h"
 
 class DatReader;
 class ItemsXmlReader;
@@ -103,6 +104,7 @@ public:
     quint32 majorVersion() const { return m_majorVersion; }
     quint32 minorVersion() const { return m_minorVersion; }
     quint32 buildNumber() const { return m_buildNumber; }
+    OtbmItemTypes otbmItemTypes() const;
 
     void setDatReader(DatReader *datReader);
 

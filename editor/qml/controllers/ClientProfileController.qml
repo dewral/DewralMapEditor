@@ -190,12 +190,21 @@ QtObject {
     }
 
     function ensureClientLoaded(reader, preferredProfileKey) {
-        var version = reader.suggestedClientVersion();
+        return ensureClientForMap(reader.suggestedClientVersion(), reader.filePath, preferredProfileKey);
+    }
+
+    function profileMatchesVersion(key, version) {
+        var base = profileVer(key);
+        // OTB minor 3 is shared by 7.60 and 7.72. Respect an explicit 7.60 profile.
+        return base === version || (version === 772 && base === 760);
+    }
+
+    function ensureClientForMap(version, path, preferredProfileKey) {
         if (version <= 0)
             version = 772;
         var preferred = preferredProfileKey === undefined || preferredProfileKey === null ? "" : String(preferredProfileKey);
-        var compatible = preferred !== "" && profileVer(preferred) === version;
-        var remembered = reader.filePath !== "" ? (mapProfiles[reader.filePath] || "") : "";
+        var compatible = preferred !== "" && profileMatchesVersion(preferred, version);
+        var remembered = path !== "" ? (mapProfiles[path] || "") : "";
         var key = compatible ? preferred : (remembered !== "" && (clientPaths[remembered] || "") !== "" ? remembered : resolveKeyForVersion(version));
         return ensureClientVersion(key);
     }

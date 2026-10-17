@@ -71,30 +71,20 @@ Item {
         return Math.round(Math.max(8, cursorPosition.y - height - 12));
     }
 
-    Rectangle {
+    TooltipSurface {
+        id: surface
         anchors.fill: parent
-        radius: 4
-        color: "#e6191d1f"
-        border.width: 1
-        border.color: FluentColors.c("accent")
-    }
-
-    Rectangle {
-        x: 9
-        anchors.verticalCenter: parent.verticalCenter
-        width: 6; height: 6; radius: 3
-        color: FluentColors.c("accent")
     }
 
     Text {
         id: tooltipText
         anchors.fill: parent
-        leftPadding: 21
-        rightPadding: 10
-        topPadding: 6
-        bottomPadding: 6
+        leftPadding: surface.contentLeftPadding
+        rightPadding: surface.contentRightPadding
+        topPadding: surface.contentVerticalPadding
+        bottomPadding: surface.contentVerticalPadding
         text: root.message
-        color: root.fluentTheme ? FluentColors.c("text") : root.grayTheme ? "#F0F0F0" : "#E6EDF3"
+        color: surface.textColor
         font.pixelSize: 12
         textFormat: Text.PlainText
         wrapMode: Text.Wrap

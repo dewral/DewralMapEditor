@@ -1,5 +1,6 @@
 
 #include "mapview.h"
+#include "otbmtextcodec.h"
 #include "mapview_p.h"
 
 #include <QPainter>
@@ -86,7 +87,12 @@ QVariantMap MapView::itemContextInfo(const OtbmMapItem &item, int index,
     const int group = m_otb ? m_otb->groupForServerId(item.server_id) : 0;
     const bool charges =
         item.subtype_attribute == static_cast<uint8_t>(OtbmAttribute::Charges);
+    const bool fluid = !charges && (group == static_cast<int>(OtbItemGroup::Fluid)
+        || group == static_cast<int>(OtbItemGroup::Splash)
+        || (ci && (ci->has(ClientProperty::FluidContainer) || ci->has(ClientProperty::Fluid))));
+    m.insert(QStringLiteral("fluid"), fluid);
     const bool subtypeEditable = (ci && ci->has(ClientProperty::Stackable))
+        || fluid
         || group == static_cast<int>(OtbItemGroup::Splash)
         || group == static_cast<int>(OtbItemGroup::Fluid)
         || item.has_subtype_attribute;
@@ -96,9 +102,7 @@ QVariantMap MapView::itemContextInfo(const OtbmMapItem &item, int index,
              charges ? 65535 : (ci && ci->has(ClientProperty::Stackable) ? 100 : 255));
     m.insert(QStringLiteral("subtypeLabel"),
              charges ? QStringLiteral("Charges")
-                     : (group == static_cast<int>(OtbItemGroup::Fluid)
-                            || group == static_cast<int>(OtbItemGroup::Splash)
-                            ? QStringLiteral("Fluid subtype")
+                     : (fluid ? QStringLiteral("Fluid")
                             : QStringLiteral("Count")));
     m.insert(QStringLiteral("actionId"), item.actionId());
     m.insert(QStringLiteral("uniqueId"), item.uniqueId());
@@ -137,8 +141,9 @@ QVariantMap MapView::itemContextInfo(const OtbmMapItem &item, int index,
 
             QVariantMap value;
             value.insert(QStringLiteral("key"),
-                         QString::fromLatin1(attribute.key));
+                         decodeMapText(attribute.key));
             value.insert(QStringLiteral("typeId"), attribute.type);
+            value.insert(QStringLiteral("keyRawBase64"), QString::fromLatin1(attribute.key.toBase64()));
             value.insert(QStringLiteral("rawBase64"),
                          QString::fromLatin1(attribute.value_raw.toBase64()));
             QString type = QStringLiteral("Unknown");
@@ -153,8 +158,7 @@ QVariantMap MapView::itemContextInfo(const OtbmMapItem &item, int index,
                 if (length == static_cast<quint32>(
                                   attribute.value_raw.size() - 4)) {
                     type = QStringLiteral("String");
-                    text = QString::fromLatin1(attribute.value_raw.constData() + 4,
-                                               static_cast<qsizetype>(length));
+                    text = decodeMapText(QByteArrayView(attribute.value_raw).sliced(4));
                 }
             } else if ((attribute.type == 2 || attribute.type == 3)
                        && attribute.value_raw.size() == 4) {

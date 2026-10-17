@@ -40,7 +40,6 @@ Item {
             Backend.uiTheme.style="fluent-dark"; Backend.luaScripts.busy=false;
             mapStub.applied=0; dialog.awaitingResult=false;
             dialog.adopt(dialog.freshProfile()); dialog.open();
-            findChild(dialog,"customGeneratorSettings").generatorDirectory="test-folder";
         }
         function cleanup() { dialog.close(); Backend.luaScripts.busy=false; }
         function test_materialsAndInvalidation() {

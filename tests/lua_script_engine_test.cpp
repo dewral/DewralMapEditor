@@ -63,8 +63,8 @@ int main(int argc, char **argv)
         if (!generated.value("success").toBool()) qFatal("Generator failed: %s",qPrintable(generated.value("error").toString()));
         require(generated.value("itemCount").toInt()>100,"Generator integration produced no useful output");
         qInfo() << "otMapGen integration:" << generated.value("tileCount") << "tiles," << generated.value("itemCount") << "items";
-        QDir generatorRoot(QFileInfo(QString::fromLocal8Bit(argv[1])).absolutePath());
-        generatorRoot.cdUp(); generatorRoot.cdUp();
+    }
+    {
         QVariantMap materials{{"background",QVariantList{QVariantMap{{"id",50001},{"weight",1}}}},
             {"floor",QVariantList{QVariantMap{{"id",50002},{"weight",100}},QVariantMap{{"id",50003},{"weight",1}}}},
             {"decorations",QVariantList{QVariantMap{{"id",50004},{"weight",1}},QVariantMap{{"id",50005},{"weight",1}}}}};
@@ -76,7 +76,7 @@ int main(int argc, char **argv)
             {"x",1000},{"y",1000},{"z",7},{"materials",materials},{"itemInfo",info}};
         for (const QString &kind : {QString("dungeon"),QString("cave")}) {
             profile["kind"]=kind;
-            auto custom=LuaScriptEngine::execute(generatorRoot.filePath("config.lua"),"profile",123,flag,120000,profile);
+            auto custom=LuaScriptEngine::execute(directory.filePath("missing-config.lua"),"profile",123,flag,120000,profile);
             if (!custom.value("success").toBool()) qFatal("Custom %s failed: %s",qPrintable(kind),qPrintable(custom.value("error").toString()));
             require(custom.value("tileCount").toInt()==1600,"Custom dimensions were not respected");
             QHash<int,int> frequency;
@@ -102,9 +102,29 @@ int main(int argc, char **argv)
             }
             require(seen.size()==passable.size(),"Decorations or room layout disconnected walking");
             require(frequency[50002]>frequency[50003]*10,"Material weights were ignored");
-            auto again=LuaScriptEngine::execute(generatorRoot.filePath("config.lua"),"profile",123,flag,120000,profile);
+            auto again=LuaScriptEngine::execute(directory.filePath("missing-config.lua"),"profile",123,flag,120000,profile);
             require(again.value("tiles")==custom.value("tiles"),"Custom seed is not deterministic");
             qInfo() << "Custom" << kind << "passed:" << custom.value("itemCount") << "items";
+        }
+        // Built-in profiles must work even when no external config exists.
+        for (const QString &kind : {QString("dungeon"),QString("cave")}) {
+            for (int size : {24,200}) for (int seed : {1,42,2147483647}) {
+                auto edge=profile; edge["kind"]=kind;
+                edge["width"]=size; edge["height"]=size;
+                edge["rooms"]=size==24 ? 4 : 16; edge["density"]=0;
+                edge["seed"]=seed;
+                const auto patch=LuaScriptEngine::execute(QString(),"profile",seed,flag,120000,edge);
+                if (!patch.value("success").toBool()) qFatal("Boundary %s/%d/%d: %s",
+                    qPrintable(kind),size,seed,qPrintable(patch.value("error").toString()));
+                require(patch.value("tileCount").toInt()==size*size,"Boundary dimensions incorrect");
+                require(patch.value("originX").toInt()==0 && patch.value("originY").toInt()==0,
+                    "Built-in profile origin incorrect");
+                for (const QVariant &v : patch.value("tiles").toList()) {
+                    const auto tile=v.toMap();
+                    require(tile.value("x").toInt()<size && tile.value("y").toInt()<size,
+                        "Generated tiles exceed requested rectangle");
+                }
+            }
         }
         // Optional categories must never introduce upstream's stock IDs.
         auto full=profile;
@@ -121,7 +141,7 @@ int main(int argc, char **argv)
         full["wallsEnabled"]=true; full["bordersEnabled"]=true;
         for (const QString &kind : {QString("dungeon"),QString("cave")}) {
             full["kind"]=kind;
-            const auto result=LuaScriptEngine::execute(generatorRoot.filePath("config.lua"),"profile",123,flag,120000,full);
+            const auto result=LuaScriptEngine::execute(directory.filePath("missing-config.lua"),"profile",123,flag,120000,full);
             if (!result.value("success").toBool()) qFatal("Full %s recipe: %s",qPrintable(kind),qPrintable(result.value("error").toString()));
             QSet<int> used;
             for (const QVariant &tile : result.value("tiles").toList()) for (const QVariant &item : tile.toMap().value("items").toList()) {
@@ -132,7 +152,7 @@ int main(int argc, char **argv)
             require(used.contains(50101) && used.contains(50105),"Walls or borders were skipped");
             auto empty=profile; empty["kind"]=kind;
             auto pools=materials; pools.remove("decorations"); empty["materials"]=pools;
-            const auto plain=LuaScriptEngine::execute(generatorRoot.filePath("config.lua"),"profile",123,flag,120000,empty);
+            const auto plain=LuaScriptEngine::execute(directory.filePath("missing-config.lua"),"profile",123,flag,120000,empty);
             require(plain.value("success").toBool(),"Empty optional pools failed");
             for (const QVariant &tile : plain.value("tiles").toList()) for (const QVariant &item : tile.toMap().value("items").toList())
                 require(item.toMap().value("id").toInt()<=50003,"Empty decorations used a default ID");
@@ -141,7 +161,7 @@ int main(int argc, char **argv)
         auto blockingInfo=fullInfo;
         for (int slot=1;slot<=4;++slot) { auto item=blockingInfo[QString::number(50100+slot)].toMap(); item["blocked"]=true; blockingInfo[QString::number(50100+slot)]=item; }
         large["itemInfo"]=blockingInfo;
-        const auto typical=LuaScriptEngine::execute(generatorRoot.filePath("config.lua"),"profile",123,flag,120000,large);
+        const auto typical=LuaScriptEngine::execute(directory.filePath("missing-config.lua"),"profile",123,flag,120000,large);
         if (!typical.value("success").toBool()) qFatal("Default-sized layout failed: %s",qPrintable(typical.value("error").toString()));
         require(typical.value("tileCount").toInt()==4900,"Default dimensions incorrect");
         auto invalid=profile; invalid["wallsEnabled"]=true;
@@ -153,7 +173,7 @@ int main(int argc, char **argv)
         auto missingInfo=info; missingInfo.remove("50002");
         require(!CustomGeneratorProfiles::validate(profile,&missingInfo).isEmpty(),"Unknown client item accepted");
         flag->store(true);
-        require(!LuaScriptEngine::execute(generatorRoot.filePath("config.lua"),"profile",123,flag,120000,profile).value("success").toBool(),"Cancelled profile produced a patch");
+        require(!LuaScriptEngine::execute(directory.filePath("missing-config.lua"),"profile",123,flag,120000,profile).value("success").toBool(),"Cancelled profile produced a patch");
         flag->store(false);
         CustomGeneratorProfiles store(nullptr,directory.filePath("profiles"));
         const auto saved=store.save(profile);

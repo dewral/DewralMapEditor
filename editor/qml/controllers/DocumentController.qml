@@ -168,6 +168,12 @@ Item {
 
         if (Backend.otbmReader.loaded && Backend.otbmReader.filePath !== mapPath)
             Backend.docMgr.newDocument();
+        const header = Backend.otbmReader.inspectFileHeader(mapPath);
+        if (header.success
+                && !profiles.ensureClientForMap(header.clientVersion, mapPath, preferredProfileKey)) {
+            requestClientFolder(mapPath, preferredProfileKey, header.clientVersion);
+            return true;
+        }
         activeLoadPath = mapPath;
         activePreferredProfileKey = preferredProfileKey === undefined
                                   || preferredProfileKey === null
@@ -180,18 +186,23 @@ Item {
         return true;
     }
 
+    function requestClientFolder(mapPath, preferredProfileKey, version) {
+        if (Backend.otbmReader.loading)
+            Backend.otbmReader.finishLoading(false);
+        pendingMapPath = mapPath;
+        var detectedVersion = version > 0 ? version : 772;
+        var requestedKey = preferredProfileKey === undefined || preferredProfileKey === null ? "" : String(preferredProfileKey);
+        pendingKey = requestedKey !== "" && profiles.profileMatchesVersion(requestedKey, detectedVersion)
+                     ? requestedKey : profiles.resolveKeyForVersion(detectedVersion);
+        if (started)
+            versionFolderDialog.open();
+        else
+            startupWindow.openVersionFolderDialog();
+    }
+
     function completeLoadedMap(mapPath, preferredProfileKey) {
         if (!profiles.ensureClientLoaded(Backend.otbmReader, preferredProfileKey)) {
-            if (Backend.otbmReader.loading)
-                Backend.otbmReader.finishLoading(false);
-            pendingMapPath = mapPath;
-            var detectedVersion = Backend.otbmReader.suggestedClientVersion() > 0 ? Backend.otbmReader.suggestedClientVersion() : 772;
-            var requestedKey = preferredProfileKey === undefined || preferredProfileKey === null ? "" : String(preferredProfileKey);
-            pendingKey = requestedKey !== "" && profiles.profileVer(requestedKey) === detectedVersion ? requestedKey : profiles.resolveKeyForVersion(detectedVersion);
-            if (started)
-                versionFolderDialog.open();
-            else
-                startupWindow.openVersionFolderDialog();
+            requestClientFolder(mapPath, preferredProfileKey, Backend.otbmReader.suggestedClientVersion());
             return false;
         }
 

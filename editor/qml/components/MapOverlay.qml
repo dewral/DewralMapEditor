@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Tibia 1.0
+import "../style"
 import "../themes/fluent/Colors.js" as Colors
 
 Item {
@@ -197,7 +198,8 @@ Item {
     onContainerEntriesChanged: if (containerModel) containerModel.updateEntries(tooltipsVisible ? containerEntries : [])
     Repeater {
         model: textModel
-        delegate: Rectangle {
+        delegate: TooltipSurface {
+            id: itemTip
             objectName: "itemTooltip"
             required property string encodedData
             readonly property var modelData: JSON.parse(encodedData)
@@ -205,20 +207,19 @@ Item {
             readonly property real anchorY: (modelData.y - overlay.pixelOriginY) * overlay.currentTileSize
             x: anchorX - width / 2
             y: anchorY - height - 6
-            width: Math.min(360, caption.implicitWidth + 18)
-            height: caption.contentHeight + 10
-            radius: 4
-            color: "#e6191d1f"
-            border.width: 1
-            border.color: modelData.kind === "waypoint" ? "#3fb950" : Colors.c("accent")
+            width: Math.min(360, caption.implicitWidth + contentLeftPadding + contentRightPadding)
+            height: caption.contentHeight + 2 * contentVerticalPadding
             Text {
                 id: caption
                 anchors.fill: parent
-                anchors.margins: 5
+                leftPadding: itemTip.contentLeftPadding
+                rightPadding: itemTip.contentRightPadding
+                topPadding: itemTip.contentVerticalPadding
+                bottomPadding: itemTip.contentVerticalPadding
                 text: modelData.text
                 textFormat: Text.PlainText
                 wrapMode: Text.Wrap
-                color: Colors.c("text")
+                color: itemTip.textColor
                 font.family: Colors.fontFamily
                 font.pixelSize: 12
             }
@@ -228,7 +229,7 @@ Item {
     Repeater {
         model: containerModel
 
-        delegate: Rectangle {
+        delegate: TooltipSurface {
             id: containerTip
             objectName: "containerTooltip"
             required property string encodedData
@@ -249,46 +250,23 @@ Item {
 
             x: anchorX - width / 2
             y: anchorY - height - 7
-            width: Math.max(containerHeader.implicitWidth + 10, gridWidth + 10)
-            height: 10 + containerHeader.implicitHeight + 3 + gridHeight
+            width: Math.max(containerHeader.implicitWidth, gridWidth) + contentLeftPadding + contentRightPadding
+            height: 2 * contentVerticalPadding + containerHeader.implicitHeight + 3 + gridHeight
                     + (hasOverflow ? overflowText.implicitHeight + 3 : 0)
-            radius: 4
-            color: "#FA0D1117"
-            border.width: 1
-            border.color: "#59636E"
             z: 20
 
-            Rectangle {
-                x: 2
-                y: 3
-                width: parent.width
-                height: parent.height
-                radius: parent.radius
-                color: "#62000000"
-                z: -1
-            }
-
-            Rectangle {
-                width: parent.width - 2
-                height: 2
-                anchors { top: parent.top; horizontalCenter: parent.horizontalCenter }
-                radius: 1
-                color: "#C89B3C"
-                opacity: 0.85
-            }
-
             Column {
-                anchors { fill: parent; margins: 5 }
+                anchors { fill: parent; leftMargin: containerTip.contentLeftPadding; rightMargin: containerTip.contentRightPadding; topMargin: containerTip.contentVerticalPadding; bottomMargin: containerTip.contentVerticalPadding }
                 spacing: 3
 
                 Text {
                     id: containerHeader
                     width: parent.width
                     text: containerTip.modelData.text
-                    color: "#F0F3F6"
-                    font.pixelSize: 10
-                    font.bold: true
-                    lineHeight: 0.9
+                    color: containerTip.textColor
+                    font.family: Colors.fontFamily
+                    font.pixelSize: 12
+                    textFormat: Text.PlainText
                 }
 
                 Grid {
@@ -336,8 +314,9 @@ Item {
                     visible: containerTip.hasOverflow
                     text: "+" + (containerTip.modelData.itemCount - containerTip.modelData.items.length)
                           + " more"
-                    color: "#8B949E"
-                    font.pixelSize: 9
+                    color: containerTip.textColor
+                    font.family: Colors.fontFamily
+                    font.pixelSize: 12
                 }
             }
         }

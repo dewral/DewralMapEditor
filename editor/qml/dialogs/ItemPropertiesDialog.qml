@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Tibia 1.0
 import "../style"
 
 DmeDialog {
@@ -20,6 +21,23 @@ DmeDialog {
 
     readonly property bool isTeleport: ctx.teleport === true
     readonly property bool isWritable: ctx.writable === true
+    readonly property bool isFluid: ctx.fluid === true
+    // Subtype IDs follow RME, including the alternate water and slime values.
+    readonly property var fluidTypes: [
+        {id: 0, name: "None (empty)"}, {id: 1, name: "Water"},
+        {id: 2, name: "Blood"}, {id: 3, name: "Beer"},
+        {id: 4, name: "Slime"}, {id: 5, name: "Lemonade"},
+        {id: 6, name: "Milk"}, {id: 7, name: "Mana fluid"},
+        {id: 8, name: "Ink"}, {id: 9, name: "Water (alternative)"},
+        {id: 10, name: "Life fluid"}, {id: 11, name: "Oil"},
+        {id: 12, name: "Slime (alternative)"}, {id: 13, name: "Urine"},
+        {id: 14, name: "Coconut milk"}, {id: 15, name: "Wine"},
+        {id: 19, name: "Mud"}, {id: 21, name: "Fruit juice"},
+        {id: 26, name: "Lava"}, {id: 27, name: "Rum"},
+        {id: 28, name: "Swamp"}, {id: 35, name: "Tea"},
+        {id: 43, name: "Mead"}
+    ]
+    property var fluidChoices: []
     readonly property bool hasCreature: ctx.creatureName !== undefined && ctx.creatureName !== ""
     readonly property bool hasSpawn: ctx.spawnRadius !== undefined && ctx.spawnRadius > 0
     readonly property int spawnCreatureCount: ctx.spawnCreatureCount || 0
@@ -32,6 +50,13 @@ DmeDialog {
         countField.from = ctx.subtypeMinimum !== undefined ? ctx.subtypeMinimum : 1;
         countField.to = ctx.subtypeMaximum !== undefined ? ctx.subtypeMaximum : 100;
         countField.value = ctx.count !== undefined ? ctx.count : countField.from;
+        fluidChoices = fluidTypes.slice();
+        let fluidIndex = fluidChoices.findIndex(entry => entry.id === countField.value);
+        if (fluidIndex < 0) {
+            fluidIndex = fluidChoices.length;
+            fluidChoices = fluidChoices.concat([{id: countField.value, name: "Unknown fluid (" + countField.value + ")"}]);
+        }
+        fluidField.currentIndex = fluidIndex;
         aidField.value = ctx.actionId > 0 ? ctx.actionId : 0;
         uidField.value = ctx.uniqueId > 0 ? ctx.uniqueId : 0;
         textField.text = ctx.text !== undefined ? ctx.text : "";
@@ -55,6 +80,7 @@ DmeDialog {
                 "attributeType": attribute.type || "Unknown",
                 "value": attribute.value || "",
                 "typeId": attribute.typeId || 0,
+                "keyRawBase64": attribute.keyRawBase64 || "",
                 "rawBase64": attribute.rawBase64 || ""
             });
         }
@@ -65,7 +91,8 @@ DmeDialog {
             var p = {
                 "actionId": aidField.value,
                 "uniqueId": uidField.value,
-                "count": countField.value,
+                "count": isFluid && fluidField.currentIndex >= 0
+                         ? fluidChoices[fluidField.currentIndex].id : countField.value,
                 "description": descriptionField.text,
                 "depotId": depotField.value,
                 "doorId": doorField.value,
@@ -91,6 +118,7 @@ DmeDialog {
                         "type": attribute.attributeType,
                         "value": attribute.value,
                         "typeId": attribute.typeId,
+                        "keyRawBase64": attribute.keyRawBase64,
                         "rawBase64": attribute.rawBase64
                     });
                 }
@@ -155,12 +183,21 @@ DmeDialog {
                 visible: propsDialog.ctx.hasItem === true
                 DmeSpinBox {
                     id: countField
+                    visible: !propsDialog.isFluid
                     width: 100
                     from: 1
                     to: 100
                     enabled: propsDialog.ctx.subtypeEditable === true
                     editable: propsDialog.ctx.subtypeEditable === true
                     opacity: enabled ? 1.0 : 0.45
+                }
+                DmeComboBox {
+                    id: fluidField
+                    objectName: "fluidSubtypeField"
+                    visible: propsDialog.isFluid
+                    width: 220
+                    model: propsDialog.fluidChoices.map(entry => entry.name)
+                    enabled: propsDialog.ctx.subtypeEditable === true
                 }
             }
 
@@ -457,6 +494,7 @@ DmeDialog {
                     "attributeType": "Number",
                     "value": "0",
                     "typeId": 2,
+                    "keyRawBase64": "",
                     "rawBase64": ""
                 })
             }

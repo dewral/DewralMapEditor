@@ -123,7 +123,7 @@ QVariantMap MapView::setLuaPreview(const QVariantMap &patch,int x,int y,int z)
         if (existing) {
             tile.flags=existing->flags; tile.is_house=existing->is_house; tile.house_id=existing->house_id;
             tile.creature_name=existing->creature_name; tile.creature_spawntime=existing->creature_spawntime;
-            tile.creature_is_npc=existing->creature_is_npc; tile.spawn_radius=existing->spawn_radius;
+            tile.creature_is_npc=existing->creature_is_npc; tile.creature_direction=existing->creature_direction; tile.spawn_radius=existing->spawn_radius;
         }
         const quint64 key=selKey(tile.x,tile.y,tile.z);
         m_luaPreviewChunks[tile.z][chunkKey(floorDiv(tile.x,kChunkTiles),floorDiv(tile.y,kChunkTiles))].append(key);

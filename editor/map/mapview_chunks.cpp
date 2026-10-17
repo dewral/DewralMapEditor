@@ -111,6 +111,7 @@ void MapView::appendItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out,
     }
 
     int elevation = 0;
+    int hookPattern = -1;
 
     for (int idx = 0; idx < static_cast<int>(tile->items.size()); ++idx) {
         const OtbmMapItem &item = tile->items[static_cast<size_t>(idx)];
@@ -132,12 +133,14 @@ void MapView::appendItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out,
 
         if (animated && ci->frames > 1) *animated = true;
         const int fr = itemFrame(ci);
+        if (ci->has(ClientProperty::Hangable) && hookPattern < 0)
+            hookPattern = hookPatternForTile(tile, m_otb, m_dat);
 
         for (int l = 0; l < layers; ++l)
             for (int hh = 0; hh < h; ++hh)
                 for (int ww = 0; ww < w; ++ww) {
                     const uint32_t sid = cellSpriteId(ci, ww, hh, l, w, h, tile->x, tile->y,
-                                                      tile->z, item.count, fr);
+                                                      tile->z, item.count, fr, hookPattern);
                     if (sid == 0) continue;
                     const int as = atlasSlotForSprite(sid);
                     if (as < 0) continue;
@@ -168,7 +171,7 @@ void MapView::appendItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out,
             const int h = std::max<int>(1, of->height);
             const int patX = std::max<int>(1, of->pattern_x);
             const int layers = std::max<int>(1, of->layers);
-            const int direction = isOutfit ? std::min(2, patX - 1) : 0;
+            const int direction = isOutfit ? tile->creature_direction % patX : 0;
             const int renderedLayers = isOutfit ? 1 : layers;
             for (int layer = 0; layer < renderedLayers; ++layer)
                 for (int hh = 0; hh < h; ++hh)
@@ -193,6 +196,7 @@ void MapView::appendTopItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out
 
     std::vector<QuadRef> topQuads;
     int elevation = 0;
+    int hookPattern = -1;
 
     for (const OtbmMapItem &item : tile->items) {
         const int clientId = m_otb->clientIdForServerId(item.server_id);
@@ -209,13 +213,15 @@ void MapView::appendTopItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out
         if (ci->has(ClientProperty::Elevation)) elevation += ci->elevation;
 
         const int fr = itemFrame(ci);
+        if (ci->has(ClientProperty::Hangable) && hookPattern < 0)
+            hookPattern = hookPatternForTile(tile, m_otb, m_dat);
 
         topQuads.clear();
         for (int l = 0; l < layers; ++l)
             for (int hh = 0; hh < h; ++hh)
                 for (int ww = 0; ww < w; ++ww) {
                     const uint32_t sid = cellSpriteId(ci, ww, hh, l, w, h, tile->x, tile->y,
-                                                      tile->z, item.count, fr);
+                                                      tile->z, item.count, fr, hookPattern);
                     if (sid == 0) continue;
                     const int as = atlasSlotForSprite(sid);
                     if (as < 0) continue;

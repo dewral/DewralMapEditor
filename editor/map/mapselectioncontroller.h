@@ -18,6 +18,7 @@ struct MapClipboardTile {
     QString creature;
     int spawntime = 60;
     bool npc = false;
+    uint8_t direction = 0;
     int spawnRadius = 0;
 };
 

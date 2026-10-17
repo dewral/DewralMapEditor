@@ -445,15 +445,16 @@ QSet<uint32_t> MapAtlasService::outfitSpriteIds(int lookType,
     const int width = std::max<int>(1, outfit->width);
     const int height = std::max<int>(1, outfit->height);
     const int layers = std::max<int>(1, outfit->layers);
-    const int direction = std::min(2, std::max<int>(1, outfit->pattern_x) - 1);
-    for (int y = 0; y < height; ++y)
-        for (int x = 0; x < width; ++x) {
-            const int index = ((direction * layers) * height + y) * width + x;
-            if (index < 0 || index >= static_cast<int>(outfit->sprite_ids.size()))
-                continue;
-            const uint32_t spriteId = outfit->sprite_ids[static_cast<size_t>(index)];
-            if (spriteId != 0) spriteIds.insert(spriteId);
-        }
+    const int directions = std::max<int>(1, outfit->pattern_x);
+    for (int direction = 0; direction < directions; ++direction)
+        for (int y = 0; y < height; ++y)
+            for (int x = 0; x < width; ++x) {
+                const int index = ((direction * layers) * height + y) * width + x;
+                if (index < 0 || index >= static_cast<int>(outfit->sprite_ids.size()))
+                    continue;
+                const uint32_t spriteId = outfit->sprite_ids[static_cast<size_t>(index)];
+                if (spriteId != 0) spriteIds.insert(spriteId);
+            }
     return spriteIds;
 }
 

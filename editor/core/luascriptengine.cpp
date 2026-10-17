@@ -231,15 +231,15 @@ void LuaScriptEngine::run(const QString &path, const QString &mode, int seed)
         return execute(path, mode, seed, flag);
     }));
 }
-void LuaScriptEngine::runProfile(const QString &directory,const QVariantMap &profile,const QVariantMap &itemInfo)
+void LuaScriptEngine::runProfile(const QVariantMap &profile,const QVariantMap &itemInfo)
 {
     if (m_busy) return;
     auto configuration=profile;
     configuration["itemInfo"]=itemInfo;
     m_cancelled=std::make_shared<std::atomic_bool>(false);
     m_busy=true; emit busyChanged();
-    m_watcher.setFuture(QtConcurrent::run([directory,configuration,flag=m_cancelled] {
-        return execute(QDir(directory).filePath("config.lua"),"profile",configuration.value("seed").toInt(),flag,120000,configuration);
+    m_watcher.setFuture(QtConcurrent::run([configuration,flag=m_cancelled] {
+        return execute(QString(),"profile",configuration.value("seed").toInt(),flag,120000,configuration);
     }));
 }
 QStringList LuaScriptEngine::generatorScripts(const QString &directory) const
@@ -292,9 +292,6 @@ QVariantMap LuaScriptEngine::execute(const QString &path, const QString &mode, i
     bool ok = runChunk(L, api, "@dme-api", error);
     if (ok) {
         if (customProfile) {
-            const QByteArray bootstrap=QByteArray(generator).left(QByteArray(generator).indexOf("-- Upstream mockFunctions"));
-            ok=runChunk(L,bootstrap,"@otmapgen-bootstrap",error);
-            if (ok) ok=runChunk(L,"math.randomseed(DME_SEED); LOG_TO_FILE=false; DEBUG_OUTPUT=false", "@custom-seed",error);
             if (ok) ok=runChunk(L,customMapRecipe,"@custom-map-recipe",error);
         } else if (otMapGen) ok = runChunk(L, generator, "@otmapgen-adapter", error);
         else ok = runChunk(L, "dofile(DME_SCRIPT)", "@dme-script", error);

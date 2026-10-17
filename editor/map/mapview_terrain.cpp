@@ -638,7 +638,10 @@ void MapView::renderCollectTerrainSpritePreviewInstances(std::vector<float> &out
                 for (int x = 0; x < width; ++x) {
                     const uint32_t spriteId = cellSpriteId(
                         item, x, y, layer, width, height,
-                        preview.x, preview.y, m_terrainPreviewFloor);
+                        preview.x, preview.y, m_terrainPreviewFloor, -1, 0,
+                        item->has(ClientProperty::Hangable)
+                            ? hookPatternForTile(m_otbm ? m_otbm->tileAt(preview.x, preview.y, m_terrainPreviewFloor)
+                                                       : nullptr, m_otb, m_dat) : 0);
                     const int atlasSlot = spriteId > 0
                         ? atlasSlotForSprite(spriteId) : -1;
                     if (atlasSlot < 0) continue;

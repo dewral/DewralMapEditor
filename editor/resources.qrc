@@ -89,6 +89,7 @@
         <file alias="qml/dialogs/GroundClusterGeneratorDialog.qml">qml/dialogs/GroundClusterGeneratorDialog.qml</file>
         <file alias="qml/dialogs/UpdateDialog.qml">qml/dialogs/UpdateDialog.qml</file>
         <file alias="qml/dialogs/AboutDialog.qml">qml/dialogs/AboutDialog.qml</file>
+        <file alias="qml/style/TooltipSurface.qml">qml/style/TooltipSurface.qml</file>
         <file alias="qml/style/GithubToolTip.qml">qml/style/GithubToolTip.qml</file>
         <file alias="qml/style/GithubIcon.qml">qml/style/GithubIcon.qml</file>
         <file alias="qml/style/GithubWindowButton.qml">qml/style/GithubWindowButton.qml</file>

@@ -3,6 +3,12 @@
 Open **Tools → Lua Scripts & otMapGen…**. Lua 5.1.5 is embedded in DME;
 no Lua installation or running TFS server is required.
 
+## Built-in Dungeon and Cave
+
+**Tools → Custom Map Generator…** uses DME’s standalone Lua generator with
+material profiles, seed, preview and Undo. No external folder is required.
+See [the material profile guide](custom-map-generator.md).
+
 ## otMapGenPublic
 
 1. Download and extract [otMapGenPublic](https://github.com/abecek/otMapGenPublic).

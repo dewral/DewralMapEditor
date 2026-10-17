@@ -195,8 +195,8 @@ void DatReader::readItemFlags(ClientItem &item, BinaryReader &reader)
             item.light_color = reader.readU16();
             break;
         case Payload::Offset:
-            item.offset_x = reader.readS16();
-            item.offset_y = reader.readS16();
+            item.offset_x = m_clientVersion < 755 ? 8 : reader.readS16();
+            item.offset_y = m_clientVersion < 755 ? 8 : reader.readS16();
             break;
         case Payload::Elevation: item.elevation = reader.readU16(); break;
         case Payload::Minimap: item.minimap_color = reader.readU16(); break;
@@ -231,7 +231,7 @@ void DatReader::readSpriteData(ClientItem &item, BinaryReader &reader, bool outf
         group.layers    = reader.readU8();
         group.pattern_x = reader.readU8();
         group.pattern_y = reader.readU8();
-        group.pattern_z = reader.readU8();
+        group.pattern_z = m_clientVersion < 755 ? 1 : reader.readU8();
         group.frames    = reader.readU8();
 
         if (group.frames > 1 && frameDurations()) {

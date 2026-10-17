@@ -652,6 +652,7 @@ Window {
         id: versionFolderDialogStartup
         title: "Select client folder for " + app.profileLabel(app.pendingKey) + " (Tibia.dat / Tibia.spr / items.otb)"
         onAccepted: app.onVersionFolderPicked(selectedFolder)
+        onRejected: startupScreen.loadingMap = false
     }
 
     FileDialog {

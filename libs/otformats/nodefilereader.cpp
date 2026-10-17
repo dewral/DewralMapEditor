@@ -1,4 +1,5 @@
 #include "nodefilereader.h"
+#include "otbmtextcodec.h"
 
 #include <QFile>
 #include <algorithm>
@@ -61,7 +62,7 @@ bool BinaryNode::getU32(uint32_t &value)
     return true;
 }
 
-bool BinaryNode::getString(QString &value)
+bool BinaryNode::getString(QString &value, QByteArray *original)
 {
     uint16_t length = 0;
     if (!getU16(length)) {
@@ -73,7 +74,8 @@ bool BinaryNode::getString(QString &value)
         return false;
     }
 
-    value = QString::fromLatin1(bytes);
+    value = decodeMapText(bytes);
+    if (original) *original = bytes;
     return true;
 }
 

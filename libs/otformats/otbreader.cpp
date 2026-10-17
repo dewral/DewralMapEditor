@@ -167,6 +167,19 @@ uint8_t OtbReader::mapGroup(uint8_t group)
                : static_cast<uint8_t>(OtbItemGroup::None);
 }
 
+OtbmItemTypes OtbReader::otbmItemTypes() const
+{
+    OtbmItemTypes types;
+    for (const OtbItem &item : m_items) {
+        types.known.set(item.server_id);
+        types.fluidContainers.set(item.server_id, item.group == static_cast<uint8_t>(OtbItemGroup::Fluid));
+        types.subtype.set(item.server_id, item.is_stackable
+            || item.group == static_cast<uint8_t>(OtbItemGroup::Fluid)
+            || item.group == static_cast<uint8_t>(OtbItemGroup::Splash));
+    }
+    return types;
+}
+
 void OtbReader::setDatReader(DatReader *datReader)
 {
     if (m_datReader == datReader) {

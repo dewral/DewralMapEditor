@@ -1,6 +1,8 @@
 #ifndef OTBMREADER_H
 #define OTBMREADER_H
 
+#include "otbmitemtypes.h"
+
 #include <QObject>
 #include <QString>
 #include <QByteArray>
@@ -99,12 +101,14 @@ struct OtbmItemExtra {
 
     QString text;
     QString description;
+    QByteArray text_original;
+    QByteArray description_original;
     bool has_teleport = false;
     uint16_t tele_x = 0;
     uint16_t tele_y = 0;
     uint8_t tele_z = 0;
     uint8_t door_id = 0;
-    uint8_t tier = 0;
+    uint32_t tier = 0;
 
     QByteArray podium_raw;
     bool has_attribute_map = false;
@@ -206,6 +210,7 @@ struct OtbmTile {
     uint8_t z = 0;
     bool is_house = false;
     bool creature_is_npc = false;
+    uint8_t creature_direction = 0;
 };
 
 static_assert(sizeof(CompactVector<OtbmMapItem>) <= sizeof(std::vector<OtbmMapItem>),
@@ -219,6 +224,7 @@ struct OtbmTown {
     uint16_t temple_x = 0;
     uint16_t temple_y = 0;
     uint8_t temple_z = 0;
+    QByteArray name_original;
 };
 
 struct OtbmWaypoint {
@@ -226,6 +232,7 @@ struct OtbmWaypoint {
     uint16_t x = 0;
     uint16_t y = 0;
     uint8_t z = 0;
+    QByteArray name_original;
 };
 
 struct OtbmHouse {
@@ -302,6 +309,7 @@ public:
     const std::deque<OtbmTile> &tiles() const { return m_tiles; }
 
     const OtbmTile *tileAt(int x, int y, int z) const;
+    OtbmMapItem makeItem(uint16_t serverId) const;
     const std::vector<OtbmTown> &towns() const { return m_towns; }
     const std::vector<OtbmWaypoint> &waypoints() const { return m_waypoints; }
     const std::vector<OtbmHouse> &houses() const { return m_houses; }
@@ -319,6 +327,8 @@ public:
     Q_INVOKABLE void setTownTemple(int id, int x, int y, int z);
 
     Q_INVOKABLE bool loadFile(const QString &path);
+    Q_INVOKABLE QVariantMap inspectFileHeader(const QString &path) const;
+    void setItemTypes(const OtbmItemTypes &types) { m_itemTypes = types; }
     bool loadFileDetached(const QString &path,
                           std::function<void(int, const QString &)> progress,
                           std::function<bool()> cancelled = {});
@@ -380,7 +390,7 @@ public:
     bool clearHouseTileAt(int x, int y, int z);
 
     bool setSpawnAt(int x, int y, int z, int radius);
-    bool setCreatureAt(int x, int y, int z, const QString &name, int spawntime, bool isNpc);
+    bool setCreatureAt(int x, int y, int z, const QString &name, int spawntime, bool isNpc, int direction = -1);
     bool clearSpawnAt(int x, int y, int z);
     bool clearCreatureAt(int x, int y, int z);
 
@@ -453,6 +463,8 @@ signals:
 
 private:
     bool saveFileInternal(const QString &path, bool recoveryMode);
+    static int clientVersionForItemsMinor(quint32 minor);
+    OtbmItemTypes m_itemTypes;
     void reset();
     void setError(const QString &message);
     bool abortLoad(QString message);
@@ -494,6 +506,7 @@ private:
         QString creature_name;
         int creature_spawntime = 60;
         bool creature_is_npc = false;
+        uint8_t creature_direction = 0;
         bool is_house = false;
         uint32_t house_id = 0;
         std::vector<OtbmMapItem> items;
@@ -554,6 +567,9 @@ private:
     QString m_description;
     QString m_spawnFile;
     QString m_houseFile;
+    QByteArray m_descriptionOriginal;
+    QByteArray m_spawnFileOriginal;
+    QByteArray m_houseFileOriginal;
 
     bool m_spawnsXmlLoaded = false;
     bool m_housesXmlLoaded = false;

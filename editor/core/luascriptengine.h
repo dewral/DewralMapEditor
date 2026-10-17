@@ -16,7 +16,7 @@ public:
     ~LuaScriptEngine() override;
     bool busy() const { return m_busy; }
     Q_INVOKABLE void run(const QString &path, const QString &mode, int seed);
-    Q_INVOKABLE void runProfile(const QString &directory, const QVariantMap &profile,
+    Q_INVOKABLE void runProfile(const QVariantMap &profile,
                                 const QVariantMap &itemInfo);
     Q_INVOKABLE void cancel();
     Q_INVOKABLE QStringList generatorScripts(const QString &directory) const;

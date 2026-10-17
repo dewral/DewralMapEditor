@@ -1,17 +1,12 @@
 # Generator własnych materiałów — Dungeon i Cave
 
 Otwórz **Tools → Custom Map Generator…** po wczytaniu mapy i klienta.
-Panel nie blokuje edytora. Korzysta z bibliotek
-[otMapGenPublic](https://github.com/abecek/otMapGenPublic), ale uruchamia przepisy
-DME, które używają wyłącznie przypisanych materiałów. Standardowe schematy Tibii
-nie są używane.
+Panel nie blokuje edytora. Własny generator DME działa w osadzonej Lua 5.1:
+Dungeon tworzy prostokątne pokoje i korytarze, a Cave nieregularne komory
+połączone tunelami. Nie wymaga otMapGenPublic ani instalacji Lua.
+Oba tryby korzystają wyłącznie z materiałów przypisanych w profilu.
 
 ## Przygotowanie
-
-Pobierz lub sklonuj otMapGenPublic. W panelu wybierz **Choose otMapGen folder…**
-i wskaż jego katalog główny, zawierający `config.lua` i `lib/`.
-Folder jest wspólny z dotychczasowym panelem Lua Scripts & otMapGen.
-Biblioteki pozostają zewnętrzne; DME-dist ich nie zawiera.
 
 Wczytaj DAT, SPR i OTB odpowiadające swoim grafikom. Generator używa **server ID
 z OTB**, a nie numerów sprite’ów. DME sprawdza typ podłogi i blokowanie ruchu
@@ -42,13 +37,16 @@ waga 1 w tej samej kategorii. Można usunąć wpis przyciskiem ×.
 Są opcjonalne. Po włączeniu **Generate walls** trzeba wypełnić wszystkie cztery
 sloty: Horizontal, Vertical, Small junction, Corner.
 Po włączeniu **Generate borders** trzeba wypełnić wszystkie 12 slotów.
-Numery odpowiadają tablicom bibliotek otMapGen:
+Numery slotów zachowują zgodność z dotychczasowymi profilami:
 
 | Slot | Wariant bordera |
 | --- | --- |
 | 1–4 | South, West, North, East |
 | 5–8 | Outer SE, SW, NE, NW |
 | 9–12 | Inner SW, SE, NW, NE |
+
+Ściany są umieszczane na tle przy krawędzi podłogi. Bordery są nakładane
+na podłogę; kilka krawędzi i narożnik może znaleźć się na jednym polu.
 
 Kierunki przypisujesz samodzielnie. Generator nie rozpoznaje ich z grafiki.
 Wybierz itemy bez ground; osobne warianty w danym slocie mogą mieć własne wagi.
@@ -66,7 +64,7 @@ Biblioteka znajduje się w katalogu danych aplikacji `custom-generator/profiles.
 Generowanie odbywa się w tle; przycisk Generate zmienia się w **Cancel generation**.
 Obowiązują limity Lua: 120 sekund i 256 MiB. Rozmiar wynosi 24–200 pól na oś,
 liczba pomieszczeń 2–16, dekoracje 0–30%. Zbyt mały obszar zwraca komunikat.
-Ta sama konfiguracja i seed dają ten sam wynik przy tej samej wersji bibliotek.
+Ta sama konfiguracja i seed dają ten sam wynik przy tej samej wersji generatora DME.
 Puste kategorie opcjonalne są pomijane.
 
 Podgląd pokazuje cały stos wygenerowanych itemów w rendererze mapy. Zmiana

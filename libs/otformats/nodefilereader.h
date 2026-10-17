@@ -15,7 +15,7 @@ public:
     bool getU8(uint8_t &value);
     bool getU16(uint16_t &value);
     bool getU32(uint32_t &value);
-    bool getString(QString &value);
+    bool getString(QString &value, QByteArray *original = nullptr);
     bool skip(qsizetype count);
     bool readBytes(qsizetype count, QByteArray &out);
 

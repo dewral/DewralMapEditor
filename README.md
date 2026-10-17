@@ -3,6 +3,7 @@
 **Tools → Custom Map Generator…** creates single-floor dungeons and caves with
 your own client materials, weighted variants and reusable JSON profiles. It
 provides a non-destructive map preview and applies the result with one Undo.
+The built-in Dungeon and Cave algorithms run in Lua without external generator files.
 See [custom materials and Midhem profile guide](docs/custom-map-generator.md).
 
 Lua generation is available under **Tools → Lua Scripts & otMapGen…**, with an

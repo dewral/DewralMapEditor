@@ -66,6 +66,25 @@ TestCase {
         compare(profiles.requestedKey, "Midhem");
     }
 
+    function test_legacyHeaderRespects760Selection() {
+        profiles.clientPaths = {"760": "C:/client76", "772": "C:/client772"};
+        verify(profiles.ensureClientForMap(772, reader.filePath, "760"));
+        compare(profiles.requestedKey, "760");
+    }
+
+    function test_legacyHeaderRespectsCustom760Selection() {
+        profiles.customProfiles = [{name: "Custom76", base: 760}];
+        verify(profiles.ensureClientForMap(772, reader.filePath, "Custom76"));
+        compare(profiles.requestedKey, "Custom76");
+        verify(!profiles.profileMatchesVersion("Custom76", 1098));
+    }
+
+    function test_preflightUsesRememberedProfileBeforeDocumentLoads() {
+        profiles.mapProfiles = {"C:/maps/legacy.otbm": "Midhem"};
+        verify(profiles.ensureClientForMap(1098, "C:/maps/legacy.otbm"));
+        compare(profiles.requestedKey, "Midhem");
+    }
+
     function test_switchingClientProfileSavesSelection() {
         verify(profiles.switchMapProfile("Midhem"));
         compare(prefs.selectedClientKey, "Midhem");

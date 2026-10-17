@@ -41,6 +41,25 @@ inline uint8_t canonicalCode(uint8_t wire, int version)
     if (version >= 1010) return wire == 16 ? 253 : wire > 16 ? wire - 1 : wire;
     if (version >= 860) return wire;
     if (version >= 780) return wire == 8 ? 254 : wire > 8 ? wire - 1 : wire;
+    if (version < 755) {
+        uint8_t flag = wire;
+        if (wire > 0 && wire <= 15) flag = wire + 1;
+        else switch (wire) {
+        case 16: flag = 21; break; // Light
+        case 17: flag = 252; break; // Floor change
+        case 18: flag = 30; break; // Full ground
+        case 19: flag = 25; break; // Elevation
+        case 20: flag = 24; break; // Displacement, no payload in 7.4
+        case 22: flag = 28; break; // Minimap
+        case 23: flag = 20; break; // Rotatable
+        case 24: flag = 26; break; // Lying
+        case 25: flag = 17; break; // Hangable
+        case 26: flag = 18; break; // South hook
+        case 27: flag = 19; break; // East hook
+        case 28: flag = 27; break; // Animated
+        }
+        return flag == 6 ? 7 : flag == 7 ? 6 : flag;
+    }
     return wire == 23 ? 252 : wire;
 }
 }

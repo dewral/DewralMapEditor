@@ -79,6 +79,8 @@ Settings {
     property bool paletteCollapsed: false
     property int iconSize: 66
     property string paletteViewMode: "grid"
+    property string lastPaletteKind: ""
+    property string lastRawTileset: ""
     property bool hideInvisibleSprites: true
     property bool hideNamedItems: false
     property int undoLimit: 1000

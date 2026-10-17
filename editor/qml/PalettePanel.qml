@@ -83,7 +83,7 @@ Rectangle {
             paletteCol.selectCategoryTileset(category, tileset);
         } else {
             paletteCol.selectKind("RAW Palette");
-            Qt.callLater(function () { subCombo.currentIndex = paletteCol.subNames.indexOf("Others"); });
+            Qt.callLater(function () { paletteCol.selectSubIndex(paletteCol.subNames.indexOf("Others")); });
         }
         positionItem(serverId);
     }
@@ -389,7 +389,7 @@ Rectangle {
         }
 
         function selectCustomPalette(name) {
-            kindCombo.currentIndex = kinds.indexOf("My Palettes");
+            selectKind("My Palettes");
             Qt.callLater(function () {
                 var idx = app.customPaletteNames.indexOf(name);
                 if (idx >= 0)
@@ -399,8 +399,36 @@ Rectangle {
 
         function selectKind(kind) {
             var idx = kinds.indexOf(kind);
-            if (idx >= 0)
+            if (idx >= 0) {
                 kindCombo.currentIndex = idx;
+                app.settings.lastPaletteKind = kind;
+            }
+        }
+
+        function initialKindIndex() {
+            const savedIndex = kinds.indexOf(app.settings.lastPaletteKind);
+            if (savedIndex >= 0)
+                return savedIndex;
+            return paletteRoot.fluentUi ? kinds.indexOf("RAW Palette")
+                 : paletteRoot.githubUi ? kinds.indexOf("Item Palette") : 0;
+        }
+
+        function selectSubIndex(index) {
+            subCombo.currentIndex = index;
+            app.settings.lastPaletteKind = currentKind;
+            if (currentCategory === "raw" && index >= 0 && index < subNames.length)
+                app.settings.lastRawTileset = subNames[index];
+        }
+
+        function restoreSubIndex() {
+            if (currentCategory === "raw") {
+                // Resolve by name after each reload; indices vary between profiles.
+                // Keep a missing saved name so a later profile can restore it.
+                subCombo.currentIndex = Math.max(0, subNames.indexOf(app.settings.lastRawTileset));
+            } else if (subCombo.model.length > 0
+                       && (subCombo.currentIndex < 0 || subCombo.currentIndex >= subCombo.model.length)) {
+                subCombo.currentIndex = 0;
+            }
         }
 
         function selectCategoryTileset(category, name) {
@@ -412,11 +440,11 @@ Rectangle {
                 item: "Item Palette",
                 raw: "RAW Palette"
             }[category];
-            kindCombo.currentIndex = kinds.indexOf(kindName);
+            selectKind(kindName);
             Qt.callLater(function () {
                 var idx = paletteCol.subNames.indexOf(name);
                 if (idx >= 0)
-                    subCombo.currentIndex = idx;
+                    paletteCol.selectSubIndex(idx);
             });
         }
 
@@ -617,6 +645,7 @@ Rectangle {
 
                 GithubPaletteCombo {
                     id: githubSubCombo
+                    objectName: "githubPaletteTilesetCombo"
                     anchors.fill: parent
                     model: {
                         if (paletteCol.currentKind === "RAW Palette")
@@ -640,12 +669,12 @@ Rectangle {
                     enabled: paletteCol.showSub || paletteCol.creatureMode
                     onActivated: index => {
                         if (paletteCol.currentKind === "RAW Palette") {
-                            subCombo.currentIndex = index;
+                            paletteCol.selectSubIndex(index);
                         } else if (paletteCol.creatureMode) {
                             paletteCol.creatureFilterType = index === 1
                                     ? "monster" : (index === 2 ? "npc" : "all");
                         } else if (paletteCol.showSub) {
-                            subCombo.currentIndex = index;
+                            paletteCol.selectSubIndex(index);
                         }
                     }
                 }
@@ -768,7 +797,8 @@ Rectangle {
                 width: parent.width
                 height: paletteRoot.fluentUi ? 29 : 23
                 model: paletteCol.kinds
-                currentIndex: paletteRoot.fluentUi ? paletteCol.kinds.indexOf("RAW Palette") : paletteRoot.githubUi ? paletteCol.kinds.indexOf("Item Palette") : 0
+                currentIndex: paletteCol.initialKindIndex()
+                onActivated: index => paletteCol.selectKind(paletteCol.kinds[index])
             }
 
             Text {
@@ -781,6 +811,7 @@ Rectangle {
             }
             DmeComboBox {
                 id: subCombo
+                objectName: "paletteTilesetCombo"
                 visible: paletteCol.showSub || paletteCol.creatureMode
                 width: parent.width
                 height: 23
@@ -789,16 +820,16 @@ Rectangle {
                 currentIndex: paletteCol.creatureMode
                               ? (paletteCol.creatureFilterType === "monster" ? 1
                                  : (paletteCol.creatureFilterType === "npc" ? 2 : 0))
-                              : 0
+                              : (paletteCol.currentCategory === "raw"
+                                 ? Math.max(0, paletteCol.subNames.indexOf(app.settings.lastRawTileset)) : 0)
                 onActivated: index => {
                     if (paletteCol.creatureMode)
                         paletteCol.creatureFilterType = index === 1
                                 ? "monster" : (index === 2 ? "npc" : "all");
+                    else
+                        paletteCol.selectSubIndex(index);
                 }
-                onModelChanged: {
-                    if (model.length > 0 && (currentIndex < 0 || currentIndex >= model.length))
-                        currentIndex = 0;
-                }
+                onModelChanged: paletteCol.restoreSubIndex()
             }
 
             Row {

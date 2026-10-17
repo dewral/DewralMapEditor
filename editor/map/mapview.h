@@ -822,6 +822,10 @@ private slots:
     void refreshCreatures();
 
 private:
+    void saveViewPosition();
+    bool restoreViewPosition();
+    bool m_viewPositionReady = false;
+
     QVariantMap m_hotkeyBindings;
     bool m_commandHotkeysEnabled = true;
     static constexpr int kSprite = 32;

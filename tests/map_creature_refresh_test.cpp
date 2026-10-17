@@ -213,10 +213,22 @@ bool atlasBudget(const QTemporaryDir &directory)
 #include "map_legacy_subtype_checks.h"
 #include "map_hangable_checks.h"
 #include "map_selection_delete_checks.h"
+#include "map_view_position_checks.h"
 
 int main(int argc, char **argv)
 {
     QGuiApplication application(argc, argv);
+    QTemporaryDir settingsDirectory;
+    if (!require(settingsDirectory.isValid(), "Could not isolate map view settings")) return 1;
+    QCoreApplication::setOrganizationName(QStringLiteral("DME-Tests"));
+    QCoreApplication::setApplicationName(QStringLiteral("MapView"));
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDirectory.path());
+    if (QCoreApplication::arguments().contains(QStringLiteral("--view-position-only"))) {
+        QTemporaryDir directory;
+        return require(directory.isValid(), "Could not create map view fixtures")
+                   && testMapViewPositions(directory) ? 0 : 1;
+    }
     {
         MapView lightView;
         std::vector<uint32_t> pixels;

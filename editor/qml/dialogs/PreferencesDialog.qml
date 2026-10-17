@@ -306,7 +306,25 @@ DmeDialog {
                         label: "Recovery interval"
                         DmeComboBox { width: 190; enabled: dialog.settings.autosaveEnabled; model: ["1 minute", "3 minutes", "5 minutes", "10 minutes"]; property var values: [1,3,5,10]; currentIndex: Math.max(0, values.indexOf(dialog.settings.autosaveIntervalMinutes)); onActivated: { dialog.settings.autosaveIntervalMinutes = values[currentIndex]; Backend.docMgr.configureAutosave(dialog.settings.autosaveEnabled, values[currentIndex]); } }
                     }
-                    DmeButton { text: "Save recovery now"; width: 170; onClicked: Backend.docMgr.autosaveNow() }
+                    Flow {
+                        width: parent.width
+                        spacing: 8
+                        DmeButton { text: "Save recovery now"; width: 170; onClicked: Backend.docMgr.autosaveNow() }
+                        DmeButton {
+                            text: "Open recovery folder"
+                            width: 170
+                            onClicked: recoveryFolderError.visible = !Backend.docMgr.openRecoveryFolder()
+                        }
+                    }
+                    Text {
+                        id: recoveryFolderError
+                        width: parent.width
+                        visible: false
+                        text: "Could not open the recovery folder. Check folder permissions and your default file manager."
+                        color: "#FF8B8B"
+                        font.pixelSize: 11
+                        wrapMode: Text.WordWrap
+                    }
                 }
             }
 

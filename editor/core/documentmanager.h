@@ -46,6 +46,7 @@ public:
     Q_INVOKABLE int indexOfPath(const QString &path) const;
     Q_INVOKABLE void configureAutosave(bool enabled, int intervalMinutes);
     Q_INVOKABLE bool autosaveNow();
+    Q_INVOKABLE bool openRecoveryFolder();
     Q_INVOKABLE void discardRecoveries();
     Q_INVOKABLE bool adoptCurrentRecovery(const QString &recoveryId,
                                           const QString &originalPath);

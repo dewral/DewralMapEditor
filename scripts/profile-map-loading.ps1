@@ -30,9 +30,15 @@ for ($run = 1; $run -le $processRuns; $run++) {
         }
         if ($process.ExitCode -ne 0) { throw "DME exited with $($process.ExitCode); inspect $logPath" }
     } finally { $process.Dispose() }
+    # A device reset can still be followed by first_complete_frame and exit 0.
+    # Such a run does not establish that the editor remains usable.
+    $logLines = @(Get-Content -LiteralPath $logPath)
+    if ($logLines -match 'Device loss detected|Graphics device lost|Failed to create buffer|Failed to \(re\)build|Failed to build uniform buffer') {
+        throw "Graphics failure during map loading; inspect $logPath"
+    }
     $loadStart = 0L
     $loadNumber = 0
-    foreach ($line in Get-Content -LiteralPath $logPath) {
+    foreach ($line in $logLines) {
         if ($line -notmatch 'DME_LOAD elapsed_ms=(\d+) duration_ms=(-?\d+) peak_ram_bytes=(\d+) stage=([^ ]+)') { continue }
         $elapsed = [long]$Matches[1]
         $peak = [long]$Matches[3]

@@ -7,6 +7,7 @@
 #include <QStandardPaths>
 #include <QUuid>
 #include <QSet>
+#include <algorithm>
 #include <cmath>
 
 namespace {
@@ -23,6 +24,21 @@ QStringList CustomGeneratorProfiles::roles()
     for (int i=1;i<=12;++i) result.append("border"+QString::number(i));
     return result;
 }
+QSet<int> CustomGeneratorProfiles::itemIds(const QVariantMap &profile)
+{
+    QSet<int> result;
+    auto appendMaterials=[&](const QVariantMap &materials) {
+        for (const QVariant &pool : materials)
+            for (const QVariant &entry : pool.toList()) result.insert(entry.toMap().value("id").toInt());
+    };
+    appendMaterials(profile.value("materials").toMap());
+    for (const QVariant &value : profile.value("groundBorders").toList()) {
+        const auto set=value.toMap();
+        appendMaterials(set.value("materials").toMap());
+        for (const QVariant &id : set.value("toGroundIds").toList()) result.insert(id.toInt());
+    }
+    return result;
+}
 QString CustomGeneratorProfiles::validate(const QVariantMap &p,const QVariantMap *info)
 {
     if (!number(p.value("version"),1,1)) return "Unsupported material profile version.";
@@ -31,37 +47,99 @@ QString CustomGeneratorProfiles::validate(const QVariantMap &p,const QVariantMap
     if (p.value("kind")!="dungeon" && p.value("kind")!="cave") return "Choose Dungeon or Cave.";
     for (const QString &field : {QString("width"),QString("height")})
         if (!number(p.value(field),24,200)) return "Map dimensions must be between 24 and 200.";
-    if (!number(p.value("rooms"),2,16) || !number(p.value("seed"),1,2147483647)
+    if (!number(p.value("rooms"),2,64) || !number(p.value("seed"),1,2147483647)
         || !number(p.value("density"),0,30)) return "Invalid room count, seed or decoration density.";
+    const struct { const char *key; int min; int max; } advancedFields[] = {
+        {"roomWidth",5,21},{"roomHeight",5,21},{"roomSpacing",6,40},
+        {"corridorWidth",3,5},{"secondaryDensity",0,100},{"extraConnections",0,16}
+    };
+    for (const auto &field : advancedFields)
+        if (p.contains(field.key) && !number(p.value(field.key),field.min,field.max))
+            return QString("%1 must be between %2 and %3.").arg(field.key).arg(field.min).arg(field.max);
+    if (p.contains("connectionMode") && p.value("connectionMode")!="chain" && p.value("connectionMode")!="nearest")
+        return "Choose Chain or Nearest network for room connections.";
+    if (p.contains("cavePaths") && p.value("cavePaths")!="winding" && p.value("cavePaths")!="direct")
+        return "Choose Winding or Direct cave tunnels.";
     if (!number(p.value("x"),0,65535) || !number(p.value("y"),0,65535)
         || !number(p.value("z"),0,15)) return "Invalid destination coordinates.";
     if (p.value("x").toInt()+p.value("width").toInt()>65536
         || p.value("y").toInt()+p.value("height").toInt()>65536) return "The map exceeds coordinate limits.";
-    const int capacity=((p.value("width").toInt()-16)/8+1)*((p.value("height").toInt()-16)/8+1);
-    if (p.value("rooms").toInt()>capacity) return "Too many rooms for this area. Increase the map size.";
+    const int roomSize=std::max(p.value("roomWidth",7).toInt(),p.value("roomHeight",7).toInt());
+    const int maxSize=p.value("kind")=="cave" ? roomSize*4/3 : roomSize;
+    const int margin=std::max(8,(maxSize+1)/2+p.value("corridorWidth",3).toInt()/2+1);
+    const int spacing=p.value("roomSpacing",8).toInt();
+    const int availableX=p.value("width").toInt()-2*margin;
+    const int availableY=p.value("height").toInt()-2*margin;
+    if (availableX<0 || availableY<0) return "The rooms do not fit this area. Reduce room size or increase map dimensions.";
+    const int capacity=(availableX/spacing+1)*(availableY/spacing+1);
+    if (p.value("rooms").toInt()>capacity) return "Too many rooms for this area. Increase map size or reduce room count or room spacing.";
     if (p.value("materials").metaType().id()!=QMetaType::QVariantMap) return "Invalid material categories.";
     const auto materials=p.value("materials").toMap();
     const auto known=roles();
-    for (auto it=materials.cbegin();it!=materials.cend();++it) {
-        if (!known.contains(it.key())) return "Unknown material category: "+it.key();
-        if (it.value().metaType().id()!=QMetaType::QVariantList || it.value().toList().size()>64)
-            return "Invalid material list: "+it.key();
-        QSet<int> ids;
-        for (const QVariant &v : it.value().toList()) {
-            const auto entry=v.toMap();
-            if (!number(entry.value("id"),1,65535) || !number(entry.value("weight"),1,100))
-                return "Item IDs must be 1–65535 and weights 1–100.";
-            const int id=entry.value("id").toInt();
-            if (ids.contains(id)) return "Duplicate item in category: "+it.key();
-            ids.insert(id);
-            if (!info) continue;
-            const auto metadata=info->value(QString::number(id)).toMap();
-            if (!metadata.value("valid").toBool()) return QString("Item %1 is missing from the loaded client.").arg(id);
-            const bool groundRole=it.key()=="background" || it.key()=="floor" || it.key()=="secondary";
-            if (metadata.value("ground").toBool()!=groundRole)
-                return QString("Item %1 has the wrong type for %2.").arg(id).arg(it.key());
-            if ((it.key()=="floor" || it.key()=="secondary") && metadata.value("blocked").toBool())
-                return QString("Floor item %1 blocks walking.").arg(id);
+    auto validateMaterials=[&](const QVariantMap &pools,bool bordersOnly) -> QString {
+        for (auto it=pools.cbegin();it!=pools.cend();++it) {
+            if (!known.contains(it.key()) || (bordersOnly && !it.key().startsWith("border")))
+                return "Unknown material category: "+it.key();
+            if (it.value().metaType().id()!=QMetaType::QVariantList || it.value().toList().size()>64)
+                return "Invalid material list: "+it.key();
+            QSet<int> ids;
+            for (const QVariant &v : it.value().toList()) {
+                const auto entry=v.toMap();
+                if (!number(entry.value("id"),1,65535) || !number(entry.value("weight"),1,100))
+                    return "Item IDs must be 1–65535 and weights 1–100.";
+                const int id=entry.value("id").toInt();
+                if (ids.contains(id)) return "Duplicate item in category: "+it.key();
+                ids.insert(id);
+                if (!info) continue;
+                const auto metadata=info->value(QString::number(id)).toMap();
+                if (!metadata.value("valid").toBool()) return QString("Item %1 is missing from the loaded client.").arg(id);
+                const bool groundRole=it.key()=="background" || it.key()=="floor" || it.key()=="secondary";
+                if (metadata.value("ground").toBool()!=groundRole)
+                    return QString("Item %1 has the wrong type for %2.").arg(id).arg(it.key());
+                if ((it.key()=="floor" || it.key()=="secondary") && metadata.value("blocked").toBool())
+                    return QString("Floor item %1 blocks walking.").arg(id);
+            }
+        }
+        return {};
+    };
+    const QString materialsError=validateMaterials(materials,false);
+    if (!materialsError.isEmpty()) return materialsError;
+    bool hasGroundBorders=false;
+    if (p.contains("groundBorders")) {
+        if (p.value("groundBorders").metaType().id()!=QMetaType::QVariantList || p.value("groundBorders").toList().size()>128)
+            return "Invalid ground border sets.";
+        QSet<int> grounds;
+        for (const QString &role : {QString("background"),QString("floor"),QString("secondary")})
+            for (const QVariant &entry : materials.value(role).toList()) grounds.insert(entry.toMap().value("id").toInt());
+        for (const QVariant &value : p.value("groundBorders").toList()) {
+            const auto set=value.toMap();
+            if (set.value("name").toString().trimmed().isEmpty() || set.value("name").toString().size()>240
+                || (set.value("align")!="outer" && set.value("align")!="inner")
+                || !number(set.value("zorder"),-2147483647,2147483647) || set.value("to").toString().size()>120)
+                return "Invalid ground border name, alignment or target.";
+            const auto ids=set.value("groundIds").toList();
+            if (set.value("groundIds").metaType().id()!=QMetaType::QVariantList || ids.isEmpty() || ids.size()>64)
+                return "Assign each border set to its ground items.";
+            QSet<int> owners;
+            for (const QVariant &id : ids) {
+                if (!number(id,1,65535) || !grounds.contains(id.toInt()) || owners.contains(id.toInt()))
+                    return "A border set must belong to ground items in this profile.";
+                owners.insert(id.toInt());
+            }
+            if (set.value("toGroundIds").metaType().id()!=QMetaType::QVariantList || set.value("toGroundIds").toList().size()>64)
+                return "Invalid border target ground items.";
+            for (const QVariant &id : set.value("toGroundIds").toList()) {
+                if (!number(id,1,65535)) return "Invalid border target item ID.";
+                if (info) {
+                    const auto item=info->value(QString::number(id.toInt())).toMap();
+                    if (!item.value("valid").toBool() || !item.value("ground").toBool()) return "A border target ground is missing from this client.";
+                }
+            }
+            if (set.value("materials").metaType().id()!=QMetaType::QVariantMap) return "Invalid ground border materials.";
+            const auto pools=set.value("materials").toMap();
+            const QString error=validateMaterials(pools,true);
+            if (!error.isEmpty()) return error;
+            for (const QVariant &pool : pools) hasGroundBorders |= !pool.toList().isEmpty();
         }
     }
     if (info) {
@@ -69,6 +147,11 @@ QString CustomGeneratorProfiles::validate(const QVariantMap &p,const QVariantMap
             return "Add background and floor materials before generating.";
         for (const auto &group : {qMakePair(QString("wall"),4),qMakePair(QString("border"),12)}) {
             if (!p.value(group.first+"sEnabled").toBool()) continue;
+            if (group.first=="border" && hasGroundBorders) {
+                bool hasDefault=false;
+                for (int i=1;i<=12;++i) hasDefault |= !materials.value("border"+QString::number(i)).toList().isEmpty();
+                if (!hasDefault) continue;
+            }
             for (int i=1;i<=group.second;++i)
                 if (materials.value(group.first+QString::number(i)).toList().isEmpty())
                     return QString("Fill every enabled %1 slot (missing %2).").arg(group.first).arg(i);

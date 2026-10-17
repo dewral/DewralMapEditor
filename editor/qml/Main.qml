@@ -14,6 +14,10 @@ import "themes/fluent/Colors.js" as FluentColors
 
 DmeWindow {
     id: root
+    function smokeTileMapGen() {
+        tileMapGenLoader.active = true;
+        return tileMapGenLoader.status === Loader.Ready && tileMapGenLoader.item !== null;
+    }
     // Both modern themes share one layout. Only their palettes differ.
     readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
     readonly property bool windowsClassicUi: Backend.uiTheme.style === "windows-classic"
@@ -285,7 +289,12 @@ DmeWindow {
         var paths = Object.assign({}, app.clientPaths);
         paths[String(clientVersion)] = clientFolder;
         app.clientPaths = paths;
-        startupScreen.beginLoadMap(mapPath, String(clientVersion));
+        // A repeat can start before the first frame dismisses the startup
+        // dialog. Its loadingMap guard still belongs to the previous load.
+        if (app.started)
+            app.loadEverything(mapPath, String(clientVersion));
+        else
+            startupScreen.beginLoadMap(mapPath, String(clientVersion));
     }
 
     function profileReload(mapPath, clientFolder, clientVersion) {
@@ -341,6 +350,7 @@ DmeWindow {
         brushEditorDialog: brushEditorDialog
         aiMapAssistantDialog: aiMapAssistantDialog
         luaGeneratorDialog: luaGeneratorDialog
+        tileMapGenDialog: tileMapGenDialog
         customMapGeneratorDialog: customMapGeneratorDialog
         terrainGeneratorDialog: terrainGeneratorDialog
         dungeonGeneratorDialog: dungeonGeneratorDialog
@@ -1005,6 +1015,18 @@ DmeWindow {
         function open() {
             luaGeneratorLoader.active = true;
             luaGeneratorLoader.item.open();
+        }
+    }
+    QtObject {
+        id: tileMapGenDialog
+        function open() { tileMapGenLoader.active = true; tileMapGenLoader.item.open(); }
+    }
+    Loader {
+        id: tileMapGenLoader
+        active: false
+        sourceComponent: TileMapGenDialog {
+            mapCtrl: workspace.mapView
+            onClosed: Qt.callLater(() => tileMapGenLoader.active = false)
         }
     }
     QtObject {

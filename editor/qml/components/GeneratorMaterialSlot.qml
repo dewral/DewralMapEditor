@@ -9,6 +9,8 @@ Rectangle {
     required property string roleKey
     required property string label
     property var entries: []
+    property string summary: ""
+    property string emptyHint: "Drop items here"
     property bool selected: false
     property bool editable: true
     signal activated()
@@ -48,7 +50,12 @@ Rectangle {
         Column {
             id: rows
             width: parent.width; spacing: 4
-            Text { font.family:Colors.fontFamily; visible: root.entries.length === 0; text: "Drop items here"; color: Colors.c("muted"); font.pixelSize: 11 }
+            Text {
+                objectName:"materialSummary_"+root.roleKey
+                font.family:Colors.fontFamily; width:parent.width; wrapMode:Text.WordWrap
+                text:root.entries.length ? root.summary : root.emptyHint
+                visible:text.length>0; color:Colors.c("muted"); font.pixelSize:11
+            }
             Repeater {
                 model: root.entries
                 delegate: Row {
@@ -57,9 +64,17 @@ Rectangle {
                     required property var modelData
                     width: rows.width; height: 34; spacing: 6
                     Image {
+                        objectName:"materialSprite_"+root.roleKey+"_"+entry.modelData.id
                         width: 32; height: 32; smooth: false; fillMode: Image.PreserveAspectFit
                         source: {
-                            const item=Backend.otbReader.detailsAt(Backend.otbReader.rowForServerId(entry.modelData.id));
+                            const reader=Backend.otbReader;
+                            if (!reader || !reader.loaded || !Backend.sprReader || !Backend.sprReader.loaded) return "";
+                            // Refresh the preview when client items or rendered sprites are reloaded.
+                            const count=reader.itemCount;
+                            const revision=Backend.sprReader.itemImagesRevision;
+                            const row=reader.rowForServerId(entry.modelData.id);
+                            if (row<0) return "";
+                            const item=reader.detailsAt(row);
                             return item.spriteIds && item.spriteIds.length ? Backend.sprReader.itemImageSource(
                                 item.spriteIds,item.itemWidth || 1,item.itemHeight || 1,item.layers || 1) : "";
                         }

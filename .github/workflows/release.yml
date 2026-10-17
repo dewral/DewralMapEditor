@@ -47,12 +47,12 @@ jobs:
           }
 
           cmake --build build/github-actions --config Release `
-            --target package_all dat_legacy_740_test otbm_rme_compatibility_test otbm_legacy_subtypes_test --parallel
+            --target package_all ground_brush_export_test dat_legacy_740_test otbm_rme_compatibility_test otbm_legacy_subtypes_test --parallel
           if ($LASTEXITCODE -ne 0) {
             throw "Release packaging failed with exit code $LASTEXITCODE."
           }
 
-          ctest --test-dir build/github-actions -C Release -R '^(release_manifest|dme_startup|dat_legacy_740|otbm_rme_compatibility|otbm_legacy_subtypes)$' --output-on-failure
+          ctest --test-dir build/github-actions -C Release -R '^(release_manifest|dme_startup|ground_brush_export|dat_legacy_740|otbm_rme_compatibility|otbm_legacy_subtypes)$' --output-on-failure
           if ($LASTEXITCODE -ne 0) {
             throw "Release validation failed with exit code $LASTEXITCODE."
           }

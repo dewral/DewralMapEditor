@@ -462,6 +462,7 @@ signals:
     void loadingStageChanged();
 
 private:
+    friend class TmgFormat;
     bool saveFileInternal(const QString &path, bool recoveryMode);
     static int clientVersionForItemsMinor(quint32 minor);
     OtbmItemTypes m_itemTypes;

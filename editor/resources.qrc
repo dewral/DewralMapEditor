@@ -21,6 +21,7 @@
         <file alias="qml/components/LightingControls.qml">qml/components/LightingControls.qml</file>
         <file alias="qml/components/FluentFileBar.qml">qml/components/FluentFileBar.qml</file>
         <file alias="qml/components/FluentTools.qml">qml/components/FluentTools.qml</file>
+        <file alias="qml/components/GroundBrushPicker.qml">qml/components/GroundBrushPicker.qml</file>
         <file alias="qml/PalettePanel.qml">qml/PalettePanel.qml</file>
         <file alias="qml/StartupWindow.qml">qml/StartupWindow.qml</file>
         <file alias="qml/controllers/AppSettings.qml">qml/controllers/AppSettings.qml</file>
@@ -81,6 +82,7 @@
         <file alias="qml/dialogs/AdvancedBrushEditor.qml">qml/dialogs/AdvancedBrushEditor.qml</file>
         <file alias="qml/dialogs/WallBrushEditor.qml">qml/dialogs/WallBrushEditor.qml</file>
         <file alias="qml/dialogs/AiMapAssistantDialog.qml">qml/dialogs/AiMapAssistantDialog.qml</file>
+        <file alias="qml/dialogs/TileMapGenDialog.qml">qml/dialogs/TileMapGenDialog.qml</file>
         <file alias="qml/dialogs/LuaGeneratorDialog.qml">qml/dialogs/LuaGeneratorDialog.qml</file>
         <file alias="qml/dialogs/CustomMapGeneratorDialog.qml">qml/dialogs/CustomMapGeneratorDialog.qml</file>
         <file alias="qml/components/GeneratorMaterialSlot.qml">qml/components/GeneratorMaterialSlot.qml</file>

@@ -1,5 +1,7 @@
 #include "mapview.h"
 #include "mapview_p.h"
+#include "customgeneratorprofiles.h"
+#include "tmgformat.h"
 #include <cmath>
 #include <algorithm>
 
@@ -49,7 +51,7 @@ QString MapView::prepareLuaPatch(const QVariantMap &patch,int x,int y,int z,
             int id=0,subtype=0;
             if (!integer(item.value("id"),1,65535,id) || !integer(item.value("count"),0,255,subtype))
                 return fail(QStringLiteral("Invalid item in Lua patch."));
-            if (m_otb->clientIdForServerId(id)<=0)
+            if (!TmgFormat::itemError(id, subtype, m_otb->clientIdForServerId(id)>0).isEmpty())
                 return fail(QStringLiteral("Item %1 is not present in the loaded client. Check the materials against this client.").arg(id));
             if (item.value("ground").toBool() && itemCategory(id)!=0)
                 return fail(QStringLiteral("Item %1 is not a ground item in this client.").arg(id));
@@ -100,9 +102,7 @@ QVariantMap MapView::luaGeneratorItemInfo(const QVariantMap &profile) const
 {
     QVariantMap info;
     if (!m_otb) return info;
-    const auto materials=profile.value("materials").toMap();
-    for (auto role=materials.cbegin();role!=materials.cend();++role) for (const QVariant &entry : role.value().toList()) {
-        const int id=entry.toMap().value("id").toInt();
+    for (int id : CustomGeneratorProfiles::itemIds(profile)) {
         info[QString::number(id)]=QVariantMap{{"valid",m_otb->clientIdForServerId(id)>0},
             {"ground",itemCategory(id)==0},{"blocked",m_otb->isUnpassableForServerId(id)
                 || m_otb->isClientUnpassableForServerId(id) || m_otb->blocksPathForServerId(id)}};

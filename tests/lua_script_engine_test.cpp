@@ -1,5 +1,6 @@
 #include "luascriptengine.h"
 #include "customgeneratorprofiles.h"
+#include "custommaprecipe.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QSet>
@@ -58,6 +59,145 @@ int main(int argc, char **argv)
     require(!engine.busy() && !asyncResult.value("success").toBool()
         && asyncResult.value("error").toString().contains("cancel",Qt::CaseInsensitive),
         "Background cancellation failed or blocked the event loop");
+    // Exercise the recipe on a known connected layout without requiring an external checkout.
+    const QByteArray brushFixture=R"lua(
+DME_PROFILE={kind='dungeon',width=24,height=24,rooms=2,density=0,bordersEnabled=true,
+ materials={background={{id=10000,weight=1}},floor={{id=10001,weight=1},{id=10002,weight=1}},secondary={{id=10003,weight=1}}},
+ itemInfo={},groundBorders={}}
+for id=10000,10003 do DME_PROFILE.itemInfo[tostring(id)]={ground=true,blocked=false} end
+for group=1,3 do
+ local set={groundIds=group==1 and {10001,10003} or {10002},to=group==3 and 'first ground' or '*',
+  toGroundIds=group==3 and {10001} or {},align=group==3 and 'inner' or 'outer',zorder=group,materials={}}
+ for slot=1,12 do
+  local id=19000+group*1000+slot
+  set.materials['border'..slot]={{id=id,weight=1}}
+  DME_PROFILE.itemInfo[tostring(id)]={ground=false,blocked=false}
+ end
+ DME_PROFILE.groundBorders[group]=set
+end
+)lua";
+    result=run(brushFixture+customMapRecipe);
+    if (!result.value("success").toBool()) qFatal("Ground border fixture: %s",qPrintable(result.value("error").toString()));
+    require(result.value("tileCount").toInt()==576,"Ground border recipe lost tiles");
+    const auto generatedTiles=result.value("tiles").toList();
+    QHash<int,int> grounds;
+    for (const QVariant &value : generatedTiles) {
+        const auto tile=value.toMap();
+        for (const QVariant &entry : tile.value("items").toList())
+            if (entry.toMap().value("ground").toBool()) grounds[tile.value("y").toInt()*65536+tile.value("x").toInt()]=entry.toMap().value("id").toInt();
+    }
+    QSet<int> borderFamilies;
+    for (const QVariant &value : generatedTiles) {
+        const auto tile=value.toMap();
+        const int key=tile.value("y").toInt()*65536+tile.value("x").toInt();
+        const int center=grounds.value(key);
+        for (const QVariant &entry : tile.value("items").toList()) {
+            const int id=entry.toMap().value("id").toInt();
+            if (entry.toMap().value("ground").toBool()) continue;
+            const int family=id/1000;
+            borderFamilies.insert(family);
+            require(family>=20 && family<=22,"Ground border fixture emitted an unselected item");
+            require(family==22 ? center==10002 : family==20 ? center!=10001 && center!=10003 : center!=10002,
+                "Border was placed on the wrong ground");
+            bool neighbourMatches=false;
+            for (int dy=-1;dy<=1;++dy) for (int dx=-1;dx<=1;++dx) {
+                if (!dx && !dy) continue;
+                const int other=grounds.value(key+dy*65536+dx);
+                neighbourMatches |= family==20 ? other==10001 || other==10003 : family==21 ? other==10002 : other==10001;
+            }
+            require(neighbourMatches,"A border is unrelated to its neighbouring ground");
+        }
+    }
+    require(borderFamilies==QSet<int>{20,21,22},"A ground border set was skipped");
+    require(result.value("tiles")==run(brushFixture+customMapRecipe).value("tiles"),"Ground border selection is not deterministic");
+    // Percentages change actual floor selection both with and without ground-specific borders.
+    for (const bool borders : {false,true}) for (const int percent : {0,100}) {
+        const QByteArray settings="DME_PROFILE.secondaryDensity="+QByteArray::number(percent)
+            +"; DME_PROFILE.bordersEnabled="+(borders ? QByteArray("true") : QByteArray("false"))+"\n";
+        const auto coverage=run(brushFixture+settings+customMapRecipe);
+        require(coverage.value("success").toBool(),"Secondary floor coverage failed");
+        int secondaryCount=0,primaryCount=0;
+        for (const QVariant &tile : coverage.value("tiles").toList()) for (const QVariant &item : tile.toMap().value("items").toList()) {
+            const int id=item.toMap().value("id").toInt();
+            secondaryCount+=id==10003; primaryCount+=id==10001 || id==10002;
+        }
+        require(percent==0 ? secondaryCount==0 && primaryCount>0 : secondaryCount>0 && primaryCount==0,
+            "Secondary floor percentage was ignored");
+    }
+    const QByteArray advancedFixture=brushFixture+R"lua(
+DME_PROFILE.rooms=4; DME_PROFILE.roomSpacing=6; DME_PROFILE.roomWidth=5; DME_PROFILE.roomHeight=9
+DME_PROFILE.corridorWidth=5; DME_PROFILE.connectionMode='nearest'; DME_PROFILE.extraConnections=2
+)lua";
+    result=run(advancedFixture+customMapRecipe);
+    require(result.value("success").toBool(),"Advanced layout parameters were not used");
+    require(result.value("tiles")!=run(brushFixture+customMapRecipe).value("tiles"),"Advanced settings did not change the generated layout");
+    require(!run(brushFixture+"for _,item in pairs(DME_PROFILE.itemInfo) do if not item.ground then item.blocked=true end end\n"+customMapRecipe)
+        .value("success").toBool(),"Blocking ground borders bypassed the connectivity check");
+
+    QVariantMap borderMaterials;
+    QVariantMap profileInfo{{"10000",QVariantMap{{"valid",true},{"ground",true},{"blocked",false}}},
+        {"10001",QVariantMap{{"valid",true},{"ground",true},{"blocked",false}}}};
+    for (int slot=1;slot<=12;++slot) {
+        borderMaterials["border"+QString::number(slot)]=QVariantList{QVariantMap{{"id",20000+slot},{"weight",25}}};
+        profileInfo[QString::number(20000+slot)]=QVariantMap{{"valid",true},{"ground",false},{"blocked",false}};
+    }
+    const QVariantMap borderSet{{"name","First ground"},{"groundIds",QVariantList{10001}},{"align","outer"},
+        {"to","*"},{"toGroundIds",QVariantList{}},{"zorder",1},{"materials",borderMaterials}};
+    const QVariantMap associated{{"version",1},{"name","Ground border profile"},{"kind","dungeon"},
+        {"width",24},{"height",24},{"rooms",2},{"seed",123},{"density",0},{"x",1000},{"y",1000},{"z",7},
+        {"bordersEnabled",true},{"groundBorders",QVariantList{borderSet}},
+        {"materials",QVariantMap{{"background",QVariantList{QVariantMap{{"id",10000},{"weight",1}}}},
+            {"floor",QVariantList{QVariantMap{{"id",10001},{"weight",1}}}}}}};
+    require(CustomGeneratorProfiles::validate(associated,&profileInfo).isEmpty(),"Valid ground border profile rejected");
+    auto advanced=associated;
+    const QVariantMap advancedValues{{"roomWidth",9},{"roomHeight",11},{"roomSpacing",12},{"corridorWidth",5},
+        {"secondaryDensity",40},{"connectionMode","nearest"},{"extraConnections",4},{"cavePaths","direct"}};
+    for (auto it=advancedValues.cbegin();it!=advancedValues.cend();++it) advanced[it.key()]=it.value();
+    advanced["width"]=70; advanced["height"]=70; advanced["rooms"]=20;
+    require(CustomGeneratorProfiles::validate(advanced,&profileInfo).isEmpty(),"Advanced settings rejected");
+    for (const QString &key : {QString("roomWidth"),QString("roomHeight"),QString("roomSpacing"),QString("corridorWidth"),QString("secondaryDensity"),QString("extraConnections")}) {
+        auto invalid=advanced; invalid[key]=-1;
+        require(!CustomGeneratorProfiles::validate(invalid).isEmpty(),"Invalid advanced value accepted");
+        invalid[key]=2.5;
+        require(!CustomGeneratorProfiles::validate(invalid).isEmpty(),"Fractional advanced value accepted");
+    }
+    for (const QString &key : {QString("connectionMode"),QString("cavePaths")}) {
+        auto invalid=advanced; invalid[key]="unknown";
+        require(!CustomGeneratorProfiles::validate(invalid).isEmpty(),"Unknown layout mode accepted");
+    }
+    auto tooLarge=associated; tooLarge["roomWidth"]=21;
+    require(!CustomGeneratorProfiles::validate(tooLarge).isEmpty(),"Rooms exceeding map bounds accepted");
+    auto tooSparse=associated; tooSparse["roomSpacing"]=40;
+    require(!CustomGeneratorProfiles::validate(tooSparse).isEmpty(),"Too many rooms for advanced spacing accepted");
+    require(CustomGeneratorProfiles::itemIds(associated).contains(20012),"Border items missing from client validation");
+    auto invalidBorderProfile=associated; auto invalidSet=borderSet;
+    invalidSet["groundIds"]=QVariantList{10002}; invalidBorderProfile["groundBorders"]=QVariantList{invalidSet};
+    require(!CustomGeneratorProfiles::validate(invalidBorderProfile).isEmpty(),"Border accepted for an unselected ground");
+    auto missingBorderInfo=profileInfo; missingBorderInfo.remove("20001");
+    require(!CustomGeneratorProfiles::validate(associated,&missingBorderInfo).isEmpty(),"Unknown border item accepted");
+    auto sparse=associated; auto sparseSet=borderSet;
+    sparseSet["materials"]=QVariantMap{{"border1",borderMaterials.value("border1")}};
+    sparse["groundBorders"]=QVariantList{sparseSet};
+    require(CustomGeneratorProfiles::validate(sparse,&profileInfo).isEmpty(),"Sparse brush border slots rejected");
+    CustomGeneratorProfiles borderStore(nullptr,directory.filePath("ground-border-profiles"));
+    const auto storedBorder=borderStore.save(associated);
+    require(storedBorder.value("success").toBool(),"Ground border profile save failed");
+    CustomGeneratorProfiles reopenedBorders(nullptr,directory.filePath("ground-border-profiles"));
+    const QString storedBorderId=storedBorder.value("profile").toMap().value("id").toString();
+    require(reopenedBorders.load(storedBorderId).value("groundBorders")==associated.value("groundBorders"),"Saved ground borders were lost");
+    const QUrl borderExport=QUrl::fromLocalFile(directory.filePath("ground-border-profile.json"));
+    require(borderStore.exportProfile(associated,borderExport).value("success").toBool(),"Ground border profile export failed");
+    const auto importedBorder=borderStore.importProfile(borderExport);
+    require(importedBorder.value("success").toBool() && importedBorder.value("profile").toMap().value("groundBorders")==associated.value("groundBorders"),
+        "Import lost ground border ownership or variants");
+    const auto savedAdvanced=borderStore.save(advanced);
+    require(savedAdvanced.value("success").toBool(),"Advanced profile save failed");
+    CustomGeneratorProfiles restoredAdvanced(nullptr,directory.filePath("ground-border-profiles"));
+    const auto advancedProfile=restoredAdvanced.load(savedAdvanced.value("profile").toMap().value("id").toString());
+    require(borderStore.exportProfile(advanced,borderExport).value("success").toBool(),"Advanced profile export failed");
+    const auto importedAdvanced=borderStore.importProfile(borderExport).value("profile").toMap();
+    for (auto it=advancedValues.cbegin();it!=advancedValues.cend();++it)
+        require(advancedProfile.value(it.key())==it.value() && importedAdvanced.value(it.key())==it.value(),"Advanced settings lost during save or import/export");
     if (argc>1) {
         const auto generated=LuaScriptEngine::execute(QString::fromLocal8Bit(argv[1]),"otmapgen",123,flag);
         if (!generated.value("success").toBool()) qFatal("Generator failed: %s",qPrintable(generated.value("error").toString()));
@@ -104,6 +244,32 @@ int main(int argc, char **argv)
             require(frequency[50002]>frequency[50003]*10,"Material weights were ignored");
             auto again=LuaScriptEngine::execute(directory.filePath("missing-config.lua"),"profile",123,flag,120000,profile);
             require(again.value("tiles")==custom.value("tiles"),"Custom seed is not deterministic");
+            auto defaults=profile;
+            const QVariantMap defaultAdvanced{{"roomWidth",7},{"roomHeight",7},{"roomSpacing",8},{"corridorWidth",3},
+                {"secondaryDensity",15},{"connectionMode","chain"},{"extraConnections",0},{"cavePaths","winding"}};
+            for (auto it=defaultAdvanced.cbegin();it!=defaultAdvanced.cend();++it) defaults[it.key()]=it.value();
+            const auto defaultOutput=LuaScriptEngine::execute(QString(),"profile",123,flag,120000,defaults);
+            require(defaultOutput.value("success").toBool() && defaultOutput.value("tiles")==custom.value("tiles"),"Advanced defaults changed legacy profiles");
+            auto tuned=profile;
+            tuned["width"]=70; tuned["height"]=70; tuned["rooms"]=12; tuned["density"]=0;
+            tuned["roomWidth"]=11; tuned["roomHeight"]=9; tuned["roomSpacing"]=12; tuned["corridorWidth"]=5;
+            tuned["connectionMode"]="nearest"; tuned["extraConnections"]=3; tuned["cavePaths"]="direct"; tuned["secondaryDensity"]=100;
+            auto tunedMaterials=materials; tunedMaterials["secondary"]=QVariantList{QVariantMap{{"id",50006},{"weight",1}}};
+            auto tunedInfo=info; tunedInfo["50006"]=QVariantMap{{"valid",true},{"ground",true},{"blocked",false}};
+            tuned["materials"]=tunedMaterials; tuned["itemInfo"]=tunedInfo;
+            const auto tunedOutput=LuaScriptEngine::execute(QString(),"profile",123,flag,120000,tuned);
+            if (!tunedOutput.value("success").toBool()) qFatal("Advanced %s recipe: %s",qPrintable(kind),qPrintable(tunedOutput.value("error").toString()));
+            require(tunedOutput.value("tileCount").toInt()==4900,"Advanced layout changed requested map bounds");
+            int tunedFloorCount=0;
+            for (const QVariant &tile : tunedOutput.value("tiles").toList()) for (const QVariant &item : tile.toMap().value("items").toList()) {
+                const int id=item.toMap().value("id").toInt();
+                require(tunedInfo.contains(QString::number(id)),"Advanced layout emitted an unselected item");
+                require(id!=50002 && id!=50003,"100 percent secondary floor ignored in upstream integration");
+                tunedFloorCount+=id==50006;
+            }
+            require(tunedFloorCount>300,"Advanced layout produced no useful floor area");
+            const auto tunedAgain=LuaScriptEngine::execute(QString(),"profile",123,flag,120000,tuned);
+            require(tunedAgain.value("success").toBool() && tunedAgain.value("tiles")==tunedOutput.value("tiles"),"Advanced layout is not deterministic");
             qInfo() << "Custom" << kind << "passed:" << custom.value("itemCount") << "items";
         }
         // Built-in profiles must work even when no external config exists.
@@ -127,6 +293,13 @@ int main(int argc, char **argv)
             }
         }
         // Optional categories must never introduce upstream's stock IDs.
+        auto maximum=profile;
+        maximum["kind"]="cave"; maximum["width"]=200; maximum["height"]=200; maximum["rooms"]=64; maximum["density"]=0;
+        maximum["roomWidth"]=21; maximum["roomHeight"]=21; maximum["roomSpacing"]=20; maximum["corridorWidth"]=5;
+        maximum["connectionMode"]="nearest"; maximum["extraConnections"]=16; maximum["cavePaths"]="direct";
+        const auto maximumOutput=LuaScriptEngine::execute(QString(),"profile",123,flag,120000,maximum);
+        if (!maximumOutput.value("success").toBool()) qFatal("Maximum advanced map failed: %s",qPrintable(maximumOutput.value("error").toString()));
+        require(maximumOutput.value("tileCount").toInt()==40000,"Maximum advanced map changed output bounds");
         auto full=profile;
         auto fullMaterials=materials; auto fullInfo=info;
         fullMaterials["secondary"]=QVariantList{QVariantMap{{"id",50006},{"weight",1}}};

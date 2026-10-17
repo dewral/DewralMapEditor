@@ -915,6 +915,12 @@ QStringList BrushStore::groundBrushNames() const
     return l;
 }
 
+int BrushStore::groundBrushLookId(const QString &name) const
+{
+    const auto *ground = groundDef(name);
+    return ground ? ground->lookid : 0;
+}
+
 QStringList BrushStore::wallBrushNames() const
 {
     QStringList l = m_walls.keys();
@@ -1446,7 +1452,20 @@ QString BrushStore::getBrushTo(const QString &firstName, const QString &secondNa
 
     if (first) {
         if (second) {
-            if (first->zorder < second->zorder && second->outerBorderFlag()) {
+            bool secondOnTop = first->zorder < second->zorder;
+            if (first->zorder == second->zorder && second->outerBorderFlag()) {
+                const auto hasMatchingOuter = [](const GroundDef &brush, const QString &to) {
+                    for (const auto &border : brush.borders)
+                        if (border.outer && (border.to == to || border.to == QStringLiteral("*")))
+                            return true;
+                    return false;
+                };
+                // Equal priorities still need a border owner. Prefer the only
+                // compatible rule, or use a stable name order if both define one.
+                secondOnTop = hasMatchingOuter(*second, firstName)
+                    && (!hasMatchingOuter(*first, secondName) || firstName < secondName);
+            }
+            if (secondOnTop && second->outerBorderFlag()) {
                 if (first->innerBorderFlag()) {
                     for (const BorderBlock &bb : first->borders) {
                         if (bb.outer) continue;
@@ -1624,4 +1643,52 @@ QVector<int> BrushStore::computeBorderItems(const QString &center, const QString
         }
     }
     return result;
+}
+
+
+QJsonObject BrushStore::generationCatalog() const
+{
+    const auto weighted = [](const QVector<QPair<int, int>> &entries, bool cumulative) {
+        QJsonArray result; int previous = 0;
+        for (const auto &entry : entries) {
+            const int weight = cumulative ? entry.second - previous : entry.second;
+            previous = entry.second;
+            if (entry.first > 0 && weight > 0) result.append(QJsonObject{{"id", entry.first}, {"weight", weight}});
+        }
+        return result;
+    };
+    const auto borderSlots = [&](const QString &key) {
+        QJsonArray result; const auto border = m_borders.value(key);
+        for (const auto &node : border.align) result.append(weighted(node.items, false));
+        return result;
+    };
+    QJsonArray grounds, walls, prefabs, table;
+    for (const auto &name : groundBrushNames()) {
+        const auto &g = m_grounds[name]; QJsonArray borders, friends;
+        auto sortedFriends = g.friends.values(); sortedFriends.sort();
+        for (const auto &f : sortedFriends) friends.append(f);
+        if (g.friendsAll) friends.append("*");
+        for (const auto &b : g.borders) borders.append(QJsonObject{{"key", b.borderKey}, {"to", b.to}, {"align", b.outer ? "outer" : "inner"}, {"slots", borderSlots(b.borderKey)}});
+        const auto items = weighted(g.items, true); if (items.isEmpty()) continue;
+        grounds.append(QJsonObject{{"name", name}, {"items", items}, {"zorder", g.zorder}, {"borders", borders},
+            {"friends", friends}, {"hate_friends", g.hateFriends}, {"optional", g.optional.isEmpty() ? QJsonArray{} : borderSlots(g.optional)}, {"solo_optional", g.useSoloOptional}});
+    }
+    for (const auto &name : wallBrushNames()) {
+        QJsonArray nodes; for (const auto &n : m_walls[name].align) nodes.append(weighted(n.items, true));
+        walls.append(QJsonObject{{"name", name}, {"slots", nodes}});
+    }
+    for (const auto &name : doodadBrushNames()) {
+        QJsonArray variants;
+        for (int i = 0; i < doodadVariantCount(name); ++i) {
+            QJsonArray tiles;
+            for (const auto &t : doodadVariantTiles(name, i)) {
+                QJsonArray items; for (int id : t.items) items.append(id);
+                if (!items.isEmpty()) tiles.append(QJsonObject{{"dx", t.dx}, {"dy", t.dy}, {"dz", t.dz}, {"items", items}});
+            }
+            if (!tiles.isEmpty()) variants.append(tiles);
+        }
+        if (!variants.isEmpty()) prefabs.append(QJsonObject{{"name", name}, {"variants", variants}});
+    }
+    for (quint32 mask : kBorderTypes) table.append(qint64(mask));
+    return {{"grounds", grounds}, {"walls", walls}, {"prefabs", prefabs}, {"border_types", table}};
 }

@@ -29,6 +29,8 @@
 #include "hotkeysettings.h"
 #include "luascriptengine.h"
 #include "customgeneratorprofiles.h"
+#include "tilemapgenbridge.h"
+#include "tilemapgenprofiles.h"
 
 class Backend : public QObject
 {
@@ -53,6 +55,8 @@ class Backend : public QObject
     Q_PROPERTY(ActivityService *activity READ activity CONSTANT)
     Q_PROPERTY(HotkeySettings *hotkeys READ hotkeys CONSTANT)
     Q_PROPERTY(LuaScriptEngine *luaScripts READ luaScripts CONSTANT)
+    Q_PROPERTY(TileMapGenBridge *tileMapGen READ tileMapGen CONSTANT)
+    Q_PROPERTY(TileMapGenProfiles *tileMapGenProfiles READ tileMapGenProfiles CONSTANT)
     Q_PROPERTY(CustomGeneratorProfiles *generatorProfiles READ generatorProfiles CONSTANT)
 
 public:
@@ -79,6 +83,8 @@ public:
     ActivityService *activity() { return &m_activity; }
     HotkeySettings *hotkeys() { return &m_hotkeys; }
     LuaScriptEngine *luaScripts() { return &m_luaScripts; }
+    TileMapGenBridge *tileMapGen() { return &m_tileMapGen; }
+    TileMapGenProfiles *tileMapGenProfiles() { return &m_tileMapGenProfiles; }
     CustomGeneratorProfiles *generatorProfiles() { return &m_generatorProfiles; }
 
     Q_INVOKABLE int preloadPaletteSprites() {
@@ -104,6 +110,7 @@ public:
     Q_INVOKABLE QUrl spriteExportUrl(int serverId) const;
     // Returns an empty string on success, otherwise a user-visible error.
     Q_INVOKABLE QString exportSprite(int serverId, const QUrl &destination) const;
+    Q_INVOKABLE QString exportGroundBrush(const QVariantList &cells, const QUrl &destination);
 
 signals:
     void otbmReaderChanged();
@@ -128,6 +135,8 @@ private:
     HotkeySettings m_hotkeys;
     LuaScriptEngine m_luaScripts;
     CustomGeneratorProfiles m_generatorProfiles;
+    TileMapGenBridge m_tileMapGen;
+    TileMapGenProfiles m_tileMapGenProfiles;
 };
 
 #endif

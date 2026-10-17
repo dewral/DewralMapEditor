@@ -1,6 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QVariantMap>
+#include <QSet>
 #include <QUrl>
 
 class CustomGeneratorProfiles : public QObject
@@ -17,6 +18,7 @@ public:
     Q_INVOKABLE QVariantMap exportProfile(const QVariantMap &profile, const QUrl &url) const;
     static QString validate(const QVariantMap &profile, const QVariantMap *itemInfo=nullptr);
     static QStringList roles();
+    static QSet<int> itemIds(const QVariantMap &profile);
 signals:
     void profilesChanged();
 private:

@@ -109,6 +109,63 @@ Item {
             compare(manager.curGround, "dirt")
             compare(manager.groundSaveError, "")
         }
+        function test_exportLayoutUsesDraftAndVariants() {
+            const slots = Array.from({length: 13}, (_, type) =>
+                type === 0 ? [] : [{id: 1000 + type, chance: 1}])
+            slots[8].push({id: 2008, chance: 1})
+            slots[3].push({id: 2003, chance: 1})
+            manager.borderAlign = "outer"
+            manager.borderTarget = ""
+            manager.borderSets = {"outer|": slots}
+            const items = findChild(manager, "brushManagerGroundItems")
+            items.clear()
+            items.append({sid: 301, chance: 1})
+            items.append({sid: 302, chance: 1})
+            items.append({sid: 303, chance: 1})
+            const cells = manager.groundExportCells()
+            compare(cells.length, 64)
+            compare(cells.slice(0, 8), [0, 0, 1008, 1003, 2003, 1007, 0, 0])
+            compare(cells.slice(8, 16), [0, 2008, 1011, 301, 302, 1012, 1007, 0])
+            compare(cells.slice(16, 24), [1008, 1011, 303, 301, 302, 303, 1012, 1007])
+            compare(cells[24], 1002)
+            compare(cells[32], 1002)
+            compare(cells[31], 1004)
+            compare(cells[39], 1004)
+            compare(cells.slice(40, 48), [1006, 1010, 301, 302, 303, 301, 1009, 1005])
+            compare(cells.slice(48, 56), [0, 1006, 1010, 302, 303, 1009, 1005, 0])
+            compare(cells.slice(56), [0, 0, 1006, 1001, 1001, 1005, 0, 0])
+            const ground = cells.filter(id => id >= 301 && id <= 303)
+            compare(ground.length, 24)
+            for (let i = 0; i < ground.length; ++i)
+                compare(ground[i], 301 + i % 3)
+            compare(brushes.savedOriginalNames, [])
+        }
+        function test_exportRepeatsSingleGroundAndLeavesMissingBordersEmpty() {
+            manager.borderSets = {}
+            const items = findChild(manager, "brushManagerGroundItems")
+            items.clear()
+            items.append({sid: 123, chance: 1})
+            const cells = manager.groundExportCells()
+            const groundRows = [[], [3, 4], [2, 3, 4, 5], [1, 2, 3, 4, 5, 6],
+                                [1, 2, 3, 4, 5, 6], [2, 3, 4, 5], [3, 4], []]
+            for (let y = 0; y < 8; ++y)
+                for (let x = 0; x < 8; ++x)
+                    compare(cells[y * 8 + x], groundRows[y].indexOf(x) >= 0 ? 123 : 0)
+            verify(findChild(manager, "brushManagerExportGround").enabled)
+            items.clear()
+            verify(!findChild(manager, "brushManagerExportGround").enabled)
+        }
+        function test_exportUsesSelectedBorderSet() {
+            manager.borderTarget = "stone"
+            manager.borderAlign = "inner"
+            let slots = Array.from({length: 13}, () => [])
+            slots[3] = [{id: 456, chance: 1}]
+            manager.borderSets = {"inner|stone": slots}
+            compare(manager.groundExportCells()[3], 456)
+            manager.optionalBorderIds = Array.from({length: 13}, () => [])
+            manager.optionalBorderMode = true
+            compare(manager.groundExportCells()[3], 0)
+        }
         function test_existingNameKeepsOriginal() {
             findChild(manager, "brushManagerGroundName").text = "granite"
             compare(manager.saveGround(), false)

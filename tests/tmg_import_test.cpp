@@ -66,6 +66,23 @@ int main(int argc, char **argv) {
     if (!check(!TmgFormat::load(path + "/map.tmg", wrong).document, "Asset mismatch accepted")) return 18;
     wrong = catalog; wrong.items.remove(1000);
     if (!check(!TmgFormat::load(path + "/map.tmg", wrong).document, "Unknown item accepted")) return 19;
+    // Recipe v2 keeps authoring provenance in a separate metadata row. Native
+    // imports must accept that extension without relaxing the strict v1 manifest.
+    const auto authored = directory.filePath("authored.tmg");
+    if (!check(QFile::copy(path + "/map.tmg", authored), "Cannot copy authoring fixture")) return 25;
+    { auto db = QSqlDatabase::addDatabase("QSQLITE", "authoring-test"); db.setDatabaseName(authored);
+        if (!db.open()) return 26;
+        QSqlQuery q(db);
+        q.prepare("INSERT OR REPLACE INTO metadata VALUES(?,?)");
+        q.addBindValue("design");
+        q.addBindValue(R"({"schema_version":1,"generator_version":"0.4.0","recipe_digest":"fixture"})");
+        if (!q.exec()) return 27;
+        db.close(); }
+    QSqlDatabase::removeDatabase("authoring-test");
+    const auto authoredResult = TmgFormat::load(authored, catalog);
+    if (!check(authoredResult.document && authoredResult.error.isEmpty()
+               && authoredResult.document->itemCount() == source.itemCount()
+               && authoredResult.manifest == result.manifest, "Authoring metadata broke native import")) return 28;
     const auto corrupt = directory.filePath("corrupt.tmg"); QFile::copy(path + "/map.tmg", corrupt);
     { auto db = QSqlDatabase::addDatabase("QSQLITE", "corrupt-test"); db.setDatabaseName(corrupt); if (!db.open()) return 20;
         QSqlQuery q(db); if (!q.exec("UPDATE chunks SET payload=x'80' WHERE cx=0 AND cy=0")) return 21; db.close(); }

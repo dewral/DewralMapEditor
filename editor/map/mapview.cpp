@@ -15,6 +15,10 @@
 #include <QPointer>
 #include <QThread>
 #include <QGuiApplication>
+#include <QCryptographicHash>
+#include <QFileInfo>
+#include <QDir>
+#include <QSettings>
 #include <QSet>
 #include <algorithm>
 #include <bitset>
@@ -23,6 +27,22 @@
 #include <cstring>
 #include <vector>
 #include <thread>
+
+namespace {
+QString mapViewSettingsKey(const QString &path)
+{
+    if (path.isEmpty()) return {};
+    const QFileInfo file(path);
+    QString identity = file.canonicalFilePath();
+    if (identity.isEmpty()) identity = file.absoluteFilePath();
+    identity = QDir::cleanPath(identity);
+#ifdef Q_OS_WIN
+    identity = identity.toCaseFolded();
+#endif
+    return QStringLiteral("mapViews/") + QString::fromLatin1(
+        QCryptographicHash::hash(identity.toUtf8(), QCryptographicHash::Sha256).toHex());
+}
+}
 
 MapView::MapView(QQuickItem *parent)
     : QQuickItem(parent)
@@ -38,7 +58,46 @@ MapView::MapView(QQuickItem *parent)
     m_hoverEmitTimer->setSingleShot(true);
     m_hoverEmitTimer->setInterval(50);
     connect(m_hoverEmitTimer, &QTimer::timeout, this, [this] { emit hoverChanged(); });
+    connect(qApp, &QCoreApplication::aboutToQuit, this, &MapView::saveViewPosition);
     startWorker();
+}
+
+void MapView::saveViewPosition()
+{
+    // Do not replace a remembered view with the empty canvas of a pending load.
+    if (!m_viewPositionReady || !m_otbm || !m_otbm->isLoaded() || m_otbm->isLoading())
+        return;
+    const QString key = mapViewSettingsKey(m_otbm->filePath());
+    if (key.isEmpty()) return;
+    QSettings settings;
+    settings.setValue(key, QVariantMap{
+        {QStringLiteral("x"), m_navigationController.originX()},
+        {QStringLiteral("y"), m_navigationController.originY()},
+        {QStringLiteral("z"), floor()},
+        {QStringLiteral("tileSize"), tileSize()}});
+    settings.sync();
+}
+
+bool MapView::restoreViewPosition()
+{
+    if (!m_otbm || !m_otbm->isLoaded()) return false;
+    const QString key = mapViewSettingsKey(m_otbm->filePath());
+    if (key.isEmpty()) return false;
+    const QVariantMap state = QSettings().value(key).toMap();
+    bool validX = false, validY = false, validZ = false, validSize = false;
+    const double x = state.value(QStringLiteral("x")).toDouble(&validX);
+    const double y = state.value(QStringLiteral("y")).toDouble(&validY);
+    const int z = state.value(QStringLiteral("z")).toInt(&validZ);
+    const int size = state.value(QStringLiteral("tileSize")).toInt(&validSize);
+    if (!validX || !validY || !validZ || !validSize || !std::isfinite(x)
+        || !std::isfinite(y) || std::abs(x) > INT_MAX / 2.0
+        || std::abs(y) > INT_MAX / 2.0 || z < 0 || z > 15 || size < 1 || size > 256)
+        return false;
+    setTileSize(size);
+    setFloor(z);
+    m_navigationController.originX() = x;
+    m_navigationController.originY() = y;
+    return true;
 }
 
 const QImage &MapView::minimapImage()
@@ -120,6 +179,7 @@ void MapView::setShowLowerFloors(bool on)
 bool MapView::loadMap(const QString &path)
 {
     if (!m_otbm || path.trimmed().isEmpty() || m_otbm->isLoading()) return false;
+    saveViewPosition();
     m_initialViewToken.store(0);
     m_optionalBorderTiles.clear();
     m_optionalBorderOverrides.clear();
@@ -262,6 +322,7 @@ bool MapView::loadMap(const QString &path)
                 guard->m_loadedMapServerIds = std::move(result->serverIds);
                 guard->m_loadedMapServerIdsReady = true;
                 guard->m_asyncFloorIndexReady = true;
+                guard->m_viewPositionReady = false;
                 adopted = targetGuard->adoptLoadedState(*result->reader);
                 if (!adopted) guard->m_asyncFloorIndexReady = false;
             }
@@ -352,6 +413,8 @@ void MapView::rebuildAtlas()
 void MapView::setOtbm(OtbmReader *reader)
 {
     if (m_otbm == reader) return;
+    saveViewPosition();
+    m_viewPositionReady = false;
     m_itemController.menuPending() = false;
     m_itemController.contextTargetsItem() = true;
     m_initialViewToken.store(0);
@@ -870,7 +933,13 @@ void MapView::onMapLoaded()
     clearChunkQuadCache();
     m_floorDirty = true;
     emit atlasChanged();
-    centerOnContent();
+    if (!m_otbm || !m_otbm->isLoaded()) {
+        m_viewPositionReady = false;
+        centerOnContent();
+    } else if (!m_viewPositionReady) {
+        if (!restoreViewPosition()) centerOnContent();
+        m_viewPositionReady = true;
+    }
     emit contentUpdated(); update();
 }
 

@@ -12,6 +12,8 @@
 #include <QStandardPaths>
 #include <QUuid>
 #include <QDateTime>
+#include <QDesktopServices>
+#include <QUrl>
 #include <QVariantMap>
 
 #include <algorithm>
@@ -150,6 +152,13 @@ QString DocumentManager::recoveryDirectory() const
     if (!overridePath.isEmpty()) return QDir::cleanPath(overridePath);
     return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
            + QStringLiteral("/recovery");
+}
+
+bool DocumentManager::openRecoveryFolder()
+{
+    const QDir directory(recoveryDirectory());
+    if (!directory.mkpath(QStringLiteral("."))) return false;
+    return QDesktopServices::openUrl(QUrl::fromLocalFile(directory.absolutePath()));
 }
 
 QString DocumentManager::recoveryPath(const QString &id) const

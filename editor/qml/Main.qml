@@ -44,7 +44,8 @@ DmeWindow {
         if (app.started && !Backend.otbmReader.loading)
             editorPresented = true;
     }
-    visible: app.started
+    // Present the editor maximized when leaving the startup screen.
+    visibility: app.started ? Window.Maximized : Window.Hidden
     width: 1000
     height: 680
     minimumWidth: 720

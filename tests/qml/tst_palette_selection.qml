@@ -18,6 +18,8 @@ Item {
         property bool hideInvisibleSprites: false
         property bool hideNamedItems: false
         property string customPalettesJson: "{}"
+        property string lastPaletteKind: ""
+        property string lastRawTileset: ""
     }
     Controllers.PaletteController { id: palettes; settings: prefs }
     QtObject {
@@ -98,7 +100,8 @@ Item {
         id: tilesets
         property int revision: 0
         property var saved: ({Walls: []})
-        function namesFor(category) { return category === "raw" ? ["Others"] : category === "terrain" ? Object.keys(saved) : []; }
+        property var rawNames: ["Others"]
+        function namesFor(category) { return category === "raw" ? rawNames : category === "terrain" ? Object.keys(saved) : []; }
         function itemsFor(category, name) {
             if (category === "raw" && name === "Others") {
                 const ids=[]; for (let row=0; row<items.count; ++row) ids.push(items.get(row).serverId);
@@ -138,6 +141,10 @@ Item {
         Editor.PalettePanel { width: 340; height: 780; app: mockApp; mapCtrl: mockMap }
     }
     Component {
+        id: settingsComponent
+        Controllers.AppSettings {}
+    }
+    Component {
         id: doodadComponent
         Components.DoodadPaletteGrid {
             width: 300; height: 150
@@ -162,6 +169,9 @@ Item {
             prefs.paletteViewMode = "grid";
             prefs.hideInvisibleSprites = false;
             prefs.hideNamedItems = false;
+            prefs.lastPaletteKind = "";
+            prefs.lastRawTileset = "";
+            mockApp.settings = prefs;
             items.hideNamedItems = false;
             mockMap.brushServerId = 0;
             mockMap.creatureBrush = "";
@@ -169,12 +179,15 @@ Item {
             palettes.customPalettes = ({});
             mockApp.favoriteBrushIds = [];
             tilesets.saved = ({Walls: []});
+            tilesets.rawNames = ["Others"];
+            ++tilesets.revision;
             items.clear();
             // IDs are deliberately nonconsecutive: ranges follow displayed rows.
             for (let i = 0; i < 80; ++i)
                 items.append({serverId: 500 + i * 3, itemName: "Test item " + i});
         }
         function cleanup() {
+            mockApp.settings = prefs;
             Backend.otbReader = oldReader;
             Backend.tilesetStore = oldTilesets;
         }
@@ -184,6 +197,73 @@ Item {
             tryVerify(() => grid.itemAtIndex(row) !== null);
             mouseClick(grid.itemAtIndex(row), 8, 8, button || Qt.LeftButton,
                        modifiers || Qt.NoModifier);
+        }
+        function test_rawTilesetSurvivesRestart_data() {
+            return ["fluent-dark", "gray-dark", "gray-modern", "github", "classic", "windows-classic"]
+                    .map(theme => ({tag: theme, theme: theme}));
+        }
+        function test_rawTilesetSurvivesRestart(data) {
+            Backend.uiTheme.style = data.theme;
+            const location = Qt.resolvedUrl("../../build/tmp/raw-palette-"
+                                           + Date.now() + "-" + Math.random() + ".ini");
+            let settings = createTemporaryObject(settingsComponent, testRoot, {location: location});
+            verify(settings);
+            mockApp.settings = settings;
+            tilesets.rawNames = ["Architecture", "Stones / Rocks", "Others"];
+            ++tilesets.revision;
+            let panel = createTemporaryObject(panelComponent, testRoot);
+            verify(panel);
+            const kind = findChild(panel, "paletteKindCombo");
+            if (data.theme !== "fluent-dark")
+                kind.handleActivation(kind.model.indexOf("RAW Palette"));
+            if (panel.githubUi)
+                findChild(panel, "githubPaletteTilesetCombo").activated(1);
+            else
+                findChild(panel, "paletteTilesetCombo").handleActivation(1);
+            compare(settings.lastPaletteKind, "RAW Palette");
+            compare(settings.lastRawTileset, "Stones / Rocks");
+            panel.destroy();
+            mockApp.settings = prefs;
+            settings.destroy();
+            wait(0); // Destroy Settings and flush writes before restarting.
+
+            // The panel starts before client definitions load on a real restart.
+            tilesets.rawNames = [];
+            ++tilesets.revision;
+            settings = createTemporaryObject(settingsComponent, testRoot, {location: location});
+            verify(settings);
+            mockApp.settings = settings;
+            panel = createTemporaryObject(panelComponent, testRoot);
+            verify(panel);
+            tryCompare(panel, "currentKind", "RAW Palette");
+            compare(settings.lastRawTileset, "Stones / Rocks");
+            tilesets.rawNames = ["Others", "Architecture", "Stones / Rocks"];
+            ++tilesets.revision;
+            const tileset = findChild(panel, "paletteTilesetCombo");
+            tryCompare(tileset, "currentText", "Stones / Rocks");
+            compare(tileset.currentIndex, 2, "Restore by name after tilesets change order");
+
+            panel.selectKind("Terrain Palette");
+            panel.selectKind("RAW Palette");
+            tryCompare(tileset, "currentText", "Stones / Rocks");
+            compare(settings.lastRawTileset, "Stones / Rocks");
+
+            // A different profile or a deleted tileset must leave a valid fallback.
+            tilesets.rawNames = ["Architecture", "Others"];
+            ++tilesets.revision;
+            tryCompare(tileset, "currentText", "Architecture");
+            compare(settings.lastRawTileset, "Stones / Rocks");
+            tilesets.rawNames = ["Stones / Rocks", "Others"];
+            ++tilesets.revision;
+            tryCompare(tileset, "currentText", "Stones / Rocks");
+
+            panel.selectRaw(503);
+            tryCompare(tileset, "currentText", "Others");
+            compare(settings.lastRawTileset, "Others", "Programmatic RAW navigation must be saved too");
+            panel.destroy();
+            mockApp.settings = prefs;
+            settings.destroy();
+            wait(0);
         }
         function test_rawOthers_does_not_build_hidden_doodads() {
             Backend.uiTheme.style = "fluent-dark";

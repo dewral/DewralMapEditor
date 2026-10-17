@@ -2,7 +2,7 @@
 #include "backend.h"
 #include "mapview.h"
 #include "tilemapgenmaterials.h"
-#include <QBuffer>
+#include "tilemapgenassets.h"
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -174,18 +174,27 @@ QString TileMapGenBridge::writeAssets(const QUrl &path, int downId, int upId, bo
         if (!db.open()) error = tr("Cannot create the asset pack.");
         else {
             QSqlQuery q(db);
-            for (const auto &sql : {"PRAGMA application_id=1414350641", "PRAGMA user_version=1", "CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL)", "CREATE TABLE assets(id INTEGER PRIMARY KEY,png BLOB NOT NULL)"}) if (!q.exec(QLatin1String(sql))) error = tr("Cannot initialize the asset pack.");
+            for (const auto &sql : {"PRAGMA application_id=1414350641", "PRAGMA user_version=1", "CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL)", "CREATE TABLE assets(id INTEGER PRIMARY KEY,png BLOB NOT NULL)", "CREATE TABLE sprite_variants(id INTEGER,pattern INTEGER,png BLOB NOT NULL,PRIMARY KEY(id,pattern))"}) if (!q.exec(QLatin1String(sql))) error = tr("Cannot initialize the asset pack.");
             if (error.isEmpty() && db.transaction()) {
                 q.prepare("INSERT INTO metadata VALUES(?,?)"); q.addBindValue("kind"); q.addBindValue("asset-pack"); if (!q.exec()) error = tr("Cannot write asset metadata.");
                 q.prepare("INSERT INTO metadata VALUES(?,?)"); q.addBindValue("pack"); q.addBindValue(QString::fromUtf8(QJsonDocument(pack).toJson(QJsonDocument::Compact))); if (!q.exec()) error = tr("Cannot write asset metadata.");
+                QJsonObject renderItems;
                 for (const auto &value : pack["items"].toArray()) {
-                    if (!sprites) break;
+                    if (!sprites || !error.isEmpty()) break;
                     const int sid = value.toObject()["id"].toInt();
                     const auto *item = m_backend->datReader()->itemByClientId(otb->clientIdForServerId(sid));
-                    const QImage image = item ? m_backend->sprReader()->itemPatternImage(*item, 0) : QImage();
-                    if (image.isNull()) continue;
-                    QByteArray bytes; QBuffer buffer(&bytes); buffer.open(QIODevice::WriteOnly); image.save(&buffer, "PNG");
-                    q.prepare("INSERT INTO assets VALUES(?,?)"); q.addBindValue(sid); q.addBindValue(bytes); if (!q.exec()) { error = tr("Cannot write sprite preview."); break; }
+                    if (!item) continue;
+                    renderItems[QString::number(sid)] = TileMapGenAssets::geometry(*item, otb->rotateToForServerId(sid));
+                    error = TileMapGenAssets::writeItem(db, sid, *item, [this, item](int pattern) {
+                        return m_backend->sprReader()->itemPatternImage(*item, pattern);
+                    });
+                    if (!error.isEmpty()) break;
+                }
+                if (sprites && error.isEmpty()) {
+                    const QJsonObject render{{"schema_version", 1}, {"catalog_fingerprint", sourceFingerprint}, {"items", renderItems}};
+                    q.prepare("INSERT INTO metadata VALUES(?,?)"); q.addBindValue("render");
+                    q.addBindValue(QString::fromUtf8(QJsonDocument(render).toJson(QJsonDocument::Compact)));
+                    if (!q.exec()) error = tr("Cannot write sprite geometry.");
                 }
                 if (error.isEmpty()) { if (!db.commit()) error = tr("Cannot commit the asset pack."); } else db.rollback();
             } else if (error.isEmpty()) error = tr("Cannot start asset export transaction.");

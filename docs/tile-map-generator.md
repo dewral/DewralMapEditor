@@ -58,6 +58,32 @@ the active client and material fingerprint. Synthetic studio demo maps cannot
 be imported as production maps. Generated files and exported client assets are
 kept local.
 
+### Production foundations in Studio
+
+TileMapGenerator 0.4 uses Recipe/Project v2 for curated kits, semantic regions,
+pinned landmarks and stage regeneration. Its resolved `.tmg` maps and `.tmgpack`
+assets still use format v1, so DME can import the new hunting grounds, caves and
+winding dungeons with optional wings using the existing import workflow.
+**Generate in DME** and saved DME generator profiles continue to use legacy v1
+recipes. Use Studio for the new composition pipeline:
+
+1. Load the intended client and brushes in DME, then choose **Export materials for
+   studio**. Export a fresh `.tmgpack` to include sprite patterns, elevation and
+   item rotation mappings needed by Studio previews and curated modules.
+2. Open the pack in Studio and use a compatible v2 kit/project. Kits bind to the
+   exact client/material fingerprint; rebind a kit when the catalog changes.
+3. Generate and refine the composition in Studio, then export its resolved `.tmg`.
+4. Choose **Import .tmg** in DME with the same client and brushes. Save the map to
+   OTBM and spawn XML and continue tile editing normally.
+
+Studio authoring state stays in its project. Importing `.tmg` transfers the
+resolved tiles, stacks and spawns, not editable semantic regions or recipe
+history. Subsequent DME edits are not imported back into the procedural project.
+Static previews use native-resolution sprites and position/stack patterns;
+animations remain an editor feature. The optional `render` metadata and
+`sprite_variants` table do not change the strict v1 pack manifest or fingerprint,
+and pattern zero remains in `assets` for older readers.
+
 If the generator fails, its final error is shown in the status message. **Show
 error details** expands the complete traceback, and **Copy error** copies it for
 troubleshooting.
@@ -65,5 +91,23 @@ troubleshooting.
 Native tests use a synthetic fixture produced by TileMapGenerator's
 `scripts/make_dewral_fixture.py`. Set `TILEMAPGEN_FIXTURE_DIR` and
 `TILEMAPGEN_DIRECTORY` when configuring CMake, build `tmg_import_test`,
-`tilemapgen_process_test`, `tilemapgen_settings_test`, `tilemapgen_materials_test` and `DewralMapEditor`, then run CTest's `tilemapgen_*`
+`tilemapgen_process_test`, `tilemapgen_settings_test`, `tilemapgen_materials_test`,
+`tilemapgen_assets_test` and `DewralMapEditor`, then run CTest's `tilemapgen_*`
 tests. The QML workflow tests are in `tests/qml/tst_tile_map_generator.qml`.
+
+For local real-client acceptance, build `tilemapgen_asset_tool` (also available
+from the standalone `tests/tilemapgen-assets` CMake project). It supports:
+
+```text
+tilemapgen_asset_tool --export CLIENT BRUSHES VERSION PROFILE OUTPUT_DIR
+tilemapgen_asset_tool --render CLIENT VERSION PACK_JSON MAP_TMG OUTPUT_PNG [X Y WIDTH HEIGHT]
+```
+
+`--export` captures a native catalog and static sprite patterns for comparison;
+use the editor workflow for the final `.tmgpack`. `--render` validates a resolved
+map, renders its native tile stacks, saves OTBM/spawns, reopens them and checks
+item and spawn persistence. `PACK_JSON` must be the matching exported catalog.
+Keep those local client captures outside the repository. The border test's
+`--fixture BRUSHDIR OUTPUT GROUND...` includes optional borders and three-material
+intersections; `--wall-fixture BRUSHDIR OUTPUT NAME` captures all 16 cardinal wall
+adjacencies for cross-language checks.

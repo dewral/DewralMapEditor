@@ -45,6 +45,21 @@ static bool exportCases(BrushStore &brushes, const QStringList &names, const QSt
         }
     }
     catalog["cases"] = cases;
+    // Ternary intersections exercise optional/friend/priority ordering together.
+    QJsonArray advanced;
+    auto ternary = names.mid(0, 3); ternary.append(QString());
+    for (const auto &center : ternary) for (int optional = 0; optional < 2; ++optional) {
+        for (int code = 0; code < 4096; ++code) {
+            int value = code; QStringList neighbors; QJsonArray adjacent, expected;
+            for (int i = 0; i < 8; ++i) {
+                const auto name = ternary[value % ternary.size()]; value /= ternary.size();
+                neighbors.append(name); adjacent.append(name);
+            }
+            for (int id : brushes.computeBorderItems(center, neighbors, optional)) expected.append(id);
+            advanced.append(QJsonObject{{"center", center}, {"neighbors", adjacent}, {"optional", bool(optional)}, {"expected", expected}});
+        }
+    }
+    catalog["advanced_cases"] = advanced;
     QFile output(path);
     return output.open(QIODevice::WriteOnly) && output.write(QJsonDocument(catalog).toJson(QJsonDocument::Compact)) > 0;
 }
@@ -139,6 +154,24 @@ int main(int argc, char **argv) {
         return 0;
     }
     BrushStore brushes;
+    if (argc == 5 && QString::fromLocal8Bit(argv[1]) == "--wall-fixture") {
+        CHECK(brushes.loadForDir(QString::fromLocal8Bit(argv[2])));
+        const auto name = QString::fromUtf8(argv[4]);
+        auto catalog = brushes.generationCatalog();
+        QJsonArray selected, cases;
+        for (const auto &value : catalog["walls"].toArray())
+            if (value.toObject()["name"].toString() == name) selected.append(value);
+        CHECK(selected.size() == 1);
+        catalog["walls"] = selected; catalog["grounds"] = QJsonArray{};
+        catalog["prefabs"] = QJsonArray{};
+        for (int mask = 0; mask < 16; ++mask)
+            cases.append(QJsonObject{{"name", name}, {"mask", mask},
+                {"expected", brushes.computeWallItem(name, mask & 1, mask & 2, mask & 4, mask & 8)}});
+        catalog["wall_cases"] = cases;
+        QFile output(QString::fromLocal8Bit(argv[3])); CHECK(output.open(QIODevice::WriteOnly));
+        CHECK(output.write(QJsonDocument(catalog).toJson()) > 0);
+        return 0;
+    }
     if (argc >= 5 && QString::fromLocal8Bit(argv[1]) == "--fixture") {
         CHECK(brushes.loadForDir(QString::fromLocal8Bit(argv[2])));
         QStringList names;
@@ -158,6 +191,10 @@ int main(int argc, char **argv) {
                                   {"inner", ground(4, 3500, "inner-edge", "sand", "inner")},
                                   {"alake", ground(5, 3500, "lake-edge")},
                                   {"high", ground(6, 6000, "high-edge")}}}};
+    auto grounds = definitions["grounds"].toObject();
+    auto cobble = grounds["cobble"].toObject(); cobble["optional"] = "lake-edge"; cobble["solo_optional"] = true;
+    auto sand = grounds["sand"].toObject(); sand["optional"] = "inner-edge";
+    grounds["cobble"] = cobble; grounds["sand"] = sand; definitions["grounds"] = grounds;
     CHECK(file.write(QJsonDocument(definitions).toJson()) > 0); file.close();
     CHECK(brushes.loadForDir(directory.path()));
     const auto north = [](const QString &center, const QString &other) {

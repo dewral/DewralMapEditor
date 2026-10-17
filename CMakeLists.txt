@@ -88,6 +88,8 @@ add_executable(DewralMapEditor
     editor/core/tilemapgenprocess.h
     editor/core/tilemapgenprofiles.cpp
     editor/core/tilemapgenprofiles.h
+    editor/core/tilemapgenassets.cpp
+    editor/core/tilemapgenassets.h
     editor/core/tilemapgenmaterials.cpp
     editor/core/tilemapgenmaterials.h
     editor/core/groundbrushexport.cpp
@@ -429,6 +431,20 @@ if(BUILD_TESTING)
     target_include_directories(map_dungeon_generator_test PRIVATE editor/map)
     target_link_libraries(map_dungeon_generator_test PRIVATE Qt6::Core)
     add_test(NAME map_dungeon_generator COMMAND map_dungeon_generator_test)
+    add_executable(tilemapgen_assets_test EXCLUDE_FROM_ALL tests/tilemapgen_assets_test.cpp
+        editor/core/tilemapgenassets.cpp)
+    target_include_directories(tilemapgen_assets_test PRIVATE editor/core)
+    target_link_libraries(tilemapgen_assets_test PRIVATE OTFormats Qt6::Gui Qt6::Sql)
+    add_test(NAME tilemapgen_assets COMMAND tilemapgen_assets_test)
+    if(WIN32)
+        set_tests_properties(tilemapgen_assets PROPERTIES
+            ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>" TIMEOUT 30)
+    endif()
+    add_executable(tilemapgen_asset_tool EXCLUDE_FROM_ALL tests/tilemapgen_asset_tool.cpp
+        editor/core/brushstore.cpp editor/core/creaturestore.cpp editor/core/tilemapgenmaterials.cpp
+        editor/core/tilemapgenassets.cpp editor/map/mapterrainprofile.cpp)
+    target_include_directories(tilemapgen_asset_tool PRIVATE editor/core editor/map)
+    target_link_libraries(tilemapgen_asset_tool PRIVATE OTFormats)
     add_executable(tmg_import_test EXCLUDE_FROM_ALL tests/tmg_import_test.cpp editor/core/brushstore.cpp)
     add_executable(ground_border_priority_test EXCLUDE_FROM_ALL
         tests/ground_border_priority_test.cpp editor/core/brushstore.cpp)

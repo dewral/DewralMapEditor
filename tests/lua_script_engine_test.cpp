@@ -124,6 +124,15 @@ end
         require(percent==0 ? secondaryCount==0 && primaryCount>0 : secondaryCount>0 && primaryCount==0,
             "Secondary floor percentage was ignored");
     }
+    const QByteArray defaultBorders=brushFixture+R"lua(
+for role,entries in pairs(DME_PROFILE.groundBorders[1].materials) do DME_PROFILE.materials[role]=entries end
+DME_PROFILE.groundBorders={}
+)lua";
+    const auto defaultBorderOutput=run(defaultBorders+customMapRecipe);
+    const auto inactiveBorderOutput=run(defaultBorders+"DME_PROFILE.groundBorders={{materials={}}}\n"+customMapRecipe);
+    require(defaultBorderOutput.value("success").toBool() && inactiveBorderOutput.value("success").toBool()
+        && defaultBorderOutput.value("tiles")==inactiveBorderOutput.value("tiles"),
+        "Empty associated border sets suppressed the default borders");
     const QByteArray advancedFixture=brushFixture+R"lua(
 DME_PROFILE.rooms=4; DME_PROFILE.roomSpacing=6; DME_PROFILE.roomWidth=5; DME_PROFILE.roomHeight=9
 DME_PROFILE.corridorWidth=5; DME_PROFILE.connectionMode='nearest'; DME_PROFILE.extraConnections=2

@@ -113,6 +113,12 @@ local function addGeneratedItem(id,count,p)
  local stack=stackAt(p.x,p.y); stack[#stack+1]={itemid=id,typeOrCount=count}
 end
 for y=0,maxY do for x=0,maxX do stacks[key(x,y)]={{itemid=floorAt(x,y) and walk or bg}} end end
+local borderSets={}
+for _,set in ipairs(cfg.groundBorders or {}) do
+ local active=false
+ for _,entries in pairs(set.materials) do if #entries>0 then active=true end end
+ if active then borderSets[#borderSets+1]=set end
+end
 local function addRole(x,y,id) addGeneratedItem(id,1,{x=x,y=y,z=7}) end
 for y=0,maxY do for x=0,maxX do
  local n,e,s,w=floorAt(x,y-1),floorAt(x+1,y),floorAt(x,y+1),floorAt(x-1,y)
@@ -128,7 +134,7 @@ for y=0,maxY do for x=0,maxX do
    addRole(x,y,80104)
   end
  end
- if cfg.bordersEnabled and #(cfg.groundBorders or {})==0 and floorAt(x,y) then
+ if cfg.bordersEnabled and #borderSets==0 and floorAt(x,y) then
   if not s then addRole(x,y,80201) end
   if not w then addRole(x,y,80202) end
   if not n then addRole(x,y,80203) end
@@ -144,12 +150,6 @@ for y=0,maxY do for x=0,maxX do
  end
 end end
 local resolvedGrounds
-local borderSets={}
-for _,set in ipairs(cfg.groundBorders or {}) do
- local active=false
- for _,entries in pairs(set.materials) do if #entries>0 then active=true end end
- if active then borderSets[#borderSets+1]=set end
-end
 if cfg.bordersEnabled and #borderSets>0 then
  resolvedGrounds={}
  for y=pos.y,maxY do

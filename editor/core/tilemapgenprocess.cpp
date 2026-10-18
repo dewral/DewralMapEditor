@@ -63,10 +63,20 @@ QString TileMapGenProcess::errorSummary(const QString &error) {
 
 void TileMapGenProcess::start(const QString &directory, const QString &request,
                               const QString &pack, const QString &output) {
+    run(directory, {QStringLiteral("generate"), request, QStringLiteral("--pack"), pack,
+                    QStringLiteral("--output"), output}, {}, false);
+}
+
+void TileMapGenProcess::startCommand(const QString &directory, const QStringList &arguments, const QByteArray &input) {
+    run(directory, arguments, input, true);
+}
+
+void TileMapGenProcess::run(const QString &directory, const QStringList &command, const QByteArray &input, bool capture) {
     if (m_running) return;
     m_running = true;
     m_cancelled = false;
     m_pendingOutput.clear(); m_errors.clear();
+    m_output.clear(); m_capture = capture;
     const auto program = programForDirectory(directory);
     if (program.isEmpty()) {
         complete(false, tr("TileMapGen.exe or the prepared Python environment was not found in %1.").arg(directory));
@@ -79,11 +89,12 @@ void TileMapGenProcess::start(const QString &directory, const QString &request,
         environment.insert(QStringLiteral("PYTHONPATH"), QDir(directory).filePath(QStringLiteral("src")));
         environment.insert(QStringLiteral("PYTHONUNBUFFERED"), QStringLiteral("1"));
     }
-    arguments << QStringLiteral("generate") << request << QStringLiteral("--pack") << pack
-              << QStringLiteral("--output") << output;
+    arguments << command;
     m_process.setWorkingDirectory(directory);
     m_process.setProcessEnvironment(environment);
     m_process.start(program, arguments);
+    if (!input.isEmpty()) m_process.write(input);
+    m_process.closeWriteChannel();
 }
 
 void TileMapGenProcess::cancel() {
@@ -105,7 +116,9 @@ void TileMapGenProcess::cancel() {
 }
 
 void TileMapGenProcess::readOutput() {
-    m_pendingOutput += m_process.readAllStandardOutput();
+    const auto bytes = m_process.readAllStandardOutput();
+    if (m_capture) m_output = (m_output + bytes).right(1024 * 1024);
+    m_pendingOutput += bytes;
     static const QRegularExpression linePattern(QStringLiteral("^(\\d+)%\\s+(.+)$"));
     qsizetype newline;
     while ((newline = m_pendingOutput.indexOf('\n')) >= 0) {

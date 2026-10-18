@@ -6,6 +6,7 @@
 #include <QVariantList>
 namespace TileMapGenMaterials {
 QJsonArray uniqueCreatures(const QJsonArray &creatures);
+QSet<QString> selectedGrounds(const QVariantMap &palette, const QVariantMap &settlementMaterials = {});
 QVariantList groundChoices(const QJsonObject &catalog, const QHash<QString, int> &previewIds = {});
 QVariantList wallChoices(const QJsonObject &catalog, const QHash<QString, int> &previewIds = {},
                         const QSet<int> *visibleIds = nullptr);

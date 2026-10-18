@@ -35,6 +35,33 @@ Item {
             wait(20);
         }
         function cleanup() { dialog.close(); Backend.tileMapGen.cancel(); Backend.sprReader.generatorPreviewSprites = false; Backend.otbReader.generatorPreviewMetadata = false; }
+        function test_settlementFloorsMaterialsAndProfile() {
+            field("tileMapStyle").currentIndex = 3;
+            field("settlementUpperLevels").value = 2;
+            field("settlementBasementLevels").value = 1;
+            field("settlementStreet").currentIndex = 2;
+            const options = dialog.generationOptions();
+            compare(options.generator, "settlement"); compare(options.floors, 4); compare(options.z, 7);
+            compare(options.settlement.materials.street, "wooden floor");
+            field("tileMapProfileName").text = "Stone town";
+            dialog.saveProfile(false); const id = dialog.activeProfileId;
+            field("settlementUpperLevels").value = 0;
+            dialog.loadProfile(id);
+            compare(dialog.generationOptions().settlement.upper_levels, 2);
+            compare(dialog.generationOptions().settlement.materials.street, "wooden floor");
+        }
+        function test_settlementBlueprintAndSecrets() {
+            field("tileMapStyle").currentIndex = 3;
+            field("settlementApiKey").text = "private-test-key";
+            dialog.pendingAiContext = dialog.aiContextKey;
+            Backend.tileMapGen.aiPlanReady({summary:"A town",context_digest:"test"});
+            verify(dialog.aiBlueprint !== null);
+            verify(JSON.stringify(dialog.generationOptions()).indexOf("private-test-key") < 0);
+            field("tileMapSeed").text = "local-variation";
+            verify(dialog.aiBlueprint !== null);
+            field("tileMapWidth").value += 1;
+            compare(dialog.aiBlueprint, null);
+        }
         function test_generatePreviewApply() {
             const apply = field("applyTileMap"); verify(!apply.enabled);
             field("tileMapStyle").currentIndex = 1;

@@ -110,6 +110,8 @@ public:
     Q_INVOKABLE QUrl spriteExportUrl(int serverId) const;
     // Returns an empty string on success, otherwise a user-visible error.
     Q_INVOKABLE QString exportSprite(int serverId, const QUrl &destination) const;
+    Q_INVOKABLE QUrl obdExportUrl(int serverId) const;
+    Q_INVOKABLE QString exportObd(int serverId, const QUrl &destination);
     Q_INVOKABLE QString exportGroundBrush(const QVariantList &cells, const QUrl &destination);
 
 signals:

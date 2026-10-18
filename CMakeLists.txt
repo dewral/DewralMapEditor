@@ -36,7 +36,14 @@ add_library(DmeLuaScripts STATIC editor/core/luascriptengine.cpp editor/core/lua
 target_include_directories(DmeLuaScripts PUBLIC editor/core)
 target_link_libraries(DmeLuaScripts PUBLIC Qt6::Core Qt6::Concurrent PRIVATE DmeLua)
 
+add_library(DmeLzma STATIC libs/lzma/LzmaEnc.c libs/lzma/LzFind.c libs/lzma/CpuArch.c)
+set_target_properties(DmeLzma PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
+target_compile_definitions(DmeLzma PRIVATE Z7_ST)
+target_include_directories(DmeLzma PUBLIC libs/lzma)
+
 add_library(OTFormats STATIC
+    libs/otformats/obdexport.cpp
+    libs/otformats/obdexport.h
     libs/otformats/sprreader.cpp
     libs/otformats/sprreader.h
     libs/otformats/datreader.cpp
@@ -69,6 +76,7 @@ target_compile_definitions(OTFormats PUBLIC
     $<$<CONFIG:Debug>:DME_DATA_DIR="${CMAKE_SOURCE_DIR}/data">)
 
 target_link_libraries(OTFormats
+    PRIVATE DmeLzma
     PUBLIC
         Qt6::Core
         Qt6::Gui
@@ -324,6 +332,12 @@ if(BUILD_TESTING)
     target_link_libraries(otformats_reader_test PRIVATE OTFormats Qt6::Core)
     add_test(NAME otformats_reader COMMAND otformats_reader_test)
     set_tests_properties(otformats_reader PROPERTIES
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+
+    add_executable(obd_export_test EXCLUDE_FROM_ALL tests/obd_export_test.cpp libs/lzma/LzmaDec.c)
+    target_link_libraries(obd_export_test PRIVATE OTFormats DmeLzma)
+    add_test(NAME obd_export COMMAND obd_export_test)
+    set_tests_properties(obd_export PROPERTIES
         ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
 
     add_executable(palette_visibility_test EXCLUDE_FROM_ALL

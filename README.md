@@ -354,6 +354,11 @@ or the checked entry in **Client profile** to confirm the active profile.
 
 ## Useful controls
 
+Right-click an item in the palette and choose **Export item as OBD...** to
+save an ObjectBuilder v2 file using the loaded client version. OBD exports
+include the item properties, all sprite patterns and animation frames, and
+transparency. **Export sprite...** continues to save a PNG preview.
+
 The editor supports Windows Snap: drag its title bar to the top or sides of the
 screen, or use **Win + Arrow**. On Windows 11, hover over **Maximize** or press
 **Win + Z** to choose a Snap Layout. Available zones depend on the monitor and

@@ -1,6 +1,12 @@
 pragma Singleton
 import QtQuick
 QtObject {
+    property var obdExportCalls: []
+    function obdExportUrl(serverId) { return Qt.resolvedUrl("../../../../build/tmp/item-" + serverId + ".obd"); }
+    function exportObd(serverId, destination) {
+        obdExportCalls = obdExportCalls.concat([{serverId: serverId, destination: String(destination)}]);
+        return "";
+    }
     property QtObject tileMapGenProfiles: QtObject {
         property var profiles: []
         property int nextId: 1

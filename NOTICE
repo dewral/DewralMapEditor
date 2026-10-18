@@ -1,6 +1,10 @@
 Dewral Map Editor
 Third-party notices
 
+OBD export uses a public-domain subset of the LZMA SDK by Igor Pavlov,
+from 7-Zip 24.09. Source revision and upstream file notices are retained
+in libs/lzma. https://github.com/ip7z/7zip
+
 Historical attribution retained for earlier DME implementations of
 binary-format I/O and lighting, which included portions derived from:
 

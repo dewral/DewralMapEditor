@@ -333,23 +333,19 @@ void TilesetStore::bump()
 void TilesetStore::rebuildRawOthers()
 {
     m_rawOthers.clear(); m_rawOtherIds.clear();
-    QSet<int> assigned;
-    const auto raw = m_items.value(QStringLiteral("raw"));
-    for (auto it = raw.cbegin(); it != raw.cend(); ++it) {
-        if (it.key() == QLatin1String("Others")) continue;
-        for (const auto &value : it.value()) assigned.insert(value.toInt());
-    }
     if (m_itemSource) {
+        // Others is the complete RAW catalogue, including categorized items.
         for (int row = 0; row < m_itemSource->rowCount(); ++row) {
             const int id = m_itemSource->data(m_itemSource->index(row, 0), OtbReader::ServerIdRole).toInt();
-            if (id > 0 && !assigned.contains(id)) {
+            if (id > 0) {
                 m_rawOthers.append(id); m_rawOtherIds.insert(id);
             }
         }
     } else {
+        const auto raw = m_items.value(QStringLiteral("raw"));
         for (const auto &value : raw.value(QStringLiteral("Others"))) {
             const int id = value.toInt();
-            if (id > 0 && !assigned.contains(id) && !m_rawOtherIds.contains(id)) {
+            if (id > 0 && !m_rawOtherIds.contains(id)) {
                 m_rawOthers.append(id); m_rawOtherIds.insert(id);
             }
         }

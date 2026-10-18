@@ -34,6 +34,8 @@ __pycache__/
 
 # ---- Local agent / editor state ----
 .claude/
+.env*
+!.env.example
 
 # ---- CipSoft client assets (copyrighted - MUST NOT be redistributed) ----
 # Provide your own client files locally; they are never committed.

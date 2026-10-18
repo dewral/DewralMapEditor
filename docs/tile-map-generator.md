@@ -1,5 +1,26 @@
 # Tile Map Generator
 
+**Ruins & settlements** adds streets, plazas and cutaway buildings with upper
+storeys and cellars. Choose blocking walls and a compatible stair pair, then assign
+outdoor, street, interior and cellar grounds (each defaults to the walking floor).
+Street Z is the surface: upper levels decrease Z and cellars increase it. Every
+floor and stair landing must fit Z0–15. DME previews the street level and applies
+the complete footprint as one undoable edit. This requires a generator with
+settlement/manifest 2 support; older installations show an update message.
+
+Optional AI planning uses one explicit paid OpenAI request to arrange districts
+and landmarks from a description and the selected material metadata. Review the
+summary, then Generate builds a local map. Generate and New seed reuse a saved
+blueprint without another API call. Dimension, floor, guide or material changes
+invalidate it. Client sprites remain local.
+
+Fill `OPENAI_API_KEY` in ignored `.env.local` in DME or TileMapGenerator; optional
+`OPENAI_MODEL` defaults to `gpt-6.1-sol`. Alternatively use the masked key field.
+Keys stay in the session unless Windows Credential Manager saving is selected.
+Forget removes session/vault credentials without changing user env files. Keys
+are excluded from generator profiles, recipes, map files and process arguments.
+AI failures and cancellation preserve the current map result.
+
 The Tools menu shows **Tile Map Generator…** when
 `C:\github2\TileMapGenerator` contains `dist\TileMapGen\TileMapGen.exe`,
 `TileMapGen.exe`, or a prepared `.venv\Scripts\python.exe` with the generator's

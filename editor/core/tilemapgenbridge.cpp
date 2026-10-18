@@ -23,6 +23,7 @@ QString fingerprint(const QJsonObject &catalog) {
 }
 
 TileMapGenBridge::TileMapGenBridge(Backend *backend) : QObject(backend), m_backend(backend) {
+    connect(&m_helper, &TileMapGenProcess::finished, this, &TileMapGenBridge::helperFinished);
     connect(&m_watcher, &QFutureWatcher<TmgFormat::Result>::finished, this, [this] {
         auto result = m_watcher.result(); m_busy = false;
         if (m_cancel->load()) result.error = tr("Import cancelled");
@@ -37,7 +38,8 @@ TileMapGenBridge::TileMapGenBridge(Backend *backend) : QObject(backend), m_backe
                 if (result.error.isEmpty()) {
                     m_preview = result;
                     m_view->centerOnPosition(m_x + request["width"].toInt() / 2,
-                                            m_y + request["height"].toInt() / 2, m_z);
+                                            m_y + request["height"].toInt() / 2,
+                                            m_z + result.manifest.value("surface_floor").toInt());
                 }
             }
         } else if (result.error.isEmpty()) {
@@ -66,11 +68,13 @@ TileMapGenBridge::TileMapGenBridge(Backend *backend) : QObject(backend), m_backe
                   m_placement, m_view, m_x, m_y, m_z);
     });
     connect(backend->docMgr(), &DocumentManager::currentChanged, this, [this] {
-        if (m_busy) cancel();
+        if (busy()) cancel();
         else clearPreview();
     });
 }
 TileMapGenBridge::~TileMapGenBridge() {
+    disconnect(&m_helper, nullptr, this, nullptr);
+    m_helper.shutdown();
     disconnect(&m_generator, nullptr, this, nullptr);
     m_generator.shutdown();
     if (m_cancel) m_cancel->store(true);
@@ -121,7 +125,7 @@ QString TileMapGenBridge::exportAssets(const QUrl &path, int downId, int upId) {
 }
 
 QString TileMapGenBridge::writeAssets(const QUrl &path, int downId, int upId, bool sprites,
-                                    const QVariantMap &palette) {
+                                    const QVariantMap &palette, const QVariantMap &settlementMaterials) {
     if (!path.isLocalFile() || !m_backend->otbReader()->isLoaded()) return tr("Load client data and choose a local .tmgpack file.");
     QJsonObject pack = catalogJson();
     const auto sourceFingerprint = fingerprint(pack);
@@ -134,9 +138,8 @@ QString TileMapGenBridge::writeAssets(const QUrl &path, int downId, int upId, bo
                 if (names.contains(definition.toObject()["name"].toString())) result.append(definition);
             return result;
         };
-        QSet<QString> grounds, decorations;
-        for (const auto &role : {"floor", "background", "secondary", "water", "lava"})
-            grounds.insert(palette.value(QLatin1String(role)).toString());
+        const auto grounds = TileMapGenMaterials::selectedGrounds(palette, settlementMaterials);
+        QSet<QString> decorations;
         for (const auto &name : palette.value("decorations").toList()) decorations.insert(name.toString());
         pack["grounds"] = keep(pack["grounds"].toArray(), grounds);
         pack["walls"] = keep(pack["walls"].toArray(), {palette.value("wall").toString()});
@@ -230,6 +233,7 @@ void TileMapGenBridge::importMap(const QUrl &path, bool placement, QObject *mapV
     }));
 }
 void TileMapGenBridge::cancel() {
+    cancelAiPlan();
     if (m_generating) m_generator.cancel();
     if (m_cancel) m_cancel->store(true);
     clearPreview();
@@ -308,8 +312,123 @@ void TileMapGenBridge::failGeneration(const QString &error) {
     emit changed(); emit finished(false);
 }
 
+bool TileMapGenBridge::writeJson(const QString &path, const QJsonObject &value) {
+    QSaveFile file(path);
+    const auto bytes = QJsonDocument(value).toJson();
+    return file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size() && file.commit();
+}
+
+void TileMapGenBridge::refreshCapabilities() {
+    if (busy() || !available()) return;
+    m_helperMode = "capabilities";
+    m_helper.startCommand(generatorDirectory(), {"capabilities"});
+    emit changed();
+}
+
+void TileMapGenBridge::setAiCredentials(const QString &key, bool remember) {
+    if (busy() || key.trimmed().isEmpty()) return;
+    m_sessionApiKey = key.trimmed().toUtf8();
+    m_aiStatus["configured"] = true;
+    if (remember) {
+        m_helperMode = "credentials";
+        m_helper.startCommand(generatorDirectory(), {"credentials", "save"},
+            QJsonDocument(QJsonObject{{"key", QString::fromUtf8(m_sessionApiKey)}, {"remember", true}}).toJson(QJsonDocument::Compact));
+    }
+    emit changed();
+}
+
+void TileMapGenBridge::forgetAiCredentials() {
+    if (busy()) return;
+    m_sessionApiKey.fill('\0'); m_sessionApiKey.clear();
+    m_helperMode = "credentials";
+    m_helper.startCommand(generatorDirectory(), {"credentials", "forget"}); emit changed();
+}
+
+void TileMapGenBridge::cancelAiPlan() {
+    if (m_helperMode.isEmpty()) return;
+    const bool preparing = m_helperMode == "prepare-generation";
+    if (preparing) m_status = tr("Generation cancelled.");
+    else if (aiBusy()) m_status = tr("AI planning cancelled.");
+    m_helperMode.clear(); m_helper.cancel();
+    if (preparing) m_busy = false;
+    emit changed();
+}
+
+void TileMapGenBridge::requestAiPlan(const QString &prompt, const QVariantMap &options, const QString &model) {
+    if (busy()) return;
+    if (!m_settlementAvailable) { emit aiFailed(tr("Update TileMapGenerator to use settlement AI planning.")); return; }
+    const auto recipeError = TileMapGenProfiles::validateRecipe(options);
+    if (!recipeError.isEmpty()) { emit aiFailed(recipeError); return; }
+    if (options.value("generator").toString() != "settlement" || prompt.trimmed().isEmpty() || prompt.size() > 8000) {
+        emit aiFailed(tr("Describe a settlement in 1–8000 characters.")); return;
+    }
+    m_aiWorkDirectory = std::make_unique<QTemporaryDir>(QDir::tempPath() + "/DME-SettlementAI-XXXXXX");
+    if (!m_aiWorkDirectory->isValid()) { emit aiFailed(tr("Cannot create the AI planning directory.")); return; }
+    m_aiFingerprint = fingerprint(catalogJson());
+    auto input = QJsonObject::fromVariantMap(options); input.remove("blueprint");
+    auto palette = input["palette"].toObject();
+    palette["connector"] = options.value("floors").toInt() > 1 ? "stairs" : "";
+    input["palette"] = palette;
+    const auto pack = m_aiWorkDirectory->filePath("materials.tmgpack");
+    const auto error = writeAssets(QUrl::fromLocalFile(pack), options.value("downId").toInt(), options.value("upId").toInt(), false,
+                                  options.value("palette").toMap(), options.value("settlement").toMap().value("materials").toMap());
+    if (!error.isEmpty()) { emit aiFailed(error); return; }
+    const auto request = m_aiWorkDirectory->filePath("options.json");
+    if (!writeJson(request, input)) { emit aiFailed(tr("Cannot write the AI planning options.")); return; }
+    m_aiPrompt = prompt; m_aiModel = model;
+    m_helperMode = "prepare-ai";
+    m_helper.startCommand(generatorDirectory(), {"prepare", request, "--pack", pack, "--output", m_aiWorkDirectory->filePath("recipe.json")});
+    emit changed();
+}
+
+void TileMapGenBridge::helperFinished(bool success, const QString &error) {
+    const auto mode = m_helperMode;
+    m_helperMode.clear();
+    if (mode.isEmpty()) { emit changed(); return; }
+    const auto result = QJsonDocument::fromJson(m_helper.output()).object();
+    if (mode == "capabilities") {
+        m_settlementAvailable = success && result["generators"].toArray().contains("settlement") && result["manifests"].toArray().contains(2);
+        if (m_settlementAvailable) {
+            m_helperMode = "credentials";
+            m_helper.startCommand(generatorDirectory(), {"credentials", "status"});
+        }
+        emit changed(); return;
+    }
+    if (!success) {
+        if (mode == "prepare-generation") failGeneration(error);
+        else emit aiFailed(TileMapGenProcess::errorSummary(error));
+        emit changed(); return;
+    }
+    if (mode == "credentials") {
+        m_aiStatus = result.toVariantMap();
+        if (!m_sessionApiKey.isEmpty()) m_aiStatus["configured"] = true;
+    } else if (mode == "prepare-generation") {
+        if (fingerprint(catalogJson()) != m_importFingerprint) { failGeneration(tr("The active assets changed. Generate again.")); return; }
+        m_generating = true;
+        m_generator.start(generatorDirectory(), m_workDirectory->filePath("prepared.json"),
+                          m_workDirectory->filePath("materials.tmgpack"), m_workDirectory->filePath("output"));
+    } else if (mode == "prepare-ai") {
+        QFile file(m_aiWorkDirectory->filePath("recipe.json"));
+        if (!file.open(QIODevice::ReadOnly)) { emit aiFailed(tr("Cannot read the prepared settlement recipe.")); emit changed(); return; }
+        const auto recipe = QJsonDocument::fromJson(file.readAll()).object();
+        const auto path = m_aiWorkDirectory->filePath("request.json");
+        const auto selectedModel = m_aiModel.trimmed().isEmpty() ? m_aiStatus.value("model", "gpt-6.1-sol").toString() : m_aiModel.trimmed();
+        if (!writeJson(path, {{"recipe", recipe}, {"prompt", m_aiPrompt}, {"model", selectedModel}})) {
+            emit aiFailed(tr("Cannot write the AI planning request.")); emit changed(); return;
+        }
+        m_helperMode = "plan-ai";
+        m_helper.startCommand(generatorDirectory(), {"ai-plan", path, "--pack", m_aiWorkDirectory->filePath("materials.tmgpack")},
+            QJsonDocument(QJsonObject{{"key", QString::fromUtf8(m_sessionApiKey)}}).toJson(QJsonDocument::Compact));
+    } else if (mode == "plan-ai") {
+        if (fingerprint(catalogJson()) != m_aiFingerprint) emit aiFailed(tr("The active assets changed during planning. Request a new plan."));
+        else if (result["context_digest"].toString().size() != 64) emit aiFailed(tr("The AI service returned an invalid blueprint."));
+        else emit aiPlanReady(result.toVariantMap());
+    }
+    emit changed();
+}
+
 void TileMapGenBridge::generateMap(const QVariantMap &options, QObject *mapView) {
-    if (m_busy) return;
+    if (busy()) return;
     m_errorDetails.clear();
     clearPreview();
     const auto recipeError = TileMapGenProfiles::validateRecipe(options);
@@ -321,6 +440,11 @@ void TileMapGenBridge::generateMap(const QVariantMap &options, QObject *mapView)
     m_view = qobject_cast<MapView *>(mapView); m_target = m_backend->otbmReader();
     m_placement = options.value("placement", true).toBool();
     m_x = options.value("x", 1000).toInt(); m_y = options.value("y", 1000).toInt(); m_z = options.value("z", 7).toInt();
+    const bool settlement = options.value("generator").toString() == "settlement";
+    if (settlement) {
+        if (!m_settlementAvailable) { failGeneration(tr("Update TileMapGenerator to use Ruins & settlements.")); return; }
+        m_z -= options.value("settlement").toMap().value("upper_levels", 1).toInt();
+    }
     const int width = options.value("width", 96).toInt(), height = options.value("height", 96).toInt(), floors = options.value("floors", 1).toInt();
     if (width < 24 || width > 65535 || height < 24 || height > 65535 || floors < 1 || floors > 16
         || m_z < 0 || m_z + floors > 16 || (m_placement && (m_x < 0 || m_y < 0 || qint64(m_x) + width > 65536 || qint64(m_y) + height > 65536))) {
@@ -331,7 +455,7 @@ void TileMapGenBridge::generateMap(const QVariantMap &options, QObject *mapView)
     }
     const QString style = options.value("generator", "hunting").toString();
     const QString seed = options.value("seed").toString().trimmed();
-    if (!QStringList{"hunting", "cave", "linear"}.contains(style) || seed.isEmpty() || seed.size() > 256) {
+    if (!QStringList{"hunting", "cave", "linear", "settlement"}.contains(style) || seed.isEmpty() || seed.size() > 256) {
         failGeneration(tr("Choose a generator style and a seed of 1–256 characters.")); return;
     }
     const auto materialError = TileMapGenMaterials::paletteError(catalogJson(), options.value("palette").toMap());
@@ -344,7 +468,8 @@ void TileMapGenBridge::generateMap(const QVariantMap &options, QObject *mapView)
     m_importFingerprint = fingerprint(catalogJson());
     m_status = tr("Preparing the active client's materials..."); m_progress = 0; m_busy = true; emit changed();
     // The CLI consumes material definitions; sprite PNGs are only needed by the external studio.
-    const auto error = writeAssets(QUrl::fromLocalFile(packPath), down, up, false, options.value("palette").toMap());
+    const auto error = writeAssets(QUrl::fromLocalFile(packPath), down, up, false, options.value("palette").toMap(),
+                                  settlement ? options.value("settlement").toMap().value("materials").toMap() : QVariantMap{});
     if (!error.isEmpty()) { failGeneration(error); return; }
     auto palette = QJsonObject::fromVariantMap(options.value("palette").toMap());
     palette["connector"] = floors > 1 ? QStringLiteral("stairs") : QString();
@@ -353,6 +478,16 @@ void TileMapGenBridge::generateMap(const QVariantMap &options, QObject *mapView)
         {"asset_fingerprint", m_importFingerprint}, {"palette", palette},
         {"settings", QJsonObject::fromVariantMap(options.value("settings").toMap())}};
     const auto requestPath = m_workDirectory->filePath(QStringLiteral("request.json"));
+    if (settlement) {
+        auto input = QJsonObject::fromVariantMap(options);
+        input["palette"] = palette;
+        if (!writeJson(requestPath, input)) { failGeneration(tr("Cannot write the settlement options.")); return; }
+        m_helperMode = "prepare-generation";
+        m_status = tr("Preparing settlement materials..."); emit changed();
+        m_helper.startCommand(generatorDirectory(), {"prepare", requestPath, "--pack", packPath,
+                             "--output", m_workDirectory->filePath("prepared.json")});
+        return;
+    }
     QSaveFile file(requestPath);
     const auto bytes = QJsonDocument(request).toJson();
     if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit()) {

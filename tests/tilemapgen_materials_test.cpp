@@ -149,6 +149,10 @@ int main(int argc, char **argv) {
     CHECK(TileMapGenMaterials::paletteError(catalog, {{"floor", "weighted floor"}}).isEmpty());
     CHECK(TileMapGenMaterials::paletteError(catalog, {{"floor", "weighted floor"}, {"background", "weighted floor"}}).contains("blocking ground"));
     CHECK(TileMapGenMaterials::paletteError(catalog, {{"floor", "missing floor"}}).contains("unavailable"));
+    CHECK(TileMapGenMaterials::selectedGrounds({{"floor", "grass"}, {"secondary", "dirt"}, {"wall", "stone wall"}},
+        {{"outdoor", "grass"}, {"street", "cobblestone"}, {"interior", "wood"}, {"cellar", "rock"}})
+        == QSet<QString>({"grass", "dirt", "cobblestone", "wood", "rock"}));
+    CHECK(TileMapGenMaterials::selectedGrounds({{"floor", "grass"}}) == QSet<QString>({"grass"}));
     CHECK(brushes.generationCatalog()["grounds"].toArray()[0].toObject() == ground);
     const auto walls = brushes.generationCatalog()["walls"].toArray();
     CHECK(walls.size() == 1);

@@ -2,6 +2,16 @@
 #include <QJsonArray>
 #include <QHash>
 
+QSet<QString> TileMapGenMaterials::selectedGrounds(const QVariantMap &palette, const QVariantMap &settlementMaterials) {
+    QSet<QString> names;
+    for (const auto &role : {"floor", "background", "secondary", "water", "lava"})
+        names.insert(palette.value(QLatin1String(role)).toString());
+    for (const auto &role : {"outdoor", "street", "interior", "cellar"})
+        names.insert(settlementMaterials.value(QLatin1String(role)).toString());
+    names.remove(QString());
+    return names;
+}
+
 QJsonArray TileMapGenMaterials::uniqueCreatures(const QJsonArray &creatures) {
     QJsonArray result;
     QHash<QString, qsizetype> positions;

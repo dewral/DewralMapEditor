@@ -535,6 +535,29 @@ Item {
             compare(palettes.customPalettes.Test, [500, 503]);
             compare(JSON.parse(prefs.customPalettesJson).Test, [500, 503]);
         }
+        function test_obdExportUsesContextItem() {
+            const panel = createTemporaryObject(panelComponent, testRoot);
+            verify(panel);
+            panel.selectKind("RAW Palette");
+            const grid = findChild(panel, "paletteItemGrid");
+            clickRow(grid, 2, Qt.NoModifier, Qt.RightButton);
+            const menu = findChild(panel, "paletteItemMenu");
+            const action = findChild(panel, "exportItemObdAction");
+            verify(action.enabled);
+            compare(action.text, "Export item as OBD...");
+            const dialog = findChild(panel, "obdExportDialog");
+            compare(dialog.defaultSuffix, "obd");
+            compare(dialog.nameFilters, ["ObjectBuilder data (*.obd)"]);
+            // Exercise acceptance without opening an interactive native file picker.
+            dialog.serverId = menu.sid;
+            dialog.selectedFile = Backend.obdExportUrl(menu.sid);
+            Backend.obdExportCalls = [];
+            dialog.accepted();
+            compare(Backend.obdExportCalls.length, 1);
+            compare(Backend.obdExportCalls[0].serverId, 506);
+            compare(Backend.obdExportCalls[0].destination, String(dialog.selectedFile));
+            menu.close();
+        }
         function menuItem(menu, text) {
             for (let i = 0; i < menu.count; ++i) {
                 const item = menu.itemAt(i);

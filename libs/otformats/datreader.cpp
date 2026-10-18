@@ -170,7 +170,9 @@ void DatReader::readCategory(BinaryReader &reader,
 
         ClientItem item;
         item.id = static_cast<uint16_t>(id);
+        item.source_flags_offset = reader.tell();
         readItemFlags(item, reader);
+        item.source_flags_size = static_cast<uint32_t>(reader.tell() - item.source_flags_offset);
         readSpriteData(item, reader, outfits);
 
         if (outItems) {
@@ -227,7 +229,7 @@ void DatReader::readSpriteData(ClientItem &item, BinaryReader &reader, bool outf
         group.height = reader.readU8();
 
         if (group.width > 1 || group.height > 1) {
-            reader.readU8();
+            group.exact_size = reader.readU8();
         }
 
         group.layers    = reader.readU8();
@@ -259,6 +261,7 @@ void DatReader::readSpriteData(ClientItem &item, BinaryReader &reader, bool outf
             item.animation = group.animation;
             item.width = group.width;
             item.height = group.height;
+            item.exact_size = group.exact_size;
             item.layers = group.layers;
             item.pattern_x = group.pattern_x;
             item.pattern_y = group.pattern_y;

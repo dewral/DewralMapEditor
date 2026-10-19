@@ -1,5 +1,6 @@
 #include "palettefilter.h"
 #include "otbreader.h"
+#include "rawitemmodel.h"
 #include "brushstore.h"
 #include "sprreader.h"
 
@@ -102,11 +103,12 @@ void PaletteFilter::setOrderedIds(const QVariantList &ids)
 
 int PaletteFilter::rowForServerId(int serverId) const
 {
-    auto *otb = qobject_cast<OtbReader *>(sourceModel());
+    auto *otb = itemReader();
     if (!otb) return -1;
-    const int srcRow = otb->rowForServerId(serverId);
+    auto *raw = qobject_cast<RawItemModel *>(sourceModel());
+    const int srcRow = raw ? raw->rowForServerId(serverId) : otb->rowForServerId(serverId);
     if (srcRow < 0) return -1;
-    const QModelIndex proxyIdx = mapFromSource(otb->index(srcRow, 0));
+    const QModelIndex proxyIdx = mapFromSource(sourceModel()->index(srcRow, 0));
     return proxyIdx.isValid() ? proxyIdx.row() : -1;
 }
 
@@ -175,9 +177,15 @@ void PaletteFilter::setUseDoodadPreviews(bool use)
     emit useDoodadPreviewsChanged();
 }
 
+OtbReader *PaletteFilter::itemReader() const
+{
+    if (auto *raw = qobject_cast<RawItemModel *>(sourceModel())) return raw->itemReader();
+    return qobject_cast<OtbReader *>(sourceModel());
+}
+
 bool PaletteFilter::doodadHasVisibleSprite(const QString &name) const
 {
-    auto *otb = qobject_cast<OtbReader *>(sourceModel());
+    auto *otb = itemReader();
     if (!m_sprReader || !m_brushStore || !otb) return true;
     const auto tiles = m_brushStore->doodadPreviewTiles(name);
     for (const auto &tile : tiles) {
@@ -191,7 +199,7 @@ bool PaletteFilter::doodadHasVisibleSprite(const QString &name) const
 
 bool PaletteFilter::itemHasVisibleSprite(int serverId) const
 {
-    auto *otb = qobject_cast<OtbReader *>(sourceModel());
+    auto *otb = itemReader();
     if (!m_sprReader || !otb) return true;
     if (m_useDoodadPreviews && m_brushStore) {
         const QString doodad = m_brushStore->doodadBrushForServerId(serverId);
@@ -206,6 +214,8 @@ bool PaletteFilter::filterAcceptsRow(int sourceRow, const QModelIndex &sourcePar
     const QAbstractItemModel *src = sourceModel();
     if (!src) return false;
     const QModelIndex idx = src->index(sourceRow, 0, sourceParent);
+    const int serverId = idx.data(OtbReader::ServerIdRole).toInt();
+    const int displayId = serverId > 0 ? serverId : idx.data(OtbReader::ClientIdRole).toInt();
 
     if (m_hideNamedItems && !idx.data(OtbReader::NameRole).toString().trimmed().isEmpty())
         return false;
@@ -216,14 +226,13 @@ bool PaletteFilter::filterAcceptsRow(int sourceRow, const QModelIndex &sourcePar
     }
 
     if (m_searchRangeFrom >= 0) {
-        const int sid = idx.data(OtbReader::ServerIdRole).toInt();
-        if (sid < m_searchRangeFrom || sid > m_searchRangeTo)
+        if (displayId < m_searchRangeFrom || displayId > m_searchRangeTo)
             return false;
     } else if (!m_search.isEmpty()) {
         const QString name = idx.data(OtbReader::NameRole).toString();
-        const QString sid = idx.data(OtbReader::ServerIdRole).toString();
-        const QStringList aliases = m_brushStore
-                ? m_brushStore->searchAliasesForServerId(sid.toInt()) : QStringList{};
+        const QString sid = QString::number(displayId);
+        const QStringList aliases = m_brushStore && serverId > 0
+                ? m_brushStore->searchAliasesForServerId(serverId) : QStringList{};
         bool aliasMatches = false;
         for (const QString &alias : aliases) {
             if (alias.contains(m_search, Qt::CaseInsensitive)) {
@@ -235,8 +244,10 @@ bool PaletteFilter::filterAcceptsRow(int sourceRow, const QModelIndex &sourcePar
                 && !sid.startsWith(m_search) && !aliasMatches)
             return false;
     }
-    return !m_hideInvisibleSprites
-            || itemHasVisibleSprite(idx.data(OtbReader::ServerIdRole).toInt());
+    if (!m_hideInvisibleSprites) return true;
+    return serverId > 0 ? itemHasVisibleSprite(serverId)
+                       : !m_sprReader || m_sprReader->itemHasVisibleSprite(
+                             idx.data(OtbReader::ClientIdRole).toInt());
 }
 
 bool PaletteFilter::lessThan(const QModelIndex &left, const QModelIndex &right) const

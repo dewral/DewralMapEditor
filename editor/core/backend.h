@@ -13,6 +13,7 @@
 #include "loadprofile.h"
 #include "datreader.h"
 #include "otbreader.h"
+#include "rawitemmodel.h"
 #include "otbmreader.h"
 #include "otfireader.h"
 #include "itemsxmlreader.h"
@@ -40,6 +41,7 @@ class Backend : public QObject
     Q_PROPERTY(SprReader *sprReader READ sprReader CONSTANT)
     Q_PROPERTY(DatReader *datReader READ datReader CONSTANT)
     Q_PROPERTY(OtbReader *otbReader READ otbReader CONSTANT)
+    Q_PROPERTY(RawItemModel *rawItemModel READ rawItemModel CONSTANT)
     Q_PROPERTY(DocumentManager *docMgr READ docMgr CONSTANT)
     Q_PROPERTY(OtbmReader *otbmReader READ otbmReader NOTIFY otbmReaderChanged)
     Q_PROPERTY(FileTools *fileTools READ fileTools CONSTANT)
@@ -68,6 +70,7 @@ public:
     SprReader *sprReader() { return &m_sprReader; }
     DatReader *datReader() { return &m_datReader; }
     OtbReader *otbReader() { return &m_otbReader; }
+    RawItemModel *rawItemModel() { return &m_rawItemModel; }
     DocumentManager *docMgr() { return &m_docMgr; }
     OtbmReader *otbmReader() { return m_docMgr.current(); }
     FileTools *fileTools() { return &m_fileTools; }
@@ -124,6 +127,7 @@ private:
     DatReader m_datReader;
     ItemsXmlReader m_itemsXml;
     OtbReader m_otbReader;
+    RawItemModel m_rawItemModel;
     DocumentManager m_docMgr;
     FileTools m_fileTools;
     TilesetStore m_tilesetStore;

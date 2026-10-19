@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
     "Disable Qt Creator package-manager auto setup" FORCE)
 
-project(DewralMapEditor VERSION 1.1.32 LANGUAGES C CXX)
+project(DewralMapEditor VERSION 1.1.33 LANGUAGES C CXX)
 
 set(DME_RELEASE_REPOSITORY "dewral/DewralMapEditor" CACHE STRING
     "GitHub repository hosting the stable update packages")
@@ -110,6 +110,8 @@ add_executable(DewralMapEditor
     editor/core/tilesetstore.h
     editor/core/palettefilter.cpp
     editor/core/palettefilter.h
+    editor/core/rawitemmodel.cpp
+    editor/core/rawitemmodel.h
     editor/core/paletteimageprovider.cpp
     editor/core/paletteimageprovider.h
     editor/core/filetools.cpp
@@ -220,6 +222,7 @@ qt_add_qml_module(DewralMapEditor
         editor/map/minimapview.h
         editor/preview/ingamepreviewcontroller.h
         editor/core/palettefilter.h
+        editor/core/rawitemmodel.h
         editor/core/documentmanager.h
         editor/core/filetools.h
         editor/core/tilesetstore.h
@@ -344,6 +347,7 @@ if(BUILD_TESTING)
         tests/palette_visibility_test.cpp
         editor/core/tilesetstore.cpp
         editor/core/palettefilter.cpp
+        editor/core/rawitemmodel.cpp
         editor/core/brushstore.cpp)
     target_include_directories(palette_visibility_test PRIVATE libs/otformats editor/core)
     target_link_libraries(palette_visibility_test PRIVATE OTFormats Qt6::Core Qt6::Gui)

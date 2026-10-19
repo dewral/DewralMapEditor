@@ -96,6 +96,12 @@ Item {
         function itemHasVisibleSprite(id) { return true; }
         function doodadHasVisibleSprite(name) { return true; }
     }
+    ListModel {
+        id: rawClientItems
+        ListElement { serverId: 13211; clientId: 13122; itemName: "wooden chair" }
+        ListElement { serverId: 0; clientId: 13212; itemName: "" }
+        ListElement { serverId: 13372; clientId: 13283; itemName: "ground" }
+    }
     QtObject {
         id: tilesets
         property int revision: 0
@@ -196,6 +202,7 @@ Item {
         function cleanup() {
             mockApp.settings = prefs;
             Backend.otbReader = oldReader;
+            Backend.rawItemModel = Qt.binding(function () { return Backend.otbReader; });
             Backend.tilesetStore = oldTilesets;
         }
         function clickRow(panel, row, modifiers, button) {
@@ -204,6 +211,25 @@ Item {
             tryVerify(() => grid.itemAtIndex(row) !== null);
             mouseClick(grid.itemAtIndex(row), 8, 8, button || Qt.LeftButton,
                        modifiers || Qt.NoModifier);
+        }
+        function test_rawOthersIncludesUnmappedClients() {
+            Backend.rawItemModel = rawClientItems;
+            prefs.paletteViewMode = "list";
+            prefs.lastPaletteKind = "RAW Palette";
+            const panel = createTemporaryObject(panelComponent, testRoot);
+            verify(panel);
+            const itemGrid = findChild(panel, "paletteItemGrid");
+            tryCompare(itemGrid, "count", 3);
+            const grid = findChild(panel, "paletteGrid");
+            tryVerify(() => grid.itemAtIndex(1) !== null);
+            const label = findChild(grid.itemAtIndex(1), "paletteItemIdLabel");
+            compare(label.text, "Client ID 13212 (no server mapping)");
+            mockMap.brushServerId = 13211;
+            clickRow(itemGrid, 1);
+            compare(mockMap.brushServerId, 0, "Client-only entries must not paint an invented server ID");
+            compare(itemGrid.selectedServerIds.length, 0);
+            clickRow(itemGrid, 2);
+            compare(mockMap.brushServerId, 13372, "Mapped items must remain paintable");
         }
         function test_rawTilesetSurvivesRestart_data() {
             return ["fluent-dark", "gray-dark", "gray-modern", "github", "classic", "windows-classic"]

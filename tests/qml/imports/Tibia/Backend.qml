@@ -1,6 +1,7 @@
 pragma Singleton
 import QtQuick
 QtObject {
+    property var rawItemModel: otbReader
     property string screenshotPath: ""
     function previewScreenshotPath() { return screenshotPath; }
     property var obdExportCalls: []

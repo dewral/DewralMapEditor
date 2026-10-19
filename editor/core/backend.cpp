@@ -18,6 +18,7 @@ Backend::Backend(QObject *parent)
     s_instance = this;
     m_otbReader.setDatReader(&m_datReader);
     m_otbReader.setItemsXml(&m_itemsXml);
+    m_rawItemModel.setSources(&m_otbReader, &m_datReader);
     m_tilesetStore.setItemSource(&m_otbReader);
     connect(&m_docMgr, &DocumentManager::currentChanged,
             this, &Backend::otbmReaderChanged);

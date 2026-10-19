@@ -9,6 +9,7 @@
 
 class BrushStore;
 class SprReader;
+class OtbReader;
 Q_MOC_INCLUDE("brushstore.h")
 Q_MOC_INCLUDE("sprreader.h")
 
@@ -64,6 +65,7 @@ protected:
     bool lessThan(const QModelIndex &left, const QModelIndex &right) const override;
 
 private:
+    OtbReader *itemReader() const;
     QString m_mode = QStringLiteral("all");
     QString m_search;
     int m_searchRangeFrom = -1;

@@ -95,11 +95,13 @@ Item {
             clip: true
             radius: root.fluentUi ? 1 : root.githubUi ? 4 : 0
 
-            property bool isBrush: typeof serverId !== "undefined"
+            readonly property bool hasServerId: typeof serverId !== "undefined" && serverId > 0
+            property bool isBrush: hasServerId
                                    && root.mapCtrl.brushServerId === serverId
-            readonly property bool selected: typeof serverId !== "undefined"
-                    && (root.selectedServerIds.length > 0 ? selection.contains(serverId) : isBrush)
-            property string doodadPreview: typeof serverId !== "undefined"
+            readonly property bool selected: hasServerId
+                    ? (root.selectedServerIds.length > 0 ? selection.contains(serverId) : isBrush)
+                    : grid.currentIndex === index
+            property string doodadPreview: hasServerId
                                            ? root.mapCtrl.doodadPreviewSource(serverId) : ""
             color: selected
                    ? (root.fluentUi ? Colors.c("selectedCell") : root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
@@ -170,8 +172,10 @@ Item {
                 font.pixelSize: root.githubUi ? (root.app.iconSizePx >= 88 ? 13 : 11) : 9
                 color: root.grayUi ? "#929292" : (root.githubUi ? "#7D8590" : "#777")
                 text: {
-                    if (typeof serverId !== "undefined")
+                    if (paletteCell.hasServerId)
                         return serverId;
+                    if (typeof clientId !== "undefined" && clientId > 0)
+                        return clientId;
                     if (typeof itemId !== "undefined")
                         return itemId;
                     if (typeof spriteId !== "undefined")
@@ -200,7 +204,10 @@ Item {
                     font { pixelSize: 12; bold: true }
                 }
                 Text {
-                    text: typeof serverId !== "undefined" ? "Server ID " + serverId
+                    objectName: "paletteItemIdLabel"
+                    text: paletteCell.hasServerId ? "Server ID " + serverId
+                          : typeof clientId !== "undefined" && clientId > 0
+                            ? "Client ID " + clientId + " (no server mapping)"
                           : typeof itemId !== "undefined" ? "Item ID " + itemId
                           : typeof spriteId !== "undefined" ? "Sprite ID " + spriteId : ""
                     color: root.grayUi ? "#929292" : "#7D8590"
@@ -217,8 +224,10 @@ Item {
                 readonly property string itemTooltip: {
                     const name = typeof itemName !== "undefined" ? itemName.trim() : "";
                     const ids = [];
-                    if (typeof serverId !== "undefined") ids.push("Server ID: " + serverId);
+                    if (paletteCell.hasServerId) ids.push("Server ID: " + serverId);
                     if (typeof clientId !== "undefined" && clientId > 0) ids.push("Client ID: " + clientId);
+                    if (!paletteCell.hasServerId && typeof clientId !== "undefined" && clientId > 0)
+                        ids.push("No server mapping; unavailable for map painting");
                     if (!ids.length && typeof itemId !== "undefined") ids.push("Item ID: " + itemId);
                     if (!ids.length && typeof spriteId !== "undefined") ids.push("Sprite ID: " + spriteId);
                     return (name || "Unnamed item") + (ids.length ? "\n" + ids.join("  ") : "");
@@ -234,8 +243,12 @@ Item {
                 }
 
                 onClicked: mouse => {
-                    if (typeof serverId === "undefined")
+                    if (!paletteCell.hasServerId) {
+                        grid.currentIndex = index;
+                        root.clearSelection();
+                        root.mapCtrl.brushServerId = 0;
                         return;
+                    }
                     grid.currentIndex = index;
                     selection.select(serverId, index, mouse.modifiers, mouse.button === Qt.RightButton);
                     if (mouse.button === Qt.RightButton) {

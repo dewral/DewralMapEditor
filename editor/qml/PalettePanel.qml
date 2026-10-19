@@ -27,6 +27,8 @@ Rectangle {
     signal brushDockDragFinished(real sceneX, real sceneY)
     signal brushDockDragCanceled()
     readonly property string currentKind: paletteCol.currentKind
+    readonly property bool allRawItems: currentKind === "RAW Palette"
+                                       && paletteCol.currentSubName === "Others"
 
     signal collapseRequested
     signal revealRequested
@@ -272,7 +274,7 @@ Rectangle {
 
     PaletteFilter {
         id: paletteFilter
-        sourceModel: Backend.otbReader
+        sourceModel: paletteRoot.allRawItems ? Backend.rawItemModel : Backend.otbReader
         sprReader: Backend.sprReader
         brushStore: Backend.brushStore
         hideInvisibleSprites: paletteRoot.app.settings.hideInvisibleSprites
@@ -343,6 +345,8 @@ Rectangle {
 
         property var currentIds: {
             const _r = Backend.tilesetStore.revision;
+            if (paletteRoot.allRawItems)
+                return null;
             if (currentKind === "Recent")
                 return app.recentBrushIds;
             if (currentKind === "Favorites")

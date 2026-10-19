@@ -18,16 +18,17 @@ ListModel {
             return;
         for (let i = 0; i < sourceModel.count; ++i) {
             const item = sourceModel.get(i);
-            if (hideInvisibleSprites && !itemHasVisibleSprite(item.serverId))
+            if (hideInvisibleSprites && (item.serverId > 0 ? !itemHasVisibleSprite(item.serverId)
+                    : sprReader && !sprReader.itemHasVisibleSprite(item.clientId)))
                 continue;
             if (hideNamedItems && item.itemName.trim().length > 0)
                 continue;
             if (mode === "ids" && ids.indexOf(item.serverId) < 0)
                 continue;
-            if (searchText !== "" && String(item.serverId).indexOf(searchText) < 0
+            if (searchText !== "" && String(item.serverId > 0 ? item.serverId : item.clientId).indexOf(searchText) < 0
                     && item.itemName.indexOf(searchText) < 0)
                 continue;
-            append({serverId: item.serverId, itemName: item.itemName, spriteIds:item.spriteIds || [],
+            append({serverId: item.serverId, clientId:item.clientId || 0, itemName: item.itemName, spriteIds:item.spriteIds || [],
                     itemWidth:item.itemWidth || 1,itemHeight:item.itemHeight || 1,layers:item.layers || 1});
         }
     }

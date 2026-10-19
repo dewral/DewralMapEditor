@@ -3,6 +3,7 @@
 #include "otbreader.h"
 #include "itemsxmlreader.h"
 #include "palettefilter.h"
+#include "rawitemmodel.h"
 #include "tilesetstore.h"
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -15,6 +16,8 @@
 #include <QTemporaryDir>
 #include <thread>
 #include <atomic>
+#include <algorithm>
+#include <cstdio>
 
 namespace {
 
@@ -133,6 +136,35 @@ QByteArray otbFile(int firstServerId = 1000, int itemCount = 9)
 int main(int argc, char **argv)
 {
     QCoreApplication application(argc, argv);
+    if (argc == 5 && QString::fromLocal8Bit(argv[1]) == QLatin1String("--catalog")) {
+        DatReader client;
+        client.setClientVersion(QString::fromLocal8Bit(argv[4]).toInt());
+        OtbReader server;
+        server.setDatReader(&client);
+        if (!require(client.loadFile(QString::fromLocal8Bit(argv[2]))
+                         && server.loadFile(QString::fromLocal8Bit(argv[3])),
+                     "Could not load the requested client catalogue")) return 1;
+        RawItemModel catalogue;
+        catalogue.setSources(&server, &client);
+        int unmapped = 0;
+        int withSprites = 0;
+        bool found13212 = false;
+        for (int row = 0; row < catalogue.rowCount(); ++row) {
+            const auto idx = catalogue.index(row);
+            if (idx.data(OtbReader::ServerIdRole).toInt() > 0) continue;
+            ++unmapped;
+            const int cid = idx.data(OtbReader::ClientIdRole).toInt();
+            const auto *item = client.itemByClientId(cid);
+            if (std::any_of(item->sprite_ids.begin(), item->sprite_ids.end(),
+                            [](uint32_t id) { return id > 0; })) ++withSprites;
+            if (cid == 13212) found13212 = true;
+        }
+        const QJsonObject summary{{"serverItems", server.rowCount()}, {"unmappedClientItems", unmapped},
+                                  {"unmappedWithSprites", withSprites}, {"total", catalogue.rowCount()},
+                                  {"includesClient13212", found13212}};
+        std::printf("%s\n", QJsonDocument(summary).toJson(QJsonDocument::Compact).constData());
+        return 0;
+    }
     QTemporaryDir directory;
     if (!require(directory.isValid(), "Could not create fixture directory")) return 1;
     const QString sprPath = directory.filePath(QStringLiteral("test.spr"));
@@ -227,6 +259,48 @@ int main(int argc, char **argv)
     filter.setHideInvisibleSprites(true);
     if (!require(spr.preloadItemImageSources(&dat) == 9 && filter.rowCount() == 3,
                  "Preloading must refresh the filter and retain only visible thumbnails")) return 1;
+    const QString partialOtbPath = directory.filePath(QStringLiteral("partial.otb"));
+    OtbReader partialOtb;
+    if (!require(writeFile(partialOtbPath, otbFile(1000, 2)) && partialOtb.loadFile(partialOtbPath),
+                 "Could not load partial server mapping fixture")) return 1;
+    RawItemModel rawItems;
+    rawItems.setSources(&partialOtb, &dat);
+    PaletteFilter rawFilter;
+    rawFilter.setSourceModel(&rawItems);
+    rawFilter.setSprReader(&spr);
+    if (!require(rawFilter.rowCount() == 9 && rawFilter.rowForServerId(1001) == 1
+                     && rawFilter.rowForServerId(0) == -1
+                     && rawItems.index(5).data(OtbReader::ServerIdRole).toInt() == 0
+                     && rawItems.index(5).data(OtbReader::ClientIdRole).toInt() == 105
+                     && partialOtb.rowForServerId(105) == -1,
+                 "The RAW catalogue must include unmapped client items without inventing server IDs")) return 1;
+    rawFilter.setSearchText(QStringLiteral("105"));
+    if (!require(rawFilter.rowCount() == 1 && rawFilter.serverIdAtRow(0) == 0
+                     && rawFilter.index(0, 0).data(OtbReader::ClientIdRole).toInt() == 105,
+                 "Unmapped sprites must be searchable by Client ID")) return 1;
+    rawFilter.setSearchText(QStringLiteral("104-106"));
+    if (!require(rawFilter.rowCount() == 3,
+                 "ID ranges must include unmapped client items")) return 1;
+    rawFilter.setSearchText(QString());
+    rawFilter.setHideInvisibleSprites(true);
+    rawFilter.setHideNamedItems(true);
+    if (!require(rawFilter.rowCount() == 3,
+                 "Client-only entries must honor visibility and unnamed item filters")) return 1;
+    rawFilter.setHideInvisibleSprites(false);
+    rawFilter.setHideNamedItems(false);
+    rawFilter.setIds({1001});
+    if (!require(rawFilter.rowCount() == 1 && rawFilter.serverIdAtRow(0) == 1001,
+                 "Named categories must not acquire unmapped client items")) return 1;
+    rawFilter.setMode(QStringLiteral("all"));
+    if (!require(writeFile(partialOtbPath, otbFile()) && partialOtb.loadFile(partialOtbPath)
+                     && rawFilter.rowCount() == 9 && rawFilter.rowForServerId(1005) == 5
+                     && rawFilter.index(5, 0).data(OtbReader::ServerIdRole).toInt() == 1005,
+                 "Reloading mappings must replace client-only entries without duplicating sprites")) return 1;
+    const QString missingDatPath = directory.filePath(QStringLiteral("missing.dat"));
+    if (!require(!dat.loadFile(missingDatPath) && rawFilter.rowCount() == 9
+                     && writeFile(datPath, datFile()) && dat.loadFile(datPath),
+                 "DAT reloads must retain mapped items and refresh the RAW catalogue")) return 1;
+    spr.preloadItemImageSources(&dat);
     if (!require(spr.thumbnailCacheBytes() > 0,
                  "Visibility preparation must retain composed thumbnails")) return 1;
     const qsizetype preparedBytes = spr.thumbnailCacheBytes();

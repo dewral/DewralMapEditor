@@ -33,7 +33,7 @@ ActivityService::ActivityService(DocumentManager *documents,QObject *parent):QOb
             if(!q.exec("CREATE TABLE IF NOT EXISTS queue(id TEXT PRIMARY KEY, server TEXT NOT NULL, token TEXT NOT NULL, payload TEXT NOT NULL, blocked INTEGER NOT NULL DEFAULT 0)")) error=q.lastError().text();
             q.exec("PRAGMA table_info(queue)");bool hasBlocked=false;while(q.next())if(q.value(1).toString()=="blocked")hasBlocked=true;
             if(!hasBlocked&&!q.exec("ALTER TABLE queue ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0"))error=q.lastError().text();}
-        QSqlQuery countQuery(db);countQuery.exec("SELECT COUNT(*),COALESCE(SUM(blocked),0) FROM queue");int count=0,blocked=0;if(countQuery.next()){count=countQuery.value(0).toInt();blocked=countQuery.value(1).toInt();}
+        QSqlQuery countQuery(db);countQuery.exec("SELECT COUNT(*),COALESCE(SUM(blocked <> 0),0) FROM queue");int count=0,blocked=0;if(countQuery.next()){count=countQuery.value(0).toInt();blocked=countQuery.value(1).toInt();}
         if(guard) QMetaObject::invokeMethod(guard,[guard,error,count,blocked]{if(!guard)return;guard->m_pending=count;guard->m_blocked=blocked;if(!error.isEmpty())guard->fail("Activity queue: "+error);emit guard->changed();},Qt::QueuedConnection);
     },Qt::QueuedConnection);
     QCoreApplication::instance()->installEventFilter(this);
@@ -172,36 +172,103 @@ void ActivityService::refreshMaps(){
             if(detected!=m_mapId||(!detected.isEmpty()&&m_session.isEmpty()))switchDocument();
             if(ambiguous)fail("Multiple tracked maps match this filename. Resolve the conflict in the admin panel.");
             const QString connection=m_connection,secret=m_token;
-            QMetaObject::invokeMethod(m_storage,[connection,secret]{QSqlQuery q(QSqlDatabase::database(connection));q.prepare("UPDATE queue SET blocked=0 WHERE token=?");q.addBindValue(secret);q.exec();},Qt::QueuedConnection);
+            QSet<QString> accessibleMaps;
+            for (const auto &entry : m_maps) accessibleMaps.insert(entry.toMap().value("id").toString());
+            // Retry permission failures only for maps that this account can access
+            // again. Invalid payloads/conflicts stay quarantined for inspection.
+            QMetaObject::invokeMethod(m_storage,[connection,secret,accessibleMaps]{
+                auto db=QSqlDatabase::database(connection);QSqlQuery q(db);
+                q.prepare("SELECT id,payload FROM queue WHERE token=? AND blocked IN (1,403)");
+                q.addBindValue(secret);q.exec();QStringList retry;
+                while(q.next()) if(accessibleMaps.contains(QJsonDocument::fromJson(q.value(1).toByteArray()).object()["mapId"].toString())) retry.append(q.value(0).toString());
+                q.prepare("UPDATE queue SET blocked=0 WHERE id=? AND token=?");
+                for(const auto &eventId:retry){q.bindValue(0,eventId);q.bindValue(1,secret);q.exec();}
+            },Qt::QueuedConnection);
             upload();
         }
         else fail("Cannot refresh project maps: "+reply->errorString());reply->deleteLater();emit changed();});
 }
-void ActivityService::upload(){
-    if(m_uploading)return;m_uploading=true;const QPointer<ActivityService> guard(this);const QString connection=m_connection,activeServer=m_server,activeToken=m_token;
-    QMetaObject::invokeMethod(m_storage,[guard,connection,activeServer,activeToken]{
-        QSqlQuery q(QSqlDatabase::database(connection));q.prepare("SELECT server,token FROM queue WHERE blocked=0 ORDER BY CASE WHEN server=? AND token=? THEN 0 ELSE 1 END,rowid LIMIT 1");q.addBindValue(activeServer);q.addBindValue(activeToken);q.exec();QString server,secret;QJsonArray events;
-        if(q.next()){server=q.value(0).toString();secret=q.value(1).toString();q.prepare("SELECT payload FROM queue WHERE server=? AND token=? AND blocked=0 ORDER BY rowid LIMIT 500");q.addBindValue(server);q.addBindValue(secret);if(q.exec())while(q.next())events.append(QJsonDocument::fromJson(q.value(0).toByteArray()).object());}
-        if(guard)QMetaObject::invokeMethod(guard,[guard,server,secret,events,connection]{
-            if(!guard)return;if(events.isEmpty()){guard->m_uploading=false;return;}
-            QNetworkRequest request(QUrl(server+"/api/device/events"));request.setRawHeader("Authorization",("Bearer "+secret).toUtf8());request.setHeader(QNetworkRequest::ContentTypeHeader,"application/json");request.setTransferTimeout(15000);
+void ActivityService::upload()
+{
+    if (m_uploading) return;
+    m_uploading = true;
+    const QPointer<ActivityService> guard(this);
+    const QString connection=m_connection, activeServer=m_server, activeToken=m_token;
+    const int limit=m_uploadLimit;
+    QMetaObject::invokeMethod(m_storage,[guard,connection,activeServer,activeToken,limit]{
+        auto db=QSqlDatabase::database(connection);QSqlQuery q(db);
+        q.prepare("SELECT server,token FROM queue WHERE blocked=0 ORDER BY CASE WHEN server=? AND token=? THEN 0 ELSE 1 END,rowid LIMIT 1");
+        q.addBindValue(activeServer);q.addBindValue(activeToken);q.exec();
+        QString server,secret;QJsonArray events;QStringList eventIds;
+        if(q.next()) {
+            server=q.value(0).toString();secret=q.value(1).toString();
+            q.prepare("SELECT id,payload FROM queue WHERE server=? AND token=? AND blocked=0 ORDER BY rowid LIMIT ?");
+            q.addBindValue(server);q.addBindValue(secret);q.addBindValue(limit);
+            if(q.exec())while(q.next()){eventIds.append(q.value(0).toString());events.append(QJsonDocument::fromJson(q.value(1).toByteArray()).object());}
+        }
+        if(guard)QMetaObject::invokeMethod(guard,[guard,server,secret,events,eventIds,connection]{
+            if(!guard)return;
+            if(events.isEmpty()){guard->m_uploading=false;guard->m_uploadLimit=500;return;}
+            QNetworkRequest request(QUrl(server+"/api/device/events"));
+            request.setRawHeader("Authorization",("Bearer "+secret).toUtf8());
+            request.setHeader(QNetworkRequest::ContentTypeHeader,"application/json");request.setTransferTimeout(15000);
             auto *reply=guard->m_network.post(request,QJsonDocument(QJsonObject{{"events",events}}).toJson(QJsonDocument::Compact));
-            connect(reply,&QNetworkReply::finished,guard,[guard,reply,connection,secret]{
+            connect(reply,&QNetworkReply::finished,guard,[guard,reply,connection,server,secret,events,eventIds]{
                 const auto result=QJsonDocument::fromJson(reply->readAll()).object();
-                if(reply->error()!=QNetworkReply::NoError){
-                    guard->m_uploading=false;guard->fail("Activity sync: "+result["error"].toString(reply->errorString()));
-                    const int code=reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-                    if(code==400||code==401||code==403||code==409)QMetaObject::invokeMethod(guard->m_storage,[guard,connection,secret,code]{
-                        QSqlQuery q(QSqlDatabase::database(connection));q.prepare("UPDATE queue SET blocked=1 WHERE token=?");q.addBindValue(secret);q.exec();q.exec("SELECT COALESCE(SUM(blocked),0) FROM queue");const int blocked=q.next()?q.value(0).toInt():0;
-                        if(guard)QMetaObject::invokeMethod(guard,[guard,blocked,secret,code]{if(guard){guard->m_blocked=blocked;emit guard->changed();if(code==401&&guard->m_token==secret)guard->disconnectDevice();}},Qt::QueuedConnection);
-                    },Qt::QueuedConnection);
-                }
-                else {const QJsonArray accepted=result["accepted"].toArray();QMetaObject::invokeMethod(guard->m_storage,[guard,accepted,connection]{
-                    auto db=QSqlDatabase::database(connection);db.transaction();QSqlQuery q(db);q.prepare("DELETE FROM queue WHERE id=?");bool ok=true;for(const auto &value:accepted){q.bindValue(0,value.toString());ok=q.exec()&&ok;}if(ok)ok=db.commit();if(!ok)db.rollback();
-                    q.exec("SELECT COUNT(*),COALESCE(SUM(blocked),0) FROM queue");int count=0,blocked=0;if(q.next()){count=q.value(0).toInt();blocked=q.value(1).toInt();}
-                    if(guard)QMetaObject::invokeMethod(guard,[guard,count,blocked,ok]{if(!guard)return;guard->m_pending=count;guard->m_blocked=blocked;guard->m_uploading=false;if(ok)guard->m_error.clear();else guard->m_error="Could not acknowledge activity queue";emit guard->changed();if(ok&&count>blocked)QTimer::singleShot(0,guard,&ActivityService::upload);},Qt::QueuedConnection);
-                },Qt::QueuedConnection);}
+                const int code=reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                const auto networkError=reply->error();const QString message=result["error"].toString(reply->errorString());
                 reply->deleteLater();
+                if(networkError!=QNetworkReply::NoError) {
+                    guard->fail("Activity sync: "+message);
+                    if(code!=400 && code!=401 && code!=403 && code!=409){guard->m_uploading=false;return;}
+                    // A server may reject an entire transaction for one bad event.
+                    // Bisect in queue order until that event is isolated; never
+                    // quarantine unrelated maps on a shared account token.
+                    if(code!=401 && events.size()>1) {
+                        guard->m_uploadLimit=qMax(1,int(events.size())/2);
+                        guard->m_uploading=false;
+                        QTimer::singleShot(0,guard,&ActivityService::upload);return;
+                    }
+                    const QString eventId=eventIds.first();
+                    QMetaObject::invokeMethod(guard->m_storage,[guard,connection,server,secret,code,eventId]{
+                        auto db=QSqlDatabase::database(connection);QSqlQuery q(db);
+                        q.prepare(code==401 ? "UPDATE queue SET blocked=? WHERE server=? AND token=?"
+                                            : "UPDATE queue SET blocked=? WHERE server=? AND token=? AND id=?");
+                        q.addBindValue(code);q.addBindValue(server);q.addBindValue(secret);
+                        if(code!=401)q.addBindValue(eventId);q.exec();
+                        q.exec("SELECT COUNT(*),COALESCE(SUM(blocked <> 0),0) FROM queue");
+                        int count=0,blocked=0;if(q.next()){count=q.value(0).toInt();blocked=q.value(1).toInt();}
+                        if(guard)QMetaObject::invokeMethod(guard,[guard,count,blocked,secret,code]{
+                            if(!guard)return;
+                            guard->m_pending=count;guard->m_blocked=blocked;guard->m_uploading=false;emit guard->changed();
+                            if(code==401 && guard->m_token==secret)guard->disconnectDevice();
+                            if(count>blocked)QTimer::singleShot(0,guard,&ActivityService::upload);
+                        },Qt::QueuedConnection);
+                    },Qt::QueuedConnection);
+                    return;
+                }
+                QSet<QString> submitted;
+                for(const auto &eventId:eventIds)submitted.insert(eventId);
+                QSet<QString> accepted;
+                for(const auto &value:result["accepted"].toArray())if(submitted.contains(value.toString()))accepted.insert(value.toString());
+                // A 200 with no progress must not produce an unbounded retry loop.
+                if(accepted.isEmpty()) {guard->m_uploading=false;guard->fail("Activity sync: the server did not acknowledge this batch.");return;}
+                QMetaObject::invokeMethod(guard->m_storage,[guard,accepted,connection,server,secret]{
+                    auto db=QSqlDatabase::database(connection);bool ok=db.transaction();QSqlQuery q(db);
+                    q.prepare("DELETE FROM queue WHERE id=? AND server=? AND token=?");
+                    for(const auto &eventId:accepted){q.bindValue(0,eventId);q.bindValue(1,server);q.bindValue(2,secret);ok=q.exec()&&ok;}
+                    if(ok)ok=db.commit();if(!ok)db.rollback();
+                    q.exec("SELECT COUNT(*),COALESCE(SUM(blocked <> 0),0) FROM queue");int count=0,blocked=0;
+                    if(q.next()){count=q.value(0).toInt();blocked=q.value(1).toInt();}
+                    if(guard)QMetaObject::invokeMethod(guard,[guard,count,blocked,ok]{
+                        if(!guard)return;
+                        guard->m_pending=count;guard->m_blocked=blocked;guard->m_uploading=false;
+                        guard->m_uploadLimit=qMin(500,guard->m_uploadLimit*2);
+                        if(ok)guard->m_error.clear();else guard->m_error="Could not acknowledge activity queue";
+                        emit guard->changed();
+                        if(ok&&count>blocked)QTimer::singleShot(0,guard,&ActivityService::upload);
+                    },Qt::QueuedConnection);
+                },Qt::QueuedConnection);
             });
         },Qt::QueuedConnection);
     },Qt::QueuedConnection);

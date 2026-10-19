@@ -33,7 +33,7 @@ public:
     explicit ActivityService(DocumentManager *documents, QObject *parent=nullptr);
     ~ActivityService() override;
     QString status() const { return m_status; }
-    QString errorString() const { return m_error.isEmpty() && m_blocked > 0 ? QStringLiteral("Some queued events are blocked by server permissions. Refresh maps after restoring access.") : m_error; }
+    QString errorString() const { return m_error.isEmpty() && m_blocked > 0 ? QStringLiteral("Some events need attention. Other activity continues to synchronize.") : m_error; }
     QString serverUrl() const { return m_server; }
     QString accountName() const { return m_accountName; }
     bool linked() const { return !m_token.isEmpty(); }
@@ -78,6 +78,7 @@ private:
     QString m_summaryError;
     bool m_summaryLoading=false;
     int m_pending=0,m_blocked=0;
+    int m_uploadLimit=500;
     bool m_busy=false,m_uploading=false;
     QTimer m_tick,m_sync;
     QNetworkAccessManager m_network;

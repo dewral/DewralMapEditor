@@ -7,6 +7,7 @@
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QJsonDocument>
+#include <QJsonArray>
 #include <QDebug>
 #include <QUuid>
 #include <QTcpServer>
@@ -14,6 +15,50 @@
 
 class ActivityServiceTest {
 public:
+ static int isolation() {
+    for(int rejectedCode : {400,403,409}) {
+        QTemporaryDir temp;
+        QCoreApplication::setApplicationName("Isolation-"+QUuid::createUuid().toString(QUuid::WithoutBraces));
+        QSettings::setDefaultFormat(QSettings::IniFormat);QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,temp.path());
+        qputenv("DME_RECOVERY_DIR",temp.filePath("recovery").toUtf8());
+        DocumentManager documents;documents.configureAutosave(false,1);
+        ActivityService service(&documents);service.m_tick.stop();service.m_sync.stop();
+        QTcpServer server;if(!server.listen(QHostAddress::LocalHost,0))return 30;
+        const QString bad=QUuid::createUuid().toString(QUuid::WithoutBraces);
+        QSet<QString> accepted;int requests=0;bool acknowledge=true;
+        QObject::connect(&server,&QTcpServer::newConnection,&service,[&]{
+            auto *socket=server.nextPendingConnection();
+            QObject::connect(socket,&QTcpSocket::readyRead,socket,[&,socket]{
+                QByteArray buffer=socket->property("request").toByteArray()+socket->readAll();socket->setProperty("request",buffer);
+                const int split=buffer.indexOf("\r\n\r\n");if(split<0)return;
+                int length=0;for(const auto &line:buffer.left(split).split('\n'))if(line.toLower().startsWith("content-length:"))length=line.mid(15).trimmed().toInt();
+                if(buffer.size()<split+4+length)return;
+                const auto events=QJsonDocument::fromJson(buffer.mid(split+4,length)).object()["events"].toArray();
+                ++requests;bool invalid=false;for(const auto &e:events)if(e.toObject()["id"].toString()==bad)invalid=true;
+                QJsonArray ids;if(!invalid&&acknowledge)for(const auto &e:events){ids.append(e.toObject()["id"]);accepted.insert(e.toObject()["id"].toString());}
+                const QByteArray body=invalid?QByteArray("{\"error\":\"one rejected event\"}"):QJsonDocument(QJsonObject{{"accepted",ids}}).toJson(QJsonDocument::Compact);
+                socket->write("HTTP/1.1 "+QByteArray::number(invalid?rejectedCode:200)+" Result\r\nContent-Type: application/json\r\nContent-Length: "+QByteArray::number(body.size())+"\r\nConnection: close\r\n\r\n"+body);socket->disconnectFromHost();
+            });
+            QObject::connect(socket,&QTcpSocket::disconnected,socket,&QObject::deleteLater);
+        });
+        service.m_server=QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort());service.m_token="isolated-token";
+        auto first=service.base("edit"),denied=service.base("edit"),last=service.base("edit");denied["id"]=bad;
+        service.enqueue(first);service.enqueue(denied);service.enqueue(last);
+        QMetaObject::invokeMethod(service.m_storage,[]{},Qt::BlockingQueuedConnection);
+        service.upload();QElapsedTimer timeout;timeout.start();
+        while(timeout.elapsed()<5000&&(accepted.size()!=2||service.m_uploading||service.m_blocked!=1)){QCoreApplication::processEvents();QThread::msleep(1);}
+        if(accepted.size()!=2||service.pendingCount()!=1||service.m_blocked!=1||!service.linked()||accepted.contains(bad)||requests>12){qCritical()<<"Batch isolation failed"<<rejectedCode<<requests<<service.pendingCount()<<service.errorString();return 31;}
+        if(rejectedCode==403) {
+            acknowledge=false;auto noAck=service.base("edit");service.enqueue(noAck);
+            QMetaObject::invokeMethod(service.m_storage,[]{},Qt::BlockingQueuedConnection);service.upload();
+            timeout.restart();while(timeout.elapsed()<3000&&service.m_uploading){QCoreApplication::processEvents();QThread::msleep(1);}
+            const int before=requests;timeout.restart();while(timeout.elapsed()<100){QCoreApplication::processEvents();QThread::msleep(1);}
+            if(requests!=before||service.pendingCount()!=2||service.errorString().isEmpty())return 32;
+        }
+        service.m_token.clear();
+    }
+    return 0;
+ }
  static int network(ActivityService &service, DocumentManager &documents,const QString &folder) {
     auto *map=documents.current();map->newMap(1024,1024,1098,3,57);map->saveFile(folder+"/pilot.otbm");
     service.signIn("http://localhost:3000",QString::fromUtf8(qgetenv("DME_ACTIVITY_EMAIL")),QString::fromUtf8(qgetenv("DME_ACTIVITY_PASSWORD")),"Automated DME pilot");
@@ -123,4 +168,4 @@ public:
     return 0;
  }
 };
-int main(int argc,char **argv){QCoreApplication app(argc,argv);return ActivityServiceTest::run();}
+int main(int argc,char **argv){QCoreApplication app(argc,argv);int result=ActivityServiceTest::run();return result?result:ActivityServiceTest::isolation();}

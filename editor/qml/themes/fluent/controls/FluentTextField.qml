@@ -3,6 +3,7 @@ import "../Colors.js" as Colors
 import QtQuick
 Item {
     id: root; property string text: ""; property string placeholderText: ""; signal accepted; signal editingFinished; signal userTextChanged(string value)
+    function focusEditor() { input.forceActiveFocus(); }
     implicitWidth: 140; implicitHeight: 22
     Rectangle { anchors.fill: parent; radius: 4; color: Colors.c("base"); border.width: 1; border.color: input.activeFocus ? Colors.c("accent") : Colors.c("border") }
     Text { anchors.left: parent.left; anchors.leftMargin: 10; anchors.verticalCenter: parent.verticalCenter; text: root.placeholderText; color: Colors.c("placeholder"); font.family: "Segoe UI"; font.pixelSize: 12; visible: input.text.length === 0 }

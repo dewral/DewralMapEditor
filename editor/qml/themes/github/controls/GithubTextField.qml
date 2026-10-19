@@ -7,6 +7,7 @@ Item {
     signal accepted
     signal editingFinished
     signal userTextChanged(string value)
+    function focusEditor() { input.forceActiveFocus(); }
     implicitWidth: 140
     implicitHeight: 22
 

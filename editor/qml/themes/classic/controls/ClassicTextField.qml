@@ -9,6 +9,7 @@ Item {
     signal editingFinished
     signal userTextChanged(string value)
     readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
+    function focusEditor() { input.forceActiveFocus(); }
     implicitWidth: 140
     implicitHeight: 22
 

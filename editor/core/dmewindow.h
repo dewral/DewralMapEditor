@@ -33,6 +33,7 @@ protected:
     bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override;
 
 private:
+    void cancelMaximizeInteraction();
     void setMaximizeInteraction(bool hovered, bool pressed);
     bool containsMaximizeButton(const QPointF &clientPosition) const;
 

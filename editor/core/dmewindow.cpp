@@ -17,9 +17,23 @@ void DmeWindow::setMaximizeButton(QQuickItem *button)
 {
     if (m_maximizeButton == button)
         return;
+    cancelMaximizeInteraction();
     m_maximizeButton = button;
-    setMaximizeInteraction(false, false);
     emit maximizeButtonChanged();
+}
+
+void DmeWindow::cancelMaximizeInteraction()
+{
+#ifdef Q_OS_WIN
+    const bool wasPressed = m_maximizePressed;
+#endif
+    setMaximizeInteraction(false, false);
+#ifdef Q_OS_WIN
+    // Only release capture owned by our caption interaction. Qt owns client
+    // drags and popups; cancelling a caption must not interrupt those grabs.
+    if (wasPressed && handle() && GetCapture() == reinterpret_cast<HWND>(winId()))
+        setMouseGrabEnabled(false);
+#endif
 }
 
 void DmeWindow::setMaximizeInteraction(bool hovered, bool pressed)
@@ -40,6 +54,13 @@ bool DmeWindow::containsMaximizeButton(const QPointF &clientPosition) const
 
 bool DmeWindow::event(QEvent *event)
 {
+    if (event->type() == QEvent::WindowDeactivate || event->type() == QEvent::WindowBlocked
+        || event->type() == QEvent::Hide
+        || (event->type() == QEvent::PlatformSurface
+            && static_cast<QPlatformSurfaceEvent *>(event)->surfaceEventType()
+                   == QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed)) {
+        cancelMaximizeInteraction();
+    }
     const bool handled = QQuickWindow::event(event);
 #ifdef Q_OS_WIN
     if (event->type() == QEvent::PlatformSurface
@@ -113,11 +134,23 @@ bool DmeWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr 
         *result = 0;
         return true;
     }
-    case WM_NCHITTEST:
+    case WM_NCHITTEST: {
+        // A maximized WS_THICKFRAME extends past the clipped client area.
+        // Do not turn that invisible frame (or a point outside the window
+        // during capture) into an editor hit over the taskbar or desktop.
+        POINT point{GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam)};
+        ScreenToClient(msg->hwnd, &point);
+        RECT client;
+        GetClientRect(msg->hwnd, &client);
+        if (!PtInRect(&client, point)) {
+            *result = HTNOWHERE;
+            return true;
+        }
         // HTMAXBUTTON is the shell's signal to offer Windows 11 Snap Layouts.
         // Other input still goes through the existing QML drag/resize areas.
         *result = buttonAt(msg->lParam) ? HTMAXBUTTON : HTCLIENT;
         return true;
+    }
     case WM_NCMOUSEMOVE:
         setMaximizeInteraction(buttonAt(msg->lParam), m_maximizePressed);
         if (m_maximizeHovered) {
@@ -132,13 +165,17 @@ bool DmeWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr 
     case WM_NCLBUTTONDOWN:
     case WM_NCLBUTTONDBLCLK:
         if (msg->wParam == HTMAXBUTTON) {
-            setMaximizeInteraction(true, true);
-            SetCapture(msg->hwnd);
+            setMouseGrabEnabled(true);
+            setMaximizeInteraction(true, GetCapture() == msg->hwnd);
             *result = 0;
             return true;
         }
         break;
     case WM_MOUSEMOVE:
+        // A release can be lost when native UI interrupts the click. Recover
+        // before the next click outside the editor instead of retaining capture.
+        if (m_maximizePressed && !(msg->wParam & MK_LBUTTON))
+            cancelMaximizeInteraction();
         setMaximizeInteraction(containsMaximizeButton(
                                    QPointF(GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam))
                                    / devicePixelRatio()), m_maximizePressed);
@@ -152,7 +189,7 @@ bool DmeWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr 
                                                  GET_Y_LPARAM(msg->lParam)) / devicePixelRatio());
             setMaximizeInteraction(hovered, false);
             if (GetCapture() == msg->hwnd)
-                ReleaseCapture();
+                setMouseGrabEnabled(false);
             if (hovered)
                 visibility() == QWindow::Maximized ? showNormal() : showMaximized();
             *result = 0;
@@ -162,10 +199,21 @@ bool DmeWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr 
     case WM_CAPTURECHANGED:
         setMaximizeInteraction(false, false);
         break;
+    case WM_ACTIVATE:
+        if (LOWORD(msg->wParam) == WA_INACTIVE)
+            cancelMaximizeInteraction();
+        break;
+    case WM_ACTIVATEAPP:
+        if (!msg->wParam)
+            cancelMaximizeInteraction();
+        break;
+    case WM_KILLFOCUS:
+        cancelMaximizeInteraction();
+        break;
     case WM_CANCELMODE:
-        setMaximizeInteraction(false, false);
+        cancelMaximizeInteraction();
         if (GetCapture() == msg->hwnd)
-            ReleaseCapture();
+            setMouseGrabEnabled(false);
         break;
     default:
         break;

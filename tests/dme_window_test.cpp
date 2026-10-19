@@ -133,6 +133,16 @@ int main(int argc, char **argv)
                && client.right == monitor.rcWork.right - monitor.rcWork.left
                && client.bottom == monitor.rcWork.bottom - monitor.rcWork.top,
            "maximized content must fit the work area without hiding controls or covering the taskbar");
+    const POINT outsideClient[] = {
+        {origin.x - 1, origin.y + client.bottom / 2},
+        {origin.x + client.right, origin.y + client.bottom / 2},
+        {origin.x + client.right / 2, origin.y - 1},
+        {origin.x + client.right / 2, origin.y + client.bottom},
+    };
+    for (const POINT point : outsideClient) {
+        expect(SendMessageW(hwnd, WM_NCHITTEST, 0, MAKELPARAM(point.x, point.y)) == HTNOWHERE,
+               "the invisible maximized frame must not claim clicks outside the client, including the taskbar");
+    }
     position = buttonPosition(hwnd, window, button);
     SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTMAXBUTTON, position);
     SendMessageW(hwnd, WM_NCLBUTTONUP, HTMAXBUTTON, position);
@@ -144,6 +154,57 @@ int main(int argc, char **argv)
     SendMessageW(hwnd, WM_CANCELMODE, 0, 0);
     expect(!window.maximizePressed() && GetCapture() != hwnd,
            "cancelled native input must clear pressed state and release capture");
+
+    position = buttonPosition(hwnd, window, button);
+    SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTMAXBUTTON, position);
+    expect(GetCapture() == hwnd, "a maximize press must capture its release");
+    window.setMaximizeButton(nullptr);
+    expect(!window.maximizePressed() && GetCapture() != hwnd,
+           "replacing the caption control must release its outstanding mouse capture");
+    window.setMaximizeButton(&button);
+
+    SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTMAXBUTTON, position);
+    SendMessageW(hwnd, WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(100, 100));
+    expect(window.maximizePressed() && GetCapture() == hwnd,
+           "moving away while holding maximize must retain capture until release");
+    SendMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(100, 100));
+    expect(!window.maximizePressed() && GetCapture() != hwnd
+               && window.visibility() == QWindow::Windowed,
+           "a missed button release must cancel capture without maximizing");
+
+    SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTMAXBUTTON, position);
+    SendMessageW(hwnd, WM_ACTIVATEAPP, FALSE, 0);
+    expect(!window.maximizePressed() && GetCapture() != hwnd,
+           "switching to another app must cancel native caption capture");
+    SendMessageW(hwnd, WM_ACTIVATEAPP, TRUE, 0);
+
+    for (const QEvent::Type type : {QEvent::WindowDeactivate, QEvent::WindowBlocked, QEvent::Hide}) {
+        SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTMAXBUTTON, position);
+        QEvent interruption(type);
+        QCoreApplication::sendEvent(&window, &interruption);
+        expect(!window.maximizePressed() && GetCapture() != hwnd,
+               "deactivation, modal blocking and hiding must cancel native caption capture");
+    }
+
+    // Qt owns ordinary client drags. Caption cleanup must not release those
+    // grabs just because the pointer moves away from the maximize button.
+    SendMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(100, 100));
+    expect(GetCapture() == hwnd, "ordinary map input must acquire Qt's automatic mouse capture");
+    SendMessageW(hwnd, WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(110, 110));
+    expect(GetCapture() == hwnd, "ordinary map drags must retain capture");
+    SendMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(110, 110));
+    expect(GetCapture() != hwnd, "ordinary map releases must release capture through Qt");
+
+    QWindow otherWindow;
+    otherWindow.show();
+    const auto otherHwnd = reinterpret_cast<HWND>(otherWindow.winId());
+    SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTMAXBUTTON, position);
+    SetCapture(otherHwnd);
+    expect(!window.maximizePressed(), "transferring capture must clear the caption state");
+    SendMessageW(hwnd, WM_CANCELMODE, 0, 0);
+    expect(GetCapture() == otherHwnd, "caption cleanup must never release another window's capture");
+    ReleaseCapture();
+    otherWindow.hide();
     window.hide();
     window.destroy();
     window.create();

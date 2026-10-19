@@ -450,6 +450,9 @@ int main(int argc, char *argv[])
 {
     QApplication application(argc, argv);
     application.setApplicationName(QStringLiteral("DMEUpdater"));
+    // Exercise the Windows loader and Qt platform plugin without installing anything.
+    if (application.arguments().contains(QStringLiteral("--smoke-test")))
+        return 0;
     QObject::connect(&application, &QCoreApplication::aboutToQuit,
                      &application, &scheduleTemporaryRuntimeCleanup);
 

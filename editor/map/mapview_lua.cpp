@@ -136,7 +136,7 @@ QVariantMap MapView::setLuaPreview(const QVariantMap &patch,int x,int y,int z)
     }
     m_luaPreviewPatch=patch; m_luaPreviewX=x; m_luaPreviewY=y; m_luaPreviewZ=z;
     for (uint16_t id : sprites) ensureItemSprites(id);
-    clearLightChunks(); m_lightDirty=true;
+
     ++m_dataVersion;
     m_chunkStore.resetVersion().fetch_add(1,std::memory_order_relaxed);
     emit luaPreviewChanged(); emit contentUpdated(); update();
@@ -148,7 +148,7 @@ void MapView::clearLuaPreview()
     if (m_luaPreviewTiles.isEmpty()) return;
     m_luaPreviewTiles.clear(); m_luaPreviewChunks.clear(); m_luaPreviewPatch.clear();
     m_luaPreviewAnimated.clear(); m_luaPreviewAnimationFrame=-1;
-    clearLightChunks(); m_lightDirty=true;
+
     ++m_dataVersion;
     m_chunkStore.resetVersion().fetch_add(1,std::memory_order_relaxed);
     emit luaPreviewChanged(); emit contentUpdated(); update();

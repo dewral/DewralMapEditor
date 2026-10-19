@@ -250,39 +250,6 @@ void MapView::updateHoverText()
     }
 }
 
-QVariantList MapView::selectionDetails() const
-{
-    QVariantList out;
-    for (quint64 key : m_selectionController.selected()) {
-        const int x = selX(key);
-        const int y = selY(key);
-        const int z = selZ(key);
-        const OtbmTile *tile = m_otbm ? m_otbm->tileAt(x, y, z) : nullptr;
-
-        QVariantMap m;
-        m.insert(QStringLiteral("x"), x);
-        m.insert(QStringLiteral("y"), y);
-        m.insert(QStringLiteral("z"), z);
-
-        QVariantList items;
-        if (tile) {
-            for (const OtbmMapItem &it : tile->items) {
-                QVariantMap im;
-                im.insert(QStringLiteral("serverId"), it.server_id);
-                im.insert(QStringLiteral("clientId"),
-                          m_otb ? m_otb->clientIdForServerId(it.server_id) : 0);
-                im.insert(QStringLiteral("name"),
-                          m_otb ? m_otb->nameForServerId(it.server_id) : QString());
-                im.insert(QStringLiteral("isGround"), it.is_ground);
-                items.append(im);
-            }
-        }
-        m.insert(QStringLiteral("items"), items);
-        out.append(m);
-    }
-    return out;
-}
-
 void MapView::mousePressEvent(QMouseEvent *event)
 {
     forceActiveFocus();

@@ -87,17 +87,6 @@ void MapView::rebuildFloorIndex()
     m_minimapService.invalidate();
 }
 
-bool MapView::chunkHasContent(quint64 key) const
-{
-    const int bottomZ = renderBottomFloor();
-    for (int z = m_navigationController.floor(); z <= bottomZ; ++z) {
-        const auto &tileIndex = m_chunkStore.tiles();
-        auto zit = tileIndex.find(z);
-        if (zit != tileIndex.end() && zit->contains(key)) return true;
-    }
-    return false;
-}
-
 void MapView::appendItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out,
                               bool *animated) const
 {
@@ -279,12 +268,6 @@ void MapView::stopWorker()
 void MapView::requestChunkQuads(int z, quint64 key)
 {
     m_chunkStore.requestChunk(z, key);
-}
-
-std::shared_ptr<const std::vector<MapView::QuadRef>> MapView::takeChunkQuads(int z, quint64 key)
-{
-    std::lock_guard<std::mutex> lk(m_chunkStore.cacheMutex());
-    return m_chunkStore.cachedChunkLocked(z, key);
 }
 
 void MapView::storeChunkQuads(int z, quint64 key, std::vector<QuadRef> &&q, bool animated)

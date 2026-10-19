@@ -153,11 +153,6 @@ bool MapView::isPreviewWalkable(int x, int y, int z) const
     return hasGround && tile->creature_name.isEmpty();
 }
 
-int MapView::previewWalkableFloorAt(int x, int y, int preferredZ) const
-{
-    return static_cast<int>(previewWalkablePositionAt(x, y, preferredZ).z());
-}
-
 QVector3D MapView::previewWalkablePositionAt(int x, int y, int preferredZ) const
 {
     preferredZ = qBound(0, preferredZ, 15);

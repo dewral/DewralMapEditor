@@ -4,7 +4,6 @@
 #include "updateversion.h"
 
 #include <QCoreApplication>
-#include <QDesktopServices>
 #include <QDir>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -418,12 +417,6 @@ void UpdateService::cancel()
         QFile::remove(m_downloadFile.fileName());
     setState(m_updateAvailable ? QStringLiteral("available")
                                : QStringLiteral("idle"));
-}
-
-void UpdateService::openReleasePage() const
-{
-    if (m_releasePageUrl.isValid())
-        QDesktopServices::openUrl(m_releasePageUrl);
 }
 
 void UpdateService::setState(const QString &state, const QString &error)

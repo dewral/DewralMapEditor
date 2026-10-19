@@ -226,13 +226,6 @@ int IngamePreviewController::stepDurationMs() const
     return m_stepDuration;
 }
 
-bool IngamePreviewController::useNearbyTransition()
-{
-    const QPoint directions[] = {QPoint(0, -1), QPoint(1, 0), QPoint(0, 1), QPoint(-1, 0)};
-    const QPoint facing = directions[qBound(0, m_direction, 3)];
-    return useTransitionAt(m_x + facing.x(), m_y + facing.y());
-}
-
 bool IngamePreviewController::useTransitionAt(int x, int y)
 {
     if (!m_source || !positioned() || m_walking) return false;

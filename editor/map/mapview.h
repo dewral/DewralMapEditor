@@ -354,8 +354,7 @@ public:
     void setTorchOn(bool on) {
         if (m_torchOn == on) return;
         m_torchOn = on;
-        clearLightChunks();
-        m_lightDirty = true;
+
         emit torchChanged();
         emit contentUpdated(); update();
     }
@@ -364,8 +363,7 @@ public:
         value = std::clamp(value, 0, 215);
         if (m_lightAmbientColor == value) return;
         m_lightAmbientColor = value;
-        clearLightChunks();
-        m_lightDirty = true;
+
         emit torchChanged();
         emit contentUpdated(); update();
     }
@@ -374,8 +372,7 @@ public:
         value = std::clamp(value, 0, 255);
         if (m_lightAmbient == value) return;
         m_lightAmbient = value;
-        clearLightChunks();
-        m_lightDirty = true;
+
         emit torchChanged();
         emit contentUpdated(); update();
     }
@@ -487,11 +484,6 @@ public:
     quint64 renderMetadataOverlayVersion() const;
     quint64 renderPointerOverlayVersion() const;
 
-    void renderCollectFloorInstances(int z, int cMinX, int cMinY, int cMaxX, int cMaxY,
-                                 bool groundOnly, std::vector<float> &out, bool &complete);
-
-    bool renderFloorChunksReady(int z, int cMinX, int cMinY, int cMaxX, int cMaxY);
-
     static constexpr quint32 kChunkEmpty   = 0;
     static constexpr quint32 kChunkPending = 0xFFFFFFFFu;
 
@@ -507,18 +499,11 @@ public:
     bool hasActiveEffects() const { return !m_activeEffects.empty(); }
     bool editingStrokeActive() const { return m_brushController.painting(); }
 
-    void renderCollectSelectionInstances(std::vector<float> &out);
-
     void renderCollectBrushCursorInstances(std::vector<float> &out,
                                        std::vector<float> &outBorder);
 
     void renderCollectSpawnMarkInstances(std::vector<float> &out, std::vector<float> &outSel, std::vector<float> *fill = nullptr);
 
-    quint32 renderUpdateLightGrid();
-    const std::vector<uint32_t> &lightPixels() const { return m_lightPixels; }
-    void lightRect(int &tx, int &ty, int &tw, int &th) const {
-        tx = m_lightTX; ty = m_lightTY; tw = m_lightTW; th = m_lightTH;
-    }
     void renderBuildPreviewLightGrid(int firstFloor, int lastFloor,
                                  int tx, int ty, int tw, int th,
                                  qreal playerX, qreal playerY, int playerZ,
@@ -605,17 +590,12 @@ public:
     }
     Q_INVOKABLE void clearSelection();
 
-    Q_INVOKABLE QVariantList selectionDetails() const;
-
     Q_INVOKABLE QVariantMap contextInfo() const;
-    Q_INVOKABLE QVariantList contextStack() const;
     Q_INVOKABLE QVariantList stackAt(int x, int y, int z) const;
     Q_INVOKABLE bool setContextFromSelection();
     Q_INVOKABLE bool setContextAt(int x, int y, int z, int index);
     Q_INVOKABLE bool setContextStackIndex(int index);
-    Q_INVOKABLE bool removeContextStackItem(int index);
     Q_INVOKABLE bool removeStackItemAt(int x, int y, int z, int index);
-    Q_INVOKABLE bool moveContextStackItem(int index, int targetIndex);
     Q_INVOKABLE bool moveStackItemAt(int x, int y, int z, int index, int targetIndex);
     Q_INVOKABLE bool rotateContextItem();
     Q_INVOKABLE bool switchContextDoor();
@@ -731,7 +711,6 @@ public:
     Q_INVOKABLE int previewOutfitWalkPhases(int lookType) const;
     Q_INVOKABLE QVector3D previewStepAt(int x, int y, int z, int dx, int dy) const;
     Q_INVOKABLE QVector3D previewTransitionAt(int x, int y, int z, bool useItem = false) const;
-    Q_INVOKABLE int previewWalkableFloorAt(int x, int y, int preferredZ) const;
     Q_INVOKABLE QVector3D previewWalkablePositionAt(int x, int y, int preferredZ) const;
     Q_INVOKABLE QString previewBlockReasonAt(int x, int y, int z) const;
     int previewFirstVisibleFloor(int x, int y, int z) const;
@@ -838,7 +817,6 @@ private:
     void buildStaticIndex();
     void updateCurrentFloor();
     void rebuildFloorIndex();
-    bool chunkHasContent(quint64 chunkKey) const;
     void resetAtlas();
     void buildAtlasImage();
     void ensureItemSprites(int serverId);
@@ -862,7 +840,6 @@ private:
     void stopWorker();
     void requestChunkQuads(int z, quint64 chunkKey);
 
-    std::shared_ptr<const std::vector<QuadRef>> takeChunkQuads(int z, quint64 chunkKey);
     void storeChunkQuads(int z, quint64 chunkKey, std::vector<QuadRef> &&q,
                          bool animated = false);
     void invalidateChunkQuads(int z, quint64 chunkKey);
@@ -1130,23 +1107,9 @@ private:
         return ci->animationFrameAt(static_cast<quint64>(m_animFrame) * 16);
     }
 
-    std::vector<uint32_t> m_lightPixels;
-    int m_lightTX = 0, m_lightTY = 0, m_lightTW = 0, m_lightTH = 0;
-    quint32 m_lightVersion = 0;
-    bool m_lightDirty = true;
     int m_lightAmbient = 40;
     int m_lightAmbientColor = 215;
 
-    QHash<int, QHash<quint64, std::vector<uint32_t>>> m_lightChunks;
-    std::mutex m_lightMutex;
-    void clearLightChunks() {
-        std::lock_guard<std::mutex> lock(m_lightMutex);
-        m_lightChunks.clear();
-    }
-    void computeLightChunk(int floor, int cx, int cy, std::vector<uint32_t> &out) const;
-    void buildLightGrid(int floor, int tx, int ty, int tw, int th,
-                        std::vector<uint32_t> &out);
-    void invalidateLightAround(int x, int y, int z);
     void placeHouseAt(int x, int y);
     void ensureCreatureSprites(const CreatureStore::CreatureType &creature);
     void placeSpawnAt(int x, int y);

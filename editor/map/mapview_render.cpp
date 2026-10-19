@@ -23,12 +23,6 @@ namespace {
 constexpr int kOverlayCacheTiles = 16;
 constexpr int kOverlayTextureMarginPixels = 256;
 
-constexpr uint32_t packAmbientLight(uint8_t intensity)
-{
-    const uint32_t channel = intensity;
-    return channel | (channel << 8) | (channel << 16) | (255u << 24);
-}
-
 uint32_t packColoredAmbientLight(uint8_t intensity, int index)
 {
     const uint32_t r = ((index / 36) % 6) * intensity / 5;
@@ -36,23 +30,6 @@ uint32_t packColoredAmbientLight(uint8_t intensity, int index)
     const uint32_t b = (index % 6) * intensity / 5;
     return r | (g << 8) | (b << 16) | (255u << 24);
 }
-
-constexpr bool ambientPackingIsExact()
-{
-    for (uint32_t intensity = 0; intensity <= 255; ++intensity) {
-        const uint32_t pixel = packAmbientLight(static_cast<uint8_t>(intensity));
-        if ((pixel & 0xffu) != intensity
-            || ((pixel >> 8) & 0xffu) != intensity
-            || ((pixel >> 16) & 0xffu) != intensity
-            || ((pixel >> 24) & 0xffu) != 255u) {
-            return false;
-        }
-    }
-    return true;
-}
-
-static_assert(ambientPackingIsExact(),
-              "Every ambient level must map linearly to an opaque grayscale pixel");
 
 int overlayAnchor(double origin)
 {
@@ -235,167 +212,7 @@ void MapView::renderCollectEffectInstances(std::vector<float> &out)
     m_activeEffects.swap(keep);
 }
 
-void MapView::renderCollectSelectionInstances(std::vector<float> &out)
-{
-    out.clear();
-    const auto &atlasSlots = m_atlasService.atlasSlots();
-    if (m_selectionController.selected().isEmpty() || atlasSlots.empty()
-        || !m_otb || !m_dat) return;
 
-    std::vector<QuadRef> quads;
-    for (quint64 key : m_selectionController.selected()) {
-
-        if (selZ(key) != m_navigationController.floor()) continue;
-        const int x = selX(key), y = selY(key);
-        const OtbmTile *tile = currentFloorTileAt(x, y);
-        if (!tile) continue;
-        quads.clear();
-        appendTopItemQuads(tile, quads);
-        for (const QuadRef &q : quads) {
-
-            const QRect &slot = atlasSlots[static_cast<size_t>(q.atlasSlot)];
-            out.push_back(static_cast<float>(q.worldX));
-            out.push_back(static_cast<float>(q.worldY));
-            out.push_back(static_cast<float>(slot.x()));
-            out.push_back(static_cast<float>(slot.y()));
-        }
-    }
-}
-
-void MapView::computeLightChunk(int floor, int cx, int cy, std::vector<uint32_t> &out) const
-{
-    const int base_x = cx * kChunkTiles;
-    const int base_y = cy * kChunkTiles;
-
-    const uint32_t ambient = packColoredAmbientLight(static_cast<uint8_t>(m_lightAmbient), m_lightAmbientColor);
-    out.assign(static_cast<size_t>(kChunkTiles) * kChunkTiles, ambient);
-
-    if (!m_otbm || !m_otb || !m_dat) return;
-
-    std::vector<LightField::Source> lights;
-    const auto &tileIndex = m_chunkStore.tiles();
-    auto zit = tileIndex.constFind(floor);
-    if (zit != tileIndex.cend()) {
-        for (int dcy = -1; dcy <= 1; ++dcy)
-            for (int dcx = -1; dcx <= 1; ++dcx) {
-                auto cit = zit->constFind(chunkKey(cx + dcx, cy + dcy));
-                if (cit == zit->cend()) continue;
-                for (const OtbmTile *t : cit.value()) {
-                    if (!t || m_luaPreviewTiles.contains(selKey(t->x,t->y,t->z))) continue;
-                    for (const OtbmMapItem &it : t->items) {
-                        const int cid = m_otb->clientIdForServerId(it.server_id);
-                        if (cid <= 0) continue;
-                        const ClientItem *ci = m_dat->itemByClientId(static_cast<uint16_t>(cid));
-                        if (!ci || !ci->has(ClientProperty::Light) || ci->light_level == 0) continue;
-                        lights.push_back({ double(t->x), double(t->y),
-                                           static_cast<uint8_t>(ci->light_color),
-                                           static_cast<uint8_t>(std::min<int>(ci->light_level, 255)) });
-                    }
-                }
-            }
-    }
-
-    const auto preview=m_luaPreviewChunks.constFind(floor);
-    if (preview!=m_luaPreviewChunks.cend()) {
-        for (int dy=-1;dy<=1;++dy) for (int dx=-1;dx<=1;++dx)
-            for (quint64 position : preview->value(chunkKey(cx+dx,cy+dy))) {
-                const auto tile=m_luaPreviewTiles.constFind(position);
-                if (tile==m_luaPreviewTiles.cend()) continue;
-                for (const auto &item : tile->items) {
-                    const int cid=m_otb->clientIdForServerId(item.server_id);
-                    const ClientItem *ci=cid>0 ? m_dat->itemByClientId(cid) : nullptr;
-                    if (ci && ci->has(ClientProperty::Light) && ci->light_level>0)
-                        lights.push_back({double(tile->x),double(tile->y),ci->light_color,
-                                          static_cast<uint8_t>(std::min<int>(ci->light_level,255))});
-                }
-            }
-    }
-    out = LightField::sample(kChunkTiles, kChunkTiles, base_x, base_y, ambient, lights);
-
-}
-
-void MapView::invalidateLightAround(int x, int y, int z)
-{
-    if (!m_torchOn) return;
-
-    if (z < 0 || z > 15) return;
-    const int cx = floorDiv(x, kChunkTiles);
-    const int cy = floorDiv(y, kChunkTiles);
-    std::lock_guard<std::mutex> lock(m_lightMutex);
-    auto floorCache = m_lightChunks.find(z);
-    if (floorCache == m_lightChunks.end()) return;
-    for (int dcy = -1; dcy <= 1; ++dcy)
-        for (int dcx = -1; dcx <= 1; ++dcx)
-            floorCache->remove(chunkKey(cx + dcx, cy + dcy));
-
-    m_lightDirty = true;
-}
-
-void MapView::buildLightGrid(int floor, int tx, int ty, int tw, int th,
-                             std::vector<uint32_t> &out)
-{
-    if (tw <= 0 || th <= 0) {
-        out.clear();
-        return;
-    }
-
-    std::lock_guard<std::mutex> lock(m_lightMutex);
-    out.assign(static_cast<size_t>(tw) * th, 0);
-    auto &floorCache = m_lightChunks[floor];
-    const int cx0 = floorDiv(tx, kChunkTiles);
-    const int cx1 = floorDiv(tx + tw - 1, kChunkTiles);
-    const int cy0 = floorDiv(ty, kChunkTiles);
-    const int cy1 = floorDiv(ty + th - 1, kChunkTiles);
-    for (int cy = cy0; cy <= cy1; ++cy)
-        for (int cx = cx0; cx <= cx1; ++cx) {
-            const quint64 ck = chunkKey(cx, cy);
-            auto it = floorCache.find(ck);
-            if (it == floorCache.end()) {
-                std::vector<uint32_t> grid;
-                computeLightChunk(floor, cx, cy, grid);
-                it = floorCache.insert(ck, std::move(grid));
-            }
-
-            const int baseX = cx * kChunkTiles;
-            const int baseY = cy * kChunkTiles;
-            const int ix0 = std::max(tx, baseX);
-            const int ix1 = std::min(tx + tw, baseX + kChunkTiles);
-            const int iy0 = std::max(ty, baseY);
-            const int iy1 = std::min(ty + th, baseY + kChunkTiles);
-            for (int y = iy0; y < iy1; ++y) {
-                const uint32_t *src = &it.value()[static_cast<size_t>(y - baseY) * kChunkTiles];
-                uint32_t *dst = &out[static_cast<size_t>(y - ty) * tw];
-                for (int x = ix0; x < ix1; ++x)
-                    dst[x - tx] = src[x - baseX];
-            }
-        }
-}
-
-quint32 MapView::renderUpdateLightGrid()
-{
-
-    if (!m_torchOn || !m_otbm || !m_otb || !m_dat || m_navigationController.tileSize() < 4) {
-        if (m_lightTW != 0) { m_lightTW = m_lightTH = 0; ++m_lightVersion; }
-        return m_lightVersion;
-    }
-
-    const int tx = static_cast<int>(std::floor(m_navigationController.originX())) - 1;
-    const int ty = static_cast<int>(std::floor(m_navigationController.originY())) - 1;
-    const int tw = static_cast<int>(std::ceil(width() / m_navigationController.tileSize())) + 3;
-    const int th = static_cast<int>(std::ceil(height() / m_navigationController.tileSize())) + 3;
-    if (tw <= 0 || th <= 0) return m_lightVersion;
-
-    const bool boundsSame = (tx == m_lightTX && ty == m_lightTY
-                             && tw == m_lightTW && th == m_lightTH);
-    if (!m_lightDirty && boundsSame) return m_lightVersion;
-    if (m_brushController.painting() && boundsSame) return m_lightVersion;
-    m_lightDirty = false;
-    m_lightTX = tx; m_lightTY = ty; m_lightTW = tw; m_lightTH = th;
-
-    buildLightGrid(m_navigationController.floor(), tx, ty, tw, th, m_lightPixels);
-    ++m_lightVersion;
-    return m_lightVersion;
-}
 
 void MapView::renderBuildPreviewLightGrid(int firstFloor, int lastFloor,
                                       int tx, int ty, int tw, int th,
@@ -1485,58 +1302,4 @@ void MapView::renderCollectGhostInstances(std::vector<float> &out)
             out.push_back(static_cast<float>(slot.y()));
         }
     }
-}
-
-bool MapView::renderFloorChunksReady(int z, int cMinX, int cMinY, int cMaxX, int cMaxY)
-{
-    auto &tileIndex = m_chunkStore.tiles();
-    if (!m_otb || !m_dat || tileIndex.isEmpty()) return true;
-    auto ztiles = tileIndex.find(z);
-    if (ztiles == tileIndex.end()) return true;
-
-    std::vector<std::pair<int, quint64>> missing;
-    {
-        std::lock_guard<std::mutex> lk(m_chunkStore.cacheMutex());
-        auto &quadCache = m_chunkStore.quadCache();
-        auto qz = quadCache.find(z);
-        for (int cy = cMinY; cy <= cMaxY; ++cy)
-            for (int cx = cMinX; cx <= cMaxX; ++cx) {
-                const quint64 key = chunkKey(cx, cy);
-                if (!ztiles->contains(key)) continue;
-                const bool have = (qz != quadCache.end() && qz->contains(key));
-                if (!have) missing.emplace_back(z, key);
-            }
-    }
-    for (const auto &m : missing) requestChunkQuads(m.first, m.second);
-    return missing.empty();
-}
-
-void MapView::renderCollectFloorInstances(int z, int cMinX, int cMinY, int cMaxX, int cMaxY,
-                                      bool groundOnly, std::vector<float> &out, bool &complete)
-{
-    out.clear();
-    complete = true;
-    const auto &atlasSlots = m_atlasService.atlasSlots();
-    if (!m_otb || !m_dat || atlasSlots.empty()) return;
-    auto &tileIndex = m_chunkStore.tiles();
-    auto ztiles = tileIndex.find(z);
-    const auto preview=m_luaPreviewChunks.constFind(z);
-    if (ztiles == tileIndex.end() && preview==m_luaPreviewChunks.cend()) return;
-
-    for (int cy = cMinY; cy <= cMaxY; ++cy)
-        for (int cx = cMinX; cx <= cMaxX; ++cx) {
-            const quint64 key = chunkKey(cx, cy);
-            const bool virtualChunk=preview!=m_luaPreviewChunks.cend() && preview->contains(key);
-            if (!virtualChunk && (ztiles==tileIndex.end() || !ztiles->contains(key))) continue;
-            const auto quads = virtualChunk ? luaPreviewChunkQuads(z,key) : takeChunkQuads(z, key);
-            if (!quads) { requestChunkQuads(z, key); complete = false; continue; }
-            for (const QuadRef &q : *quads) {
-                if (groundOnly && !q.ground) continue;
-                const QRect &slot = atlasSlots[static_cast<size_t>(q.atlasSlot)];
-                out.push_back(static_cast<float>(q.worldX));
-                out.push_back(static_cast<float>(q.worldY));
-                out.push_back(static_cast<float>(slot.x()));
-                out.push_back(static_cast<float>(slot.y()));
-            }
-        }
 }

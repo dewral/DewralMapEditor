@@ -345,12 +345,6 @@ QVariantMap MapView::contextInfo() const
     return m;
 }
 
-QVariantList MapView::contextStack() const
-{
-    return stackAt(m_itemController.contextX(), m_itemController.contextY(),
-                   m_navigationController.floor());
-}
-
 QVariantList MapView::stackAt(int x, int y, int z) const
 {
     QVariantList result;
@@ -404,12 +398,6 @@ bool MapView::setContextStackIndex(int index)
     return true;
 }
 
-bool MapView::removeContextStackItem(int index)
-{
-    return removeStackItemAt(m_itemController.contextX(), m_itemController.contextY(),
-                             m_navigationController.floor(), index);
-}
-
 bool MapView::removeStackItemAt(int x, int y, int z, int index)
 {
     if (!m_otbm) return false;
@@ -430,12 +418,6 @@ bool MapView::removeStackItemAt(int x, int y, int z, int index)
     }
     if (removed) refreshAfterEdit(0);
     return removed;
-}
-
-bool MapView::moveContextStackItem(int index, int targetIndex)
-{
-    return moveStackItemAt(m_itemController.contextX(), m_itemController.contextY(),
-                           m_navigationController.floor(), index, targetIndex);
 }
 
 bool MapView::moveStackItemAt(int x, int y, int z, int index, int targetIndex)

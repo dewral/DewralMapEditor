@@ -806,8 +806,8 @@ void OtbmReader::applyClientVersions(int clientVersion, int otbMajor, int otbMin
 {
     Q_UNUSED(clientVersion);
 
-    if (m_otbmVersion < 2) m_otbmVersion = 2;
-
+    // Refresh the selected item definitions without converting the map format.
+    // Save/Save As/Save All call this for existing legacy documents as well.
     if (otbMajor > 0) m_otbItemsMajor = static_cast<uint32_t>(otbMajor);
     if (otbMinor > 0) m_otbItemsMinor = static_cast<uint32_t>(otbMinor);
 }
@@ -886,6 +886,9 @@ bool OtbmReader::newMap(int width, int height, int clientVersion,
     reset();
     m_width = static_cast<uint16_t>(std::clamp(width, 256, 65535));
     m_height = static_cast<uint16_t>(std::clamp(height, 256, 65535));
+    // Choose the default only for a newly created map. Loaded documents keep
+    // the format read from their header for their entire lifetime.
+    m_otbmVersion = static_cast<uint32_t>(OtbmVersion::V3);
     applyClientVersions(clientVersion, otbMajor, otbMinor);
     m_description = QStringLiteral("Saved with Dewral Map Editor");
     m_spawnsXmlLoaded = true;

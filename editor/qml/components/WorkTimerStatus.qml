@@ -8,7 +8,10 @@ import "../dialogs"
 
 Item {
     id: root
-    implicitWidth: 245
+    property var timerService: Backend.workTimer
+    property var activityService: Backend.activity
+    property bool statusBarMode: false
+    implicitWidth: statusBarMode ? 344 : 245
     implicitHeight: 30
     property color foreground: "#C9D1D9"
     property color accent: "#3FB950"
@@ -41,26 +44,33 @@ Item {
         if (task.length === 0)
             return
 
-        const started = Backend.workTimer.active
-                      ? Backend.workTimer.switchTask(task)
-                      : Backend.workTimer.startSession(task)
+        const started = root.timerService.active
+                      ? root.timerService.switchTask(task)
+                      : root.timerService.startSession(task)
         if (started)
             taskField.text = ""
     }
 
     Rectangle {
         anchors.fill: parent
-        radius: root.fluentTheme ? 0 : 4
+        radius: root.statusBarMode ? 4 : root.fluentTheme ? 0 : 4
         color: hit.containsMouse ? root.hoverColor : "transparent"
     }
-    Row {
+    RowLayout {
         z: 1
-        anchors.centerIn: parent
-        height: 24
-        spacing: 7
+        anchors.fill: parent
+        anchors.leftMargin: root.statusBarMode ? 8 : 4
+        anchors.rightMargin: root.statusBarMode ? 4 : 4
+        spacing: root.width < 180 ? 5 : 8
+        Rectangle {
+            visible: root.statusBarMode
+            width: 7; height: 7; radius: 3.5
+            color: !root.timerService.active ? root.mutedText : root.timerService.running ? "#58BD87" : "#E4B153"
+        }
         Canvas {
             id: clockGlyph
-            anchors.verticalCenter: parent.verticalCenter
+            visible: !root.statusBarMode || root.width >= 175
+            Layout.alignment: Qt.AlignVCenter
             width: 16
             height: 16
             property color glyphColor: root.accent
@@ -86,47 +96,43 @@ Item {
             }
         }
         Text {
-            id: elapsedStatusText
-            anchors.verticalCenter: parent.verticalCenter
-            width: 62
-            height: 24
-            text: Backend.workTimer.taskElapsedText
-            color: root.foreground
-            font.pixelSize: 12
-            font.family: "Consolas"
-            font.weight: Font.DemiBold
-            font.letterSpacing: 0.15
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            onTextChanged: tickAnimation.restart()
-
-            ParallelAnimation {
-                id: tickAnimation
-                NumberAnimation { target: elapsedStatusText; property: "opacity"; from: 0.55; to: 1; duration: 150; easing.type: Easing.OutCubic }
-                NumberAnimation { target: elapsedStatusText; property: "scale"; from: 0.94; to: 1; duration: 180; easing.type: Easing.OutBack }
-            }
-        }
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            visible: root.width >= 205
-            width: 80
-            height: 24
-            text: Backend.workTimer.active ? Backend.workTimer.taskName : "Work timer"
-            color: root.foreground
-            font.pixelSize: 12
+            objectName: "workTimerTaskName"
+            visible: root.width >= 240
+            Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            text: root.timerService.active ? root.timerService.taskName : "Work timer"
+            color: root.foreground; font.pixelSize: 12
             elide: Text.ElideRight
             verticalAlignment: Text.AlignVCenter
         }
+        TextMetrics {
+            id: durationMetrics
+            font.family: "Consolas"; font.pixelSize: root.statusBarMode ? 14 : 12; font.weight: Font.DemiBold
+            text: root.timerService.taskElapsedText
+        }
+        Text {
+            id: elapsedStatusText
+            objectName: "workTimerDuration"
+            Layout.preferredWidth: Math.max(root.statusBarMode ? 76 : 62, Math.ceil(durationMetrics.advanceWidth) + 2)
+            Layout.fillWidth: root.width < 240
+            height: 28
+            text: root.timerService.taskElapsedText
+            color: root.foreground
+            font.pixelSize: root.statusBarMode ? 14 : 12
+            font.family: "Consolas"; font.weight: Font.DemiBold
+            horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+        }
         Item {
             id: statusToggle
-            width: 24
-            height: 24
+            objectName: "workTimerToggle"
+            Layout.preferredWidth: root.statusBarMode ? 28 : 24
+            Layout.preferredHeight: root.statusBarMode ? 28 : 24
 
             Rectangle {
                 anchors.fill: parent
-                radius: root.fluentTheme ? 0 : 4
+                radius: root.statusBarMode ? 4 : root.fluentTheme ? 0 : 4
                 color: statusToggleMouse.containsMouse ? root.activeFill : "transparent"
-                border.width: Backend.workTimer.active ? 1 : 0
+                border.width: root.statusBarMode || root.timerService.active ? 1 : 0
                 border.color: root.accent
             }
             Canvas {
@@ -134,8 +140,8 @@ Item {
                 anchors.centerIn: parent
                 width: 14
                 height: 14
-                visible: Backend.workTimer.active
-                property bool timerRunning: Backend.workTimer.running
+                visible: root.timerService.active
+                property bool timerRunning: root.timerService.running
                 property color glyphColor: root.accent
 
                 onTimerRunningChanged: requestPaint()
@@ -159,7 +165,7 @@ Item {
             }
             Text {
                 anchors.centerIn: parent
-                visible: !Backend.workTimer.active
+                visible: !root.timerService.active
                 text: "+"
                 color: root.accent
                 font.pixelSize: 14
@@ -171,12 +177,12 @@ Item {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    if (!Backend.workTimer.active) {
+                    if (!root.timerService.active) {
                         panel.open()
-                    } else if (Backend.workTimer.running) {
-                        Backend.workTimer.pauseSession()
+                    } else if (root.timerService.running) {
+                        root.timerService.pauseSession()
                     } else {
-                        Backend.workTimer.resumeSession()
+                        root.timerService.resumeSession()
                     }
                 }
             }
@@ -247,7 +253,7 @@ Item {
                     width: timerScroll.width
                     spacing: 10
                     Text {
-                        text: Backend.workTimer.active ? "ADD OR SWITCH TASK" : "TASK NAME"
+                        text: root.timerService.active ? "ADD OR SWITCH TASK" : "TASK NAME"
                         color: root.mutedText
                         font.pixelSize: 10
                         font.bold: true
@@ -259,7 +265,7 @@ Item {
                         DmeTextField {
                             id: taskField
                             width: parent.width - createTimerButton.width - parent.spacing
-                            placeholderText: Backend.workTimer.active
+                            placeholderText: root.timerService.active
                                              ? "New task name..."
                                              : "What are you working on?"
                             onAccepted: root.begin()
@@ -267,7 +273,7 @@ Item {
                         DmeButton {
                             id: createTimerButton
                             width: 86
-                            text: Backend.workTimer.active ? "Switch" : "Start"
+                            text: root.timerService.active ? "Switch" : "Start"
                             variant: "primary"
                             enabled: taskField.text.trim().length > 0
                                      && Backend.docMgr.currentDocumentId.length > 0
@@ -283,7 +289,7 @@ Item {
                             anchors { fill: parent; margins: 3; rightMargin: 14 }
                             clip: true
                             spacing: 2
-                            model: Backend.workTimer.taskTimers
+                            model: root.timerService.taskTimers
                             delegate: Rectangle {
                                 required property var modelData
                                 width: taskTimerList.width
@@ -315,7 +321,7 @@ Item {
                                     anchors { left: parent.left; top: parent.top; bottom: parent.bottom; right: parent.right; rightMargin: 38 }
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: Backend.workTimer.switchTask(modelData.name)
+                                    onClicked: root.timerService.switchTask(modelData.name)
                                 }
                             }
                         }
@@ -325,7 +331,7 @@ Item {
                         }
                         Text {
                             anchors.centerIn: parent
-                            visible: Backend.workTimer.taskTimers.length === 0
+                            visible: root.timerService.taskTimers.length === 0
                             text: "Create your first timer above"
                             color: root.subtleText
                             font.pixelSize: 11
@@ -337,14 +343,14 @@ Item {
                         Column {
                             anchors { fill: parent; margins: 9 }
                             spacing: 3
-                            Text { width: parent.width; horizontalAlignment: Text.AlignHCenter; text: Backend.workTimer.taskElapsedText; color: root.strongText; font.pixelSize: 28; font.weight: Font.DemiBold; font.family: "Consolas" }
-                            Text { text: (Backend.workTimer.active ? Backend.workTimer.taskName + "  ·  " : "") + (Backend.workTimer.mapName || "No active map"); color: root.mutedText; width: parent.width; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideMiddle }
+                            Text { width: parent.width; horizontalAlignment: Text.AlignHCenter; text: root.timerService.taskElapsedText; color: root.strongText; font.pixelSize: 28; font.weight: Font.DemiBold; font.family: "Consolas" }
+                            Text { text: (root.timerService.active ? root.timerService.taskName + "  ·  " : "") + (root.timerService.mapName || "No active map"); color: root.mutedText; width: parent.width; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideMiddle }
                             Row {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 spacing: 8
-                                DmeButton { width: 82; visible: Backend.workTimer.running; text: "Pause"; variant: "primary"; onClicked: Backend.workTimer.pauseSession() }
-                                DmeButton { width: 82; visible: Backend.workTimer.active && !Backend.workTimer.running; text: "Resume"; variant: "primary"; onClicked: Backend.workTimer.resumeSession() }
-                                DmeButton { width: 104; visible: Backend.workTimer.active; text: "Finish task"; variant: "danger"; onClicked: Backend.workTimer.finishSession(noteField.text) }
+                                DmeButton { width: 82; visible: root.timerService.running; text: "Pause"; variant: "primary"; onClicked: root.timerService.pauseSession() }
+                                DmeButton { width: 82; visible: root.timerService.active && !root.timerService.running; text: "Resume"; variant: "primary"; onClicked: root.timerService.resumeSession() }
+                                DmeButton { width: 104; visible: root.timerService.active; text: "Finish task"; variant: "danger"; onClicked: root.timerService.finishSession(noteField.text) }
                                 DmeButton { width: 82; text: root.showTimerDetails ? "Less" : "Details"; onClicked: root.showTimerDetails = !root.showTimerDetails }
                             }
                         }
@@ -352,12 +358,12 @@ Item {
                     Row {
                         visible: root.showTimerDetails
                         spacing: 8
-                        DmeCheckBox { text: "Session checkpoints"; checked: Backend.workTimer.checkpointEnabled; onClicked: Backend.workTimer.checkpointEnabled = !checked }
+                        DmeCheckBox { text: "Session checkpoints"; checked: root.timerService.checkpointEnabled; onClicked: root.timerService.checkpointEnabled = !checked }
                         Text { anchors.verticalCenter: parent.verticalCenter; text: "Break reminder"; color: root.mutedText; font.pixelSize: 11 }
-                        DmeSpinBox { width: 70; from: 0; to: 480; value: Backend.workTimer.breakReminderMinutes; onValueModified: Backend.workTimer.breakReminderMinutes = value }
+                        DmeSpinBox { width: 70; from: 0; to: 480; value: root.timerService.breakReminderMinutes; onValueModified: root.timerService.breakReminderMinutes = value }
                         Text { anchors.verticalCenter: parent.verticalCenter; text: "min"; color: root.mutedText; font.pixelSize: 11 }
                     }
-                    DmeTextField { id: noteField; width: parent.width; visible: root.showTimerDetails && Backend.workTimer.active; placeholderText: "Optional session note" }
+                    DmeTextField { id: noteField; width: parent.width; visible: root.showTimerDetails && root.timerService.active; placeholderText: "Optional session note" }
                     Text { visible: root.showTimerDetails; text: "SESSION SUMMARY"; color: root.mutedText; font.pixelSize: 10; font.bold: true; font.letterSpacing: 0.6 }
                     DmePanel {
                         visible: root.showTimerDetails
@@ -366,12 +372,12 @@ Item {
                         Grid {
                             anchors { fill: parent; margins: 9 }
                             columns: 2; columnSpacing: 42; rowSpacing: 7
-                            Text { text: "Today   " + Backend.workTimer.todayText; color: root.foreground; font.pixelSize: 11 }
-                            Text { text: "This week   " + Backend.workTimer.weekText; color: root.foreground; font.pixelSize: 11 }
-                            Text { text: "This map   " + Backend.workTimer.currentMapText; color: root.foreground; font.pixelSize: 11 }
-                            Text { text: "Total   " + Backend.workTimer.totalText; color: root.foreground; font.pixelSize: 11 }
-                            Text { text: "Operations   " + Backend.workTimer.operationCount; color: root.mutedText; font.pixelSize: 10 }
-                            Text { text: "Changed tiles   " + Backend.workTimer.changedTileCount; color: root.mutedText; font.pixelSize: 10 }
+                            Text { text: "Today   " + root.timerService.todayText; color: root.foreground; font.pixelSize: 11 }
+                            Text { text: "This week   " + root.timerService.weekText; color: root.foreground; font.pixelSize: 11 }
+                            Text { text: "This map   " + root.timerService.currentMapText; color: root.foreground; font.pixelSize: 11 }
+                            Text { text: "Total   " + root.timerService.totalText; color: root.foreground; font.pixelSize: 11 }
+                            Text { text: "Operations   " + root.timerService.operationCount; color: root.mutedText; font.pixelSize: 10 }
+                            Text { text: "Changed tiles   " + root.timerService.changedTileCount; color: root.mutedText; font.pixelSize: 10 }
                         }
                     }
                     Row {
@@ -379,10 +385,10 @@ Item {
                         spacing: 8
                         DmeCheckBox {
                             text: "Idle-Pause"
-                            checked: Backend.workTimer.idlePauseMinutes > 0
-                            onClicked: Backend.workTimer.idlePauseMinutes = checked ? 0 : 15
+                            checked: root.timerService.idlePauseMinutes > 0
+                            onClicked: root.timerService.idlePauseMinutes = checked ? 0 : 15
                         }
-                        DmeSpinBox { width: 70; from: 0; to: 120; value: Backend.workTimer.idlePauseMinutes; onValueModified: Backend.workTimer.idlePauseMinutes = value }
+                        DmeSpinBox { width: 70; from: 0; to: 120; value: root.timerService.idlePauseMinutes; onValueModified: root.timerService.idlePauseMinutes = value }
                         Text { anchors.verticalCenter: parent.verticalCenter; text: "min"; color: root.mutedText; font.pixelSize: 11 }
                     }
                     Item { width: 1; height: 2 }
@@ -402,7 +408,7 @@ Item {
                         width: parent.width
                         height: root.selectedSession ? 280 : 390
                         clip: true
-                        model: Backend.workTimer.history
+                        model: root.timerService.history
                         delegate: Rectangle {
                             id: historyRow
                             required property var modelData
@@ -415,7 +421,7 @@ Item {
                             border.color: root.borderColor
                             Column {
                                 anchors { fill: parent; margins: 7 }
-                                Text { width: parent.width; text: modelData.task + "  ·  " + Backend.workTimer.formatDuration(modelData.durationSeconds); color: root.strongText; font.pixelSize: 12; elide: Text.ElideRight }
+                                Text { width: parent.width; text: modelData.task + "  ·  " + root.timerService.formatDuration(modelData.durationSeconds); color: root.strongText; font.pixelSize: 12; elide: Text.ElideRight }
                                 Text { width: parent.width; text: modelData.mapName + "  |  " + modelData.startedAt + "  |  " + modelData.changedTiles + " tiles"; color: root.mutedText; font.pixelSize: 10; elide: Text.ElideRight }
                             }
                             MouseArea {
@@ -449,11 +455,11 @@ Item {
                                 text: "Save changes"
                                 onClicked: {
                                     var seconds = root.durationFromText(editDuration.text)
-                                    if (seconds >= 0 && Backend.workTimer.updateSession(root.selectedSession.id, editTask.text, editNote.text, seconds))
+                                    if (seconds >= 0 && root.timerService.updateSession(root.selectedSession.id, editTask.text, editNote.text, seconds))
                                         root.selectedSession = null
                                 }
                             }
-                            DmeButton { text: "Delete"; onClicked: { Backend.workTimer.removeSession(root.selectedSession.id); root.selectedSession = null } }
+                            DmeButton { text: "Delete"; onClicked: { root.timerService.removeSession(root.selectedSession.id); root.selectedSession = null } }
                             DmeButton { text: "Cancel"; onClicked: root.selectedSession = null }
                         }
                     }
@@ -467,7 +473,7 @@ Item {
                     contentWidth: width; contentHeight: personalActivity.implicitHeight
                     clip: true; boundsBehavior: Flickable.StopAtBounds
                     WorkActivityPanel {
-                        id: personalActivity; width: parent.width
+                        id: personalActivity; width: parent.width; service: root.activityService
                         foreground: root.strongText; muted: root.mutedText; accent: root.accent
                         cardColor: root.cardColor; borderColor: root.borderColor
                         onAccountRequested: activityAccount.open()
@@ -477,7 +483,7 @@ Item {
             }
         }
     }
-    ActivityDialog { id: activityAccount }
+    ActivityDialog { id: activityAccount; service: root.activityService }
 
     DmeConfirmDialog {
         id: removeTimerConfirm
@@ -485,11 +491,11 @@ Item {
         message: "Delete timer \"" + root.pendingTimerRemoval
                  + "\", including its current run and recorded sessions?"
         onAccepted: {
-            Backend.workTimer.removeTaskTimer(root.pendingTimerRemoval)
+            root.timerService.removeTaskTimer(root.pendingTimerRemoval)
             root.pendingTimerRemoval = ""
         }
     }
 
-    FileDialog { id: csvDialog; title: "Export work sessions as CSV"; fileMode: FileDialog.SaveFile; nameFilters: ["CSV files (*.csv)"]; defaultSuffix: "csv"; onAccepted: Backend.workTimer.exportCsv(selectedFile) }
-    FileDialog { id: jsonDialog; title: "Export work sessions as JSON"; fileMode: FileDialog.SaveFile; nameFilters: ["JSON files (*.json)"]; defaultSuffix: "json"; onAccepted: Backend.workTimer.exportJson(selectedFile) }
+    FileDialog { id: csvDialog; title: "Export work sessions as CSV"; fileMode: FileDialog.SaveFile; nameFilters: ["CSV files (*.csv)"]; defaultSuffix: "csv"; onAccepted: root.timerService.exportCsv(selectedFile) }
+    FileDialog { id: jsonDialog; title: "Export work sessions as JSON"; fileMode: FileDialog.SaveFile; nameFilters: ["JSON files (*.json)"]; defaultSuffix: "json"; onAccepted: root.timerService.exportJson(selectedFile) }
 }

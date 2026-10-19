@@ -299,8 +299,6 @@ void MapView::onTileEdited(int x, int y, int z)
         }
     }
 
-    invalidateLightAround(x, y, z);
-
     minimapUpdateTile(x, y, z);
 
     m_editController.recordTile(z, ck, posKey(x, y));

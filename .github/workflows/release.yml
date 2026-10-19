@@ -52,7 +52,7 @@ jobs:
             throw "Release packaging failed with exit code $LASTEXITCODE."
           }
 
-          ctest --test-dir build/github-actions -C Release -R '^(release_manifest|dme_startup|ground_brush_export|dat_legacy_740|otbm_rme_compatibility|otbm_legacy_subtypes|tilemapgen_assets)$' --output-on-failure
+          ctest --test-dir build/github-actions -C Release -R '^(release_manifest|dme_startup|dme_updater_startup|ground_brush_export|dat_legacy_740|otbm_rme_compatibility|otbm_legacy_subtypes|tilemapgen_assets)$' --output-on-failure
           if ($LASTEXITCODE -ne 0) {
             throw "Release validation failed with exit code $LASTEXITCODE."
           }

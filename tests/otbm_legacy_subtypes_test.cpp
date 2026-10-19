@@ -98,7 +98,21 @@ int main(int argc, char **argv)
             OtbmReader document;
             document.beginBackgroundLoad();
             CHECK(document.adoptLoadedState(parsed));
+            // Match ordinary Save, Save As and Save All: the controller refreshes
+            // client metadata immediately before writing the document.
+            document.applyClientVersions(772, definitions.majorVersion(), definitions.minorVersion());
+            CHECK(document.saveFile(input));
+            CHECK(document.inspectFileHeader(input).value("otbmVersion").toInt() == version);
+            document.applyClientVersions(772, definitions.majorVersion(), definitions.minorVersion());
             CHECK(document.saveFile(output));
+            CHECK(document.inspectFileHeader(output).value("otbmVersion").toInt() == version);
+            const QString recovery = directory.filePath("recovery.otbm");
+            CHECK(document.saveRecoveryFile(recovery));
+            CHECK(document.inspectFileHeader(recovery).value("otbmVersion").toInt() == version);
+            OtbmReader recovered;
+            if (version == 0) recovered.setItemTypes(types);
+            CHECK(recovered.loadFile(recovery));
+            CHECK(recovered.tileAt(100, 100, 7)->items[1].count == fluid);
             OtbmReader reloaded;
             if (version == 0) reloaded.setItemTypes(types);
             CHECK(reloaded.loadFile(output));
@@ -124,6 +138,13 @@ int main(int argc, char **argv)
             else CHECK(subtype == 15 && vial.getU8(subtype) && subtype == fluid);
         }
     }
+    // Separating format initialization from metadata refresh must not leave a
+    // fresh modern map in legacy format (reset uses the numeric value zero).
+    OtbmReader fresh;
+    CHECK(fresh.newMap(512, 512, 1098, 3, 57));
+    CHECK(fresh.saveFile(output));
+    CHECK(fresh.inspectFileHeader(output).value("otbmVersion").toInt() == 2);
+
     // Matching item definitions are mandatory for the ambiguous legacy layout.
     CHECK(writeFile(input, mapBytes(0, item(2006, 7, 0))));
     OtbmReader missing;

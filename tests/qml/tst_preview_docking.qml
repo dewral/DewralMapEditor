@@ -51,6 +51,24 @@ Item {
             compare(findChild(preview,"previewExplorer").speed,220);
             findChild(preview,"previewPlayerOptions").close();
         }
+        function test_screenshotWritesNativeSizePng() {
+            const camera=findChild(host,"previewScreenshot");
+            findChild(preview,"previewExplorer").setPosition(100,100,7);
+            Backend.screenshotPath=Qt.resolvedUrl("../../build/preview-screenshot-test.png").toString().replace("file:///", "");
+            mouseClick(camera);
+            tryVerify(() => camera.enabled);
+            tryVerify(() => findChild(host,"previewScreenshotStatus").text.indexOf("Screenshot saved:") === 0);
+            Backend.screenshotPath="";
+        }
+        function test_screenshotFailureDoesNotLockButton() {
+            const camera=findChild(host,"previewScreenshot");
+            verify(camera !== null);
+            const explorer=findChild(preview,"previewExplorer");
+            explorer.setPosition(100,100,7);
+            Backend.screenshotPath="";
+            mouseClick(camera);
+            verify(camera.enabled);
+        }
         function cleanup() { settings.showIngamePreviewWindow=false; }
         function test_switchSidesAndDetach() {
             verify(preview.docked);

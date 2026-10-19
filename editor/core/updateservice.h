@@ -44,7 +44,6 @@ public:
     Q_INVOKABLE void checkForUpdates();
     Q_INVOKABLE void downloadAndInstall();
     Q_INVOKABLE void cancel();
-    Q_INVOKABLE void openReleasePage() const;
 
 signals:
     void stateChanged();

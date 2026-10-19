@@ -50,7 +50,6 @@ public:
     Q_INVOKABLE void deleteGroundBrush(const QString &name);
 
     Q_INVOKABLE QVariantList wallBrushEdit(const QString &name) const;
-    Q_INVOKABLE bool saveWallBrush(const QString &name, const QVariantList &align17);
     Q_INVOKABLE void deleteWallBrush(const QString &name);
     Q_INVOKABLE QStringList advancedBrushNames(const QString &kind) const;
     Q_INVOKABLE QVariantMap advancedBrushEdit(const QString &kind, const QString &name) const;
@@ -85,7 +84,6 @@ public:
     int rotatedSelectionBorderItem(int serverId, int quarterTurns) const;
     int rotatedSelectionWallItem(int serverId, int quarterTurns) const;
     bool isOptionalBorderItem(int serverId) const { return m_optionalBorderItemIds.contains(serverId); }
-
 
     QVector<int> computeBorderItems(const QString &center, const QStringList &neighbours8,
                                     bool tileHasOptional) const;

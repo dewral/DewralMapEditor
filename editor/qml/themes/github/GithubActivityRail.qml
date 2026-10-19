@@ -55,7 +55,6 @@ Item {
 
                 required property var modelData
                 readonly property bool active: rail.currentKind === modelData.kind
-                                               || (modelData.kind === "RAW Palette" && rail.currentKind === "All Items")
 
                 width: parent ? parent.width : 68
                 height: 66

@@ -21,11 +21,6 @@ Item {
 
     signal contextMenuRequested(int serverId)
 
-    readonly property bool directAllItems: Backend.otbReader.loaded
-                                                   && currentKind === "All Items"
-                                                   && filterModel.searchText === ""
-                                                   && !filterModel.hideInvisibleSprites
-                                                   && !filterModel.hideNamedItems
     readonly property int count: grid.count
     property alias currentIndex: grid.currentIndex
     readonly property var selectedServerIds: selection.selectedServerIds
@@ -81,7 +76,7 @@ Item {
                                  : (root.fluentUi ? Math.floor(grid.width / grid.fluentColumns) : root.app.iconSizePx)
         cellHeight: root.listView ? Math.max(48, root.app.iconSizePx * 0.72) : root.githubUi ? githubCellHeight : (root.fluentUi ? grid.cellWidth : root.app.iconSizePx)
         model: Backend.otbReader.loaded
-               ? (root.directAllItems ? Backend.otbReader : root.filterModel)
+               ? root.filterModel
                : (Backend.datReader.loaded ? Backend.datReader : Backend.sprReader)
 
         onCellWidthChanged: positionViewAtBeginning()
@@ -249,8 +244,7 @@ Item {
                         return;
                     } else if (root.mapCtrl.brushServerId === serverId) {
                         root.mapCtrl.brushServerId = 0;
-                    } else if (root.currentKind === "All Items"
-                               || root.currentKind === "RAW Palette"
+                    } else if (root.currentKind === "RAW Palette"
                                || root.currentKind === "Item Palette"
                                || root.currentKind === "Collection Palette") {
                         root.mapCtrl.brushServerId = serverId;

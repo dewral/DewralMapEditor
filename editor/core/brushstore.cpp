@@ -1231,30 +1231,6 @@ QVariantList BrushStore::wallBrushEdit(const QString &name) const
     return out;
 }
 
-bool BrushStore::saveWallBrush(const QString &name, const QVariantList &align17)
-{
-    if (name.trimmed().isEmpty()) return false;
-
-    QJsonObject items;
-    int lookid = 0;
-    for (int i = 0; i < 17 && i < align17.size(); ++i) {
-        const int id = align17.at(i).toInt();
-        if (id <= 0) continue;
-        if (lookid == 0 || i == 0) lookid = id;
-        items.insert(QString::number(i), QJsonArray{ QJsonArray{ id, 100 } });
-    }
-    if (items.isEmpty()) return false;
-
-    QJsonObject w;
-    w.insert(QStringLiteral("lookid"), lookid);
-    w.insert(QStringLiteral("items"), items);
-
-    QJsonObject walls = m_rawRoot.value(QStringLiteral("walls")).toObject();
-    walls.insert(name, w);
-    m_rawRoot.insert(QStringLiteral("walls"), walls);
-    return applyRawAndSave();
-}
-
 void BrushStore::deleteWallBrush(const QString &name)
 {
     QJsonObject walls = m_rawRoot.value(QStringLiteral("walls")).toObject();
@@ -1644,7 +1620,6 @@ QVector<int> BrushStore::computeBorderItems(const QString &center, const QString
     }
     return result;
 }
-
 
 QJsonObject BrushStore::generationCatalog() const
 {

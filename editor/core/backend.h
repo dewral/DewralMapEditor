@@ -107,6 +107,7 @@ public:
         return key;
     }
 
+    Q_INVOKABLE QString previewScreenshotPath() const;
     Q_INVOKABLE QUrl spriteExportUrl(int serverId) const;
     // Returns an empty string on success, otherwise a user-visible error.
     Q_INVOKABLE QString exportSprite(int serverId, const QUrl &destination) const;

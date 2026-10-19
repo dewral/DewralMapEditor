@@ -82,7 +82,7 @@ Item {
         property bool hideInvisibleSprites: false
         property bool hideNamedItems: false
         property var detailsProbe: ({reads: 0})
-        // Exercise the direct All Items path, whose reader exposes detailsAt.
+        // Exercise model metadata reads through detailsAt.
         function detailsAt(row) {
             detailsProbe.reads++;
             const item = get(row);
@@ -291,7 +291,7 @@ Item {
             panel.width = 440;
             panel.selectKind("RAW Palette");
             const itemGrid = findChild(panel, "paletteItemGrid");
-            verify(!itemGrid.directAllItems);
+
             tryCompare(itemGrid, "count", 80);
             const prefix = panel.fluentUi ? "fluent" : panel.githubUi ? "github" : "palette";
             const hideNamed = findChild(panel, prefix + "HideNamedItems");
@@ -308,7 +308,7 @@ Item {
             }
             mouseClick(hideNamed, 7, 7);
             compare(prefs.hideNamedItems, true);
-            verify(!itemGrid.directAllItems, "All Items must use the filter when names are hidden");
+
             tryCompare(itemGrid, "count", 2);
             compare(itemGrid.filterModel.serverIdAtRow(0), 503);
             compare(itemGrid.filterModel.serverIdAtRow(1), 509);
@@ -323,7 +323,6 @@ Item {
             mouseClick(hideNamed, 7, 7);
             compare(prefs.hideNamedItems, false);
             tryCompare(itemGrid, "count", 80);
-            verify(!itemGrid.directAllItems);
 
             panel.width = 225;
             tryVerify(() => hideNamed.y > hideInvisible.y);
@@ -395,7 +394,7 @@ Item {
             compare(panel.selectedServerIds, []);
             clickRow(panel, 2, Qt.ShiftModifier);
             compare(panel.selectedServerIds, [515], "Removed rows must invalidate the anchor");
-            panel.currentKind = "All Items";
+            panel.currentKind = "Item Palette";
             compare(panel.selectedServerIds, []);
         }
         function test_doodadItemRange() {
@@ -500,7 +499,7 @@ Item {
             clickRow(itemGrid, 3, Qt.ShiftModifier);
             itemGrid.filterModel.searchText = "Test item 1";
             compare(itemGrid.selectedServerIds, []);
-            verify(!itemGrid.directAllItems);
+
             clickRow(itemGrid, 0);
             clickRow(itemGrid, 3, Qt.ShiftModifier);
             compare(itemGrid.selectedServerIds, [503, 530, 533, 536]);

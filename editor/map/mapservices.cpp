@@ -338,21 +338,6 @@ bool MapAtlasService::ensureItem(int serverId, const OtbReader *otb,
     return addSprites(spr, spriteIds);
 }
 
-bool MapAtlasService::ensureOutfit(int lookType, const DatReader *dat, SprReader *spr)
-{
-    if (lookType <= 0 || m_ensuredOutfits.contains(lookType)) return false;
-    m_ensuredOutfits.insert(lookType);
-
-    const ClientItem *outfit = dat
-        ? dat->outfitByLookType(static_cast<uint16_t>(lookType)) : nullptr;
-    if (!outfit) return false;
-
-    QSet<uint32_t> spriteIds;
-    for (uint32_t spriteId : outfit->sprite_ids)
-        if (spriteId != 0) spriteIds.insert(spriteId);
-    return addSprites(spr, spriteIds);
-}
-
 bool MapAtlasService::build(const OtbmReader *otbm, const OtbReader *otb,
                             const DatReader *dat, SprReader *spr,
                             const CreatureStore *creatures, int placementEffectId)

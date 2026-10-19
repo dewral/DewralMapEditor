@@ -602,6 +602,12 @@ if(WIN32)
         editor/windows/DME.rc)
     target_compile_features(DMEUpdater PRIVATE cxx_std_17)
     target_link_libraries(DMEUpdater PRIVATE Qt6::Widgets)
+    # The updater must use the same compiler and Qt runtime as the editor.
+    add_dependencies(DewralMapEditor DMEUpdater)
+    if(BUILD_TESTING)
+        add_test(NAME dme_updater_startup COMMAND DMEUpdater --smoke-test)
+        set_tests_properties(dme_updater_startup PROPERTIES TIMEOUT 15)
+    endif()
     set_target_properties(DMEUpdater PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${DME_RUNTIME_OUTPUT_DIRECTORY}"
         RUNTIME_OUTPUT_DIRECTORY_DEBUG "${DME_RUNTIME_OUTPUT_DIRECTORY}"

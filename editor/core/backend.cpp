@@ -5,6 +5,8 @@
 #include <QImageWriter>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QCoreApplication>
+#include <QTemporaryFile>
 
 Backend *Backend::s_instance = nullptr;
 
@@ -68,4 +70,29 @@ QString Backend::exportGroundBrush(const QVariantList &cells, const QUrl &destin
         const auto *item = m_datReader.itemByClientId(m_otbReader.clientIdForServerId(serverId));
         return item ? m_sprReader.itemPatternImage(*item, variation) : QImage();
     });
+}
+
+QString Backend::previewScreenshotPath() const
+{
+    QStringList folders;
+    const QString pictures = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+    if (!pictures.isEmpty()) folders << pictures + QStringLiteral("/DME Screenshots");
+    folders << QCoreApplication::applicationDirPath() + QStringLiteral("/Screenshots");
+    const QString localData = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    if (!localData.isEmpty()) folders << localData + QStringLiteral("/Screenshots");
+    const QString stem = QStringLiteral("DME-Preview-")
+        + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss-zzz"));
+    for (const QString &folder : folders) {
+        if (!QDir().mkpath(folder)) continue;
+        QDir directory(folder);
+        // A known folder may exist but still reject writes (redirected Pictures,
+        // protected folders or portable installations in read-only locations).
+        QTemporaryFile probe(directory.filePath(QStringLiteral(".dme-write-XXXXXX")));
+        if (!probe.open()) continue;
+        QString path = directory.filePath(stem + QStringLiteral(".png"));
+        for (int suffix = 1; QFileInfo::exists(path); ++suffix)
+            path = directory.filePath(stem + QStringLiteral("-%1.png").arg(suffix));
+        return path;
+    }
+    return {};
 }

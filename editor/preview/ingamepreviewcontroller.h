@@ -67,7 +67,6 @@ public:
 
     Q_INVOKABLE void setPosition(int x, int y, int z);
     Q_INVOKABLE bool walk(int dx, int dy);
-    Q_INVOKABLE bool useNearbyTransition();
     Q_INVOKABLE bool useTransitionAt(int x, int y);
     Q_INVOKABLE void changeFloor(int delta);
     Q_INVOKABLE void stop();

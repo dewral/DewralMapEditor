@@ -454,7 +454,7 @@ DmeWindow {
         id: paletteDock
         settings: prefs
         availableWidth: root.contentItem.width - 12
-        availableHeight: Math.max(0, root.contentItem.height - paletteTop - 28)
+        availableHeight: Math.max(0, root.contentItem.height - paletteTop - (root.fluentUi ? fluentStatusBar.height + 2 : 28))
         panelWidth: Math.max(root.minimumPaletteWidth, Math.min(prefs.fluentPaletteWidth, root.maximumPaletteWidth))
     }
     readonly property real paletteTop: root.fluentUi ? fluentFileBar.y + fluentFileBar.height : titleBar.y + titleBar.height
@@ -481,7 +481,7 @@ DmeWindow {
         x:prefs.ingamePreviewDockSide==="left" ? root.baseMapLeft : root.width-root.baseMapRight-width
         y:root.paletteTop
         width:root.previewDockWidth
-        height:Math.max(0,root.height-y-(root.fluentUi ? 28 : 6))
+        height:Math.max(0,root.height-y-(root.fluentUi ? fluentStatusBar.height + 2 : 6))
         z:3
     }
     Rectangle {
@@ -817,7 +817,7 @@ DmeWindow {
         anchors.leftMargin: root.mapLeft
         anchors.right: parent.right
         anchors.rightMargin: root.mapRight
-        anchors.bottomMargin: root.fluentUi ? 28 : root.githubUi ? 1 : 6
+        anchors.bottomMargin: root.fluentUi ? fluentStatusBar.height + 2 : root.githubUi ? 1 : 6
         visible: app.started
         app: app
         settings: prefs
@@ -826,75 +826,16 @@ DmeWindow {
         paletteNavigator: palette
     }
 
-    Rectangle {
+    DmeStatusBar {
         id: fluentStatusBar
-        readonly property bool compact: width < 1000
         visible: root.fluentUi && app.started
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-        height: 26; color: FluentColors.c("cell")
-        Rectangle { width: parent.width; height: 1; color: FluentColors.c("separator") }
-        component StatusField: Item {
-            property string label: ""
-            property string value: ""
-            property bool emphasize: false
-            Rectangle { width: 1; height: 14; anchors.verticalCenter: parent.verticalCenter; color: FluentColors.c("separator") }
-            Row {
-                anchors.left: parent.left; anchors.leftMargin: 12
-                anchors.right: parent.right; anchors.rightMargin: 12
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 8
-                Text { id: fieldLabel; text: parent.parent.label; color: FluentColors.c("placeholder"); font.pixelSize: 11 }
-                Text {
-                    width: Math.max(0, parent.width - fieldLabel.width - parent.spacing)
-                    text: parent.parent.value; color: FluentColors.c("text")
-                    font.pixelSize: 11; font.weight: parent.parent.emphasize ? Font.DemiBold : Font.Normal
-                    elide: Text.ElideRight
-                }
-            }
-        }
-        Row {
-            id: statusFields
-            anchors.fill: parent
-            anchors.rightMargin: (statusTimer.visible ? statusTimer.width + 8 : 0) + (statusFps.visible ? statusFps.width + 16 : 0)
-            Item {
-                width: fluentStatusBar.compact ? 54 : 80; height: parent.height
-                Text { anchors.centerIn: parent; text: Backend.otbmReader.loaded ? "Ready" : "No map"; color: FluentColors.c("muted"); font.pixelSize: 11 }
-            }
-            StatusField {
-                width: fluentStatusBar.compact ? 85 : 145; height: parent.height
-                label: fluentStatusBar.compact ? "Sel" : "Selection"; value: String(workspace.mapView.selectionCount); emphasize: true
-            }
-            StatusField {
-                width: Math.max(0, statusFields.width - (fluentStatusBar.compact ? 54 + 85 + 66 + 86 : 80 + 145 + 80 + 105)); height: parent.height
-                label: fluentStatusBar.compact ? "Pos" : "Position / item"; value: workspace.mapView.hoverText || "—"
-            }
-            StatusField {
-                width: fluentStatusBar.compact ? 66 : 80; height: parent.height
-                label: "Floor"; value: String(workspace.mapView.floor); emphasize: true
-            }
-            StatusField {
-                width: fluentStatusBar.compact ? 86 : 105; height: parent.height
-                label: "Zoom"; value: Math.round(workspace.mapView.tileSize / 32 * 100) + "%"; emphasize: true
-                MouseArea { anchors.fill: parent; acceptedButtons: Qt.NoButton; onWheel: wheel => workspace.mapView.zoomSteps(wheel.angleDelta.y > 0 ? 1 : -1) }
-            }
-        }
-        Text {
-            id: statusFps
-            visible: prefs.showFps
-            anchors.right: parent.right; anchors.rightMargin: 8
-            anchors.verticalCenter: parent.verticalCenter
-            width: 72
-            text: workspace.mapRenderer.fps > 0 ? "FPS: " + workspace.mapRenderer.fps : "FPS: idle"
-            color: FluentColors.c("muted"); font.pixelSize: 11; font.weight: Font.DemiBold
-        }
-        WorkTimerStatus {
-            id: statusTimer
-            visible: prefs.showWorkTimer
-            anchors.right: parent.right; anchors.rightMargin: statusFps.visible ? statusFps.width + 14 : 6
-            anchors.verticalCenter: parent.verticalCenter
-            width: fluentStatusBar.compact ? 126 : 245; height: 26
-            foreground: FluentColors.c("muted"); accent: FluentColors.c("accent")
-        }
+        height: 44
+        mapView: workspace.mapView
+        loaded: Backend.otbmReader.loaded
+        showFps: prefs.showFps
+        showWorkTimer: prefs.showWorkTimer
+        fps: workspace.mapRenderer.fps
     }
 
     ModernMapToolRail {

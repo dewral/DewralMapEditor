@@ -36,7 +36,6 @@ public:
     bool addDecodedSprites(QVector<DecodedSprite> sprites);
     bool ensureItem(int serverId, const OtbReader *otb, const DatReader *dat,
                     SprReader *spr);
-    bool ensureOutfit(int lookType, const DatReader *dat, SprReader *spr);
     bool build(const OtbmReader *otbm, const OtbReader *otb, const DatReader *dat,
                SprReader *spr, const CreatureStore *creatures, int placementEffectId);
     static QSet<uint32_t> collectSpriteIds(const OtbmReader *otbm,

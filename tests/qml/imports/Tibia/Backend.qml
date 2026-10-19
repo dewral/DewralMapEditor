@@ -1,6 +1,8 @@
 pragma Singleton
 import QtQuick
 QtObject {
+    property string screenshotPath: ""
+    function previewScreenshotPath() { return screenshotPath; }
     property QtObject tileMapGenProfiles: QtObject {
         property var profiles: []
         property int nextId: 1

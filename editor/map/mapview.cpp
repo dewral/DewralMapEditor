@@ -169,8 +169,6 @@ void MapView::setShowLowerFloors(bool on)
 {
     if (m_showLowerFloors == on) return;
     m_showLowerFloors = on;
-    clearLightChunks();
-    m_lightDirty = true;
 
     emit showLowerFloorsChanged();
     emit contentUpdated(); update();
@@ -517,8 +515,6 @@ void MapView::setFloor(int floor)
     if (m_selectionController.moving())
         m_selectionController.moveChanged() = m_selectionController.moveChanged() || m_navigationController.floor() != m_selectionController.moveSourceZ();
     emit floorChanged();
-    clearLightChunks();
-    m_lightDirty = true;
 
     emit contentUpdated(); update();
 }

@@ -65,9 +65,7 @@ Rectangle {
                     }
                     return;
                 }
-                const row = grid.directAllItems
-                        ? Backend.otbReader.rowForServerId(serverId)
-                        : paletteFilter.rowForServerId(serverId);
+                const row = paletteFilter.rowForServerId(serverId);
                 if (row >= 0) {
                     grid.currentIndex = row;
                     grid.positionViewAtIndex(row, GridView.Center);
@@ -86,15 +84,6 @@ Rectangle {
             Qt.callLater(function () { paletteCol.selectSubIndex(paletteCol.subNames.indexOf("Others")); });
         }
         positionItem(serverId);
-    }
-
-    function selectItem(serverId) {
-        mapCtrl.houseBrush = 0;
-        mapCtrl.eraseMode = false;
-        mapCtrl.lassoMode = false;
-
-        selectRaw(serverId);
-        mapCtrl.brushServerId = serverId;
     }
 
     function selectRaw(serverId) {
@@ -1302,9 +1291,7 @@ Rectangle {
                     }
                     return;
                 }
-                var row = grid.directAllItems
-                        ? Backend.otbReader.rowForServerId(paletteRoot.mapCtrl.brushServerId)
-                        : paletteFilter.rowForServerId(paletteRoot.mapCtrl.brushServerId);
+                var row = paletteFilter.rowForServerId(paletteRoot.mapCtrl.brushServerId);
                 if (row >= 0 && grid.currentIndex !== row) {
                     grid.currentIndex = row;
                     grid.positionViewAtIndex(row, GridView.Center);

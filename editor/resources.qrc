@@ -43,6 +43,7 @@
         <file alias="qml/components/HotkeysPage.qml">qml/components/HotkeysPage.qml</file>
         <file alias="qml/components/ZoneLabels.qml">qml/components/ZoneLabels.qml</file>
         <file alias="qml/components/WorkTimerStatus.qml">qml/components/WorkTimerStatus.qml</file>
+        <file alias="qml/components/DmeStatusBar.qml">qml/components/DmeStatusBar.qml</file>
         <file alias="qml/components/MapOverlay.qml">qml/components/MapOverlay.qml</file>
         <file alias="qml/components/PreviewMovement.js">qml/components/PreviewMovement.js</file>
         <file alias="qml/components/IngamePreviewPanel.qml">qml/components/IngamePreviewPanel.qml</file>
@@ -70,12 +71,10 @@
         <file alias="qml/dialogs/CreatureManagerDialog.qml">qml/dialogs/CreatureManagerDialog.qml</file>
         <file alias="qml/dialogs/ExportMinimapDialog.qml">qml/dialogs/ExportMinimapDialog.qml</file>
         <file alias="qml/dialogs/GoToPositionDialog.qml">qml/dialogs/GoToPositionDialog.qml</file>
-        <file alias="qml/dialogs/MapStatsDialog.qml">qml/dialogs/MapStatsDialog.qml</file>
         <file alias="qml/dialogs/MapAnalyzerDialog.qml">qml/dialogs/MapAnalyzerDialog.qml</file>
         <file alias="qml/dialogs/MapPropertiesDialog.qml">qml/dialogs/MapPropertiesDialog.qml</file>
         <file alias="qml/dialogs/ItemPropertiesDialog.qml">qml/dialogs/ItemPropertiesDialog.qml</file>
         <file alias="qml/dialogs/SelectionItemDialog.qml">qml/dialogs/SelectionItemDialog.qml</file>
-        <file alias="qml/dialogs/ThemeDialog.qml">qml/dialogs/ThemeDialog.qml</file>
         <file alias="qml/dialogs/PreferencesDialog.qml">qml/dialogs/PreferencesDialog.qml</file>
         <file alias="qml/dialogs/NewMapDialog.qml">qml/dialogs/NewMapDialog.qml</file>
         <file alias="qml/dialogs/BrushEditorDialog.qml">qml/dialogs/BrushEditorDialog.qml</file>
@@ -89,7 +88,6 @@
         <file alias="qml/dialogs/TerrainGeneratorDialog.qml">qml/dialogs/TerrainGeneratorDialog.qml</file>
         <file alias="qml/dialogs/DungeonGeneratorDialog.qml">qml/dialogs/DungeonGeneratorDialog.qml</file>
         <file alias="qml/dialogs/GroundClusterGeneratorDialog.qml">qml/dialogs/GroundClusterGeneratorDialog.qml</file>
-        <file alias="qml/dialogs/UpdateDialog.qml">qml/dialogs/UpdateDialog.qml</file>
         <file alias="qml/dialogs/AboutDialog.qml">qml/dialogs/AboutDialog.qml</file>
         <file alias="qml/style/TooltipSurface.qml">qml/style/TooltipSurface.qml</file>
         <file alias="qml/style/GithubToolTip.qml">qml/style/GithubToolTip.qml</file>

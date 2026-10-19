@@ -93,6 +93,29 @@ Item {
     readonly property int headerHeight: ambientControls.visible ? ambientControls.y + ambientControls.height + 8 : Math.max(playbackControls.y + playbackControls.height, dockActions.y + dockActions.height) + 8
     readonly property int footerHeight: 42
     readonly property int contentWidth: settings.ingamePreviewWidthTiles * 32
+    property bool screenshotBusy: false
+    property string screenshotMessage: ""
+    function takeScreenshot() {
+        if (screenshotBusy || !explorer.positioned) return;
+        const path = Backend.previewScreenshotPath();
+        if (!path) {
+            screenshotMessage = "Could not create the screenshots folder";
+            screenshotNotice.restart(); return;
+        }
+        screenshotBusy = true;
+        const started = scaledPreview.grabToImage(function(result) {
+            screenshotMessage = result.saveToFile(path) ? "Screenshot saved: " + path : "Could not save screenshot";
+            screenshotBusy = false;
+            screenshotNotice.restart();
+        }, Qt.size(contentWidth, contentHeight));
+        if (!started) {
+            screenshotBusy = false;
+            screenshotMessage = "Could not capture preview";
+            screenshotNotice.restart();
+        }
+        forceActiveFocus();
+    }
+    Timer { id: screenshotNotice; interval: 8000; onTriggered: panel.screenshotMessage = "" }
     readonly property int contentHeight: settings.ingamePreviewHeightTiles * 32
     component PreviewButton: Button {
         id: control
@@ -322,6 +345,14 @@ Item {
         }
         Row {
             id:dockActions
+            PreviewButton {
+                objectName: "previewScreenshot"
+                width: 28; height: 32; text: "\uE722"; font.family: "Segoe Fluent Icons"
+                enabled: explorer.positioned && !panel.screenshotBusy
+                onClicked: panel.takeScreenshot()
+                ToolTip.visible: hovered; ToolTip.text: "Save screenshot · PNG at native resolution"
+                Accessible.name: "Save preview screenshot"
+            }
             PreviewButton { objectName:"previewFullscreen"; width:28; height:32; text:"\uE740"; font.family:"Segoe Fluent Icons"; onClicked:previewWindow.toggleFullscreen(); ToolTip.visible:hovered; ToolTip.text:"Fullscreen ("+(Backend.hotkeys.bindings.preview_fullscreen || "F11")+")" }
             anchors.right:parent.right; anchors.rightMargin:6; y:panel.width >= 480 ? playbackControls.y : playbackControls.y + playbackControls.height + 6; spacing:4
             PreviewButton { objectName:"dockPreviewLeft"; width:28; height:32; svgIcon:"dock-left"; checked:previewWindow.docked && panel.settings.ingamePreviewDockSide==="left"; onClicked:previewWindow.dock("left"); ToolTip.visible:hovered; ToolTip.text:"Dock left" }
@@ -798,7 +829,7 @@ Item {
             Text { width: Math.max(70, Math.min(160, panel.width - 165)); text: panel.settings.ingamePreviewPlayerName; elide: Text.ElideRight; color: Fluent.c("text"); font.family: Fluent.fontFamily; font.pixelSize: 11 }
             Text { text: explorer.x + ", " + explorer.y + " · Floor " + explorer.z; color: Fluent.c("muted"); font.family: Fluent.fontFamily; font.pixelSize: 11 }
         }
-        Text { x: 10; y: 23; text: "WASD / arrows · Right-click to use"; color: Fluent.c("muted"); font.family: Fluent.fontFamily; font.pixelSize: 10 }
+        Text { objectName: "previewScreenshotStatus"; x: 10; y: 23; width: parent.width - 20; elide: Text.ElideMiddle; text: panel.screenshotMessage || "WASD / arrows · Right-click to use"; color: Fluent.c("muted"); font.family: Fluent.fontFamily; font.pixelSize: 10 }
         GithubToolTip {
             targetItem: playerHover
             targetHovered: panel.visible && playerHover.containsMouse

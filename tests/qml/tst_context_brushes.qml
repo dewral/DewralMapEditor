@@ -6,7 +6,7 @@ TestCase {
     name: "ContextBrushes"
     property var definitions: ({
         ground: {100: "grass", 101: "grass"},
-        wall: {200: "stone", 201: "stone", 202: "stone"},
+        wall: {200: "stone", 201: "stone", 202: "stone", 203: "unlisted wall"},
         carpet: {300: "rug", 301: "rug"},
         table: {400: "table", 401: "table"},
         doodad: {200: "rock", 500: "rock", 501: "rock"},
@@ -16,6 +16,9 @@ TestCase {
     function typedBrushName(kind, id) { return (definitions[kind] || {})[id] || ""; }
     function namesFor(category) { return Object.keys(palettes[category] || {}); }
     function itemsFor(category, name) { return palettes[category][name]; }
+    function tilesetForItem(category, id) {
+        return namesFor(category).find(name => itemsFor(category, name).indexOf(id) >= 0) || "";
+    }
     function canSwitchDoor(id) { return id === 201 || id === 202; }
     function switchedDoorItem(id) { return id === 201 ? 202 : 201; }
     function candidate(kind, id) { return {kind, serverId: id, name: typedBrushName(kind, id)}; }
@@ -61,6 +64,33 @@ TestCase {
     function test_unlistedBrushIsHidden() {
         palettes = ({terrain: {Empty: []}});
         compare(Object.keys(options({ground: candidate("ground", 101)})).length, 0);
+    }
+    function test_unlistedWallRemainsSelectable() {
+        palettes = ({raw: {"Wall sprites": [202]}});
+        const wall = options({wall: candidate("wall", 202)}).wall;
+        compare(wall.kind, "wall");
+        compare(wall.name, "stone");
+        compare(wall.serverId, 202);
+        compare(wall.displayedServerId, 202);
+        compare(wall.category, "raw");
+        compare(wall.tileset, "Wall sprites");
+    }
+    function test_unlistedWallWithoutRawEntry() {
+        palettes = ({});
+        const wall = options({wall: candidate("wall", 200)}).wall;
+        compare(wall.name, "stone");
+        compare(wall.serverId, 200);
+        compare(wall.tileset, "");
+    }
+    function test_unknownWallIsHidden() {
+        palettes = ({});
+        verify(!options({wall: {kind: "wall", name: "missing wall", serverId: 999}}).wall);
+    }
+    function test_listedWallWinsOverUnlistedWallInStack() {
+        const result = options({wall: candidate("wall", 203)},
+                               [candidate("wall", 203), candidate("wall", 200)]);
+        compare(result.wall.serverId, 200);
+        compare(result.wall.category, "terrain");
     }
     function test_brushCanBeListedInAnotherBrushPalette() {
         palettes = ({terrain: {Carpets: [300]}, doodad: {Walls: [200]}});

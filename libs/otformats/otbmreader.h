@@ -339,6 +339,9 @@ public:
     Q_INVOKABLE void finishLoading(bool success);
 
     Q_INVOKABLE bool saveFile(const QString &path);
+    struct RecoverySnapshot;
+    std::shared_ptr<RecoverySnapshot> createRecoverySnapshot() const;
+    static QString writeRecoverySnapshot(std::shared_ptr<RecoverySnapshot> snapshot, const QString &path);
     bool saveRecoveryFile(const QString &path);
     void adoptRecoveryIdentity(const QString &originalPath,
                                const QString &spawnFile,

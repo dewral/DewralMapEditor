@@ -113,6 +113,19 @@ int main(int argc, char **argv)
             if (version == 0) recovered.setItemTypes(types);
             CHECK(recovered.loadFile(recovery));
             CHECK(recovered.tileAt(100, 100, 7)->items[1].count == fluid);
+            const QString snapshotPath = directory.filePath("snapshot.otbm");
+            CHECK(OtbmReader::writeRecoverySnapshot(document.createRecoverySnapshot(), snapshotPath).isEmpty());
+            CHECK(document.inspectFileHeader(snapshotPath).value("otbmVersion").toInt() == version);
+            OtbmReader snapshot;
+            if (version == 0) snapshot.setItemTypes(types);
+            CHECK(snapshot.loadFile(snapshotPath));
+            const auto *snapshotTile = snapshot.tileAt(100, 100, 7);
+            CHECK(snapshotTile && snapshotTile->items.size() == 3 && snapshotTile->items[1].count == fluid);
+            const auto &snapshotContents = snapshotTile->items[2].childItems();
+            CHECK(snapshotContents.size() == 4 && snapshotContents[0].count == fluid && snapshotContents[1].count == 50);
+            CHECK(snapshotContents[2].childItems().size() == 1 && snapshotContents[2].childItems()[0].count == fluid);
+            CHECK(snapshotContents[3].server_id == 2376 && snapshotContents[3].actionId() == 1234
+                  && snapshotContents[3].uniqueId() == 7376);
             OtbmReader reloaded;
             if (version == 0) reloaded.setItemTypes(types);
             CHECK(reloaded.loadFile(output));

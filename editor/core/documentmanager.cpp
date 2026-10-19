@@ -9,6 +9,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSaveFile>
+#include <QtConcurrent/QtConcurrentRun>
 #include <QStandardPaths>
 #include <QUuid>
 #include <QDateTime>
@@ -21,6 +22,8 @@
 DocumentManager::DocumentManager(QObject *parent)
     : QObject(parent)
 {
+    m_clock.start();
+    connect(&m_recoveryWatcher, &QFutureWatcher<QString>::finished, this, &DocumentManager::finishRecovery);
     loadPreviousSession();
     newDocument();
     m_initializing = false;
@@ -34,6 +37,15 @@ DocumentManager::DocumentManager(QObject *parent)
         writeSession(false);
     });
     writeSession(false);
+}
+
+DocumentManager::~DocumentManager()
+{
+    m_closing = true;
+    if (m_recoveryRunning) {
+        m_recoveryWatcher.waitForFinished();
+        finishRecovery();
+    }
 }
 
 void DocumentManager::setCurrentIndex(int i)
@@ -83,7 +95,11 @@ bool DocumentManager::closeDocument(int i)
     OtbmReader *cur = m_docs.value(m_current, nullptr);
 
     OtbmReader *doc = m_docs.takeAt(i);
+    clearRecovery(doc);
     const QString id = m_documentIds.take(doc);
+    m_forcedRecovery.remove(doc);
+    m_recoveryEpochs.remove(doc);
+    m_recoveryRetryAt.remove(doc);
     m_lastEditMs.remove(doc);
     m_lastRecoveryMs.remove(doc);
     m_profileKeys.remove(doc);
@@ -122,18 +138,19 @@ void DocumentManager::hookDocument(OtbmReader *doc)
     connect(doc, &OtbmReader::filePathChanged, this, &DocumentManager::tabsChanged);
     connect(doc, &OtbmReader::dirtyChanged, this, &DocumentManager::tabsChanged);
     connect(doc, &OtbmReader::loadedChanged, this, &DocumentManager::tabsChanged);
+    connect(doc, &OtbmReader::loadedChanged, this, [this, doc] { ++m_recoveryEpochs[doc]; });
     connect(doc, &OtbmReader::mapChanged, this, [this, doc] {
-        m_lastEditMs[doc] = QDateTime::currentMSecsSinceEpoch();
+        m_lastEditMs[doc] = m_clock.elapsed();
     });
     connect(doc, &OtbmReader::filePathChanged, this, [this] { writeSession(false); });
     connect(doc, &OtbmReader::loadedChanged, this, [this] { writeSession(false); });
     connect(doc, &OtbmReader::dirtyChanged, this, [this, doc] {
-        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        const qint64 now = m_clock.elapsed();
         if (doc->isDirty()) {
             m_lastEditMs[doc] = now;
             if (!m_lastRecoveryMs.contains(doc)) m_lastRecoveryMs[doc] = now;
         } else {
-            removeRecoveryFiles(documentId(doc));
+            clearRecovery(doc);
             m_lastRecoveryMs.remove(doc);
         }
         scheduleSessionWrite();
@@ -175,15 +192,28 @@ QString DocumentManager::documentId(OtbmReader *doc)
     return id;
 }
 
-void DocumentManager::removeRecoveryFiles(const QString &id)
+void DocumentManager::removeRecoveryPath(const QString &path)
 {
-    if (id.isEmpty()) return;
-    const QString path = recoveryPath(id);
+    if (path.isEmpty()) return;
     const QString base = QFileInfo(path).completeBaseName();
     QDir dir = QFileInfo(path).dir();
     QFile::remove(path);
     QFile::remove(dir.filePath(base + QStringLiteral(".spawn.xml")));
     QFile::remove(dir.filePath(base + QStringLiteral(".house.xml")));
+}
+
+void DocumentManager::removeRecoveryFiles(const QString &id)
+{
+    if (!id.isEmpty()) removeRecoveryPath(recoveryPath(id));
+}
+
+void DocumentManager::clearRecovery(OtbmReader *doc)
+{
+    ++m_recoveryEpochs[doc];
+    removeRecoveryPath(m_recoveryPaths.take(doc));
+    removeRecoveryFiles(m_documentIds.value(doc));
+    m_forcedRecovery.remove(doc);
+    m_recoveryRetryAt.remove(doc);
 }
 
 void DocumentManager::loadPreviousSession()
@@ -204,8 +234,9 @@ void DocumentManager::loadPreviousSession()
         if (!object.value(QStringLiteral("dirty")).toBool()) continue;
         const QString id = object.value(QStringLiteral("id")).toString();
         const QString original = object.value(QStringLiteral("originalPath")).toString();
-        const QString recovery = object.value(QStringLiteral("recoveryPath")).toString(
-            recoveryPath(id));
+        QString recovery = object.value(QStringLiteral("recoveryPath")).toString(recoveryPath(id));
+        const QString pending = object.value(QStringLiteral("pendingRecoveryPath")).toString();
+        if (!pending.isEmpty() && QFileInfo::exists(pending)) recovery = pending;
         const QFileInfo recoveryInfo(recovery);
         if (id.isEmpty() || !recoveryInfo.exists()) continue;
         const QFileInfo originalInfo(original);
@@ -245,7 +276,10 @@ void DocumentManager::writeSession(bool cleanExit)
         QJsonObject object;
         object.insert(QStringLiteral("id"), id);
         object.insert(QStringLiteral("originalPath"), doc->filePath());
-        object.insert(QStringLiteral("recoveryPath"), recoveryPath(id));
+        object.insert(QStringLiteral("recoveryPath"), m_recoveryPaths.value(doc, recoveryPath(id)));
+        if (m_recoveryRunning && m_recoveryDocument == doc
+            && m_recoveryEpochs.value(doc) == m_recoveryJobEpoch)
+            object.insert(QStringLiteral("pendingRecoveryPath"), m_recoveryJobPath);
         object.insert(QStringLiteral("dirty"), doc->isDirty());
         object.insert(QStringLiteral("loaded"), doc->isLoaded());
         object.insert(QStringLiteral("profileKey"), m_profileKeys.value(doc));
@@ -294,50 +328,87 @@ void DocumentManager::configureAutosave(bool enabled, int intervalMinutes)
 
 void DocumentManager::autosaveDueDocument()
 {
-    if (!m_autosaveEnabled || m_shuttingDown) return;
-    const qint64 now = QDateTime::currentMSecsSinceEpoch();
-    const qint64 interval = static_cast<qint64>(m_autosaveIntervalMinutes) * 60000;
-    for (OtbmReader *doc : m_docs) {
+    if (m_shuttingDown || m_closing || m_recoveryRunning
+        || (!m_autosaveEnabled && m_forcedRecovery.isEmpty())) return;
+    const qint64 now = m_clock.elapsed();
+    const qint64 interval = qint64(m_autosaveIntervalMinutes) * 60000;
+    for (int scanned = 0; scanned < m_docs.size(); ++scanned) {
+        if (m_autosaveCursor >= m_docs.size()) m_autosaveCursor = 0;
+        OtbmReader *doc = m_docs[m_autosaveCursor++];
         if (!doc || !doc->isLoaded() || !doc->isDirty()) continue;
-        const qint64 lastRecovery = m_lastRecoveryMs.value(doc, now);
-        const qint64 lastEdit = m_lastEditMs.value(doc, now);
-        const bool due = now - lastRecovery >= interval;
-        const bool idle = now - lastEdit >= 5000;
-        const bool overdue = now - lastRecovery >= interval * 2;
-        if (!due || (!idle && !overdue)) continue;
-
-        const QString path = recoveryPath(documentId(doc));
-        QDir().mkpath(QFileInfo(path).absolutePath());
-        if (doc->saveRecoveryFile(path)) {
-            m_lastRecoveryMs[doc] = now;
-            emit autosaveCompleted(QFileInfo(doc->filePath()).fileName());
-            writeSession(false);
-        } else {
-            emit autosaveFailed(QFileInfo(doc->filePath()).fileName(), doc->errorString());
-        }
+        const bool forced = m_forcedRecovery.contains(doc);
+        if (!forced && (!m_autosaveEnabled || now < m_recoveryRetryAt.value(doc))) continue;
+        const qint64 since = now - m_lastRecoveryMs.value(doc, now);
+        const bool idle = now - m_lastEditMs.value(doc, now) >= 5000;
+        if (!forced && (since < interval || (!idle && since < interval * 2))) continue;
+        m_forcedRecovery.remove(doc);
+        // A unique snapshot path cannot overwrite a newer recovery, or resurrect
+        // an old map after Save/Close/Load while this job is still writing.
+        m_recoveryJobPath = recoveryPath(QUuid::createUuid().toString(QUuid::WithoutBraces));
+        m_recoveryDocument = doc;
+        m_recoveryJobEpoch = m_recoveryEpochs.value(doc);
+        m_recoveryCapturedAt = now;
+        const auto snapshot = doc->createRecoverySnapshot();
+        const QString path = m_recoveryJobPath;
+        m_recoveryRunning = true;
+        writeSession(false);
+        m_recoveryWatcher.setFuture(QtConcurrent::run([snapshot,path] {
+            if (!QDir().mkpath(QFileInfo(path).absolutePath()))
+                return QStringLiteral("Cannot create recovery directory");
+            return OtbmReader::writeRecoverySnapshot(snapshot, path);
+        }));
         return;
     }
 }
 
+void DocumentManager::finishRecovery()
+{
+    if (!m_recoveryRunning || !m_recoveryWatcher.isFinished()) return;
+    const QString error = m_recoveryWatcher.result();
+    OtbmReader *doc = m_recoveryDocument.data();
+    const bool current = !m_shuttingDown && doc && m_documentIds.contains(doc)
+        && doc->isLoaded() && doc->isDirty()
+        && m_recoveryEpochs.value(doc) == m_recoveryJobEpoch;
+    const QString path = m_recoveryJobPath;
+    m_recoveryRunning = false;
+    m_recoveryDocument.clear();
+    m_recoveryJobPath.clear();
+    if (current && error.isEmpty()) {
+        const QString previous = m_recoveryPaths.value(doc);
+        m_recoveryPaths[doc] = path;
+        m_lastRecoveryMs[doc] = m_recoveryCapturedAt;
+        m_recoveryRetryAt.remove(doc);
+        writeSession(false);
+        removeRecoveryPath(previous);
+        emit doc->activitySave(true, true);
+        emit autosaveCompleted(QFileInfo(doc->filePath()).fileName());
+    } else {
+        removeRecoveryPath(path);
+        if (current) {
+            m_recoveryRetryAt[doc] = m_clock.elapsed() + 30000;
+            emit doc->activitySave(true, false);
+            emit autosaveFailed(QFileInfo(doc->filePath()).fileName(), error);
+        }
+    }
+    // Continue with other due documents even when the previous one failed.
+    if (!m_closing && !m_shuttingDown)
+        QTimer::singleShot(0, this, &DocumentManager::autosaveDueDocument);
+}
+
 bool DocumentManager::autosaveNow()
 {
-    bool success = true;
-    const qint64 now = QDateTime::currentMSecsSinceEpoch();
-    for (OtbmReader *doc : m_docs) {
-        if (!doc || !doc->isLoaded() || !doc->isDirty()) continue;
-        const QString path = recoveryPath(documentId(doc));
-        QDir().mkpath(QFileInfo(path).absolutePath());
-        if (doc->saveRecoveryFile(path)) m_lastRecoveryMs[doc] = now;
-        else success = false;
-    }
-    writeSession(false);
-    return success;
+    if (m_shuttingDown || m_closing) return false;
+    for (OtbmReader *doc : m_docs)
+        if (doc && doc->isLoaded() && doc->isDirty()) m_forcedRecovery.insert(doc);
+    autosaveDueDocument();
+    // This reports that the request was queued; completion/failure is signalled.
+    return true;
 }
 
 void DocumentManager::discardRecoveries()
 {
     for (const QVariant &value : m_recoveries)
-        removeRecoveryFiles(value.toMap().value(QStringLiteral("id")).toString());
+        removeRecoveryPath(value.toMap().value(QStringLiteral("recoveryPath")).toString());
     m_recoveries.clear();
     emit recoveriesChanged();
     writeSession(false);
@@ -354,6 +425,7 @@ bool DocumentManager::adoptCurrentRecovery(const QString &recoveryId,
     for (int i = 0; i < m_recoveries.size(); ++i) {
         const QVariantMap entry = m_recoveries[i].toMap();
         if (entry.value(QStringLiteral("id")).toString() == recoveryId) {
+            m_recoveryPaths[doc] = entry.value(QStringLiteral("recoveryPath")).toString();
             spawnFile = entry.value(QStringLiteral("spawnFile")).toString();
             houseFile = entry.value(QStringLiteral("houseFile")).toString();
             m_recoveries.removeAt(i);
@@ -361,7 +433,7 @@ bool DocumentManager::adoptCurrentRecovery(const QString &recoveryId,
         }
     }
     doc->adoptRecoveryIdentity(originalPath, spawnFile, houseFile);
-    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    const qint64 now = m_clock.elapsed();
     m_lastEditMs[doc] = now;
     m_lastRecoveryMs[doc] = now;
     emit recoveriesChanged();
@@ -384,8 +456,9 @@ void DocumentManager::markCleanShutdown()
     if (m_shuttingDown) return;
     m_autosaveTimer.stop();
     m_sessionWriteTimer.stop();
+    m_forcedRecovery.clear();
     for (OtbmReader *doc : m_docs)
-        removeRecoveryFiles(m_documentIds.value(doc));
+        clearRecovery(doc);
     // Pending recovery from an earlier crash remains available until the user
     // explicitly restores or discards it. Closing the startup window must not
     // destroy the only copy of an unsaved map.

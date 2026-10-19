@@ -3422,6 +3422,100 @@ bool OtbmReader::saveFile(const QString &path)
     return result;
 }
 
+struct OtbmReader::RecoverySnapshot {
+    QString error;
+    decltype(OtbmReader::m_tiles) tiles;
+    decltype(OtbmReader::m_itemTypes) itemTypes;
+    decltype(OtbmReader::m_towns) towns;
+    decltype(OtbmReader::m_waypoints) waypoints;
+    decltype(OtbmReader::m_houses) houses;
+    decltype(OtbmReader::m_otbmVersion) otbmVersion;
+    decltype(OtbmReader::m_width) width;
+    decltype(OtbmReader::m_height) height;
+    decltype(OtbmReader::m_otbItemsMajor) otbItemsMajor;
+    decltype(OtbmReader::m_otbItemsMinor) otbItemsMinor;
+    decltype(OtbmReader::m_description) description;
+    decltype(OtbmReader::m_spawnFile) spawnFile;
+    decltype(OtbmReader::m_houseFile) houseFile;
+    decltype(OtbmReader::m_descriptionOriginal) descriptionOriginal;
+    decltype(OtbmReader::m_spawnFileOriginal) spawnFileOriginal;
+    decltype(OtbmReader::m_houseFileOriginal) houseFileOriginal;
+    decltype(OtbmReader::m_spawnsXmlLoaded) spawnsXmlLoaded;
+    decltype(OtbmReader::m_housesXmlLoaded) housesXmlLoaded;
+    decltype(OtbmReader::m_spawnsModified) spawnsModified;
+    decltype(OtbmReader::m_housesModified) housesModified;
+    decltype(OtbmReader::m_itemCount) itemCount;
+    decltype(OtbmReader::m_loaded) loaded;
+    decltype(OtbmReader::m_filePath) filePath;
+};
+
+std::shared_ptr<OtbmReader::RecoverySnapshot> OtbmReader::createRecoverySnapshot() const
+{
+    auto snapshot = std::make_shared<RecoverySnapshot>();
+    if (!m_loaded) { snapshot->error = QStringLiteral("No loaded map to save"); return snapshot; }
+    if (!m_spawnsXmlLoaded || !m_housesXmlLoaded) {
+        snapshot->error = QStringLiteral("Cannot create recovery data while a map XML file is unread. Correct the XML file and reload the map first.");
+        return snapshot;
+    }
+    // Item extras and nested containers have deep-copy semantics. No history,
+    // position index or live QObject crosses the worker boundary.
+    snapshot->tiles = m_tiles;
+    snapshot->itemTypes = m_itemTypes;
+    snapshot->towns = m_towns;
+    snapshot->waypoints = m_waypoints;
+    snapshot->houses = m_houses;
+    snapshot->otbmVersion = m_otbmVersion;
+    snapshot->width = m_width;
+    snapshot->height = m_height;
+    snapshot->otbItemsMajor = m_otbItemsMajor;
+    snapshot->otbItemsMinor = m_otbItemsMinor;
+    snapshot->description = m_description;
+    snapshot->spawnFile = m_spawnFile;
+    snapshot->houseFile = m_houseFile;
+    snapshot->descriptionOriginal = m_descriptionOriginal;
+    snapshot->spawnFileOriginal = m_spawnFileOriginal;
+    snapshot->houseFileOriginal = m_houseFileOriginal;
+    snapshot->spawnsXmlLoaded = m_spawnsXmlLoaded;
+    snapshot->housesXmlLoaded = m_housesXmlLoaded;
+    snapshot->spawnsModified = m_spawnsModified;
+    snapshot->housesModified = m_housesModified;
+    snapshot->itemCount = m_itemCount;
+    snapshot->loaded = m_loaded;
+    snapshot->filePath = m_filePath;
+    return snapshot;
+}
+
+QString OtbmReader::writeRecoverySnapshot(std::shared_ptr<RecoverySnapshot> snapshot, const QString &path)
+{
+    if (!snapshot->error.isEmpty()) return snapshot->error;
+    OtbmReader writer;
+    writer.m_tiles = std::move(snapshot->tiles);
+    writer.m_itemTypes = std::move(snapshot->itemTypes);
+    writer.m_towns = std::move(snapshot->towns);
+    writer.m_waypoints = std::move(snapshot->waypoints);
+    writer.m_houses = std::move(snapshot->houses);
+    writer.m_otbmVersion = std::move(snapshot->otbmVersion);
+    writer.m_width = std::move(snapshot->width);
+    writer.m_height = std::move(snapshot->height);
+    writer.m_otbItemsMajor = std::move(snapshot->otbItemsMajor);
+    writer.m_otbItemsMinor = std::move(snapshot->otbItemsMinor);
+    writer.m_description = std::move(snapshot->description);
+    writer.m_spawnFile = std::move(snapshot->spawnFile);
+    writer.m_houseFile = std::move(snapshot->houseFile);
+    writer.m_descriptionOriginal = std::move(snapshot->descriptionOriginal);
+    writer.m_spawnFileOriginal = std::move(snapshot->spawnFileOriginal);
+    writer.m_houseFileOriginal = std::move(snapshot->houseFileOriginal);
+    writer.m_spawnsXmlLoaded = std::move(snapshot->spawnsXmlLoaded);
+    writer.m_housesXmlLoaded = std::move(snapshot->housesXmlLoaded);
+    writer.m_spawnsModified = std::move(snapshot->spawnsModified);
+    writer.m_housesModified = std::move(snapshot->housesModified);
+    writer.m_itemCount = std::move(snapshot->itemCount);
+    writer.m_loaded = std::move(snapshot->loaded);
+    writer.m_filePath = std::move(snapshot->filePath);
+    writer.rebuildPosIndex();
+    return writer.saveRecoveryFile(path) ? QString() : writer.errorString();
+}
+
 bool OtbmReader::saveRecoveryFile(const QString &path)
 {
     if (!m_spawnsXmlLoaded || !m_housesXmlLoaded) {

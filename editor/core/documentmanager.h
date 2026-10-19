@@ -8,6 +8,9 @@
 #include <QVector>
 #include <QHash>
 #include <QTimer>
+#include <QElapsedTimer>
+#include <QFutureWatcher>
+#include <QPointer>
 #include <QtQml/qqmlregistration.h>
 
 class DocumentManager : public QObject
@@ -27,6 +30,7 @@ class DocumentManager : public QObject
 
 public:
     explicit DocumentManager(QObject *parent = nullptr);
+    ~DocumentManager() override;
 
     int count() const { return static_cast<int>(m_docs.size()); }
     int currentIndex() const { return m_current; }
@@ -66,7 +70,11 @@ private:
     void loadPreviousSession();
     void writeSession(bool cleanExit = false);
     void scheduleSessionWrite();
+    friend class DocumentRecoveryTest;
     void autosaveDueDocument();
+    void finishRecovery();
+    void clearRecovery(OtbmReader *doc);
+    static void removeRecoveryPath(const QString &path);
     QString recoveryDirectory() const;
     QString recoveryPath(const QString &id) const;
     void removeRecoveryFiles(const QString &id);
@@ -78,6 +86,19 @@ private:
     QHash<OtbmReader *, qint64> m_lastRecoveryMs;
     QHash<OtbmReader *, QString> m_profileKeys;
     QVariantList m_recoveries;
+    QElapsedTimer m_clock;
+    QFutureWatcher<QString> m_recoveryWatcher;
+    QPointer<OtbmReader> m_recoveryDocument;
+    QHash<OtbmReader *, QString> m_recoveryPaths;
+    QHash<OtbmReader *, quint64> m_recoveryEpochs;
+    QHash<OtbmReader *, qint64> m_recoveryRetryAt;
+    QSet<OtbmReader *> m_forcedRecovery;
+    QString m_recoveryJobPath;
+    quint64 m_recoveryJobEpoch = 0;
+    qint64 m_recoveryCapturedAt = 0;
+    int m_autosaveCursor = 0;
+    bool m_recoveryRunning = false;
+    bool m_closing = false;
     QTimer m_autosaveTimer;
     QTimer m_sessionWriteTimer;
     bool m_autosaveEnabled = true;

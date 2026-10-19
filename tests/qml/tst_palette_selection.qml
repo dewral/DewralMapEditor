@@ -321,6 +321,48 @@ Item {
                     tryCompare(grid, "currentIndex", grid.filterModel.rowForServerId(serverId));
             }
         }
+        function test_drawReplacesPreviousPaletteSelection_data() {
+            const cases = [];
+            for (const theme of ["classic", "windows-classic", "github", "gray-dark", "gray-modern", "fluent-dark"])
+                for (const view of ["grid", "list"])
+                    cases.push({tag: theme + "-" + view, theme, view});
+            return cases;
+        }
+        function test_drawReplacesPreviousPaletteSelection(data) {
+            Backend.uiTheme.style = data.theme;
+            prefs.paletteViewMode = data.view;
+            items.clear();
+            for (let id = 13700; id <= 13740; ++id)
+                items.append({serverId: id, itemName: ""});
+            const panel = createTemporaryObject(panelComponent, testRoot);
+            verify(panel);
+            panel.selectKind("RAW Palette");
+            const itemGrid = findChild(panel, "paletteItemGrid");
+            const view = findChild(itemGrid, "paletteGrid");
+            tryCompare(itemGrid, "count", 41);
+            const targetRow = itemGrid.filterModel.rowForServerId(13717);
+            const previousRow = itemGrid.filterModel.rowForServerId(13722);
+
+            // Stay in RAW Others: no category change or model reset clears the
+            // old selection for us. Exercise both single and multiple selections.
+            for (const multiple of [false, true]) {
+                clickRow(itemGrid, previousRow);
+                if (multiple)
+                    clickRow(itemGrid, previousRow + 1, Qt.ControlModifier);
+                compare(itemGrid.selectedServerIds, multiple ? [13722, 13723] : [13722]);
+
+                // This is the same entry point used by the map's RAW/Draw action.
+                panel.selectRaw(13717);
+                compare(mockMap.brushServerId, 13717);
+                tryCompare(itemGrid, "currentIndex", targetRow);
+                tryVerify(() => view.itemAtIndex(targetRow) !== null);
+                verify(view.itemAtIndex(targetRow).selected,
+                       "Draw must highlight server ID 13717, not the previous palette selection");
+                compare(itemGrid.selectedServerIds, []);
+                if (view.itemAtIndex(previousRow))
+                    verify(!view.itemAtIndex(previousRow).selected);
+            }
+        }
         function test_hideNamedItems_data() {
             return ["classic", "windows-classic", "github", "gray-dark",
                     "gray-modern", "fluent-dark"].map(theme => ({tag: theme, theme}));

@@ -79,6 +79,10 @@ Rectangle {
 
     function showItemLocation(category, tileset, serverId) {
         revealRequested();
+        // A previous palette selection overrides the active brush highlight,
+        // even when navigation stays in the same category and tileset.
+        grid.clearSelection();
+        doodadGrid.clearSelection();
         clearPaletteSearch();
         if (tileset && tileset.length > 0) {
             paletteCol.selectCategoryTileset(category, tileset);

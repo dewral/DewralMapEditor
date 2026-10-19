@@ -102,10 +102,12 @@ Item {
         property int revision: 0
         property var saved: ({Walls: []})
         property var rawNames: ["Others"]
+        property var collectionNames: []
         property var rawOnlyNames: []
         function namesFor(category) {
             return category === "raw" ? rawNames : category === "terrain"
-                ? Object.keys(saved).filter(name => rawOnlyNames.indexOf(name) < 0) : [];
+                ? Object.keys(saved).filter(name => rawOnlyNames.indexOf(name) < 0)
+                : category === "collection" ? collectionNames : [];
         }
         function itemsFor(category, name) {
             if (category === "raw" && name === "Others") {
@@ -135,6 +137,13 @@ Item {
             copy[name] = (copy[name] || []).slice();
             for (const id of ids)
                 if (copy[name].indexOf(id) < 0) copy[name].push(id);
+            saved = copy;
+            ++revision;
+            return true;
+        }
+        function removeItem(category, name, id) {
+            const copy = Object.assign({}, saved);
+            copy[name] = (copy[name] || []).filter(value => value !== id);
             saved = copy;
             ++revision;
             return true;
@@ -192,6 +201,7 @@ Item {
             mockApp.favoriteBrushIds = [];
             tilesets.saved = ({Walls: []});
             tilesets.rawNames = ["Others"];
+            tilesets.collectionNames = [];
             tilesets.rawOnlyNames = [];
             ++tilesets.revision;
             items.clear();
@@ -679,6 +689,24 @@ Item {
             }
             fail("Menu item not found: " + text);
             return null;
+        }
+        function test_collectionNavigationAndRemoval() {
+            tilesets.saved = ({Cave: [500, 503, 506]});
+            tilesets.collectionNames = ["Cave"];
+            ++tilesets.revision;
+            const panel = createTemporaryObject(panelComponent, testRoot);
+            verify(panel);
+            panel.showItemLocation("collection", "Cave", 500);
+            compare(panel.currentKind, "Collection Palette");
+            const itemGrid = findChild(panel, "paletteItemGrid");
+            tryCompare(itemGrid, "count", 3);
+            clickRow(itemGrid, 1, Qt.NoModifier, Qt.RightButton);
+            const menu = findChild(panel, "paletteItemMenu");
+            menuItem(menu, 'Remove from "Cave"').triggered();
+            compare(tilesets.saved.Cave, [500, 506]);
+            tryCompare(itemGrid, "count", 2);
+            compare(items.count, 80, "Collection removal must retain the source catalogue");
+            menu.close();
         }
         function test_bulkFavoritesAndRemoval() {
             const panel = createTemporaryObject(panelComponent, testRoot);

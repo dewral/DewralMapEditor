@@ -11,6 +11,7 @@
 
 #include <QCoreApplication>
 #include <QDebug>
+#include <QDir>
 #include <QFile>
 #include <QTemporaryDir>
 #include <thread>
@@ -182,6 +183,32 @@ int main(int argc, char **argv)
     if (!require(fallbackTilesets.loadForDir(directory.path())
                      && fallbackTilesets.itemsFor("raw", "Others") == QVariantList{1001, 1002},
                  "Saved RAW Others must retain categorized IDs when no item source is attached")) return 1;
+
+    int collectionChanges = 0;
+    QObject::connect(&tilesets, &TilesetStore::tilesetsChanged, [&] { ++collectionChanges; });
+    if (!require(tilesets.newTileset("collection", "  Cave  ", {1001, 1000, 1001, 0, -1})
+                 && tilesets.itemsFor("collection", "Cave") == QVariantList{1001, 1000}
+                 && collectionChanges == 1,
+                 "Collection creation must save unique positive item IDs in one change")) return 1;
+    if (!require(!tilesets.newTileset("collection", "Cave", {1002})
+                 && tilesets.itemsFor("collection", "Cave") == QVariantList{1001, 1000}
+                 && collectionChanges == 1,
+                 "Duplicate collection names must preserve existing items")) return 1;
+    TilesetStore savedCollections;
+    if (!require(savedCollections.loadForDir(directory.path())
+                 && savedCollections.itemsFor("collection", "Cave") == QVariantList{1001, 1000}
+                 && savedCollections.removeItem("collection", "Cave", 1001)
+                 && savedCollections.loadForDir(directory.path())
+                 && savedCollections.itemsFor("collection", "Cave") == QVariantList{1000},
+                 "Collections and individual removals must persist across reloads")) return 1;
+    QTemporaryDir blockedProfile;
+    TilesetStore blockedCollections;
+    blockedCollections.loadForDir(blockedProfile.path());
+    QDir().mkpath(blockedProfile.filePath("tilesets.json"));
+    if (!require(!blockedCollections.newTileset("collection", "Unsaved", {1001})
+                 && blockedCollections.namesFor("collection").isEmpty()
+                 && blockedCollections.itemsFor("collection", "Unsaved").isEmpty(),
+                 "Failed saves must not leave a partial collection")) return 1;
 
     const QString furnitureOtbPath = directory.filePath(QStringLiteral("furniture.otb"));
     OtbReader furnitureOtb;

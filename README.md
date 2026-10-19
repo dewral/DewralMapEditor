@@ -43,6 +43,10 @@ multi-floor Tibia maps.
   zone tools, spawns, creatures, houses, and towns.
 - Supports selection, multi-floor selection, moving items between floors,
   cut/copy/paste, undo/redo, item properties, search, and replacement tools.
+- Select an area, right-click and choose **Create Collection…** to save its
+  distinct ground and item IDs in the **Collection Palette**. Review the item
+  previews and use **×** to exclude entries before saving. To remove a saved
+  entry, right-click it in the collection and choose **Remove from "name"**.
 - Includes an In-game Preview that can float in its own window or dock on either side of the editor. Drag its inner header to an edge, or use Dock left / Dock right / Open in separate window. Dock width is resizable, and the side and width are remembered.
 - Loads maps even when optional house and spawn sidecar files are absent.
 - Offers Fluent Dark, GitHub Dark, gray themes, Windows Classic and the

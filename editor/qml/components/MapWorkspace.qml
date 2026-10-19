@@ -4,6 +4,7 @@ import QtQuick.Controls
 import Tibia 1.0
 import "../style"
 import "../controllers"
+import "../dialogs"
 
 Item {
     id: workspace
@@ -228,6 +229,12 @@ Item {
                 onTriggered: mapView.copySelection()
             }
             Action {
+                objectName: "createCollectionAction"
+                text: "Create Collection..."
+                enabled: mapView.selectionCount > 0
+                onTriggered: collectionDialog.openForSelection()
+            }
+            Action {
                 text: "Add Prefab..."
                 enabled: mapView.selectionCount > 0
                 onTriggered: prefabDialog.openForSelection()
@@ -419,6 +426,14 @@ Item {
                 enabled: mapArea.ctx.hasItem || mapArea.ctx.creatureName !== "" || mapArea.ctx.spawnRadius > 0
                 onTriggered: workspace.propertiesDialog.open()
             }
+        }
+
+        CreateCollectionDialog {
+            id: collectionDialog
+            mapCtrl: mapView
+            tilesetStore: Backend.tilesetStore
+            onCollectionCreated: (name, firstServerId) =>
+                workspace.paletteNavigator.showItemLocation("collection", name, firstServerId)
         }
 
         DmeDialog {

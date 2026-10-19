@@ -296,6 +296,13 @@ DmeMenuBar {
         focus: false
 
         DmeMenuItem { action: hotkeyAction_find_item }
+        Action {
+            id: hotkeyAction_jump_to_item
+            shortcut: menuBar.commandShortcut("jump_to_item")
+            text: "Jump to Item..."
+            enabled: Backend.otbReader.loaded
+            onTriggered: menuBar.findItemDialog.open("Jump to Item")
+        }
         MenuSeparator {}
         Action {
             id: hotkeyAction_find_unique_ids

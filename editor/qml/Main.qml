@@ -1127,8 +1127,9 @@ DmeWindow {
 
     QtObject {
         id: findItemDialog
-        function open() {
+        function open(windowTitle) {
             findItemLoader.active = true;
+            findItemLoader.item.title = windowTitle || "Search for Item";
             findItemLoader.item["open"]();
         }
     }

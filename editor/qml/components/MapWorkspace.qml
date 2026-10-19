@@ -321,14 +321,14 @@ Item {
             MenuSeparator {}
             DmeMenuItem {
                 objectName: "selectGroundBrush"
-                text: "Select Groundbrush"
+                text: "Select Ground Brush"
                 visible: !!mapArea.brushOptions.ground
                 height: visible ? implicitHeight : 0
                 onTriggered: workspace.paletteNavigator.selectContextBrush(mapArea.brushOptions.ground)
             }
             DmeMenuItem {
                 objectName: "selectWallBrush"
-                text: "Select Wallbrush"
+                text: "Select Wall Brush"
                 visible: !!mapArea.brushOptions.wall
                 height: visible ? implicitHeight : 0
                 onTriggered: workspace.paletteNavigator.selectContextBrush(mapArea.brushOptions.wall)

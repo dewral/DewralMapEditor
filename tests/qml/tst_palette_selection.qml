@@ -5,6 +5,7 @@ import Tibia 1.0
 import "../../editor/qml" as Editor
 import "../../editor/qml/components" as Components
 import "../../editor/qml/controllers" as Controllers
+import "../../editor/qml/controllers/ContextBrushes.js" as ContextBrushes
 
 Item {
     id: testRoot
@@ -102,7 +103,12 @@ Item {
         property var saved: ({Walls: []})
         property var rawNames: ["Others"]
         property var collectionNames: []
-        function namesFor(category) { return category === "raw" ? rawNames : category === "terrain" ? Object.keys(saved) : category === "collection" ? collectionNames : []; }
+        property var rawOnlyNames: []
+        function namesFor(category) {
+            return category === "raw" ? rawNames : category === "terrain"
+                ? Object.keys(saved).filter(name => rawOnlyNames.indexOf(name) < 0)
+                : category === "collection" ? collectionNames : [];
+        }
         function itemsFor(category, name) {
             if (category === "raw" && name === "Others") {
                 const namedIds = rawNames.filter(n => n !== "Others")
@@ -196,6 +202,7 @@ Item {
             tilesets.saved = ({Walls: []});
             tilesets.rawNames = ["Others"];
             tilesets.collectionNames = [];
+            tilesets.rawOnlyNames = [];
             ++tilesets.revision;
             items.clear();
             // IDs are deliberately nonconsecutive: ranges follow displayed rows.
@@ -569,6 +576,30 @@ Item {
             panel.selectContextBrush({kind: "wall", name: "removed", serverId: 509,
                                       displayedServerId: 500, category: "terrain", tileset: "Walls"});
             compare(mockMap.brushServerId, 506);
+        }
+        function test_contextBrushActivatesUnlistedWall_data() {
+            return [{tag: "named-raw-tileset", named: true}, {tag: "raw-others", named: false}];
+        }
+        function test_contextBrushActivatesUnlistedWall(data) {
+            tilesets.saved = ({Walls: [], Architecture: data.named ? [506] : [500]});
+            tilesets.rawNames = ["Architecture", "Others"];
+            tilesets.rawOnlyNames = ["Architecture"];
+            ++tilesets.revision;
+            const panel = createTemporaryObject(panelComponent, testRoot);
+            verify(panel);
+            const option = ContextBrushes.options({singleTile: true,
+                brushes: {wall: {kind: "wall", name: "stone", serverId: 506}}},
+                mockMap, tilesets, Backend.brushStore).wall;
+            verify(option);
+            mockMap.selectionMode = true;
+            panel.selectContextBrush(option);
+            tryCompare(panel, "currentKind", "RAW Palette");
+            const grid = findChild(panel, "paletteItemGrid");
+            tryVerify(() => grid.filterModel.rowForServerId(506) >= 0
+                      && grid.currentIndex === grid.filterModel.rowForServerId(506));
+            compare(mockMap.selectedBrushKind, "wall");
+            compare(mockMap.brushServerId, 506);
+            verify(!mockMap.selectionMode);
         }
         function test_reselectSpawnLeavesSelectionMode() {
             const panel = createTemporaryObject(panelComponent, testRoot);

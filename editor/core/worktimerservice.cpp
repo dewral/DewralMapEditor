@@ -10,6 +10,9 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QMap>
+#include <QImageReader>
+#include <QImageWriter>
+#include <QSet>
 #include <QSaveFile>
 #include <QSettings>
 #include <QStandardPaths>
@@ -22,9 +25,12 @@ constexpr auto kOperations = "operations";
 constexpr auto kTiles = "changedTiles";
 }
 
-WorkTimerService::WorkTimerService(DocumentManager *documents, QObject *parent)
-    : QObject(parent), m_documents(documents)
+WorkTimerService::WorkTimerService(DocumentManager *documents, QObject *parent, const QString &storageDirectory, const Clock &clock)
+    : QObject(parent), m_documents(documents), m_storageDirectory(storageDirectory)
 {
+    m_clock.start();
+    m_elapsedNow = clock.elapsed ? clock.elapsed : [this] { return m_clock.elapsed(); };
+    m_utcNow = clock.utc ? clock.utc : [] { return QDateTime::currentMSecsSinceEpoch(); };
     QSettings settings;
     m_idlePauseMinutes = settings.value(QStringLiteral("workTimer/idlePauseMinutes"), 15).toInt();
     m_breakReminderMinutes = settings.value(QStringLiteral("workTimer/breakReminderMinutes"), 60).toInt();
@@ -40,7 +46,7 @@ WorkTimerService::WorkTimerService(DocumentManager *documents, QObject *parent)
         QCoreApplication::instance()->installEventFilter(this);
     connect(m_documents, &DocumentManager::currentChanged, this, [this] {
         if (running() && currentMapKey() != m_active.value(QStringLiteral("mapKey")).toString())
-            pauseAt(QDateTime::currentMSecsSinceEpoch(), QStringLiteral("Session paused because the active map changed."));
+            pauseAt(m_elapsedNow(), QStringLiteral("Session paused because the active map changed."));
         emit statisticsChanged();
     });
 }
@@ -50,7 +56,7 @@ WorkTimerService::~WorkTimerService()
     if (QCoreApplication::instance())
         QCoreApplication::instance()->removeEventFilter(this);
     if (running())
-        pauseAt(QDateTime::currentMSecsSinceEpoch());
+        pauseAt(m_elapsedNow());
     save();
 }
 
@@ -58,7 +64,7 @@ qint64 WorkTimerService::elapsedSeconds() const
 {
     qint64 value = m_accumulatedMs;
     if (running())
-        value += qMax<qint64>(0, QDateTime::currentMSecsSinceEpoch() - m_resumeMs);
+        value += qMax<qint64>(0, m_elapsedNow() - m_resumeMs);
     return value / 1000;
 }
 
@@ -146,6 +152,7 @@ QVariantList WorkTimerService::taskTimers() const
                      formatDuration(timer.value(QStringLiteral("durationSeconds")).toInteger()));
         timer.insert(QStringLiteral("active"), active() && it.key() == taskName());
         timer.insert(QStringLiteral("running"), running() && it.key() == taskName());
+        timer.insert(QStringLiteral("icon"), taskIconFor(it.key()));
         result.push_back(timer.toVariantMap());
     }
     return result;
@@ -154,6 +161,7 @@ QVariantList WorkTimerService::taskTimers() const
 QJsonObject WorkTimerService::sessionView(const QJsonObject &session) const
 {
     QJsonObject value = session;
+    value.insert(QStringLiteral("icon"), taskIconFor(session.value(QStringLiteral("task")).toString()));
     value.insert(QStringLiteral("durationSeconds"), session.value(QLatin1String(kDuration)).toInteger() / 1000);
     value.insert(QStringLiteral("durationText"), formatDuration(session.value(QLatin1String(kDuration)).toInteger() / 1000));
     return value;
@@ -161,7 +169,7 @@ QJsonObject WorkTimerService::sessionView(const QJsonObject &session) const
 
 qint64 WorkTimerService::statisticsSeconds(const QString &scope) const
 {
-    const QDate today = QDate::currentDate();
+    const QDate today = QDateTime::fromMSecsSinceEpoch(m_utcNow()).date();
     const QDate weekStart = today.addDays(1 - today.dayOfWeek());
     const QString mapKey = currentMapKey();
     const QDate rangeStartDate = scope == QStringLiteral("week") ? weekStart : today;
@@ -184,8 +192,8 @@ qint64 WorkTimerService::statisticsSeconds(const QString &scope) const
             value += qMax<qint64>(0, qMin(end, rangeEnd) - qMax(start, rangeStart));
         }
         if (includeRunning && running())
-            value += qMax<qint64>(0, qMin(QDateTime::currentMSecsSinceEpoch(), rangeEnd)
-                                      - qMax(m_resumeMs, rangeStart));
+            value += qMax<qint64>(0, qMin(m_resumeUtcMs + qMax<qint64>(0, m_elapsedNow() - m_resumeMs), rangeEnd)
+                                      - qMax(m_resumeUtcMs, rangeStart));
         if (segments.isEmpty() && (!includeRunning || !running())) {
             const QDate date = QDateTime::fromString(
                 session.value(QStringLiteral("startedAt")).toString(),
@@ -223,7 +231,7 @@ QString WorkTimerService::currentMapText() const { return formatDuration(statist
 int WorkTimerService::pomodoroBreakRemaining() const
 {
     if (!m_pomodoroBreakActive) return 0;
-    return static_cast<int>(qMax<qint64>(0, m_pomodoroBreakEndMs - QDateTime::currentMSecsSinceEpoch()) / 1000);
+    return static_cast<int>(qMax<qint64>(0, m_pomodoroBreakEndMs - m_elapsedNow()) / 1000);
 }
 
 void WorkTimerService::setIdlePauseMinutes(int value)
@@ -286,14 +294,15 @@ bool WorkTimerService::startSession(const QString &task)
     if (active()) return fail(QStringLiteral("Finish the current session first."));
     OtbmReader *map = m_documents->current();
     if (!map || !map->isLoaded()) return fail(QStringLiteral("Open a map before starting a session."));
-    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    const qint64 now = m_elapsedNow();
     m_active = QJsonObject{{QStringLiteral("id"), QUuid::createUuid().toString(QUuid::WithoutBraces)},
         {QStringLiteral("task"), task.trimmed().isEmpty() ? QStringLiteral("Mapping session") : task.trimmed()},
         {QStringLiteral("mapKey"), currentMapKey()}, {QStringLiteral("mapName"), currentMapNameValue()},
         {QStringLiteral("mapPath"), map->filePath()}, {QStringLiteral("profile"), m_documents->currentProfileKey()},
-        {QStringLiteral("startedAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs)},
+        {QStringLiteral("startedAt"), QDateTime::fromMSecsSinceEpoch(m_utcNow(), QTimeZone::UTC).toString(Qt::ISODateWithMs)},
         {QStringLiteral("note"), QString()}};
     m_accumulatedMs = 0; m_resumeMs = now; m_lastActivityMs = now;
+    m_resumeUtcMs = m_utcNow();
     m_sessionOperations = 0; m_sessionTiles = 0;
     m_state = QStringLiteral("running");
     resetMetricBaseline();
@@ -338,10 +347,10 @@ void WorkTimerService::pauseAt(qint64 timestampMs, const QString &reason)
     QJsonArray segments = m_active.value(QStringLiteral("segments")).toArray();
     segments.append(QJsonObject{
         {QStringLiteral("startedAt"),
-         QDateTime::fromMSecsSinceEpoch(m_resumeMs, QTimeZone::UTC)
+         QDateTime::fromMSecsSinceEpoch(m_resumeUtcMs, QTimeZone::UTC)
              .toString(Qt::ISODateWithMs)},
         {QStringLiteral("endedAt"),
-         QDateTime::fromMSecsSinceEpoch(timestampMs, QTimeZone::UTC)
+         QDateTime::fromMSecsSinceEpoch(m_resumeUtcMs + qMax<qint64>(0, timestampMs - m_resumeMs), QTimeZone::UTC)
              .toString(Qt::ISODateWithMs)}});
     m_active.insert(QStringLiteral("segments"), segments);
     m_accumulatedMs += qMax<qint64>(0, timestampMs - m_resumeMs);
@@ -352,7 +361,7 @@ void WorkTimerService::pauseAt(qint64 timestampMs, const QString &reason)
     if (!reason.isEmpty()) emit reminderRequested(reason);
 }
 
-void WorkTimerService::pauseSession() { pauseAt(QDateTime::currentMSecsSinceEpoch()); }
+void WorkTimerService::pauseSession() { pauseAt(m_elapsedNow()); }
 
 bool WorkTimerService::resumeSession()
 {
@@ -360,7 +369,8 @@ bool WorkTimerService::resumeSession()
     if (m_state != QStringLiteral("paused")) return false;
     if (currentMapKey() != m_active.value(QStringLiteral("mapKey")).toString())
         return fail(QStringLiteral("Switch back to the session map before resuming."));
-    m_resumeMs = QDateTime::currentMSecsSinceEpoch();
+    m_resumeMs = m_elapsedNow();
+    m_resumeUtcMs = m_utcNow();
     m_lastActivityMs = m_resumeMs;
     m_state = QStringLiteral("running");
     resetMetricBaseline();
@@ -373,11 +383,11 @@ bool WorkTimerService::finishSession(const QString &note)
 {
     clearError();
     if (!active()) return false;
-    if (running()) pauseAt(QDateTime::currentMSecsSinceEpoch());
+    if (running()) pauseAt(m_elapsedNow());
     m_active.insert(QLatin1String(kDuration), m_accumulatedMs);
     m_active.insert(QLatin1String(kOperations), m_sessionOperations);
     m_active.insert(QLatin1String(kTiles), m_sessionTiles);
-    m_active.insert(QStringLiteral("endedAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+    m_active.insert(QStringLiteral("endedAt"), QDateTime::fromMSecsSinceEpoch(m_utcNow(), QTimeZone::UTC).toString(Qt::ISODateWithMs));
     m_active.insert(QStringLiteral("note"), note.trimmed());
     m_sessions.push_back(m_active);
     if (m_checkpointEnabled) m_documents->autosaveNow();
@@ -433,7 +443,9 @@ bool WorkTimerService::removeTaskTimer(const QString &task)
     }
     if (removed == 0 && !removedActive) return false;
 
+    const QString oldIcon = m_taskIcons.take(normalized).toString();
     save();
+    discardUnusedTaskIcon(oldIcon);
     emit historyChanged();
     emit timerChanged();
     emit statisticsChanged();
@@ -442,8 +454,9 @@ bool WorkTimerService::removeTaskTimer(const QString &task)
 
 QString WorkTimerService::storagePath() const
 {
-    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
-        + QStringLiteral("/work-timer.json");
+    const QString directory = m_storageDirectory.isEmpty()
+        ? QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) : m_storageDirectory;
+    return QDir(directory).filePath(QStringLiteral("work-timer.json"));
 }
 
 void WorkTimerService::load()
@@ -454,6 +467,7 @@ void WorkTimerService::load()
     if (!document.isObject()) return;
     for (const QJsonValue &value : document.object().value(QStringLiteral("sessions")).toArray())
         if (value.isObject()) m_sessions.push_back(value.toObject());
+    m_taskIcons = document.object().value(QStringLiteral("taskIcons")).toObject();
     const QJsonObject activeSession = document.object().value(QStringLiteral("active")).toObject();
     if (!activeSession.isEmpty()) {
         m_active = activeSession;
@@ -469,7 +483,8 @@ bool WorkTimerService::save()
     QDir().mkpath(QFileInfo(storagePath()).absolutePath());
     QJsonArray sessions;
     for (const QJsonObject &session : m_sessions) sessions.push_back(session);
-    QJsonObject root{{QStringLiteral("schemaVersion"), 1}, {QStringLiteral("sessions"), sessions}};
+    QJsonObject root{{QStringLiteral("schemaVersion"), 1}, {QStringLiteral("sessions"), sessions},
+                     {QStringLiteral("taskIcons"), m_taskIcons}};
     if (active()) {
         QJsonObject activeSession = m_active;
         activeSession.insert(QLatin1String(kDuration), elapsedSeconds() * 1000);
@@ -485,7 +500,7 @@ bool WorkTimerService::save()
 
 void WorkTimerService::tick()
 {
-    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    const qint64 now = m_elapsedNow();
     if (running()) {
         const qint64 elapsedMs = m_accumulatedMs + now - m_resumeMs;
         if (m_idlePauseMinutes > 0 && now - m_lastActivityMs >= m_idlePauseMinutes * 60000LL) {
@@ -521,7 +536,7 @@ bool WorkTimerService::eventFilter(QObject *watched, QEvent *event)
     switch (event->type()) {
     case QEvent::KeyPress: case QEvent::MouseButtonPress: case QEvent::MouseMove:
     case QEvent::Wheel: case QEvent::TouchBegin: case QEvent::TabletMove:
-        if (running()) m_lastActivityMs = QDateTime::currentMSecsSinceEpoch();
+        if (running()) m_lastActivityMs = m_elapsedNow();
         break;
     default: break;
     }
@@ -589,4 +604,84 @@ void WorkTimerService::clearError()
 bool WorkTimerService::fail(const QString &message)
 {
     m_errorString = message; emit errorChanged(); return false;
+}
+
+QString WorkTimerService::taskIconFor(const QString &task) const
+{
+    return m_taskIcons.value(task.trimmed()).toString(QStringLiteral("mapping"));
+}
+
+bool WorkTimerService::hasTask(const QString &task) const
+{
+    if (active() && taskName() == task) return true;
+    for (const auto &session : m_sessions)
+        if (session.value(QStringLiteral("task")).toString() == task) return true;
+    return false;
+}
+
+bool WorkTimerService::setTaskIcon(const QString &task, const QString &icon)
+{
+    clearError();
+    static const QSet<QString> presets{QStringLiteral("mapping"), QStringLiteral("mine"),
+        QStringLiteral("town"), QStringLiteral("nature"), QStringLiteral("dungeon"),
+        QStringLiteral("creatures"), QStringLiteral("items"), QStringLiteral("details")};
+    if (!presets.contains(icon)) return fail(QStringLiteral("Choose a task icon from the list."));
+    return storeTaskIcon(task.trimmed(), icon);
+}
+
+bool WorkTimerService::storeTaskIcon(const QString &task, const QString &icon)
+{
+    if (!hasTask(task)) return fail(QStringLiteral("The task no longer exists."));
+    const QJsonObject previous = m_taskIcons;
+    const QString oldIcon = m_taskIcons.value(task).toString();
+    m_taskIcons.insert(task, icon);
+    if (!save()) {
+        m_taskIcons = previous;
+        return fail(QStringLiteral("Could not save the task icon."));
+    }
+    discardUnusedTaskIcon(oldIcon);
+    emit timerChanged();
+    emit historyChanged();
+    return true;
+}
+
+void WorkTimerService::discardUnusedTaskIcon(const QString &icon)
+{
+    const QUrl url(icon);
+    if (!url.isLocalFile()) return;
+    for (auto it = m_taskIcons.constBegin(); it != m_taskIcons.constEnd(); ++it)
+        if (it.value().toString() == icon) return;
+    const QFileInfo file(url.toLocalFile());
+    const QString iconDir = QFileInfo(storagePath()).absolutePath() + QStringLiteral("/work-timer-icons");
+    if (file.absolutePath() == QDir(iconDir).absolutePath() && file.suffix() == QLatin1String("png"))
+        QFile::remove(file.absoluteFilePath());
+}
+
+bool WorkTimerService::importTaskIcon(const QString &task, const QUrl &fileUrl)
+{
+    clearError();
+    const QString normalized = task.trimmed();
+    if (!hasTask(normalized)) return fail(QStringLiteral("The task no longer exists."));
+    if (!fileUrl.isLocalFile()) return fail(QStringLiteral("Choose an image from your computer."));
+    QImageReader reader(fileUrl.toLocalFile());
+    reader.setAutoTransform(true);
+    const QSize size = reader.size();
+    if (!size.isValid() || qint64(size.width()) * size.height() > 64000000)
+        return fail(QStringLiteral("Choose a valid image smaller than 64 megapixels."));
+    if (size.width() > 128 || size.height() > 128)
+        reader.setScaledSize(size.scaled(128, 128, Qt::KeepAspectRatio));
+    const QImage image = reader.read();
+    if (image.isNull()) return fail(QStringLiteral("Could not read this image. Choose a PNG, JPG, WEBP or SVG file."));
+    const QString directory = QFileInfo(storagePath()).absolutePath() + QStringLiteral("/work-timer-icons");
+    if (!QDir().mkpath(directory)) return fail(QStringLiteral("Could not create the task icons folder."));
+    const QString path = QDir(directory).filePath(QUuid::createUuid().toString(QUuid::WithoutBraces) + QStringLiteral(".png"));
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) return fail(QStringLiteral("Could not save the task image."));
+    QImageWriter writer(&file, "png");
+    if (!writer.write(image) || !file.commit()) return fail(QStringLiteral("Could not save the task image."));
+    if (!storeTaskIcon(normalized, QUrl::fromLocalFile(path).toString())) {
+        QFile::remove(path);
+        return false;
+    }
+    return true;
 }

@@ -1,5 +1,10 @@
 <RCC>
     <qresource prefix="/">
+        <file alias="qml/components/TaskIcon.qml">qml/components/TaskIcon.qml</file>
+        <file alias="qml/components/TaskIconPicker.qml">qml/components/TaskIconPicker.qml</file>
+        <file alias="qml/components/WorkTimerTaskPanel.qml">qml/components/WorkTimerTaskPanel.qml</file>
+        <file alias="qml/themes/fluent/icons/task-mine.svg">qml/themes/fluent/icons/task-mine.svg</file>
+
         <file alias="qml/components/WorkActivityPanel.qml">qml/components/WorkActivityPanel.qml</file>
         <file alias="qml/components/OverlayEntryModel.qml">qml/components/OverlayEntryModel.qml</file>
         <file alias="qml/components/PaletteCellMotion.qml">qml/components/PaletteCellMotion.qml</file>

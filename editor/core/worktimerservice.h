@@ -2,6 +2,8 @@
 #define WORKTIMERSERVICE_H
 
 #include <QDateTime>
+#include <QElapsedTimer>
+#include <functional>
 #include <QJsonObject>
 #include <QObject>
 #include <QTimer>
@@ -19,6 +21,7 @@ class WorkTimerService final : public QObject
     Q_PROPERTY(bool active READ active NOTIFY timerChanged)
     Q_PROPERTY(bool running READ running NOTIFY timerChanged)
     Q_PROPERTY(QString taskName READ taskName NOTIFY timerChanged)
+    Q_PROPERTY(QString taskIcon READ taskIcon NOTIFY timerChanged)
     Q_PROPERTY(QString mapName READ mapName NOTIFY timerChanged)
     Q_PROPERTY(QString elapsedText READ elapsedText NOTIFY timerChanged)
     Q_PROPERTY(qint64 elapsedSeconds READ elapsedSeconds NOTIFY timerChanged)
@@ -43,13 +46,19 @@ class WorkTimerService final : public QObject
     Q_PROPERTY(QString errorString READ errorString NOTIFY errorChanged)
 
 public:
-    explicit WorkTimerService(DocumentManager *documents, QObject *parent = nullptr);
+    struct Clock {
+        std::function<qint64()> elapsed;
+        std::function<qint64()> utc;
+    };
+    explicit WorkTimerService(DocumentManager *documents, QObject *parent = nullptr,
+                              const QString &storageDirectory = {}, const Clock &clock = {});
     ~WorkTimerService() override;
 
     QString state() const { return m_state; }
     bool active() const { return m_state != QStringLiteral("stopped"); }
     bool running() const { return m_state == QStringLiteral("running"); }
     QString taskName() const { return m_active.value(QStringLiteral("task")).toString(); }
+    QString taskIcon() const { return taskIconFor(taskName()); }
     QString mapName() const { return m_active.value(QStringLiteral("mapName")).toString(); }
     qint64 elapsedSeconds() const;
     QString elapsedText() const;
@@ -88,6 +97,9 @@ public:
     Q_INVOKABLE bool updateSession(const QString &id, const QString &task,
                                    const QString &note, qint64 durationSeconds);
     Q_INVOKABLE bool removeSession(const QString &id);
+    Q_INVOKABLE QString taskIconFor(const QString &task) const;
+    Q_INVOKABLE bool setTaskIcon(const QString &task, const QString &icon);
+    Q_INVOKABLE bool importTaskIcon(const QString &task, const QUrl &fileUrl);
     Q_INVOKABLE bool removeTaskTimer(const QString &task);
     Q_INVOKABLE bool exportCsv(const QUrl &fileUrl);
     Q_INVOKABLE bool exportJson(const QUrl &fileUrl);
@@ -105,7 +117,11 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
+    friend class WorkTimerServiceTest;
     QString storagePath() const;
+    bool hasTask(const QString &task) const;
+    bool storeTaskIcon(const QString &task, const QString &icon);
+    void discardUnusedTaskIcon(const QString &icon);
     void load();
     bool save();
     void tick();
@@ -125,8 +141,14 @@ private:
     QTimer m_timer;
     QList<QJsonObject> m_sessions;
     QJsonObject m_active;
+    QJsonObject m_taskIcons;
     QString m_state = QStringLiteral("stopped");
     QString m_errorString;
+    QString m_storageDirectory;
+    QElapsedTimer m_clock;
+    std::function<qint64()> m_elapsedNow;
+    std::function<qint64()> m_utcNow;
+    qint64 m_resumeUtcMs = 0;
     qint64 m_accumulatedMs = 0;
     qint64 m_resumeMs = 0;
     qint64 m_lastActivityMs = 0;

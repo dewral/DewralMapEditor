@@ -558,15 +558,23 @@ if(BUILD_TESTING)
     add_executable(activity_service_test EXCLUDE_FROM_ALL tests/activity_service_test.cpp editor/core/activityservice.cpp editor/core/documentmanager.cpp)
     target_include_directories(activity_service_test PRIVATE editor/core libs/otformats)
     target_link_libraries(activity_service_test PRIVATE OTFormats Qt6::Core Qt6::Network Qt6::Sql Qt6::Qml)
+    target_link_libraries(activity_service_test PRIVATE Qt6::Concurrent)
     add_test(NAME activity_service COMMAND activity_service_test)
     set_tests_properties(activity_service PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>" TIMEOUT 30)
 
+    add_executable(work_timer_test EXCLUDE_FROM_ALL
+        tests/work_timer_test.cpp editor/core/worktimerservice.cpp editor/core/documentmanager.cpp)
+    target_include_directories(work_timer_test PRIVATE libs/otformats editor/core)
+    target_link_libraries(work_timer_test PRIVATE OTFormats Qt6::Core Qt6::Gui)
+    target_link_libraries(work_timer_test PRIVATE Qt6::Concurrent)
+    add_test(NAME work_timer COMMAND work_timer_test)
     add_executable(document_recovery_test EXCLUDE_FROM_ALL
         tests/document_recovery_test.cpp
         editor/core/documentmanager.cpp)
     target_include_directories(document_recovery_test PRIVATE
         libs/otformats editor/core)
     target_link_libraries(document_recovery_test PRIVATE OTFormats Qt6::Core)
+    target_link_libraries(document_recovery_test PRIVATE Qt6::Concurrent)
     add_test(NAME document_recovery COMMAND document_recovery_test)
     add_executable(creature_store_test EXCLUDE_FROM_ALL
         tests/creature_store_test.cpp

@@ -558,10 +558,11 @@ if(BUILD_TESTING)
         $<$<CXX_COMPILER_ID:MSVC>:/MP4>)
     add_test(NAME map_creature_refresh COMMAND map_creature_refresh_test)
     add_test(NAME map_view_position COMMAND map_creature_refresh_test --view-position-only)
-    set_tests_properties(map_creature_refresh map_view_position PROPERTIES
+    add_test(NAME map_item_locations COMMAND map_creature_refresh_test --item-locations-only)
+    set_tests_properties(map_creature_refresh map_view_position map_item_locations PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=minimal" TIMEOUT 30)
     if(WIN32)
-        set_tests_properties(map_creature_refresh map_view_position PROPERTIES ENVIRONMENT
+        set_tests_properties(map_creature_refresh map_view_position map_item_locations PROPERTIES ENVIRONMENT
             "QT_QPA_PLATFORM=minimal;QT_QPA_PLATFORM_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::QWindowsIntegrationPlugin>")
     endif()
     add_executable(activity_service_test EXCLUDE_FROM_ALL tests/activity_service_test.cpp editor/core/activityservice.cpp editor/core/documentmanager.cpp)
@@ -603,7 +604,7 @@ if(BUILD_TESTING)
                              otbm_background_load atlas_background_build map_path_builder
                              map_terrain_generator map_terrain_profile map_dungeon_generator
                              map_ground_cluster_generator map_selection_rotation
-                             document_recovery creature_store map_creature_refresh map_view_position update_version
+                             document_recovery creature_store map_creature_refresh map_view_position map_item_locations update_version
                              brushstore_advanced brushstore_border_variants
                              palette_visibility hotkey_settings lua_script_engine PROPERTIES
             ENVIRONMENT_MODIFICATION

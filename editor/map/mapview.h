@@ -600,8 +600,10 @@ public:
     Q_INVOKABLE bool rotateContextItem();
     Q_INVOKABLE bool switchContextDoor();
     Q_INVOKABLE QVariantMap searchItems(const QString &type, bool selectionOnly) const;
+    Q_INVOKABLE QVariantMap findItemLocations(int itemId, bool clientId) const;
     Q_INVOKABLE QVariantMap analyzeMap() const;
     Q_INVOKABLE bool startItemSearch(const QString &type, bool selectionOnly);
+    Q_INVOKABLE bool startItemLocationSearch(int itemId, bool clientId);
     Q_INVOKABLE bool startMapAnalysis();
     Q_INVOKABLE void cancelMapQuery();
     Q_INVOKABLE QVariantList mapOverlayData(bool includeTooltips,
@@ -774,6 +776,7 @@ signals:
     void queryBusyChanged();
     void queryProgressChanged();
     void itemSearchFinished(const QVariantMap &result);
+    void itemLocationSearchFinished(const QVariantMap &result);
     void mapAnalysisFinished(const QVariantMap &result);
     void operationWarning(const QString &message);
 
@@ -815,6 +818,8 @@ private:
     using QuadRef = MapQuadRef;
 
     void buildStaticIndex();
+    QVariantMap queryItems(const QString &type, bool selectionOnly,
+                          int itemId, int resultLimit) const;
     void updateCurrentFloor();
     void rebuildFloorIndex();
     void resetAtlas();

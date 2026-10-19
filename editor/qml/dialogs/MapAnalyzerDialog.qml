@@ -14,6 +14,14 @@ DmeDialog {
     property var problems: []
     property var floors: []
     property bool loading: false
+    property bool searchingLocations: false
+    property bool locationsSearched: false
+    property var locations: []
+    property int locationTotal: 0
+    readonly property bool validItemId: /^[0-9]+$/.test(itemIdField.text.trim())
+                                        && Number(itemIdField.text) > 0
+                                        && Number(itemIdField.text) <= 65535
+    readonly property var displayedUsage: locationsSearched ? locations : usage
     property int problemPositionIndex: 0
     readonly property bool githubUi: Backend.uiTheme.style !== "classic"
                                      && Backend.uiTheme.style !== "windows-classic"
@@ -25,7 +33,45 @@ DmeDialog {
     dim: false
 
     function runAnalysis() {
+        if (mapCtrl.queryBusy)
+            return;
+        searchingLocations = false;
+        clearLocationSearch();
         loading = mapCtrl.startMapAnalysis();
+    }
+
+    function clearLocationSearch() {
+        locationsSearched = false;
+        locations = [];
+        locationTotal = 0;
+        if (usageList)
+            usageList.currentIndex = -1;
+    }
+
+    function runLocationSearch() {
+        if (!validItemId || mapCtrl.queryBusy)
+            return;
+        if (!mapCtrl.startItemLocationSearch(Number(itemIdField.text), idType.currentIndex === 1))
+            return;
+        clearLocationSearch();
+        locationsSearched = true;
+        searchingLocations = true;
+        loading = true;
+    }
+
+    function applyLocations(value) {
+        if (!searchingLocations)
+            return;
+        loading = false;
+        searchingLocations = false;
+        if (value.cancelled === true) {
+            clearLocationSearch();
+            return;
+        }
+        locations = value.results || [];
+        locationTotal = value.total || 0;
+        usageList.currentIndex = -1;
+        usageList.positionViewAtBeginning();
     }
 
     function applyReport(value) {
@@ -65,6 +111,7 @@ DmeDialog {
     Connections {
         target: dialog.mapCtrl
         function onMapAnalysisFinished(value) { dialog.applyReport(value); }
+        function onItemLocationSearchFinished(value) { dialog.applyLocations(value); }
     }
 
     onOpened: runAnalysis()
@@ -84,6 +131,7 @@ DmeDialog {
                     width: 130
                     height: 32
                     checked: dialog.page === index
+                    objectName: "mapAnalyzerTab_" + index
                     onClicked: dialog.page = index
                 }
             }
@@ -91,8 +139,68 @@ DmeDialog {
 
         Text {
             visible: dialog.loading
-            text: "Analyzing map... " + dialog.mapCtrl.queryProgress + "%"
+            text: (dialog.searchingLocations ? "Searching map... " : "Analyzing map... ")
+                  + dialog.mapCtrl.queryProgress + "%"
             color: "#e3b341"
+            font.pixelSize: 11
+        }
+
+        Row {
+            visible: dialog.page === 1
+            width: parent.width
+            spacing: 8
+
+            DmeComboBox {
+                id: idType
+                objectName: "mapAnalyzerIdType"
+                width: 120
+                height: 30
+                model: ["Server ID", "Client ID"]
+                currentIndex: 0
+                enabled: !dialog.loading
+                onCurrentIndexChanged: dialog.clearLocationSearch()
+            }
+            DmeTextField {
+                id: itemIdField
+                objectName: "mapAnalyzerItemId"
+                width: 145
+                height: 30
+                placeholderText: "Enter item ID"
+                enabled: !dialog.loading
+                onTextChanged: dialog.clearLocationSearch()
+                onAccepted: dialog.runLocationSearch()
+            }
+            DmeButton {
+                objectName: "mapAnalyzerSearch"
+                text: "Search Map"
+                width: 110
+                height: 30
+                enabled: dialog.validItemId && !dialog.loading && !dialog.mapCtrl.queryBusy
+                variant: "primary"
+                onClicked: dialog.runLocationSearch()
+            }
+            DmeButton {
+                objectName: "mapAnalyzerClearSearch"
+                text: "Clear"
+                width: 70
+                height: 30
+                enabled: !dialog.loading && (dialog.locationsSearched || itemIdField.text.length > 0)
+                onClicked: {
+                    itemIdField.text = "";
+                    dialog.clearLocationSearch();
+                }
+            }
+        }
+
+        Text {
+            objectName: "mapAnalyzerLocationSummary"
+            visible: dialog.page === 1 && !dialog.loading
+            text: dialog.locationsSearched
+                  ? (dialog.locationTotal === 0 ? "No matching items found."
+                     : "Showing " + dialog.locations.length + " of " + dialog.locationTotal
+                       + " matching items (up to 500). Double-click a result to go to its position.")
+                  : "Search the entire map by ID, including items inside containers."
+            color: "#8b949e"
             font.pixelSize: 11
         }
 
@@ -159,19 +267,21 @@ DmeDialog {
 
             ListView {
                 id: usageList
+                objectName: "mapAnalyzerUsageList"
                 anchors.fill: parent
                 anchors.margins: 4
                 anchors.rightMargin: 14
                 visible: dialog.page === 1
                 clip: true
-                model: dialog.usage
+                model: dialog.displayedUsage
                 highlightMoveDuration: 0
                 delegate: Rectangle {
                     id: usageRow
+                    objectName: "mapAnalyzerUsageRow_" + index
                     required property var modelData
                     required property int index
                     width: usageList.width
-                    height: 48
+                    height: modelData.containerPath && modelData.containerPath.length ? 64 : 48
                     color: usageList.currentIndex === index
                            ? (dialog.grayUi ? "#4A3A1F" : "#163B2C")
                            : (usageMouse.containsMouse ? "#242A31" : "transparent")
@@ -189,20 +299,29 @@ DmeDialog {
                             Text {
                                 width: parent.width
                                 text: (usageRow.modelData.name || "Unknown item")
-                                      + " [" + usageRow.modelData.serverId + "]"
+                                      + " [Server " + usageRow.modelData.serverId
+                                      + " / Client " + usageRow.modelData.clientId + "]"
                                 color: "#d0d0d0"; font.pixelSize: 12; font.bold: true
                                 elide: Text.ElideRight
                             }
                             Text {
-                                text: "First occurrence: " + usageRow.modelData.x + ", "
-                                      + usageRow.modelData.y + ", " + usageRow.modelData.z
+                                text: (dialog.locationsSearched ? "Position: " : "First occurrence: ")
+                                      + "X " + usageRow.modelData.x + ", Y "
+                                      + usageRow.modelData.y + ", Z " + usageRow.modelData.z
                                 color: "#8b949e"; font.pixelSize: 10
+                            }
+                            Text {
+                                width: parent.width
+                                visible: !!usageRow.modelData.containerPath
+                                text: "Inside: " + (usageRow.modelData.containerPath || "")
+                                color: "#8b949e"; font.pixelSize: 10
+                                elide: Text.ElideRight
                             }
                         }
                         Text {
                             width: 120
                             anchors.verticalCenter: parent.verticalCenter
-                            text: usageRow.modelData.count + " used"
+                            text: dialog.locationsSearched ? "" : usageRow.modelData.count + " used"
                             color: "#d7ba7d"; font.pixelSize: 12; font.bold: true
                             horizontalAlignment: Text.AlignRight
                         }
@@ -275,6 +394,15 @@ DmeDialog {
                     }
                 }
             }
+
+            DmeScrollBar {
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.margins: 2
+                visible: dialog.page !== 0 && flickable.contentHeight > flickable.height
+                flickable: dialog.page === 1 ? usageList : problemList
+            }
         }
 
         Text {
@@ -289,13 +417,14 @@ DmeDialog {
             spacing: 6
             anchors.horizontalCenter: parent.horizontalCenter
             DmeButton {
+                objectName: "mapAnalyzerGoTo"
                 text: "Go To"
                 width: 90
                 enabled: (dialog.page === 1 && usageList.currentIndex >= 0)
                          || (dialog.page === 2 && problemList.currentIndex >= 0)
                 onClicked: {
                     const row = dialog.page === 1
-                              ? dialog.usage[usageList.currentIndex]
+                              ? dialog.displayedUsage[usageList.currentIndex]
                               : dialog.problems[problemList.currentIndex];
                     if (dialog.page === 2)
                         dialog.goToProblem(row);
@@ -305,10 +434,13 @@ DmeDialog {
                 }
             }
             DmeButton {
+                objectName: "mapAnalyzerRefresh"
                 text: dialog.loading ? "Cancel" : "Refresh"
                 width: 90
+                enabled: dialog.loading || !dialog.mapCtrl.queryBusy
                 onClicked: dialog.loading ? dialog.mapCtrl.cancelMapQuery()
-                                          : dialog.runAnalysis()
+                                          : (dialog.page === 1 && dialog.locationsSearched
+                                             ? dialog.runLocationSearch() : dialog.runAnalysis())
             }
             DmeButton { text: "Close"; width: 90; onClicked: dialog.close() }
         }

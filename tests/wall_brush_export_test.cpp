@@ -29,17 +29,17 @@ int main(int argc, char **argv)
         sprite.setPixelColor(1, 1, QColor(12, 34, 56, 128));
         return sprite;
     };
-    // Horizontal above the corner; post, vertical, corner along the bottom.
-    const QVariantList cells = {0, 0, 101, 100, 102, 103};
+    // Pillar and horizontal on top; vertical and corner N + W below.
+    const QVariantList cells = {100, 101, 102, 103};
     const QList<QImage> sprites = {render(100), render(101), render(102), render(103)};
     if (!check(WallBrushExport::save(cells, url, render).isEmpty(), "Export failed")) return 1;
     const QImage image(path);
     if (!check(QImageReader(path).format() == "png", "Output is not a PNG")
-        || !check(image.size() == QSize(192, 128), "Incorrect PNG dimensions")) return 1;
-    // Check the complete image, including cell boundaries, unused space and alpha.
+        || !check(image.size() == QSize(128, 128), "Incorrect PNG dimensions")) return 1;
+    // Check all four cells, including their boundaries and transparent pixels.
     for (int y = 0; y < image.height(); ++y) {
         for (int x = 0; x < image.width(); ++x) {
-            const int id = cells[(y / 64) * 3 + x / 64].toInt();
+            const int id = cells[(y / 64) * 2 + x / 64].toInt();
             const QColor expected = id > 0 ? sprites[id - 100].pixelColor(x % 64, y % 64)
                                            : QColor(Qt::transparent);
             if (!check(image.pixelColor(x, y) == expected, "Sprite placement or native pixels changed")) return 1;
@@ -52,22 +52,24 @@ int main(int argc, char **argv)
         sprite.fill(Qt::cyan);
         return sprite;
     };
-    if (!check(WallBrushExport::save({0, 0, 0, 100, 0, 0}, url, smallSprite).isEmpty(),
+    if (!check(WallBrushExport::save({100, 0, 0, 0}, url, smallSprite).isEmpty(),
                "Partial brush export failed")) return 1;
     const QImage partial(path);
     for (int y = 0; y < partial.height(); ++y) {
         for (int x = 0; x < partial.width(); ++x) {
-            const QColor expected = x >= 32 && x < 64 && y >= 96 ? QColor(Qt::cyan)
-                                                                               : QColor(Qt::transparent);
+            const QColor expected = x >= 32 && x < 64 && y >= 32 && y < 64 ? QColor(Qt::cyan)
+                                                                                       : QColor(Qt::transparent);
             if (!check(partial.pixelColor(x, y) == expected, "Smaller sprite was scaled or misplaced")) return 1;
         }
     }
 
     // Failed exports must not replace the existing PNG.
-    if (!check(!WallBrushExport::save({0, 0, 101, 100, 999, 103}, url, render).isEmpty(),
+    if (!check(!WallBrushExport::save({100, 101, 999, 103}, url, render).isEmpty(),
                "Missing sprite should report an error")
         || !check(!WallBrushExport::save({}, url, render).isEmpty(), "Invalid layout should fail")
-        || !check(!WallBrushExport::save({0, 0, 0, 0, 0, 0}, url, render).isEmpty(), "Empty brush should fail")
+        || !check(!WallBrushExport::save({0, 0, 101, 100, 102, 103}, url, render).isEmpty(),
+                  "Old 3 by 2 layout should fail")
+        || !check(!WallBrushExport::save({0, 0, 0, 0}, url, render).isEmpty(), "Empty brush should fail")
         || !check(QImage(path) == partial, "Failed export replaced the existing PNG")
         || !check(!WallBrushExport::save(cells, QUrl(), render).isEmpty(), "Empty destination should fail")
         || !check(!WallBrushExport::save(cells, QUrl("https://example.com/wall.png"), render).isEmpty(),

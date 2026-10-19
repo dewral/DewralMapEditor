@@ -166,7 +166,7 @@ Item {
             panel.addToShape(3, [104])
             panel.setWeight(6, 0, 0)
             panel.addToShape(6, [104])
-            compare(panel.exportCells(), [0, 0, 104, 103, 101, 104])
+            compare(panel.exportCells(), [103, 104, 101, 104])
             verify(findChild(manager.contentItem, "wallBrushExport").enabled)
             compare(brushes.captured, {})
             compare(brushes.stored["stone wall"], testRoot.originalWall)
@@ -179,10 +179,10 @@ Item {
             panel.addToShape(5, [100])
             verify(!button.enabled)
             panel.addToShape(9, [101])
-            compare(panel.exportCells(), [0, 0, 0, 0, 101, 0])
+            compare(panel.exportCells(), [0, 0, 101, 0])
             verify(button.enabled)
             panel.setWeight(9, 0, 0)
-            compare(panel.exportCells(), [0, 0, 0, 0, 0, 0])
+            compare(panel.exportCells(), [0, 0, 0, 0])
             verify(!button.enabled)
         }
         function test_exportDialogSendsSnapshotAndReportsErrors() {
@@ -196,7 +196,7 @@ Item {
             const draft = JSON.stringify(panel.draft)
             dialog.accepted()
             compare(Backend.wallExportCalls.length, 1)
-            compare(Backend.wallExportCalls[0].cells, [0, 0, 100, 0, 101, 0])
+            compare(Backend.wallExportCalls[0].cells, [0, 100, 101, 0])
             verify(Backend.wallExportCalls[0].destination.endsWith("/build/wall-export.png"))
             Backend.wallExportError = "Could not save the brush."
             dialog.accepted()

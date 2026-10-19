@@ -16,7 +16,7 @@ QString save(const QVariantList &cells, const QUrl &destination,
     if (!destination.isLocalFile() || destination.toLocalFile().isEmpty())
         return tr("Choose a local PNG file to export the brush.");
     if (cells.size() != Columns * Rows)
-        return tr("The wall brush export must contain 3 by 2 cells.");
+        return tr("The wall brush export must contain 2 by 2 cells.");
 
     QImage image(Columns * CellSize, Rows * CellSize, QImage::Format_RGBA8888);
     image.fill(Qt::transparent);

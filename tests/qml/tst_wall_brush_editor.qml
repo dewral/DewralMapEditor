@@ -89,6 +89,8 @@ Item {
             brushes.stored = {"stone wall": JSON.parse(JSON.stringify(testRoot.originalWall))}
             brushes.failSave = false
             brushes.captured = ({})
+            Backend.wallExportCalls = []
+            Backend.wallExportError = ""
             manager = createTemporaryObject(managerComponent, testRoot)
             verify(manager)
             manager.open()
@@ -156,6 +158,55 @@ Item {
             compare(manager.wallEditor.unplaced, [103])
             compare(manager.wallEditor.variants(0), [])
             verify(findChild(manager.contentItem, "wallBrushUnplaced103").visible)
+        }
+        function test_exportUsesUnsavedDraftAndSkipsDisabledVariants() {
+            const panel = manager.wallEditor
+            panel.load("stone wall")
+            panel.addToShape(0, [103])
+            panel.addToShape(3, [104])
+            panel.setWeight(6, 0, 0)
+            panel.addToShape(6, [104])
+            compare(panel.exportCells(), [0, 0, 104, 103, 101, 104])
+            verify(findChild(manager.contentItem, "wallBrushExport").enabled)
+            compare(brushes.captured, {})
+            compare(brushes.stored["stone wall"], testRoot.originalWall)
+            verify(panel.dirty)
+        }
+        function test_exportMissingAndDisabledShapesStayEmpty() {
+            const panel = manager.wallEditor
+            const button = findChild(manager.contentItem, "wallBrushExport")
+            verify(!button.enabled)
+            panel.addToShape(5, [100])
+            verify(!button.enabled)
+            panel.addToShape(9, [101])
+            compare(panel.exportCells(), [0, 0, 0, 0, 101, 0])
+            verify(button.enabled)
+            panel.setWeight(9, 0, 0)
+            compare(panel.exportCells(), [0, 0, 0, 0, 0, 0])
+            verify(!button.enabled)
+        }
+        function test_exportDialogSendsSnapshotAndReportsErrors() {
+            const panel = manager.wallEditor
+            panel.load("stone wall")
+            const dialog = findChild(panel, "wallBrushExportDialog")
+            verify(dialog)
+            dialog.cells = panel.exportCells()
+            dialog.selectedFile = Qt.resolvedUrl("../../build/wall-export.png")
+            panel.addToShape(0, [103])
+            const draft = JSON.stringify(panel.draft)
+            dialog.accepted()
+            compare(Backend.wallExportCalls.length, 1)
+            compare(Backend.wallExportCalls[0].cells, [0, 0, 100, 0, 101, 0])
+            verify(Backend.wallExportCalls[0].destination.endsWith("/build/wall-export.png"))
+            Backend.wallExportError = "Could not save the brush."
+            dialog.accepted()
+            const error = findChild(panel, "wallBrushExportError")
+            tryCompare(error, "visible", true)
+            compare(error.text, Backend.wallExportError)
+            error.close()
+            compare(JSON.stringify(panel.draft), draft)
+            verify(panel.dirty)
+            compare(brushes.captured, {})
         }
         function test_pickerDropUsesChosenShape() {
             const card = findChild(manager.contentItem, "brushManagerWallSlot3")

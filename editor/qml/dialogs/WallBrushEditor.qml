@@ -1,6 +1,8 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs as FileDialogs
+import QtCore
 import Tibia 1.0
 import "../style"
 
@@ -71,6 +73,14 @@ Item {
         }
     }
     function variants(slot) { return (draft.items || {})[String(slot)] || []; }
+    function exportCells() {
+        function primary(slot) {
+            const pair = root.variants(slot).find(value => Number(value[1]) > 0);
+            return pair ? Number(pair[0]) : 0;
+        }
+        // Each cell is 64x64, with horizontal directly above corner N + W.
+        return [0, 0, primary(6), primary(0), primary(9), primary(3)];
+    }
     function addToShape(slot, ids, weight = 100) {
         const value = copy(draft);
         if (!value.items) value.items = {};
@@ -168,6 +178,28 @@ Item {
     }
     Component.onCompleted: refreshNames()
 
+    FileDialogs.FileDialog {
+        id: exportDialog
+        objectName: "wallBrushExportDialog"
+        property var cells: []
+        title: "Export wall brush as PNG"
+        fileMode: FileDialogs.FileDialog.SaveFile
+        nameFilters: ["PNG images (*.png)"]
+        defaultSuffix: "png"
+        onAccepted: {
+            const error = Backend.exportWallBrush(cells, selectedFile);
+            if (error !== "") {
+                exportError.text = error;
+                exportError.open();
+            }
+        }
+    }
+    FileDialogs.MessageDialog {
+        id: exportError
+        objectName: "wallBrushExportError"
+        title: "Brush export failed"
+        buttons: FileDialogs.MessageDialog.Ok
+    }
     DmeDialog {
         id: discardDialog
         title: "Discard unsaved wall brush?"
@@ -416,6 +448,19 @@ Item {
                 onClicked: root.addPickerIds(editorHost.selectedServerIds)
             }
             DmeButton { objectName: "wallBrushSave"; text: "Save"; enabled: root.unplaced.length === 0; onClicked: root.save() }
+            DmeButton {
+                objectName: "wallBrushExport"
+                text: "Export PNG…"
+                enabled: root.exportCells().some(id => id > 0)
+                onClicked: {
+                    exportDialog.cells = root.exportCells();
+                    const name = root.brushName.trim().replace(/[^a-zA-Z0-9_-]/g, "_") || "wall-brush";
+                    const folder = StandardPaths.writableLocation(StandardPaths.DownloadLocation);
+                    exportDialog.currentFolder = folder;
+                    exportDialog.selectedFile = folder + "/" + name + ".png";
+                    exportDialog.open();
+                }
+            }
         }
     }
     Binding { target: nameField; property: "text"; value: root.brushName }

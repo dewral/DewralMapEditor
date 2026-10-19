@@ -78,8 +78,8 @@ Item {
             const pair = root.variants(slot).find(value => Number(value[1]) > 0);
             return pair ? Number(pair[0]) : 0;
         }
-        // Each cell is 64x64, with horizontal directly above corner N + W.
-        return [0, 0, primary(6), primary(0), primary(9), primary(3)];
+        // 128x128 sheet: pillar and horizontal above vertical and corner N + W.
+        return [primary(0), primary(6), primary(9), primary(3)];
     }
     function addToShape(slot, ids, weight = 100) {
         const value = copy(draft);

@@ -7,10 +7,10 @@
 #include <functional>
 
 namespace WallBrushExport {
-constexpr int Columns = 3;
+constexpr int Columns = 2;
 constexpr int Rows = 2;
 constexpr int CellSize = 64;
-// Row-major cells: empty, empty, horizontal; post, vertical, corner N + W.
+// Row-major cells: pillar (single post), horizontal; vertical, corner N + W.
 QString save(const QVariantList &cells, const QUrl &destination,
              const std::function<QImage(int)> &itemImage);
 }

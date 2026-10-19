@@ -1578,7 +1578,11 @@ DmeDialog {
                                 source: root.iconSrc(sid)
                                 MouseArea {
                                     anchors.fill: parent
+                                    hoverEnabled: true
                                     acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                    ToolTip.visible: containsMouse
+                                    ToolTip.delay: 450
+                                    ToolTip.text: "Server ID: " + sid
                                     onClicked: mouse => {
                                         if (mouse.button === Qt.RightButton)
                                             gItems.remove(index);
@@ -1694,6 +1698,10 @@ DmeDialog {
                         }
                         MouseArea {
                             anchors.fill: parent
+                            hoverEnabled: true
+                            ToolTip.visible: containsMouse && gItems.count > 0
+                            ToolTip.delay: 450
+                            ToolTip.text: gItems.count > 0 ? "Server ID: " + gItems.get(0).sid : ""
                             onDoubleClicked: {
                                 if (gItems.count > 0)
                                     root.revealPickerItem(gItems.get(0).sid);
@@ -1831,7 +1839,11 @@ DmeDialog {
                             }
                             MouseArea {
                                 anchors.fill: parent
+                                hoverEnabled: true
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                ToolTip.visible: containsMouse && root.borderPrimaryId(modelData.bt) > 0
+                                ToolTip.delay: 450
+                                ToolTip.text: "Server ID: " + root.borderPrimaryId(modelData.bt)
                                 onClicked: mouse => {
                                     root.selectedBorderType = modelData.bt;
                                     if (mouse.button === Qt.RightButton)
@@ -1899,6 +1911,10 @@ DmeDialog {
                                         source: root.iconSrc(Number(modelData.id))
                                         MouseArea {
                                             anchors.fill: parent
+                                            hoverEnabled: true
+                                            ToolTip.visible: containsMouse
+                                            ToolTip.delay: 450
+                                            ToolTip.text: "Server ID: " + Number(modelData.id)
                                             onDoubleClicked: root.revealPickerItem(modelData.id)
                                         }
                                     }

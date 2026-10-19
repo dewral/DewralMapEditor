@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
     "Disable Qt Creator package-manager auto setup" FORCE)
 
-project(DewralMapEditor VERSION 1.1.35 LANGUAGES C CXX)
+project(DewralMapEditor VERSION 1.1.36 LANGUAGES C CXX)
 
 set(DME_RELEASE_REPOSITORY "dewral/DewralMapEditor" CACHE STRING
     "GitHub repository hosting the stable update packages")
@@ -102,6 +102,8 @@ add_executable(DewralMapEditor
     editor/core/tilemapgenmaterials.h
     editor/core/groundbrushexport.cpp
     editor/core/groundbrushexport.h
+    editor/core/wallbrushexport.cpp
+    editor/core/wallbrushexport.h
     editor/core/aimapassistant.cpp
     editor/core/aimapassistant.h
     editor/core/brushstore.cpp
@@ -279,6 +281,13 @@ if(BUILD_TESTING)
     target_link_libraries(ground_brush_export_test PRIVATE OTFormats Qt6::Gui)
     add_test(NAME ground_brush_export COMMAND ground_brush_export_test)
     set_tests_properties(ground_brush_export PROPERTIES
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+    add_executable(wall_brush_export_test EXCLUDE_FROM_ALL
+        tests/wall_brush_export_test.cpp editor/core/wallbrushexport.cpp)
+    target_include_directories(wall_brush_export_test PRIVATE editor/core)
+    target_link_libraries(wall_brush_export_test PRIVATE Qt6::Gui)
+    add_test(NAME wall_brush_export COMMAND wall_brush_export_test)
+    set_tests_properties(wall_brush_export PROPERTIES
         ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
     add_executable(hotkey_settings_test EXCLUDE_FROM_ALL
         tests/hotkey_settings_test.cpp editor/core/hotkeysettings.cpp)

@@ -116,6 +116,23 @@ bool DmeWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr 
     };
 
     switch (msg->message) {
+    case WM_GETMINMAXINFO: {
+        // Windows maximizes a frameless HWND to the full monitor on first
+        // show. Clipping only WM_NCCALCSIZE leaves an invisible window over
+        // the taskbar, so constrain the native frame itself to the work area.
+        if (visibility() != QWindow::FullScreen) {
+            MONITORINFO monitor{sizeof(MONITORINFO)};
+            if (GetMonitorInfoW(MonitorFromWindow(msg->hwnd, MONITOR_DEFAULTTONEAREST), &monitor)) {
+                auto *limits = reinterpret_cast<MINMAXINFO *>(msg->lParam);
+                limits->ptMaxPosition = {monitor.rcWork.left - monitor.rcMonitor.left,
+                                         monitor.rcWork.top - monitor.rcMonitor.top};
+                limits->ptMaxSize = {monitor.rcWork.right - monitor.rcWork.left,
+                                     monitor.rcWork.bottom - monitor.rcWork.top};
+            }
+        }
+        // Qt still needs to apply the QML minimum/maximum size constraints.
+        break;
+    }
     case WM_NCCALCSIZE: {
         // Retain the native resize/maximize styles without drawing a second
         // frame. A maximized thick frame extends outside the monitor's work

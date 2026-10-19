@@ -3,6 +3,7 @@
 #include <QGuiApplication>
 #include <QQmlComponent>
 #include <QQmlEngine>
+#include <QScreen>
 #include <QtCore/qt_windows.h>
 #include <windowsx.h>
 #include <dwmapi.h>
@@ -28,12 +29,87 @@ LPARAM buttonPosition(HWND hwnd, const DmeWindow &window, const QQuickItem &butt
     ClientToScreen(hwnd, &point);
     return MAKELPARAM(point.x, point.y);
 }
+
+void expectWorkArea(DmeWindow &window, const char *context)
+{
+    const auto hwnd = reinterpret_cast<HWND>(window.winId());
+    RECT frame;
+    GetWindowRect(hwnd, &frame);
+    MONITORINFO monitor{sizeof(MONITORINFO)};
+    GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitor);
+    std::cout << context << ": native frame " << frame.left << ',' << frame.top << " - "
+              << frame.right << ',' << frame.bottom << "; work area "
+              << monitor.rcWork.left << ',' << monitor.rcWork.top << " - "
+              << monitor.rcWork.right << ',' << monitor.rcWork.bottom << '\n';
+    // Check actual Windows routing across taskbars on any monitor edge. Merely
+    // returning HTNOWHERE does not pass clicks through an overlapping HWND.
+    const RECT taskbarStrips[] = {
+        {monitor.rcMonitor.left, monitor.rcMonitor.top, monitor.rcWork.left, monitor.rcMonitor.bottom},
+        {monitor.rcWork.right, monitor.rcMonitor.top, monitor.rcMonitor.right, monitor.rcMonitor.bottom},
+        {monitor.rcWork.left, monitor.rcMonitor.top, monitor.rcWork.right, monitor.rcWork.top},
+        {monitor.rcWork.left, monitor.rcWork.bottom, monitor.rcWork.right, monitor.rcMonitor.bottom},
+    };
+    for (const RECT strip : taskbarStrips) {
+        if (IsRectEmpty(&strip))
+            continue;
+        const POINT point{(strip.left + strip.right) / 2, (strip.top + strip.bottom) / 2};
+        const HWND target = WindowFromPoint(point);
+        expect(target && target != hwnd && !IsChild(hwnd, target),
+               "Windows must route taskbar clicks to a window outside the editor");
+    }
+    expect(EqualRect(&frame, &monitor.rcWork),
+           "the entire maximized HWND must fit the work area, not just its visible client");
+
+    RECT client;
+    GetClientRect(hwnd, &client);
+    POINT origin{0, 0};
+    ClientToScreen(hwnd, &origin);
+    expect(origin.x == monitor.rcWork.left && origin.y == monitor.rcWork.top
+               && client.right == monitor.rcWork.right - monitor.rcWork.left
+               && client.bottom == monitor.rcWork.bottom - monitor.rcWork.top,
+           "maximized content must continue to fill the work area");
+}
 }
 
 int main(int argc, char **argv)
 {
     qputenv("QT_QUICK_BACKEND", "software");
     QGuiApplication app(argc, argv);
+    for (QScreen *screen : app.screens()) {
+        const QRect normalGeometry(screen->availableGeometry().center() - QPoint(400, 300),
+                                   QSize(800, 600));
+        DmeWindow startupWindow;
+        startupWindow.setScreen(screen);
+        startupWindow.setGeometry(normalGeometry);
+        startupWindow.showMaximized();
+        app.processEvents();
+        expectWorkArea(startupWindow, "First show maximized");
+        startupWindow.showMinimized();
+        startupWindow.showMaximized();
+        app.processEvents();
+        expectWorkArea(startupWindow, "Restore from minimized");
+
+        startupWindow.showFullScreen();
+        app.processEvents();
+        const auto startupHwnd = reinterpret_cast<HWND>(startupWindow.winId());
+        RECT fullScreenFrame;
+        GetWindowRect(startupHwnd, &fullScreenFrame);
+        MONITORINFO fullScreenMonitor{sizeof(MONITORINFO)};
+        GetMonitorInfoW(MonitorFromWindow(startupHwnd, MONITOR_DEFAULTTONEAREST), &fullScreenMonitor);
+        expect(EqualRect(&fullScreenFrame, &fullScreenMonitor.rcMonitor),
+               "explicit fullscreen must still occupy the full monitor");
+        startupWindow.hide();
+
+        DmeWindow nativeWindow;
+        nativeWindow.setScreen(screen);
+        nativeWindow.setGeometry(normalGeometry);
+        nativeWindow.show();
+        app.processEvents();
+        ShowWindow(reinterpret_cast<HWND>(nativeWindow.winId()), SW_MAXIMIZE);
+        app.processEvents();
+        expectWorkArea(nativeWindow, "Native system maximize");
+        nativeWindow.hide();
+    }
     qmlRegisterType<DmeWindow>("DmeWindowTests", 1, 0, "DmeWindow");
     qmlRegisterType<QQuickItem>("DmeWindowTests", 1, 0, "TestItem");
     QQmlEngine engine;
@@ -71,6 +147,11 @@ int main(int argc, char **argv)
     app.processEvents();
 
     auto hwnd = reinterpret_cast<HWND>(window.winId());
+    MINMAXINFO sizeHints{};
+    SendMessageW(hwnd, WM_GETMINMAXINFO, 0, reinterpret_cast<LPARAM>(&sizeHints));
+    expect(sizeHints.ptMinTrackSize.x == qRound(window.minimumWidth() * window.devicePixelRatio())
+               && sizeHints.ptMinTrackSize.y == qRound(window.minimumHeight() * window.devicePixelRatio()),
+           "native maximize bounds must preserve Qt's minimum resize constraints");
     expect(SendMessageW(hwnd, WM_GETICON, ICON_SMALL, 0) != 0,
            "the native window must expose the DME taskbar icon");
     expect(SendMessageW(hwnd, WM_GETICON, ICON_BIG, 0) != 0,
@@ -133,6 +214,7 @@ int main(int argc, char **argv)
                && client.right == monitor.rcWork.right - monitor.rcWork.left
                && client.bottom == monitor.rcWork.bottom - monitor.rcWork.top,
            "maximized content must fit the work area without hiding controls or covering the taskbar");
+    expectWorkArea(window, "Caption maximize");
     const POINT outsideClient[] = {
         {origin.x - 1, origin.y + client.bottom / 2},
         {origin.x + client.right, origin.y + client.bottom / 2},

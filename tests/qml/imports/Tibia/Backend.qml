@@ -3,6 +3,12 @@ import QtQuick
 QtObject {
     property string screenshotPath: ""
     function previewScreenshotPath() { return screenshotPath; }
+    property var obdExportCalls: []
+    function obdExportUrl(serverId) { return Qt.resolvedUrl("../../../../build/tmp/item-" + serverId + ".obd"); }
+    function exportObd(serverId, destination) {
+        obdExportCalls = obdExportCalls.concat([{serverId: serverId, destination: String(destination)}]);
+        return "";
+    }
     property QtObject tileMapGenProfiles: QtObject {
         property var profiles: []
         property int nextId: 1
@@ -15,6 +21,16 @@ QtObject {
         function remove(id) { profiles = profiles.filter(p => p.id !== id); return {success: true}; }
     }
     property QtObject tileMapGen: QtObject {
+        property bool settlementAvailable: true
+        property bool aiBusy: false
+        property var aiStatus: ({configured:false,secure_storage:true,model:"gpt-6.1-sol"})
+        signal aiPlanReady(var blueprint)
+        signal aiFailed(string message)
+        function refreshCapabilities() {}
+        function setAiCredentials(key, remember) { aiStatus = {configured: key.length > 0, secure_storage:true, model:"gpt-6.1-sol"}; }
+        function forgetAiCredentials() { aiStatus = {configured:false,secure_storage:true,model:"gpt-6.1-sol"}; }
+        function requestAiPlan(prompt, options, model) { aiBusy = true; }
+        function cancelAiPlan() { aiBusy = false; }
         property bool available: true
         property string generatorDirectory: "C:/github2/TileMapGenerator"
         property bool busy: false
@@ -65,6 +81,8 @@ QtObject {
         function matches(id, key, modifiers) { return false; }
     }
     property QtObject otbmReader: QtObject {
+        function housesList() { return []; }
+        function townsList() { return []; }
         property string filePath: ""
         property bool loading: false
         property int loadingProgress: 0

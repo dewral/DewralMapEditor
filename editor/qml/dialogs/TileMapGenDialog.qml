@@ -22,7 +22,19 @@ DmeDialog {
     property string message: "Choose your materials and settings, then generate a preview on the map."
     readonly property color textColor: Backend.uiTheme.style === "windows-classic" ? "#202020" : "#c9d1d9"
     readonly property bool busy: Backend.tileMapGen.busy
-    readonly property bool fitsPlacement: mapWidth.value * mapHeight.value * floors.value <= 100000
+    readonly property bool isSettlement: style.currentIndex === 3
+    readonly property int effectiveFloors: isSettlement ? 1 + upperLevels.value + basementLevels.value : floors.value
+    property var aiBlueprint: null
+    property string pendingAiContext: ""
+    readonly property string aiContextKey: JSON.stringify({width: mapWidth.value, height: mapHeight.value,
+        z: destinationZ.value, upper: upperLevels.value, lower: basementLevels.value,
+        palette: generationOptions(false).palette, materials: settlementOptions().materials,
+        down: downId.value, up: upId.value, client: Backend.docMgr.currentProfileKey})
+    onAiContextKeyChanged: {
+        aiBlueprint = null;
+        if (Backend.tileMapGen.aiBusy) Backend.tileMapGen.cancelAiPlan();
+    }
+    readonly property bool fitsPlacement: mapWidth.value * mapHeight.value * effectiveFloors <= 100000
     readonly property string recipeKey: JSON.stringify(generationOptions())
     onRecipeKeyChanged: Backend.tileMapGen.clearPreview()
 
@@ -60,13 +72,13 @@ DmeDialog {
         combo.currentIndex = index;
     }
     function refreshMaterials() {
-        const selected = [floorBrush.currentName, backgroundBrush.currentName, secondaryBrush.currentName, waterBrush.currentName, lavaBrush.currentName];
+        const selected = [floorBrush.currentName, backgroundBrush.currentName, secondaryBrush.currentName, waterBrush.currentName, lavaBrush.currentName, outdoorBrush.currentName, streetBrush.currentName, interiorBrush.currentName, cellarBrush.currentName];
         const selectedWall = wallBrush.currentName;
         materials = Backend.tileMapGen.generationMaterials();
-        const combos = [floorBrush, backgroundBrush, secondaryBrush, waterBrush, lavaBrush];
-        const labels = ["", "Void", "None", "None", "None"];
+        const combos = [floorBrush, backgroundBrush, secondaryBrush, waterBrush, lavaBrush, outdoorBrush, streetBrush, interiorBrush, cellarBrush];
+        const labels = ["", "Void", "None", "None", "None", "Same as walking floor", "Same as walking floor", "Same as walking floor", "Same as walking floor"];
         for (let i = 0; i < combos.length; ++i) {
-            combos[i].model = groundEntries(labels[i], i === 0 || i === 2);
+            combos[i].model = groundEntries(labels[i], i === 0 || i === 2 || i >= 5);
             if (selected[i]) selectGround(combos[i], selected[i]);
             else combos[i].currentIndex = combos[i].model.length ? 0 : -1;
         }
@@ -115,7 +127,7 @@ DmeDialog {
         if (!p || !p.options) { message = "Profile no longer exists."; return; }
         Backend.tileMapGen.clearPreview();
         const o = p.options, palette = o.palette, settings = o.settings;
-        style.currentIndex = ["hunting", "cave", "linear"].indexOf(o.generator);
+        style.currentIndex = ["hunting", "cave", "linear", "settlement"].indexOf(o.generator);
         mapWidth.value = o.width; mapHeight.value = o.height; floors.value = o.floors; seed.text = o.seed;
         destination.currentIndex = o.placement ? 0 : 1;
         destinationX.value = o.x; destinationY.value = o.y; destinationZ.value = o.z;
@@ -132,13 +144,29 @@ DmeDialog {
         decorationDensity.value = Math.round(settings.decoration_density * 1000); spawnDensity.value = Math.round(settings.spawn_density * 1000);
         spawnSpacing.value = settings.spawn_spacing; spawnRadius.value = settings.spawn_radius;
         respawn.value = settings.respawn_seconds; safeRadius.value = settings.safe_radius;
+        if (o.settlement) {
+            const s = o.settlement;
+            buildingDensity.value = Math.round(s.building_density * 100); blockSize.value = s.block_size;
+            streetWidth.value = s.street_width; plazaCount.value = s.plaza_count; ruinAmount.value = Math.round(s.ruin_amount * 100);
+            upperLevels.value = s.upper_levels; basementLevels.value = s.basement_levels;
+            selectGround(outdoorBrush, s.materials.outdoor); selectGround(streetBrush, s.materials.street);
+            selectGround(interiorBrush, s.materials.interior); selectGround(cellarBrush, s.materials.cellar);
+            aiBlueprint = o.blueprint || null;
+        }
         activeProfileId = id; profileName.text = p.name; syncProfileSelection();
         message = "Loaded profile: " + p.name;
     }
-    function generationOptions() {
-        return {
-            generator: ["hunting", "cave", "linear"][style.currentIndex],
-            width: mapWidth.value, height: mapHeight.value, floors: floors.value,
+    function settlementOptions() {
+        return {building_density: buildingDensity.value / 100, block_size: blockSize.value, street_width: streetWidth.value,
+            plaza_count: plazaCount.value, ruin_amount: ruinAmount.value / 100,
+            upper_levels: upperLevels.value, basement_levels: basementLevels.value,
+            materials: {outdoor: outdoorBrush.currentName, street: streetBrush.currentName,
+                interior: interiorBrush.currentName, cellar: cellarBrush.currentName}};
+    }
+    function generationOptions(includeBlueprint) {
+        const options = {
+            generator: ["hunting", "cave", "linear", "settlement"][style.currentIndex],
+            width: mapWidth.value, height: mapHeight.value, floors: effectiveFloors,
             seed: seed.text, placement: destination.currentIndex === 0,
             x: destinationX.value, y: destinationY.value, z: destinationZ.value,
             downId: downId.value, upId: upId.value,
@@ -159,16 +187,29 @@ DmeDialog {
                 spawn_radius: spawnRadius.value, respawn_seconds: respawn.value, safe_radius: safeRadius.value
             }
         };
+        if (isSettlement) {
+            options.settlement = settlementOptions();
+            if (includeBlueprint !== false && aiBlueprint) options.blueprint = aiBlueprint;
+        }
+        return options;
     }
     function generate() { Backend.tileMapGen.generateMap(generationOptions(), mapCtrl); }
     onOpened: {
         refreshMaterials();
         destinationZ.value = mapCtrl.floor;
+        Backend.tileMapGen.refreshCapabilities();
     }
     onClosed: Backend.tileMapGen.cancel()
     Connections {
         target: Backend.tileMapGen
         function onChanged() { if (Backend.tileMapGen.status) dialog.message = Backend.tileMapGen.status; }
+        function onAiFailed(message) { dialog.message = message; }
+        function onAiPlanReady(blueprint) {
+            if (dialog.pendingAiContext === dialog.aiContextKey) {
+                dialog.aiBlueprint = blueprint;
+                dialog.message = "AI blueprint ready. Review the summary, then generate a local preview.";
+            }
+        }
     }
     Connections {
         target: Backend.docMgr
@@ -221,21 +262,42 @@ DmeDialog {
             id: scroll; Layout.fillWidth: true; Layout.fillHeight: true; clip: true
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
             ColumnLayout {
-                width: scroll.availableWidth; spacing: 14; enabled: !dialog.busy
+                width: scroll.availableWidth; spacing: 14; enabled: !dialog.busy || Backend.tileMapGen.aiBusy
                 GridLayout {
                     visible: workflow.currentIndex === 0; Layout.fillWidth: true
                     columns: 4; columnSpacing: 12; rowSpacing: 8
                     Caption { text: "Style" }
-                    Choice { id: style; objectName: "tileMapStyle"; model: ["Hunting grounds", "Cave", "Linear dungeon"] }
+                    Choice { id: style; objectName: "tileMapStyle"; model: ["Hunting grounds", "Cave", "Linear dungeon", "Ruins & settlements"]
+                        onActivated: { if (currentIndex === 3) { mapWidth.value = 128; mapHeight.value = 128; } }
+                    }
                     Caption { text: "Seed" }
                     DmeTextField { id: seed; objectName: "tileMapSeed"; text: "dewral-forest"; Layout.fillWidth: true; Layout.preferredHeight: 30 }
                     Caption { text: "Width" }
-                    NumberField { id: mapWidth; objectName: "tileMapWidth"; from: 24; to: 65535; value: 96 }
+                    NumberField { id: mapWidth; objectName: "tileMapWidth"; from: dialog.isSettlement ? 64 : 24; to: 65535; value: 96 }
                     Caption { text: "Height" }
-                    NumberField { id: mapHeight; objectName: "tileMapHeight"; from: 24; to: 65535; value: 96 }
+                    NumberField { id: mapHeight; objectName: "tileMapHeight"; from: dialog.isSettlement ? 64 : 24; to: 65535; value: 96 }
                     Caption { text: "Floors" }
-                    NumberField { id: floors; objectName: "tileMapFloors"; from: 1; to: 16; value: 1 }
+                    NumberField { id: floors; objectName: "tileMapFloors"; from: 1; to: 16; value: 1; enabled: !dialog.isSettlement }
                     DmeButton { text: "New seed"; Layout.columnSpan: 2; Layout.fillWidth: true; onClicked: seed.text = String(Date.now()) + "-" + String(Math.floor(Math.random() * 1000000)) }
+                }
+                Caption { visible: dialog.isSettlement && !Backend.tileMapGen.settlementAvailable; Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "Update TileMapGenerator to use Ruins & settlements." }
+                GridLayout {
+                    visible: dialog.isSettlement && workflow.currentIndex === 0; Layout.fillWidth: true; columns: 4; columnSpacing: 12
+                    Caption { text: "Building density (%)" }
+                    NumberField { id: buildingDensity; objectName: "settlementDensity"; from: 10; to: 100; value: 70 }
+                    Caption { text: "Block size" }
+                    NumberField { id: blockSize; objectName: "settlementBlockSize"; from: 16; to: 64; value: 24 }
+                    Caption { text: "Street width" }
+                    NumberField { id: streetWidth; from: 3; to: 15; value: 5 }
+                    Caption { text: "Plazas" }
+                    NumberField { id: plazaCount; from: 1; to: 8; value: 2 }
+                    Caption { text: "Ruin amount (%)" }
+                    NumberField { id: ruinAmount; from: 0; to: 100; value: 25 }
+                    Caption { text: "Upper levels" }
+                    NumberField { id: upperLevels; objectName: "settlementUpperLevels"; from: 0; to: 7; value: 1 }
+                    Caption { text: "Basement levels" }
+                    NumberField { id: basementLevels; objectName: "settlementBasementLevels"; from: 0; to: 7; value: 1 }
+                    Caption { text: dialog.effectiveFloors + " connected floors" }
                 }
                 Caption { visible: workflow.currentIndex === 0; text: "Materials from the active client"; font.bold: true }
                 GridLayout {
@@ -249,6 +311,41 @@ DmeDialog {
                     GroundChoice { id: secondaryBrush }
                     Caption { text: "Walls" }
                     GroundChoice { id: wallBrush; objectName: "tileMapWall" }
+                }
+                GridLayout {
+                    visible: dialog.isSettlement && workflow.currentIndex === 0; Layout.fillWidth: true; columns: 4; columnSpacing: 12
+                    Caption { text: "Outdoor ground" }
+                    GroundChoice { id: outdoorBrush; objectName: "settlementOutdoor" }
+                    Caption { text: "Street ground" }
+                    GroundChoice { id: streetBrush; objectName: "settlementStreet" }
+                    Caption { text: "Interior ground" }
+                    GroundChoice { id: interiorBrush; objectName: "settlementInterior" }
+                    Caption { text: "Cellar ground" }
+                    GroundChoice { id: cellarBrush; objectName: "settlementCellar" }
+                }
+                ColumnLayout {
+                    visible: dialog.isSettlement && workflow.currentIndex === 0; Layout.fillWidth: true
+                    Caption { text: "Optional AI blueprint"; font.bold: true }
+                    Caption { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "AI planning is a paid OpenAI request. Your description and selected material metadata are sent; sprites stay local. Map previews generate locally." }
+                    TextField { id: apiKey; objectName: "settlementApiKey"; Layout.fillWidth: true; Layout.preferredHeight: 30; echoMode: TextInput.Password; color: dialog.textColor; placeholderText: "OpenAI API key, or OPENAI_API_KEY in .env.local"
+                        background: Rectangle { color: Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic" ? "#f4f4f4" : "#151b18"; border.color: "#59604e"; radius: 4 }
+                    }
+                    RowLayout {
+                        DmeCheckBox { id: rememberKey; text: "Remember securely"; enabled: Backend.tileMapGen.aiStatus.secure_storage === true; onClicked: checked = !checked }
+                        DmeButton { text: "Use key"; enabled: apiKey.text.length > 0 && !dialog.busy; onClicked: { Backend.tileMapGen.setAiCredentials(apiKey.text, rememberKey.checked); apiKey.text = ""; } }
+                        DmeButton { text: "Forget saved key"; enabled: !dialog.busy; onClicked: Backend.tileMapGen.forgetAiCredentials() }
+                    }
+                    Caption { text: Backend.tileMapGen.aiStatus.configured === true ? "API key configured" : "No API key configured" }
+                    DmeTextField { id: aiModel; objectName: "settlementAiModel"; Layout.fillWidth: true; text: Backend.tileMapGen.aiStatus.model || "gpt-6.1-sol"; placeholderText: "OpenAI model" }
+                    TextArea { id: aiPrompt; objectName: "settlementPrompt"; Layout.fillWidth: true; Layout.preferredHeight: 90; wrapMode: TextEdit.Wrap; color: dialog.textColor; placeholderText: "An abandoned stone town, a market square, a two-storey inn and cellars beneath the northern district."
+                        background: Rectangle { color: Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic" ? "#f4f4f4" : "#151b18"; border.color: "#59604e"; radius: 4 }
+                    }
+                    DmeButton { text: Backend.tileMapGen.aiBusy ? "Cancel AI planning" : "Generate AI plan · paid request"
+                        enabled: Backend.tileMapGen.aiBusy || (!dialog.busy && Backend.tileMapGen.settlementAvailable && Backend.tileMapGen.aiStatus.configured === true && aiPrompt.text.trim().length > 0)
+                        onClicked: { if (Backend.tileMapGen.aiBusy) Backend.tileMapGen.cancelAiPlan(); else { dialog.pendingAiContext = dialog.aiContextKey; Backend.tileMapGen.requestAiPlan(aiPrompt.text, dialog.generationOptions(false), aiModel.text); } }
+                    }
+                    Caption { Layout.fillWidth: true; wrapMode: Text.WordWrap; visible: dialog.aiBlueprint !== null; text: dialog.aiBlueprint ? dialog.aiBlueprint.summary + " — Generate builds this blueprint locally." : "" }
+                    DmeButton { visible: dialog.aiBlueprint !== null; text: "Clear AI blueprint"; onClicked: dialog.aiBlueprint = null }
                 }
                 Caption { visible: workflow.currentIndex !== 2; Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "For multiple floors, enter matching down and up stair server IDs from this client." }
                 ColumnLayout {
@@ -353,7 +450,7 @@ DmeDialog {
             NumberField { id: destinationX; objectName: "tileMapX"; from: 0; to: 65535; value: 1000; enabled: destination.currentIndex === 0 }
             Caption { text: "Y" }
             NumberField { id: destinationY; objectName: "tileMapY"; from: 0; to: 65535; value: 1000; enabled: destination.currentIndex === 0 }
-            Caption { text: "Floor Z" }
+            Caption { text: dialog.isSettlement ? "Street Z" : "Floor Z" }
             NumberField { id: destinationZ; objectName: "tileMapZ"; from: 0; to: 15; value: 7 }
         }
         Caption {
@@ -383,6 +480,7 @@ DmeDialog {
             DmeButton {
                 objectName: "generateTileMap"; visible: workflow.currentIndex === 0; text: "Generate"
                 enabled: !dialog.busy && Backend.tileMapGen.available && floorBrush.currentName.length > 0
+                    && (!dialog.isSettlement || Backend.tileMapGen.settlementAvailable)
                     && floorBrush.currentUsable && backgroundBrush.currentUsable && secondaryBrush.currentUsable
                     && waterBrush.currentUsable && lavaBrush.currentUsable && wallBrush.currentUsable
                     && seed.text.trim().length > 0 && destinationZ.value + floors.value <= 16

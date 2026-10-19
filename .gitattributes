@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Preserve the upstream LZMA SDK sources, including their original whitespace.
+libs/lzma/*.[ch] text eol=lf -whitespace linguist-vendored

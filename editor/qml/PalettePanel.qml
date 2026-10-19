@@ -57,6 +57,9 @@ Rectangle {
     function positionItem(serverId) {
         Qt.callLater(function () {
             Qt.callLater(function () {
+                // A queued selection may outlive the palette while a panel closes.
+                if (!paletteCol || !grid)
+                    return;
                 if (paletteCol.currentKind === "Doodad Palette") {
                     const doodadRow = doodadGrid.rowForServerId(serverId);
                     if (doodadRow >= 0) {
@@ -90,8 +93,7 @@ Rectangle {
         mapCtrl.houseBrush = 0;
         mapCtrl.eraseMode = false;
         mapCtrl.lassoMode = false;
-        const tileset = Backend.tilesetStore.tilesetForItem("raw", serverId);
-        showItemLocation("raw", tileset, serverId);
+        showItemLocation("raw", "Others", serverId);
         mapCtrl.brushServerId = serverId;
     }
 
@@ -1063,6 +1065,29 @@ Rectangle {
         buttons: Dialogs.MessageDialog.Ok
     }
 
+    Dialogs.FileDialog {
+        id: obdExportDialog
+        objectName: "obdExportDialog"
+        property int serverId: 0
+        title: "Export item as OBD (v2)"
+        fileMode: Dialogs.FileDialog.SaveFile
+        nameFilters: ["ObjectBuilder data (*.obd)"]
+        defaultSuffix: "obd"
+        onAccepted: {
+            const error = Backend.exportObd(serverId, selectedFile);
+            if (error !== "") {
+                obdExportError.text = error;
+                obdExportError.open();
+            }
+        }
+    }
+
+    Dialogs.MessageDialog {
+        id: obdExportError
+        title: "Export item failed"
+        buttons: Dialogs.MessageDialog.Ok
+    }
+
     DmeMenu {
         id: palItemMenu
         objectName: "paletteItemMenu"
@@ -1089,6 +1114,17 @@ Rectangle {
                 spriteExportDialog.currentFolder = StandardPaths.writableLocation(StandardPaths.DownloadLocation);
                 spriteExportDialog.selectedFile = Backend.spriteExportUrl(palItemMenu.sid);
                 spriteExportDialog.open();
+            }
+        }
+        DmeMenuItem {
+            objectName: "exportItemObdAction"
+            text: "Export item as OBD..."
+            enabled: palItemMenu.sid > 0
+            onTriggered: {
+                obdExportDialog.serverId = palItemMenu.sid;
+                obdExportDialog.currentFolder = StandardPaths.writableLocation(StandardPaths.DownloadLocation);
+                obdExportDialog.selectedFile = Backend.obdExportUrl(palItemMenu.sid);
+                obdExportDialog.open();
             }
         }
         MenuSeparator {}

@@ -6,6 +6,7 @@
 #include <QCryptographicHash>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QPoint>
 #include <QSqlDatabase>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -46,6 +47,71 @@ quint32 floorFlags(const OtbmTile *tile, const TmgFormat::Catalog &catalog) {
     quint32 flags = 0; if (tile) for (const auto &i : tile->items) flags |= catalog.items.value(i.server_id).floorChange;
     return flags;
 }
+
+quint64 positionKey(int x, int y, int z) {
+    return (quint64(z) << 32) | (quint64(y) << 16) | quint64(x);
+}
+
+// Step entries have a directed transition to their landing, rather than a
+// normal walking exit. Check the reverse graph too, so no room is a trap.
+void validateSettlementNavigation(const OtbmReader &doc, const TmgFormat::Catalog &catalog,
+                                  const QJsonObject &manifest, int width, int height, int baseZ,
+                                  const std::function<void()> &check) {
+    QSet<quint64> walking, entries, forced, connectorPoints;
+    QHash<quint64, QVector<quint64>> forward, reverse;
+    const auto pointKey = [baseZ](const QJsonObject &p) {
+        return positionKey(p["x"].toInt(), p["y"].toInt(), baseZ + p["z"].toInt());
+    };
+    for (const auto &tile : doc.tiles()) {
+        check();
+        if (walkable(&tile, catalog)) walking.insert(positionKey(tile.x, tile.y, tile.z));
+    }
+    const auto edge = [&](quint64 from, quint64 to) {
+        forward[from].append(to); reverse[to].append(from);
+    };
+    for (const auto &value : manifest["connections"].toArray()) {
+        const auto link = value.toObject();
+        QSet<quint64> footprint;
+        for (const char *name : {"upper_entry", "lower_entry", "upper_landing", "lower_landing"})
+            footprint.insert(pointKey(link[name].toObject()));
+        for (auto point : footprint)
+            require(!connectorPoints.contains(point), "Settlement stair footprints or landings overlap");
+        connectorPoints.unite(footprint);
+        for (const auto &pair : {qMakePair("upper_entry", "lower_landing"), qMakePair("lower_entry", "upper_landing")}) {
+            const auto from = pointKey(link[pair.first].toObject()), to = pointKey(link[pair.second].toObject());
+            require(!entries.contains(from), "Settlement connectors overlap at an entry");
+            entries.insert(from);
+            if (link["activation"].toString() == QStringLiteral("step")) forced.insert(from);
+            edge(from, to);
+        }
+    }
+    for (const auto &tile : doc.tiles()) {
+        if (floorFlags(&tile, catalog))
+            require(entries.contains(positionKey(tile.x, tile.y, tile.z)), "Unplanned settlement floor-change item");
+    }
+    const auto origin = pointKey(manifest["entrance"].toObject());
+    const auto traverse = [&](bool backwards) {
+        QSet<quint64> seen{origin}; QVector<quint64> queue{origin};
+        const auto &transitions = backwards ? reverse : forward;
+        for (qsizetype head = 0; head < queue.size(); ++head) {
+            if (head % 1024 == 0) check();
+            const auto current = queue[head];
+            const int x = int(current & 65535), y = int((current >> 16) & 65535), z = int(current >> 32);
+            const auto visit = [&](quint64 next) {
+                if (walking.contains(next) && !seen.contains(next)) { seen.insert(next); queue.append(next); }
+            };
+            for (auto next : transitions.value(current)) visit(next);
+            for (const auto &offset : {QPoint(1, 0), QPoint(-1, 0), QPoint(0, 1), QPoint(0, -1)}) {
+                const int nx = x + offset.x(), ny = y + offset.y();
+                if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+                const auto next = positionKey(nx, ny, z);
+                if (backwards ? !forced.contains(next) : !forced.contains(current)) visit(next);
+            }
+        }
+        require(seen.size() == walking.size(), backwards ? "A settlement room cannot return to the entrance" : "A settlement room is unreachable");
+    };
+    traverse(false); traverse(true);
+}
 }
 
 QString TmgFormat::itemError(int id, int count, const Catalog &catalog) {
@@ -76,7 +142,9 @@ TmgFormat::Result TmgFormat::load(const QString &path, const Catalog &catalog,
         const QJsonDocument header = QJsonDocument::fromJson(meta(connection.db, QStringLiteral("manifest")).toUtf8(), &parse);
         require(parse.error == QJsonParseError::NoError && header.isObject(), "Invalid map manifest JSON");
         const auto manifest = header.object(), request = manifest.value(QStringLiteral("request")).toObject();
-        number(manifest, "schema_version", 1, 1); number(request, "schema_version", 1, 1); number(manifest, "chunk_size", 128, 128);
+        const int manifestVersion = number(manifest, "schema_version", 1, 2);
+        number(request, "schema_version", 1, 1); number(manifest, "chunk_size", 128, 128);
+        require((manifestVersion == 2) == (request["generator"].toString() == QStringLiteral("settlement")), "Settlements require manifest version 2");
         require(!manifest.value(QStringLiteral("synthetic")).toBool(true), "Demo item IDs cannot be imported; export a real Dewral asset pack");
         require(!catalog.fingerprint.isEmpty() && manifest.value(QStringLiteral("asset_fingerprint")).toString() == catalog.fingerprint, "Asset pack does not match the active Dewral client and materials");
         const auto client = manifest.value(QStringLiteral("client")).toObject();
@@ -164,11 +232,18 @@ TmgFormat::Result TmgFormat::load(const QString &path, const Catalog &catalog,
         content.addData(json({{"spawns", spawnRows}}));
         require(QString::fromLatin1(content.result().toHex()) == manifest.value(QStringLiteral("content_hash")).toString(), "Generated content checksum mismatch");
         const auto links = manifest.value(QStringLiteral("connections")).toArray();
-        require(links.size() == floors - 1, "Missing floor connections");
+        require(manifestVersion == 2 ? links.size() <= 16384 : links.size() == floors - 1, "Missing or excessive floor connections");
         QSet<int> upperFloors;
+        QSet<QString> connectionIds;
         for (const auto &value : links) {
             const auto link = value.toObject(); const int upper = number(link, "upper_floor", 0, floors - 2);
-            require(!upperFloors.contains(upper), "Duplicate floor connection"); upperFloors.insert(upper);
+            if (manifestVersion == 1) require(!upperFloors.contains(upper), "Duplicate floor connection");
+            else {
+                const auto id = link["id"].toString();
+                require(!id.isEmpty() && id.size() <= 128 && !connectionIds.contains(id), "Missing or duplicate settlement connector ID");
+                connectionIds.insert(id);
+            }
+            upperFloors.insert(upper);
             QHash<QString, QJsonObject> points;
             for (const char *key : {"upper_entry", "lower_entry", "upper_landing", "lower_landing"}) {
                 const auto point = link.value(QLatin1String(key)).toObject();
@@ -177,6 +252,7 @@ TmgFormat::Result TmgFormat::load(const QString &path, const Catalog &catalog,
                 require(walkable(doc->tileAt(x, y, baseZ + z), catalog), "Blocked stair entry or landing"); points.insert(QLatin1String(key), point);
             }
             const auto ue = points.value(QStringLiteral("upper_entry")), le = points.value(QStringLiteral("lower_entry"));
+            require(link["activation"].toString() == QStringLiteral("step") || link["activation"].toString() == QStringLiteral("use"), "Unknown connector activation");
             if (link.value("activation").toString() == QStringLiteral("use")) {
                 require(link.value("server_action_confirmed").toBool(), "Ladder connection requires explicitly configured server behavior");
                 continue;
@@ -190,9 +266,14 @@ TmgFormat::Result TmgFormat::load(const QString &path, const Catalog &catalog,
             const auto ul = points.value(QStringLiteral("upper_landing")), ll = points.value(QStringLiteral("lower_landing"));
             require(ul["x"].toInt() == le["x"].toInt() + dx && ul["y"].toInt() == le["y"].toInt() + dy && ll["x"].toInt() == ue["x"].toInt() - dx && ll["y"].toInt() == ue["y"].toInt() - dy, "Stair landings disagree with item flags");
         }
+        require(upperFloors.size() == floors - 1, "Missing floor connections");
         for (const char *name : {"entrance", "exit"}) {
             const auto point = manifest.value(QLatin1String(name)).toObject();
             require(walkable(doc->tileAt(number(point, "x", 0, width - 1), number(point, "y", 0, height - 1), baseZ + number(point, "z", 0, floors - 1)), catalog), "Blocked entrance or exit");
+        }
+        if (manifestVersion == 2) {
+            number(manifest, "surface_floor", 0, floors - 1);
+            validateSettlementNavigation(*doc, catalog, manifest, width, height, baseZ, check);
         }
         check(); doc->m_itemCount = int(itemCount); doc->m_dirty = true; doc->m_spawnsModified = !spawnRows.isEmpty();
         result.document = doc; result.manifest = manifest;

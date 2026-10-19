@@ -4,7 +4,8 @@
 #include <QJsonObject>
 #include <QSharedPointer>
 
-// Version 1 SQLite/CBOR interchange. Loading never modifies a live document.
+// SQLite/CBOR interchange with v1 and settlement v2 manifests.
+// Loading never modifies a live document.
 class TmgFormat {
 public:
     struct Item { bool ground = false; bool blocked = false; quint32 floorChange = 0; };

@@ -18,14 +18,18 @@ bool number(const QVariant &v, double low, double high, bool integer = true) {
 }
 
 QString TileMapGenProfiles::validateRecipe(const QVariantMap &o) {
-    if (!QStringList{"hunting", "cave", "linear"}.contains(o.value("generator").toString()))
+    if (!QStringList{"hunting", "cave", "linear", "settlement"}.contains(o.value("generator").toString()))
         return "Choose a generator style.";
     if (!number(o.value("width"), 24, 65535) || !number(o.value("height"), 24, 65535)
         || !number(o.value("floors"), 1, 16)) return "Invalid map dimensions or floor count.";
     const QString seed = o.value("seed").toString();
     if (seed.trimmed().isEmpty() || seed.size() > 256) return "Enter a seed of 1–256 characters.";
+    const bool settlement = o.value("generator").toString() == "settlement";
+    const auto district = o.value("settlement").toMap();
+    const int upper = settlement ? district.value("upper_levels", 1).toInt() : 0;
     if (!number(o.value("x"), 0, 65535) || !number(o.value("y"), 0, 65535)
-        || !number(o.value("z"), 0, 15) || o.value("z").toInt() + o.value("floors").toInt() > 16)
+        || !number(o.value("z"), 0, 15) || o.value("z").toInt() < upper
+        || o.value("z").toInt() - upper + o.value("floors").toInt() > 16)
         return "Invalid destination coordinates or floors.";
     if (!number(o.value("downId"), 0, 65535) || !number(o.value("upId"), 0, 65535))
         return "Stair IDs must be between 0 and 65535.";
@@ -62,6 +66,22 @@ QString TileMapGenProfiles::validateRecipe(const QVariantMap &o) {
     for (const auto &field : fields) if (!number(settings.value(field.key), field.low, field.high, field.integer))
         return QString("Invalid generation setting: %1.").arg(field.key);
     if (settings.value("room_min").toInt() > settings.value("room_max").toInt()) return "Minimum room size exceeds maximum room size.";
+    if (settlement) {
+        if (o.value("width").toInt() < 64 || o.value("height").toInt() < 64) return "Settlements need at least 64 tiles on each axis.";
+        for (const auto &field : {"building_density", "ruin_amount"})
+            if (!number(district.value(field), 0, 1, false)) return "Invalid settlement density or ruin amount.";
+        for (const auto &field : {"upper_levels", "basement_levels"})
+            if (!number(district.value(field), 0, 7)) return "Choose between zero and seven upper or basement levels.";
+        if (!number(district.value("block_size"), 16, 64) || !number(district.value("street_width"), 3, 15)
+            || !number(district.value("plaza_count"), 1, 8) || district.value("building_density").toDouble() < .1)
+            return "Invalid settlement block size, street width, plazas or density.";
+        if (o.value("floors").toInt() != 1 + upper + district.value("basement_levels").toInt()) return "Settlement floor count must match upper and basement levels.";
+        if (palette.value("wall").toString().isEmpty()) return "Choose a blocking wall brush for the settlement.";
+        const auto materials = district.value("materials").toMap();
+        for (const auto &role : {"outdoor", "street", "interior", "cellar"})
+            if (materials.value(role).metaType().id() != QMetaType::QString || materials.value(role).toString().size() > 240)
+                return "Invalid settlement material name.";
+    }
     return {};
 }
 

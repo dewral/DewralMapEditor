@@ -78,6 +78,32 @@ int main(int argc, char **argv) {
     const int items = destination.itemCount();
     if (!check(items > 0 && destination.undo() && destination.itemCount() == 0
                && destination.redo() && destination.itemCount() == items, "Generated map undo/redo failed")) return 12;
-    qInfo() << "Local generation, progress, cancellation, paths with spaces, validated placement and undo/redo passed";
+    const auto command = [&](const QStringList &arguments, const QByteArray &input = QByteArray{}) {
+        done = success = timedOut = false; error.clear();
+        runner.startCommand(generator, arguments, input);
+        timeout.start(60000);
+        if (!done) loop.exec();
+        timeout.stop();
+        return done && !timedOut && success;
+    };
+    if (!check(command({"capabilities"})
+               && QJsonDocument::fromJson(runner.output()).object()["generators"].toArray().contains("settlement"),
+               "Settlement capability reporting failed: " + error)) return 13;
+    if (!check(command({"credentials", "save"}, R"({"key":"stdin-only-test-key","remember":false})")
+               && QJsonDocument::fromJson(runner.output()).object()["configured"].toBool()
+               && !runner.output().contains("stdin-only-test-key"), "Session credentials must use stdin and stay out of output")) return 14;
+    const auto optionsPath = directory.filePath("settlement options.json"), prepared = directory.filePath("settlement recipe.json");
+    QFile options(optionsPath);
+    if (!options.open(QIODevice::WriteOnly)) return 15;
+    options.write(QJsonDocument(QJsonObject{{"width",96},{"height",96},{"z",7},{"seed","dme-settlement"},{"palette",pack["palette"]}}).toJson());
+    options.close();
+    if (!check(command({"prepare", optionsPath, "--pack", fixture + "/materials.tmgpack", "--output", prepared}),
+               "Shared settlement kit binding failed: " + error)) return 16;
+    const auto settlementOutput = directory.filePath("settlement output");
+    if (!check(run(generator, prepared, settlementOutput) && success, "Settlement v2 CLI generation failed: " + error)) return 17;
+    const auto settlementResult = TmgFormat::load(settlementOutput + "/map.tmg", catalog);
+    if (!check(settlementResult.document && settlementResult.manifest["schema_version"].toInt() == 2,
+               "Settlement v2 CLI import failed: " + settlementResult.error)) return 18;
+    qInfo() << "Local generation, cancellation, v2 kit binding, stdin credentials, validated placement and undo/redo passed";
     return 0;
 }

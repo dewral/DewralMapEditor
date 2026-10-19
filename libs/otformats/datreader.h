@@ -18,6 +18,7 @@ struct ClientSpriteGroup {
     uint8_t type = 0;
     uint8_t width = 1;
     uint8_t height = 1;
+    uint8_t exact_size = 32;
     uint8_t layers = 1;
     uint8_t pattern_x = 1;
     uint8_t pattern_y = 1;
@@ -55,6 +56,7 @@ struct ClientItem {
 
     uint8_t width = 1;
     uint8_t height = 1;
+    uint8_t exact_size = 32;
     uint8_t layers = 1;
     uint8_t pattern_x = 1;
     uint8_t pattern_y = 1;
@@ -75,6 +77,10 @@ struct ClientItem {
     uint16_t elevation = 0;
     uint16_t minimap_color = 0;
     uint16_t lens_help = 0;
+
+    // Retain the source range for lossless export of flags the renderer ignores.
+    uint64_t source_flags_offset = 0;
+    uint32_t source_flags_size = 0;
 
     int animationFrameAt(quint64 elapsedMs) const {
         const int f = std::max(1, static_cast<int>(frames));

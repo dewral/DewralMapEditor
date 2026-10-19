@@ -104,12 +104,19 @@ Item {
         function namesFor(category) { return category === "raw" ? rawNames : category === "terrain" ? Object.keys(saved) : []; }
         function itemsFor(category, name) {
             if (category === "raw" && name === "Others") {
-                const ids=[]; for (let row=0; row<items.count; ++row) ids.push(items.get(row).serverId);
+                const namedIds = rawNames.filter(n => n !== "Others")
+                        .reduce((ids, n) => ids.concat(saved[n] || []), []);
+                const ids=[]; for (let row=0; row<items.count; ++row) {
+                    const id = items.get(row).serverId;
+                    if (namedIds.indexOf(id) < 0) ids.push(id);
+                }
                 return ids;
             }
             return saved[name] || [];
         }
-        function tilesetForItem(category, id) { return category === "raw" ? "Others" : ""; }
+        function tilesetForItem(category, id) {
+            return namesFor(category).find(name => itemsFor(category, name).indexOf(id) >= 0) || "";
+        }
         function isCustomOnly(category, name) { return true; }
         function newTileset(category, name) {
             const copy = Object.assign({}, saved);
@@ -277,6 +284,42 @@ Item {
             compare(items.detailsProbe.reads, 0,
                     "RAW Others must not build full item details for the hidden Doodad grid");
             compare(findChild(panel, "doodadPaletteGrid").count, 0);
+        }
+        function test_selectRawOpensOthers_data() {
+            return ["classic", "windows-classic", "github", "gray-dark", "gray-modern", "fluent-dark"]
+                    .map(theme => ({tag: theme, theme: theme}));
+        }
+        function test_selectRawOpensOthers(data) {
+            Backend.uiTheme.style = data.theme;
+            tilesets.rawNames = ["Architecture", "Others"];
+            tilesets.saved = ({Walls: [], Architecture: [500]});
+            ++tilesets.revision;
+            const panel = createTemporaryObject(panelComponent, testRoot);
+            verify(panel);
+            panel.revealRequested.connect(function () { panel.visible = true; });
+            const tileset = findChild(panel, "paletteTilesetCombo");
+            const grid = findChild(panel, "paletteItemGrid");
+            // Exercise both uncategorized items and items listed in a named RAW tileset.
+            for (const serverId of [725, 500]) {
+                prefs.lastRawTileset = "Architecture";
+                panel.selectKind("Terrain Palette");
+                panel.visible = false;
+                grid.filterModel.searchText = "missing item";
+                mockMap.houseBrush = 42;
+                mockMap.eraseMode = true;
+                mockMap.lassoMode = true;
+                panel.selectRaw(serverId);
+                verify(panel.visible, "Select RAW must reveal a hidden palette");
+                compare(panel.currentKind, "RAW Palette");
+                tryCompare(tileset, "currentText", "Others");
+                compare(prefs.lastRawTileset, "Others");
+                compare(grid.filterModel.searchText, "");
+                compare(mockMap.brushServerId, serverId);
+                compare(mockMap.houseBrush, 0);
+                verify(!mockMap.eraseMode && !mockMap.lassoMode);
+                if (serverId === 725)
+                    tryCompare(grid, "currentIndex", grid.filterModel.rowForServerId(serverId));
+            }
         }
         function test_hideNamedItems_data() {
             return ["classic", "windows-classic", "github", "gray-dark",
@@ -533,6 +576,29 @@ Item {
             palettes.addItemsToPalette("Test", [500, 503, 500, 0, -1]);
             compare(palettes.customPalettes.Test, [500, 503]);
             compare(JSON.parse(prefs.customPalettesJson).Test, [500, 503]);
+        }
+        function test_obdExportUsesContextItem() {
+            const panel = createTemporaryObject(panelComponent, testRoot);
+            verify(panel);
+            panel.selectKind("RAW Palette");
+            const grid = findChild(panel, "paletteItemGrid");
+            clickRow(grid, 2, Qt.NoModifier, Qt.RightButton);
+            const menu = findChild(panel, "paletteItemMenu");
+            const action = findChild(panel, "exportItemObdAction");
+            verify(action.enabled);
+            compare(action.text, "Export item as OBD...");
+            const dialog = findChild(panel, "obdExportDialog");
+            compare(dialog.defaultSuffix, "obd");
+            compare(dialog.nameFilters, ["ObjectBuilder data (*.obd)"]);
+            // Exercise acceptance without opening an interactive native file picker.
+            dialog.serverId = menu.sid;
+            dialog.selectedFile = Backend.obdExportUrl(menu.sid);
+            Backend.obdExportCalls = [];
+            dialog.accepted();
+            compare(Backend.obdExportCalls.length, 1);
+            compare(Backend.obdExportCalls[0].serverId, 506);
+            compare(Backend.obdExportCalls[0].destination, String(dialog.selectedFile));
+            menu.close();
         }
         function menuItem(menu, text) {
             for (let i = 0; i < menu.count; ++i) {

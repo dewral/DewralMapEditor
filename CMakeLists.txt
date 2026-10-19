@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
     "Disable Qt Creator package-manager auto setup" FORCE)
 
-project(DewralMapEditor VERSION 1.1.30 LANGUAGES C CXX)
+project(DewralMapEditor VERSION 1.1.32 LANGUAGES C CXX)
 
 set(DME_RELEASE_REPOSITORY "dewral/DewralMapEditor" CACHE STRING
     "GitHub repository hosting the stable update packages")
@@ -36,7 +36,14 @@ add_library(DmeLuaScripts STATIC editor/core/luascriptengine.cpp editor/core/lua
 target_include_directories(DmeLuaScripts PUBLIC editor/core)
 target_link_libraries(DmeLuaScripts PUBLIC Qt6::Core Qt6::Concurrent PRIVATE DmeLua)
 
+add_library(DmeLzma STATIC libs/lzma/LzmaEnc.c libs/lzma/LzFind.c libs/lzma/CpuArch.c)
+set_target_properties(DmeLzma PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
+target_compile_definitions(DmeLzma PRIVATE Z7_ST)
+target_include_directories(DmeLzma PUBLIC libs/lzma)
+
 add_library(OTFormats STATIC
+    libs/otformats/obdexport.cpp
+    libs/otformats/obdexport.h
     libs/otformats/sprreader.cpp
     libs/otformats/sprreader.h
     libs/otformats/datreader.cpp
@@ -69,6 +76,7 @@ target_compile_definitions(OTFormats PUBLIC
     $<$<CONFIG:Debug>:DME_DATA_DIR="${CMAKE_SOURCE_DIR}/data">)
 
 target_link_libraries(OTFormats
+    PRIVATE DmeLzma
     PUBLIC
         Qt6::Core
         Qt6::Gui
@@ -326,6 +334,12 @@ if(BUILD_TESTING)
     set_tests_properties(otformats_reader PROPERTIES
         ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
 
+    add_executable(obd_export_test EXCLUDE_FROM_ALL tests/obd_export_test.cpp libs/lzma/LzmaDec.c)
+    target_link_libraries(obd_export_test PRIVATE OTFormats DmeLzma)
+    add_test(NAME obd_export COMMAND obd_export_test)
+    set_tests_properties(obd_export PROPERTIES
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+
     add_executable(palette_visibility_test EXCLUDE_FROM_ALL
         tests/palette_visibility_test.cpp
         editor/core/tilesetstore.cpp
@@ -446,6 +460,16 @@ if(BUILD_TESTING)
     target_include_directories(tilemapgen_asset_tool PRIVATE editor/core editor/map)
     target_link_libraries(tilemapgen_asset_tool PRIVATE OTFormats)
     add_executable(tmg_import_test EXCLUDE_FROM_ALL tests/tmg_import_test.cpp editor/core/brushstore.cpp)
+    add_executable(tmg_settlement_test EXCLUDE_FROM_ALL tests/tmg_settlement_test.cpp)
+    target_link_libraries(tmg_settlement_test PRIVATE OTFormats Qt6::Sql)
+    set(TILEMAPGEN_SETTLEMENT_FIXTURE_DIR "" CACHE PATH "Settlement v2 cross-language fixtures")
+    if(TILEMAPGEN_SETTLEMENT_FIXTURE_DIR)
+        add_test(NAME tilemapgen_settlement COMMAND tmg_settlement_test "${TILEMAPGEN_SETTLEMENT_FIXTURE_DIR}")
+        if(WIN32)
+            set_tests_properties(tilemapgen_settlement PROPERTIES
+                ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>" TIMEOUT 60)
+        endif()
+    endif()
     add_executable(ground_border_priority_test EXCLUDE_FROM_ALL
         tests/ground_border_priority_test.cpp editor/core/brushstore.cpp)
     target_include_directories(ground_border_priority_test PRIVATE editor/core)

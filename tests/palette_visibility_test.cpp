@@ -157,24 +157,50 @@ int main(int argc, char **argv)
     TilesetStore tilesets;
     tilesets.setItemSource(&otb);
     if (!require(tilesets.loadForDir(directory.path()), "Could not load RAW category fixture")) return 1;
+    const QVariantList allIds{1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008};
     if (!require(tilesets.namesFor("raw").last() == "Others"
-                 && tilesets.itemsFor("raw", "Others").size() == 8
-                 && !tilesets.itemsFor("raw", "Others").contains(1001)
+                 && tilesets.itemsFor("raw", "Others") == allIds
+                 && tilesets.itemsFor("raw", "Walls") == QVariantList{1001}
                  && tilesets.tilesetForItem("raw", 1001) == "Walls"
                  && tilesets.tilesetForItem("raw", 1002) == "Others",
-                 "RAW Others must contain only IDs outside named RAW categories")) return 1;
+                 "RAW Others must include every loaded ID while retaining named RAW categories")) return 1;
     if (!require(tilesets.addItem("raw", "Walls", 1002)
-                 && !tilesets.itemsFor("raw", "Others").contains(1002)
+                 && tilesets.itemsFor("raw", "Others") == allIds
+                 && tilesets.itemsFor("raw", "Walls").contains(1002)
                  && tilesets.removeItem("raw", "Walls", 1002)
-                 && tilesets.itemsFor("raw", "Others").contains(1002)
+                 && tilesets.itemsFor("raw", "Others") == allIds
+                 && !tilesets.itemsFor("raw", "Walls").contains(1002)
                  && !tilesets.deleteTileset("raw", "Others"),
-                 "RAW Others must update after category edits and remain generated")) return 1;
+                 "RAW Others must retain every item after named category edits and remain generated")) return 1;
     {
         QFile file(tilesetPath);
         if (!require(file.open(QIODevice::ReadOnly), "Could not read saved RAW definitions")) return 1;
         const auto saved = QJsonDocument::fromJson(file.readAll()).object()["raw"].toObject()["Others"].toArray();
         if (!require(saved.size() == 2, "Generated RAW Others must not overwrite saved definitions")) return 1;
     }
+    TilesetStore fallbackTilesets;
+    if (!require(fallbackTilesets.loadForDir(directory.path())
+                     && fallbackTilesets.itemsFor("raw", "Others") == QVariantList{1001, 1002},
+                 "Saved RAW Others must retain categorized IDs when no item source is attached")) return 1;
+
+    const QString furnitureOtbPath = directory.filePath(QStringLiteral("furniture.otb"));
+    OtbReader furnitureOtb;
+    if (!require(writeFile(furnitureOtbPath, otbFile(13164, 3))
+                     && furnitureOtb.loadFile(furnitureOtbPath)
+                     && tilesets.addItem("raw", "Furniture", 13165),
+                 "Could not load categorized furniture fixture")) return 1;
+    tilesets.setItemSource(&furnitureOtb);
+    PaletteFilter allRawFilter;
+    allRawFilter.setSourceModel(&furnitureOtb);
+    allRawFilter.setIds(tilesets.itemsFor("raw", "Others"));
+    if (!require(allRawFilter.rowCount() == 3 && allRawFilter.serverIdAtRow(0) == 13164
+                     && allRawFilter.serverIdAtRow(1) == 13165
+                     && allRawFilter.serverIdAtRow(2) == 13166
+                     && tilesets.tilesetForItem("raw", 13165) == "Furniture",
+                 "RAW Others must display server ID 13165 after 13164 even when assigned to Furniture")) return 1;
+    tilesets.setItemSource(&otb);
+    if (!require(tilesets.itemsFor("raw", "Others") == allIds,
+                 "Changing item sources must replace the complete RAW Others catalogue")) return 1;
 
     const QString offsetOtbPath = directory.filePath(QStringLiteral("offset.otb"));
     OtbReader offsetOtb;

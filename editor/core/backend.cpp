@@ -1,5 +1,6 @@
 #include "backend.h"
 #include "groundbrushexport.h"
+#include "obdexport.h"
 
 #include <QDir>
 #include <QImageWriter>
@@ -95,4 +96,16 @@ QString Backend::previewScreenshotPath() const
         return path;
     }
     return {};
+}
+
+QUrl Backend::obdExportUrl(int serverId) const
+{
+    const QDir downloads(QStandardPaths::writableLocation(QStandardPaths::DownloadLocation));
+    return QUrl::fromLocalFile(downloads.filePath(QStringLiteral("item-%1-%2-v2.obd")
+        .arg(serverId).arg(m_datReader.clientVersion())));
+}
+
+QString Backend::exportObd(int serverId, const QUrl &destination)
+{
+    return ObdExport::save(m_datReader, m_sprReader, m_otbReader.clientIdForServerId(serverId), destination);
 }

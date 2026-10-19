@@ -13,6 +13,9 @@ public:
     static QString errorSummary(const QString &error);
     void start(const QString &directory, const QString &request,
                const QString &pack, const QString &output);
+    void startCommand(const QString &directory, const QStringList &arguments, const QByteArray &input = {});
+    QByteArray output() const { return m_output; }
+    bool running() const { return m_running; }
     void cancel();
     void shutdown();
 signals:
@@ -21,7 +24,10 @@ signals:
 private:
     void readOutput();
     void complete(bool success, const QString &error);
+    void run(const QString &directory, const QStringList &arguments, const QByteArray &input, bool capture);
     QProcess m_process;
     QByteArray m_pendingOutput, m_errors;
+    QByteArray m_output;
+    bool m_capture = false;
     bool m_running = false, m_cancelled = false;
 };

@@ -25,6 +25,7 @@ const Command commands[] = {
     {"undo", "Undo", "Edit", "Ctrl+Z", "editor"},
     {"redo", "Redo", "Edit", "Ctrl+Shift+Z", "editor"},
     {"find_item", "Find Item", "Edit", "Ctrl+F", "editor"},
+    {"jump_to_item", "Jump to Item", "Search", "Ctrl+J", "editor"},
     {"replace_items", "Replace Items", "Edit", "Ctrl+Shift+F", "editor"},
     {"border_automagic", "Border Automagic", "Edit", "A", "editor"},
     {"borderize_selection", "Borderize Selection", "Edit", "Ctrl+B", "editor"},

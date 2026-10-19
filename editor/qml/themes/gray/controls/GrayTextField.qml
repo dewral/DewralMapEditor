@@ -1,6 +1,7 @@
 import QtQuick
 Item {
     id: root; property string text: ""; property string placeholderText: ""; signal accepted; signal editingFinished; signal userTextChanged(string value)
+    function focusEditor() { input.forceActiveFocus(); }
     implicitWidth: 140; implicitHeight: 22
     Rectangle { anchors.fill: parent; radius: 6; color: "#111111"; border.width: 1; border.color: input.activeFocus ? "#C79A3B" : "#3A3A3A" }
     Text { anchors.left: parent.left; anchors.leftMargin: 10; anchors.verticalCenter: parent.verticalCenter; text: root.placeholderText; color: "#858585"; font.pixelSize: 12; visible: input.text.length === 0 }

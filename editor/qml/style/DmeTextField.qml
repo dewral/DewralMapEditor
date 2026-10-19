@@ -12,6 +12,11 @@ Item {
     signal accepted
     signal editingFinished
 
+    function focusEditor() {
+        if (controlLoader.item)
+            controlLoader.item.focusEditor();
+    }
+
     implicitWidth: controlLoader.item ? controlLoader.item.implicitWidth : 140
     implicitHeight: controlLoader.item ? controlLoader.item.implicitHeight : 22
 

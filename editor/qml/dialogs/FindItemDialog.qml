@@ -1,25 +1,45 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Controls as Controls
+import QtQuick.Layouts
 import Tibia 1.0
 import "../style"
+import "../themes/fluent/Colors.js" as FluentColors
 
 DmeDialog {
     id: dialog
+    objectName: "findItemDialog"
 
     required property var paletteNavigator
-    property string searchMode: "server"
+    property var itemCatalog: Backend.otbReader
+    property string searchMode: "name"
     property string selectedType: "depot"
     property var results: []
     property int total: 0
     property bool truncated: false
     readonly property bool propertyMode: searchMode === "properties"
-    readonly property bool githubUi: Backend.uiTheme.style !== "classic"
-                                     && Backend.uiTheme.style !== "windows-classic"
-    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
+    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
+    readonly property bool neutralUi: fluentUi || Backend.uiTheme.style === "gray-dark"
+                                      || Backend.uiTheme.style === "gray-modern"
+    readonly property color foreground: windowsClassic ? "#202020"
+        : fluentUi ? FluentColors.c("text") : "#f0f0f0"
+    readonly property color secondary: windowsClassic ? "#595959"
+        : fluentUi ? FluentColors.c("muted") : neutralUi ? "#b1b1b1" : "#a0a8b1"
+    readonly property color accent: windowsClassic ? "#0067c0"
+        : fluentUi ? FluentColors.c("accent") : "#4a9fc2"
+    readonly property color panelColor: windowsClassic ? "#f4f4f4"
+        : fluentUi ? FluentColors.c("surface") : neutralUi ? "#232323" : "#161b22"
+    readonly property color lineColor: windowsClassic ? "#ababab"
+        : fluentUi ? FluentColors.c("border") : neutralUi ? "#414141" : "#30363d"
+    readonly property color selectedColor: Qt.tint(panelColor,
+        Qt.rgba(accent.r, accent.g, accent.b, 0.22))
+    readonly property real viewportWidth: Controls.Overlay.overlay ? Controls.Overlay.overlay.width : 1024
+    readonly property real viewportHeight: Controls.Overlay.overlay ? Controls.Overlay.overlay.height : 800
 
     title: "Search for Item"
-    width: 850
+    width: Math.max(700, Math.min(920, viewportWidth - 32))
+    height: Math.max(420, Math.min(680, viewportHeight - 32))
 
     function spriteSource(item) {
         if (!item || !item.spriteIds || item.spriteIds.length === 0)
@@ -51,7 +71,8 @@ DmeDialog {
     }
 
     function runSearch() {
-        const response = Backend.otbReader.findItems({
+        searchTimer.stop();
+        const response = itemCatalog.findItems({
             mode: searchMode,
             serverId: serverIdField.value,
             clientId: clientIdField.value,
@@ -66,26 +87,41 @@ DmeDialog {
         resultList.currentIndex = results.length > 0 ? 0 : -1;
     }
 
-    function scheduleSearch() {
-        searchTimer.restart();
+    function scheduleSearch() { searchTimer.restart(); }
+
+    function focusName() {
+        if (visible && searchMode === "name")
+            nameField.focusEditor();
+    }
+
+    function chooseMode(mode) {
+        searchMode = mode;
+        runSearch();
+        if (mode === "name") Qt.callLater(focusName);
+    }
+
+    function chooseType(type) {
+        selectedType = type;
+        runSearch();
     }
 
     function acceptSelection() {
-        if (resultList.currentIndex < 0
-            || resultList.currentIndex >= results.length)
+        if (resultList.currentIndex < 0 || resultList.currentIndex >= results.length)
             return;
         paletteNavigator.selectRaw(results[resultList.currentIndex].serverId);
         close();
     }
 
     onOpened: {
-        searchMode = "server";
+        searchMode = "name";
         serverIdField.value = 100;
         clientIdField.value = 100;
         nameField.text = "";
         selectedType = "depot";
         runSearch();
+        Qt.callLater(focusName);
     }
+    onClosed: searchTimer.stop()
 
     Timer {
         id: searchTimer
@@ -94,364 +130,402 @@ DmeDialog {
         onTriggered: dialog.runSearch()
     }
 
-    contentItem: Column {
-        spacing: 10
+    contentItem: ColumnLayout {
+        spacing: 14
 
-        Row {
+        RowLayout {
+            objectName: "findItemModes"
+            Layout.fillWidth: true
             spacing: 8
-
-            DmePanel {
-                width: 178
-                height: 500
-
-                Column {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 7
-
-                    Choice {
-                        text: "Find by Server ID"
-                        checked: dialog.searchMode === "server"
-                        onClicked: {
-                            dialog.searchMode = "server";
-                            dialog.runSearch();
-                        }
-                    }
-                    Choice {
-                        text: "Find by Client ID"
-                        checked: dialog.searchMode === "client"
-                        onClicked: {
-                            dialog.searchMode = "client";
-                            dialog.runSearch();
-                        }
-                    }
-                    Choice {
-                        text: "Find by Name"
-                        checked: dialog.searchMode === "name"
-                        onClicked: {
-                            dialog.searchMode = "name";
-                            dialog.runSearch();
-                        }
-                    }
-                    Choice {
-                        text: "Find by Types"
-                        checked: dialog.searchMode === "type"
-                        onClicked: {
-                            dialog.searchMode = "type";
-                            dialog.runSearch();
-                        }
-                    }
-                    Choice {
-                        text: "Find by Properties"
-                        checked: dialog.searchMode === "properties"
-                        onClicked: {
-                            dialog.searchMode = "properties";
-                            dialog.runSearch();
-                        }
-                    }
-
-                    SectionLabel { text: "Server ID" }
-                    DmeSpinBox {
-                        id: serverIdField
-                        width: parent.width
-                        from: 1
-                        to: 65535
-                        enabled: dialog.searchMode === "server"
-                        onValueChanged: dialog.scheduleSearch()
-                    }
-                    DmeCheckBox {
-                        id: forceSelect
-                        text: "Force select"
-                        enabled: dialog.searchMode === "server"
-                        onClicked: {
-                            checked = !checked;
-                            dialog.runSearch();
-                        }
-                    }
-
-                    SectionLabel { text: "Client ID" }
-                    DmeSpinBox {
-                        id: clientIdField
-                        width: parent.width
-                        from: 1
-                        to: 65535
-                        enabled: dialog.searchMode === "client"
-                        onValueChanged: dialog.scheduleSearch()
-                    }
-
-                    SectionLabel { text: "Name" }
-                    DmeTextField {
-                        id: nameField
-                        width: parent.width
-                        enabled: dialog.searchMode === "name"
-                        placeholderText: "At least 2 characters"
-                        onTextChanged: dialog.scheduleSearch()
-                    }
+            Repeater {
+                model: [
+                    {mode: "server", label: "Server ID"},
+                    {mode: "client", label: "Client ID"},
+                    {mode: "name", label: "Name"},
+                    {mode: "type", label: "Types"},
+                    {mode: "properties", label: "Properties"}
+                ]
+                delegate: ModeButton {
+                    required property var modelData
+                    mode: modelData.mode
+                    labelText: modelData.label
+                    objectName: "findItemMode_" + mode
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    Layout.preferredHeight: 46
                 }
             }
+        }
 
-            DmePanel {
-                width: 150
-                height: 500
+        RowLayout {
+            objectName: "findItemFields"
+            Layout.fillWidth: true
+            spacing: 12
 
-                Column {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 7
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                Layout.alignment: Qt.AlignTop
+                spacing: 6
+                FieldLabel { text: "Server ID" }
+                DmeSpinBox {
+                    id: serverIdField
+                    objectName: "findItemServerId"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 32
+                    from: 1; to: 65535
+                    enabled: dialog.searchMode === "server"
+                    onValueChanged: dialog.scheduleSearch()
+                }
+                DmeCheckBox {
+                    id: forceSelect
+                    objectName: "findItemForceSelect"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 18
+                    text: "Force select"
+                    enabled: dialog.searchMode === "server"
+                    opacity: enabled ? 1 : 0.6
+                    onClicked: { checked = !checked; dialog.runSearch(); }
+                }
+            }
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                Layout.alignment: Qt.AlignTop
+                spacing: 6
+                FieldLabel { text: "Client ID" }
+                DmeSpinBox {
+                    id: clientIdField
+                    objectName: "findItemClientId"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 32
+                    from: 1; to: 65535
+                    enabled: dialog.searchMode === "client"
+                    onValueChanged: dialog.scheduleSearch()
+                }
+            }
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1.45
+                Layout.alignment: Qt.AlignTop
+                spacing: 6
+                FieldLabel { text: "Name" }
+                DmeTextField {
+                    id: nameField
+                    objectName: "findItemName"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 32
+                    enabled: dialog.searchMode === "name"
+                    placeholderText: "At least 2 characters"
+                    onTextChanged: dialog.scheduleSearch()
+                }
+            }
+        }
 
+        RowLayout {
+            objectName: "findItemSections"
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            spacing: 12
+
+            SectionPanel {
+                objectName: "findItemTypesPanel"
+                Layout.preferredWidth: dialog.width < 820 ? 132 : 146
+                Layout.fillHeight: true
+                ColumnLayout {
+                    anchors { fill: parent; margins: 11 }
+                    spacing: 9
                     SectionLabel { text: "Types" }
-                    Choice { text: "Depot"; checked: dialog.selectedType === "depot"; enabled: dialog.searchMode === "type"; onClicked: dialog.chooseType("depot") }
-                    Choice { text: "Mailbox"; checked: dialog.selectedType === "mailbox"; enabled: dialog.searchMode === "type"; onClicked: dialog.chooseType("mailbox") }
-                    Choice { text: "Trash Holder"; checked: dialog.selectedType === "trashholder"; enabled: dialog.searchMode === "type"; onClicked: dialog.chooseType("trashholder") }
-                    Choice { text: "Container"; checked: dialog.selectedType === "container"; enabled: dialog.searchMode === "type"; onClicked: dialog.chooseType("container") }
-                    Choice { text: "Door"; checked: dialog.selectedType === "door"; enabled: dialog.searchMode === "type"; onClicked: dialog.chooseType("door") }
-                    Choice { text: "Magic Field"; checked: dialog.selectedType === "magicfield"; enabled: dialog.searchMode === "type"; onClicked: dialog.chooseType("magicfield") }
-                    Choice { text: "Teleport"; checked: dialog.selectedType === "teleport"; enabled: dialog.searchMode === "type"; onClicked: dialog.chooseType("teleport") }
-                    Choice { text: "Bed"; checked: dialog.selectedType === "bed"; enabled: dialog.searchMode === "type"; onClicked: dialog.chooseType("bed") }
-                    Choice { text: "Key"; checked: dialog.selectedType === "key"; enabled: dialog.searchMode === "type"; onClicked: dialog.chooseType("key") }
-                    Choice { text: "Podium"; checked: dialog.selectedType === "podium"; enabled: dialog.searchMode === "type"; onClicked: dialog.chooseType("podium") }
-                }
-            }
-
-            DmePanel {
-                width: 175
-                height: 500
-
-                Column {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 7
-
-                    SectionLabel { text: "Properties" }
-                    PropertyCheck { id: unpassable; text: "Unpassable" }
-                    PropertyCheck { id: unmovable; text: "Unmovable" }
-                    PropertyCheck { id: blockMissiles; text: "Block Missiles" }
-                    PropertyCheck { id: blockPathfinder; text: "Block Pathfinder" }
-                    PropertyCheck { id: readable; text: "Readable" }
-                    PropertyCheck { id: writeable; text: "Writeable" }
-                    PropertyCheck { id: pickupable; text: "Pickupable" }
-                    PropertyCheck { id: stackable; text: "Stackable" }
-                    PropertyCheck { id: rotatable; text: "Rotatable" }
-                    PropertyCheck { id: hangable; text: "Hangable" }
-                    PropertyCheck { id: hookEast; text: "Hook East" }
-                    PropertyCheck { id: hookSouth; text: "Hook South" }
-                    PropertyCheck { id: hasElevation; text: "Has Elevation" }
-                    PropertyCheck { id: ignoreLook; text: "Ignore Look" }
-                    PropertyCheck { id: floorChange; text: "Floor Change" }
-                }
-            }
-
-            DmePanel {
-                width: 300
-                height: 500
-
-                Column {
-                    anchors.fill: parent
-                    anchors.margins: 6
-                    spacing: 5
-
-                    Row {
-                        width: parent.width
-
-                        SectionLabel {
-                            text: "Result"
+                    Separator {}
+                    Flickable {
+                        id: typesScroll
+                        objectName: "findItemTypesScroll"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        contentWidth: width
+                        contentHeight: typesColumn.implicitHeight
+                        boundsBehavior: Flickable.StopAtBounds
+                        clip: true
+                        Column {
+                            id: typesColumn
+                            width: typesScroll.width - 8
+                            spacing: 2
+                            Repeater {
+                                model: [
+                                    {key: "depot", label: "Depot"},
+                                    {key: "mailbox", label: "Mailbox"},
+                                    {key: "trashholder", label: "Trash Holder"},
+                                    {key: "container", label: "Container"},
+                                    {key: "door", label: "Door"},
+                                    {key: "magicfield", label: "Magic Field"},
+                                    {key: "teleport", label: "Teleport"},
+                                    {key: "bed", label: "Bed"},
+                                    {key: "key", label: "Key"},
+                                    {key: "podium", label: "Podium"}
+                                ]
+                                delegate: TypeChoice {
+                                    required property var modelData
+                                    objectName: "findItemType_" + modelData.key
+                                    typeValue: modelData.key
+                                    text: modelData.label
+                                    width: typesColumn.width
+                                }
+                            }
                         }
+                        DmeScrollBar { anchors { right: parent.right; top: parent.top; bottom: parent.bottom } flickable: typesScroll }
+                    }
+                }
+            }
+
+            SectionPanel {
+                objectName: "findItemPropertiesPanel"
+                Layout.preferredWidth: dialog.width < 820 ? 228 : 256
+                Layout.fillHeight: true
+                ColumnLayout {
+                    anchors { fill: parent; margins: 11 }
+                    spacing: 9
+                    SectionLabel { text: "Properties" }
+                    Separator {}
+                    Flickable {
+                        id: propertiesScroll
+                        objectName: "findItemPropertiesScroll"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        contentWidth: width
+                        contentHeight: propertyGrid.implicitHeight
+                        boundsBehavior: Flickable.StopAtBounds
+                        clip: true
+                        Grid {
+                            id: propertyGrid
+                            width: propertiesScroll.width - 8
+                            columns: 2
+                            columnSpacing: 8
+                            rowSpacing: 5
+                            PropertyCheck { id: unpassable; propertyKey: "unpassable"; text: "Unpassable" }
+                            PropertyCheck { id: unmovable; propertyKey: "unmovable"; text: "Unmovable" }
+                            PropertyCheck { id: blockMissiles; propertyKey: "blockmissiles"; text: "Block Missiles" }
+                            PropertyCheck { id: blockPathfinder; propertyKey: "blockpathfinder"; text: "Block Pathfinder" }
+                            PropertyCheck { id: readable; propertyKey: "readable"; text: "Readable" }
+                            PropertyCheck { id: writeable; propertyKey: "writeable"; text: "Writeable" }
+                            PropertyCheck { id: pickupable; propertyKey: "pickupable"; text: "Pickupable" }
+                            PropertyCheck { id: stackable; propertyKey: "stackable"; text: "Stackable" }
+                            PropertyCheck { id: rotatable; propertyKey: "rotatable"; text: "Rotatable" }
+                            PropertyCheck { id: hangable; propertyKey: "hangable"; text: "Hangable" }
+                            PropertyCheck { id: hookEast; propertyKey: "hookeast"; text: "Hook East" }
+                            PropertyCheck { id: hookSouth; propertyKey: "hooksouth"; text: "Hook South" }
+                            PropertyCheck { id: hasElevation; propertyKey: "haselevation"; text: "Has Elevation" }
+                            PropertyCheck { id: ignoreLook; propertyKey: "ignorelook"; text: "Ignore Look" }
+                            PropertyCheck { id: floorChange; propertyKey: "floorchange"; text: "Floor Change" }
+                        }
+                        DmeScrollBar { anchors { right: parent.right; top: parent.top; bottom: parent.bottom } flickable: propertiesScroll }
+                    }
+                }
+            }
+
+            SectionPanel {
+                objectName: "findItemResultsPanel"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                ColumnLayout {
+                    anchors { fill: parent; margins: 7 }
+                    spacing: 8
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 4; Layout.rightMargin: 4; Layout.topMargin: 4
+                        SectionLabel { text: "Result"; Layout.fillWidth: true }
                         Text {
-                            width: parent.width - 45
-                            horizontalAlignment: Text.AlignRight
+                            objectName: "findItemResultCount"
                             text: dialog.total + (dialog.truncated ? "+ matches" : " match(es)")
-                            color: dialog.truncated ? "#e3b341" : "#8b949e"
-                            font.pixelSize: 10
+                            color: dialog.truncated ? "#e3b341" : dialog.secondary
+                            font.family: "Segoe UI"; font.pixelSize: 11
                         }
                     }
-
+                    Separator {}
                     ListView {
                         id: resultList
-                        width: parent.width
-                        height: parent.height - 28
-                        clip: true
+                        objectName: "findItemResults"
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
                         model: dialog.results
+                        clip: true
+                        spacing: 4
                         highlightMoveDuration: 0
-
                         delegate: Rectangle {
                             id: resultRow
                             required property var modelData
                             required property int index
-
-                            width: resultList.width - 12
-                            height: 54
-                            color: resultList.currentIndex === index
-                                   ? (dialog.githubUi ? (dialog.grayUi ? "#4A3A1F" : "#163B2C") : "#505050")
-                                   : (resultMouse.containsMouse
-                                      ? (dialog.githubUi ? (dialog.grayUi ? "#303030" : "#161E27") : "#383838")
-                                      : "transparent")
-
+                            objectName: "findItemResult_" + modelData.serverId
+                            width: resultList.width - 10
+                            height: 62
+                            radius: dialog.modernTheme ? 3 : 0
+                            color: resultList.currentIndex === index ? dialog.selectedColor
+                                : resultMouse.containsMouse ? Qt.tint(dialog.panelColor, "#16ffffff") : "transparent"
+                            border.width: resultList.currentIndex === index ? 1 : 0
+                            border.color: dialog.accent
                             Image {
-                                anchors {
-                                    left: parent.left
-                                    leftMargin: 5
-                                    verticalCenter: parent.verticalCenter
-                                }
-                                width: 42
-                                height: 42
+                                anchors { left: parent.left; leftMargin: 6; verticalCenter: parent.verticalCenter }
+                                width: 43; height: 43
                                 smooth: false
                                 cache: false
                                 fillMode: Image.PreserveAspectFit
                                 source: dialog.spriteSource(resultRow.modelData)
                             }
-
                             Column {
-                                anchors {
-                                    left: parent.left
-                                    leftMargin: 53
-                                    right: parent.right
-                                    rightMargin: 5
-                                    verticalCenter: parent.verticalCenter
-                                }
+                                anchors { left: parent.left; leftMargin: 58; right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
                                 spacing: 2
-
                                 Text {
                                     width: parent.width
                                     text: resultRow.modelData.name || "Unknown item"
-                                    color: "#d0d0d0"
-                                    font.pixelSize: 11
-                                    font.bold: true
+                                    color: dialog.foreground
+                                    font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.DemiBold
                                     elide: Text.ElideRight
                                 }
                                 Text {
                                     width: parent.width
-                                    text: "Server " + resultRow.modelData.serverId
-                                          + "   Client " + resultRow.modelData.clientId
-                                    color: "#8b949e"
-                                    font.pixelSize: 10
+                                    text: "Server " + resultRow.modelData.serverId + "   Client " + resultRow.modelData.clientId
+                                    color: dialog.secondary
+                                    font.family: "Segoe UI"; font.pixelSize: 11
                                     elide: Text.ElideRight
                                 }
                                 Text {
                                     width: parent.width
                                     text: resultRow.modelData.group
-                                    color: "#6e7681"
-                                    font.pixelSize: 9
+                                    color: dialog.secondary
+                                    font.family: "Segoe UI"; font.pixelSize: 11
                                     elide: Text.ElideRight
                                 }
                             }
-
                             MouseArea {
                                 id: resultMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onClicked: resultList.currentIndex = resultRow.index
-                                onDoubleClicked: {
-                                    resultList.currentIndex = resultRow.index;
-                                    dialog.acceptSelection();
-                                }
+                                onDoubleClicked: { resultList.currentIndex = resultRow.index; dialog.acceptSelection(); }
                             }
                         }
-
                         Text {
                             anchors.centerIn: parent
+                            width: parent.width - 20
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.WordWrap
                             visible: dialog.results.length === 0
                             text: "No matches for your search."
-                            color: "#8b949e"
-                            font.pixelSize: 11
+                            color: dialog.secondary
+                            font.family: "Segoe UI"; font.pixelSize: 12
                         }
-                    }
-
-                    DmeScrollBar {
-                        anchors {
-                            right: parent.right
-                            top: parent.top
-                            topMargin: 22
-                            bottom: parent.bottom
-                        }
-                        flickable: resultList
+                        DmeScrollBar { anchors { right: parent.right; top: parent.top; bottom: parent.bottom } flickable: resultList }
                     }
                 }
             }
         }
 
-        Row {
-            spacing: 6
-            anchors.horizontalCenter: parent.horizontalCenter
-
+        Separator {}
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+            Item { Layout.fillWidth: true }
             DmeButton {
+                objectName: "findItemAccept"
                 text: "OK"
-                width: 90
+                Layout.preferredWidth: 90; Layout.preferredHeight: 32
                 enabled: resultList.currentIndex >= 0
                 variant: "primary"
                 onClicked: dialog.acceptSelection()
             }
             DmeButton {
+                objectName: "findItemCancel"
                 text: "Cancel"
-                width: 90
+                Layout.preferredWidth: 90; Layout.preferredHeight: 32
                 onClicked: dialog.close()
             }
         }
     }
 
-    function chooseType(type) {
-        selectedType = type;
-        runSearch();
+    component FieldLabel: Text {
+        color: dialog.secondary
+        font.family: "Segoe UI"; font.pixelSize: 12
     }
-
     component SectionLabel: Text {
-        color: "#8b949e"
-        font.pixelSize: 10
-        font.bold: true
+        color: dialog.foreground
+        font.family: "Segoe UI"; font.pixelSize: 12; font.weight: Font.DemiBold
     }
-
-    component Choice: Item {
-        id: choice
-        property string text: ""
-        property bool checked: false
-        signal clicked
-        implicitWidth: 145
-        implicitHeight: 18
-        opacity: enabled ? 1 : 0.42
-
-        Rectangle {
-            width: 12
-            height: 12
-            radius: 6
-            anchors.verticalCenter: parent.verticalCenter
-            color: "transparent"
-            border.width: 1
-            border.color: choice.checked ? "#58a6ff" : "#777"
-
+    component Separator: Rectangle {
+        Layout.fillWidth: true
+        implicitHeight: 1
+        color: dialog.lineColor
+    }
+    component SectionPanel: Rectangle {
+        radius: dialog.modernTheme ? 5 : 0
+        color: dialog.panelColor
+        border.color: dialog.lineColor
+    }
+    component ModeButton: Controls.Button {
+        id: modeButton
+        property string mode: ""
+        property string labelText: ""
+        text: "Find by " + labelText
+        checked: dialog.searchMode === mode
+        Accessible.name: text
+        onClicked: dialog.chooseMode(mode)
+        padding: 10
+        background: Rectangle {
+            radius: dialog.modernTheme ? 4 : 0
+            color: modeButton.checked ? dialog.selectedColor : dialog.panelColor
+            border.color: modeButton.checked ? dialog.accent : modeButton.hovered ? dialog.secondary : dialog.lineColor
+        }
+        contentItem: RowLayout {
+            spacing: 7
             Rectangle {
-                anchors.centerIn: parent
-                width: 6
-                height: 6
-                radius: 3
-                visible: choice.checked
-                color: "#58a6ff"
+                width: 12; height: 12; radius: 6
+                color: "transparent"
+                border.color: modeButton.checked ? dialog.accent : dialog.secondary
+                Rectangle { anchors.centerIn: parent; width: 6; height: 6; radius: 3; visible: modeButton.checked; color: dialog.accent }
             }
-        }
-
-        Text {
-            anchors {
-                left: parent.left
-                leftMargin: 19
-                verticalCenter: parent.verticalCenter
+            Column {
+                Layout.fillWidth: true
+                Text { text: "Find by"; color: dialog.secondary; font.family: "Segoe UI"; font.pixelSize: 11 }
+                Text { width: parent.width; text: modeButton.labelText; color: dialog.foreground; font.family: "Segoe UI"; font.pixelSize: 12; elide: Text.ElideRight }
             }
-            text: choice.text
-            color: "#c9d1d9"
-            font.pixelSize: 11
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            enabled: choice.enabled
-            cursorShape: Qt.PointingHandCursor
-            onClicked: choice.clicked()
         }
     }
-
-    component PropertyCheck: DmeCheckBox {
+    component TypeChoice: Controls.AbstractButton {
+        id: choice
+        property string typeValue: ""
+        enabled: dialog.searchMode === "type"
+        checked: dialog.selectedType === typeValue
+        height: 26
+        opacity: enabled ? 1 : 0.6
+        onClicked: dialog.chooseType(typeValue)
+        contentItem: RowLayout {
+            spacing: 7
+            Rectangle {
+                width: 12; height: 12; radius: 6
+                color: "transparent"
+                border.color: choice.checked ? dialog.accent : dialog.secondary
+                Rectangle { anchors.centerIn: parent; width: 6; height: 6; radius: 3; visible: choice.checked; color: dialog.accent }
+            }
+            Text { Layout.fillWidth: true; text: choice.text; color: dialog.foreground; font.family: "Segoe UI"; font.pixelSize: 11; wrapMode: Text.WordWrap }
+        }
+    }
+    component PropertyCheck: Controls.AbstractButton {
+        id: propertyCheck
+        property string propertyKey: ""
+        objectName: "findItemProperty_" + propertyKey
+        width: (propertyGrid.width - propertyGrid.columnSpacing) / 2
+        height: 32
+        checkable: true
         enabled: dialog.propertyMode
-        opacity: enabled ? 1 : 0.42
-        onClicked: {
-            checked = !checked;
-            dialog.runSearch();
+        opacity: enabled ? 1 : 0.6
+        onClicked: dialog.runSearch()
+        contentItem: RowLayout {
+            spacing: 7
+            Rectangle {
+                width: 13; height: 13; radius: dialog.modernTheme ? 2 : 0
+                color: propertyCheck.checked ? dialog.accent : "transparent"
+                border.color: propertyCheck.checked ? dialog.accent : dialog.secondary
+                Text { anchors.centerIn: parent; text: "\u2713"; visible: propertyCheck.checked; color: dialog.windowsClassic ? "white" : "#10202a"; font.pixelSize: 11 }
+            }
+            Text { Layout.fillWidth: true; text: propertyCheck.text; color: dialog.foreground; font.family: "Segoe UI"; font.pixelSize: 11; wrapMode: Text.WordWrap }
         }
     }
 }

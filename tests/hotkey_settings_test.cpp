@@ -26,6 +26,9 @@ int main(int argc, char **argv)
     HotkeySettings hotkeys;
     const auto defaults = hotkeys.bindings();
     expect(defaults.value("go_to_position") == "Ctrl+G", "Keep the Go to Position default");
+    expect(defaults.value("jump_to_item") == "Ctrl+J", "Match RME Jump to Item");
+    expect(defaults.value("find_item") == "Ctrl+F", "Keep the existing Find Item shortcut");
+    expect(hotkeys.matches("jump_to_item", Qt::Key_J, Qt::ControlModifier), "Dispatch Ctrl+J to Jump to Item");
     expect(defaults.value("redo_alternative") == "Ctrl+Y", "Keep alternative bindings");
     expect(defaults.value("floor_up") == "+", "Keep map input defaults");
     expect(defaults.value("preview_left") == "A", "Keep preview walking defaults");

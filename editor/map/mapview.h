@@ -640,6 +640,7 @@ public:
     void placeItemOnFloor(int x, int y, int z, const OtbmMapItem &item);
 
     Q_INVOKABLE void copySelection();
+    Q_INVOKABLE QVariantList selectionItemIds();
     Q_INVOKABLE void rotateSelection(int quarterTurns = 1);
     Q_INVOKABLE QVariantMap brushSelectionSnapshot(bool includeGround = false);
     Q_INVOKABLE QVariantMap saveSelectionAsPrefab(const QString &name,

@@ -112,11 +112,20 @@ static bool testContextBrushes()
     pointer(QEvent::MouseButtonPress, Qt::RightButton, 100, Qt::ShiftModifier);
     pointer(QEvent::MouseButtonRelease, Qt::RightButton, 102, Qt::ShiftModifier);
     if (!require(view.selectionCount() == 3, "Shift-right drag did not select the rectangle")) return false;
+    if (!require(view.selectionItemIds() == QVariantList{100, 101, 200, 202, 300, 400, 500},
+                 "Collection snapshot must include all stacks, deduplicate and sort item IDs")) return false;
+    const auto collectionIds = view.selectionItemIds();
+    view.copySelection();
+    if (!require(view.selectionItemIds() == collectionIds && view.selectionCount() == 3
+                 && map.tileAt(100, 100, 7)->items.size() == 5,
+                 "Reading collection items must preserve the selection and map")) return false;
     click(Qt::RightButton, 102, Qt::ControlModifier | Qt::ShiftModifier);
     if (!require(view.selectionCount() == 2, "Ctrl-Shift-right did not deselect the tile")) return false;
     click(Qt::RightButton, 102, Qt::ControlModifier | Qt::ShiftModifier);
     if (!require(view.selectionCount() == 3, "Ctrl-Shift-right did not add the tile back")) return false;
     click(Qt::RightButton, 110);
+    if (!require(view.selectionItemIds().isEmpty(),
+                 "Empty selection retained collection items")) return false;
     if (!require(view.selectionCount() == 0 && view.contextInfo().value("brushes").toMap().isEmpty(),
                  "Empty tile retained the previous context brushes")) return false;
     click(Qt::RightButton, 100);
@@ -142,6 +151,13 @@ static bool testContextBrushes()
     click(Qt::RightButton, 100);
     if (!require(!view.pasting() && menus == beforePasteCancel + 1,
                  "Right-click did not cancel paste and open its context menu")) return false;
+    map.placeItem(100, 100, 8, 600, 99, false, false);
+    view.setSelectionFloors(1);
+    view.setCompensatedSelect(false);
+    click(Qt::RightButton, 100, Qt::ShiftModifier);
+    if (!require(view.selectionCount() == 2
+                 && view.selectionItemIds() == QVariantList{101, 200, 300, 400, 500, 600},
+                 "Collection snapshot must include selected floors and ignore creatures")) return false;
     const int beforeUngrab = menus;
     pointer(QEvent::MouseButtonPress, Qt::RightButton, 100);
     view.mouseUngrabEvent();

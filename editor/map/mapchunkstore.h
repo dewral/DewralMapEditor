@@ -24,6 +24,7 @@ public:
     using QuadCache = QHash<int, QHash<quint64, SharedQuadList>>;
     using VersionIndex = QHash<int, QHash<quint64, quint32>>;
     using AnimatedIndex = QHash<int, QSet<quint64>>;
+    using AnimationDependencies = QHash<int, QHash<quint64, QSet<quint16>>>;
     using DirtySet = std::set<std::pair<int, quint64>>;
     using CacheKey = std::pair<int, quint64>;
     using BuildCallback = std::function<bool(int, quint64, quint64)>;
@@ -55,6 +56,8 @@ public:
     const VersionIndex &versions() const { return m_versions; }
     AnimatedIndex &animatedChunks() { return m_animatedChunks; }
     const AnimatedIndex &animatedChunks() const { return m_animatedChunks; }
+    AnimationDependencies &animationItems() { return m_animationItems; }
+    const AnimationDependencies &animationItems() const { return m_animationItems; }
     DirtySet &dirtyChunks() { return m_dirtyChunks; }
     quint32 &versionCounter() { return m_versionCounter; }
     std::atomic<int> &cacheVersion() { return m_cacheVersion; }
@@ -77,6 +80,7 @@ private:
     qsizetype m_quadCacheBytes = 0;
     VersionIndex m_versions;
     AnimatedIndex m_animatedChunks;
+    AnimationDependencies m_animationItems;
     DirtySet m_dirtyChunks;
     quint32 m_versionCounter = 0;
     std::atomic<int> m_cacheVersion{0};

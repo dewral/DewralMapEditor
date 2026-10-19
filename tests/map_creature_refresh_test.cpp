@@ -138,6 +138,29 @@ bool writeAssets(const QTemporaryDir &directory)
         && writeFile(directory.filePath(QStringLiteral("test.spr")), spr);
 }
 
+bool animationDependencies(const QTemporaryDir &directory,OtbReader &otb,SprReader &spr)
+{
+    DatReader dat;dat.setClientVersion(860);
+    if(!dat.loadFile(directory.filePath("test.dat")))return false;
+    auto *fast=const_cast<ClientItem*>(dat.itemByClientId(100));
+    auto *slow=const_cast<ClientItem*>(dat.itemByClientId(102));
+    fast->frame_durations={40,40};
+    slow->frames=2;slow->sprite_ids.push_back(slow->sprite_ids.front());slow->frame_durations={60000,60000};
+    OtbmReader map;map.newMap(64,64,860,2,22);map.placeItem(33,1,7,5710,0,false,true);
+    MapView view;view.setOtb(&otb);view.setDat(&dat);view.setSpr(&spr);view.setOtbm(&map);view.setFloor(7);view.setShowAnimations(true);
+    const quint64 slowKey=quint64(1)<<32;
+    if(!require(waitUntil([&]{if(view.renderChunkVersion(7,slowKey)==MapView::kChunkPending)view.renderRequestChunk(7,slowKey);return !view.atlasBuilding()&&view.renderChunkVersion(7,slowKey)!=MapView::kChunkPending;}),"Slow animation chunk did not build"))return false;
+    const auto slowVersion=view.renderChunkVersion(7,slowKey); const auto content=view.renderContentVersion();
+    QThread::msleep(70);view.animTick();
+    if(!require(view.renderChunkVersion(7,slowKey)==slowVersion&&view.renderContentVersion()==content,"Unused fast item invalidated a slow chunk"))return false;
+    view.setFloor(6);view.placeItemAt(1,1,1000);view.setFloor(7);
+    view.renderRequestChunk(6,0);
+    if(!require(waitUntil([&]{if(view.renderChunkVersion(6,0)==MapView::kChunkPending)view.renderRequestChunk(6,0);return view.renderChunkVersion(6,0)!=MapView::kChunkPending;}),"Fast animation chunk did not build"))return false;
+    const auto stationary=view.renderChunkVersion(7,slowKey);
+    if(!require(waitUntil([&]{view.animTick();return view.renderChunkVersion(6,0)==MapView::kChunkPending;}),"Changed animation phase did not invalidate its chunk"))return false;
+    return require(view.renderChunkVersion(7,slowKey)==stationary,"Fast animation invalidated an unrelated slow chunk");
+}
+
 bool atlasBudget(const QTemporaryDir &directory)
 {
     constexpr int spritesPerMap = 33000;
@@ -265,6 +288,7 @@ int main(int argc, char **argv)
                      && spr.loadFile(directory.filePath(QStringLiteral("test.spr"))),
                  "Could not load creature refresh assets")) return 1;
 
+    if (!animationDependencies(directory,otb,spr)) return 1;
     if (!testSelectionDelete(otb, dat, spr)) return 1;
 
     const QString profile = QFileInfo(profileDirectory.path()).fileName();
@@ -290,6 +314,7 @@ int main(int argc, char **argv)
     view.setCreatureStore(&creatures);
     view.setOtbm(&map);
     view.setTileSize(48);
+    view.setShowAnimations(true);
     if (!expectOutfits(view, red, red)) return 1;
     const quint64 stationaryContent = view.renderContentVersion();
     if (!require(waitUntil([&] { view.animTick(); return view.renderContentVersion() != stationaryContent; }),

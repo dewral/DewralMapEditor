@@ -89,6 +89,14 @@ void MapChunkStore::storeChunkLocked(int floor, quint64 key, SharedQuadList quad
 
 bool MapChunkStore::removeChunkLocked(int floor, quint64 key)
 {
+    if (auto it = m_animationItems.find(floor); it != m_animationItems.end()) {
+        it->remove(key);
+        if (it->isEmpty()) m_animationItems.erase(it);
+    }
+    if (auto it = m_animatedChunks.find(floor); it != m_animatedChunks.end()) {
+        it->remove(key);
+        if (it->isEmpty()) m_animatedChunks.erase(it);
+    }
     const CacheKey cacheKey{floor, key};
     bool removed = false;
     auto floorIt = m_quadCache.find(floor);
@@ -112,6 +120,8 @@ bool MapChunkStore::removeChunkLocked(int floor, quint64 key)
 
 void MapChunkStore::clearChunksLocked()
 {
+    m_animationItems.clear();
+    m_animatedChunks.clear();
     m_quadCache.clear();
     m_quadCacheCosts.clear();
     m_quadCacheLru.clear();

@@ -130,7 +130,10 @@ QVariantMap MapView::setLuaPreview(const QVariantMap &patch,int x,int y,int z)
         for (const auto &item : tile.items) {
             sprites.insert(item.server_id);
             const ClientItem *ci=m_dat ? m_dat->itemByClientId(m_otb->clientIdForServerId(item.server_id)) : nullptr;
-            if (ci && ci->frames>1) m_luaPreviewAnimated.insert({tile.z,chunkKey(floorDiv(tile.x,kChunkTiles),floorDiv(tile.y,kChunkTiles))});
+            if (ci && ci->frames>1) {
+                m_luaPreviewAnimated.insert({tile.z,chunkKey(floorDiv(tile.x,kChunkTiles),floorDiv(tile.y,kChunkTiles))});
+                m_luaPreviewAnimationItems.insert(ci->id);
+            }
         }
         m_luaPreviewTiles.insert(key,std::move(tile));
     }
@@ -147,7 +150,7 @@ void MapView::clearLuaPreview()
     std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
     if (m_luaPreviewTiles.isEmpty()) return;
     m_luaPreviewTiles.clear(); m_luaPreviewChunks.clear(); m_luaPreviewPatch.clear();
-    m_luaPreviewAnimated.clear(); m_luaPreviewAnimationFrame=-1;
+    m_luaPreviewAnimated.clear(); m_luaPreviewAnimationItems.clear(); m_luaPreviewAnimationFrame=-1;
 
     ++m_dataVersion;
     m_chunkStore.resetVersion().fetch_add(1,std::memory_order_relaxed);
@@ -179,6 +182,17 @@ std::shared_ptr<const std::vector<MapView::QuadRef>> MapView::luaPreviewChunkQua
         return a->y!=b->y ? a->y<b->y : a->x<b->x;
     });
     auto quads=std::make_shared<std::vector<QuadRef>>();
-    for (const OtbmTile *tile : tiles) appendItemQuads(tile,*quads);
+    for (const OtbmTile *tile : tiles) {
+        appendItemQuads(tile,*quads);
+        // Virtual chunks also contain unmodified map tiles. Their animations
+        // must wake the preview even when no normal cached chunk covers them.
+        if (m_dat && m_otb) for (const auto &item : tile->items) {
+            const auto *ci=m_dat->itemByClientId(m_otb->clientIdForServerId(item.server_id));
+            if (ci && ci->frames>1) {
+                m_luaPreviewAnimationItems.insert(ci->id);
+                m_luaPreviewAnimated.insert({z,key});
+            }
+        }
+    }
     return quads;
 }

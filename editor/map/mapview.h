@@ -971,6 +971,7 @@ private:
     QHash<quint64,OtbmTile> m_luaPreviewTiles;
     QHash<int,QHash<quint64,QVector<quint64>>> m_luaPreviewChunks;
     QSet<QPair<int,quint64>> m_luaPreviewAnimated;
+    QSet<quint16> m_luaPreviewAnimationItems;
     int m_luaPreviewAnimationFrame=-1;
     QVariantMap m_luaPreviewPatch;
     int m_luaPreviewX=0,m_luaPreviewY=0,m_luaPreviewZ=7;

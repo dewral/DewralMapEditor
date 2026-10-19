@@ -272,6 +272,23 @@ void MapView::requestChunkQuads(int z, quint64 key)
 
 void MapView::storeChunkQuads(int z, quint64 key, std::vector<QuadRef> &&q, bool animated)
 {
+    std::lock_guard<std::recursive_mutex> dataLock(m_dataMutex);
+    QSet<quint16> animationItems;
+    if (animated && m_dat && m_otb) {
+        const auto floor = m_chunkStore.tiles().constFind(z);
+        if (floor != m_chunkStore.tiles().cend()) {
+            for (const auto *tile : floor->value(key)) for (const auto &item : tile->items) {
+                const int clientId = m_otb->clientIdForServerId(item.server_id);
+                const auto *definition = m_dat->itemByClientId(static_cast<quint16>(clientId));
+                if (definition && definition->frames > 1) {
+                    animationItems.insert(static_cast<quint16>(clientId));
+                    if (!m_animationPhases.contains(clientId))
+                        m_animationPhases[clientId] = definition->animationFrameAt(quint64(m_animFrame) * 16);
+                }
+            }
+        }
+    }
+
     {
         std::lock_guard<std::mutex> lk(m_chunkStore.cacheMutex());
 
@@ -283,12 +300,10 @@ void MapView::storeChunkQuads(int z, quint64 key, std::vector<QuadRef> &&q, bool
             versionCounter = 1;
         m_chunkStore.versions()[z][key] = versionCounter;
 
-        // Refresh animated-chunk membership after every recomputation because
-        // an edit may add or remove the last animated item in the chunk.
-        auto &animatedChunks = m_chunkStore.animatedChunks();
-        if (animated) animatedChunks[z].insert(key);
-        else if (auto ait = animatedChunks.find(z); ait != animatedChunks.end())
-            ait->remove(key);
+        if (!animationItems.isEmpty()) {
+            m_chunkStore.animatedChunks()[z].insert(key);
+            m_chunkStore.animationItems()[z][key] = std::move(animationItems);
+        }
         m_chunkStore.dirtyChunks().insert({z, key});
     }
     m_chunkStore.cacheVersion().fetch_add(1, std::memory_order_relaxed);

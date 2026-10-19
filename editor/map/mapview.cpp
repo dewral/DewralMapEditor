@@ -124,45 +124,52 @@ void MapView::setShowAnimations(bool on)
 
 void MapView::animTick()
 {
-    // Multiple render windows share this clock: callbacks must not advance it twice.
+    // Serialize with chunk construction: the worker must use the same phase
+    // clock as the dependency index that is about to be invalidated.
+    std::lock_guard<std::recursive_mutex> dataLock(m_dataMutex);
     const int frame = static_cast<int>(m_effectClock.elapsed() / 16);
     if (frame == m_animFrame) return;
-    bool phaseChanged = false;
-    if (m_dat) for (const auto &item : m_dat->items()) {
-        if (item.frames <= 1) continue;
-        const int phase = item.animationFrameAt(static_cast<quint64>(frame) * 16);
-        if (m_animationPhases.value(item.id, -1) != phase) phaseChanged = true;
-        m_animationPhases[item.id] = phase;
-    }
     m_animFrame = frame;
-    if (!phaseChanged) return;
+    if (!m_showAnimations || !m_dat) return;
 
-    // The editor and detached previews can show different floors and regions.
-    // Invalidate cached animated chunks for every view, not only the editor viewport.
-    ++m_dataVersion;
-    bool any = false;
+    QSet<quint16> used = m_luaPreviewAnimationItems;
     {
-        std::lock_guard<std::mutex> lk(m_chunkStore.cacheMutex());
-        for (int z = 0; z < 16; ++z) {
-            const auto &animatedChunks = m_chunkStore.animatedChunks();
-            const auto animatedIt = animatedChunks.constFind(z);
-            if (animatedIt == animatedChunks.cend()) continue;
-            auto &versions = m_chunkStore.versions();
-            auto versionIt = versions.find(z);
-            for (const quint64 key : *animatedIt) {
-                    if (m_chunkStore.removeChunkLocked(z, key)) {
-                        if (versionIt != versions.end()) versionIt->remove(key);
-                        m_chunkStore.dirtyChunks().insert({z, key});
-                        any = true;
-                    }
+        std::lock_guard<std::mutex> lock(m_chunkStore.cacheMutex());
+        for (const auto &floor : m_chunkStore.animationItems())
+            for (const auto &ids : floor) used.unite(ids);
+    }
+    QSet<quint16> changed;
+    for (quint16 id : used) {
+        const auto *item = m_dat->itemByClientId(id);
+        if (!item) continue;
+        const int phase = item->animationFrameAt(quint64(frame) * 16);
+        if (m_animationPhases.value(id, -1) != phase) changed.insert(id);
+        m_animationPhases[id] = phase;
+    }
+    if (changed.isEmpty()) return;
+
+    bool invalidated = false;
+    {
+        std::lock_guard<std::mutex> lock(m_chunkStore.cacheMutex());
+        QVector<QPair<int,quint64>> dirty;
+        for (auto floor=m_chunkStore.animationItems().cbegin(); floor!=m_chunkStore.animationItems().cend(); ++floor)
+            for (auto chunk=floor->cbegin(); chunk!=floor->cend(); ++chunk) {
+                for (quint16 id : chunk.value()) if (changed.contains(id)) {
+                    dirty.append({floor.key(),chunk.key()});break;
+                }
+            }
+        for (const auto &[z,key] : dirty) {
+            if (m_chunkStore.removeChunkLocked(z,key)) {
+                m_chunkStore.versions()[z].remove(key);
+                m_chunkStore.dirtyChunks().insert({z,key});
+                invalidated = true;
             }
         }
     }
-    // Detached preview can display animated tiles outside the editor viewport.
-    if (!any) { emit contentUpdated(); update(); return; }
-
-    m_chunkStore.cacheVersion().fetch_add(1, std::memory_order_relaxed);
-    emit contentUpdated(); update();
+    if (invalidated) m_chunkStore.cacheVersion().fetch_add(1,std::memory_order_relaxed);
+    // Includes detached previews and Lua previews, even outside the editor view.
+    ++m_dataVersion;
+    emit contentUpdated();update();
 }
 
 void MapView::setShowLowerFloors(bool on)

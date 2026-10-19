@@ -101,8 +101,7 @@ Rectangle {
         mapCtrl.houseBrush = 0;
         mapCtrl.eraseMode = false;
         mapCtrl.lassoMode = false;
-        const tileset = Backend.tilesetStore.tilesetForItem("raw", serverId);
-        showItemLocation("raw", tileset, serverId);
+        showItemLocation("raw", "Others", serverId);
         mapCtrl.brushServerId = serverId;
     }
 

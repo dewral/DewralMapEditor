@@ -104,12 +104,19 @@ Item {
         function namesFor(category) { return category === "raw" ? rawNames : category === "terrain" ? Object.keys(saved) : []; }
         function itemsFor(category, name) {
             if (category === "raw" && name === "Others") {
-                const ids=[]; for (let row=0; row<items.count; ++row) ids.push(items.get(row).serverId);
+                const namedIds = rawNames.filter(n => n !== "Others")
+                        .reduce((ids, n) => ids.concat(saved[n] || []), []);
+                const ids=[]; for (let row=0; row<items.count; ++row) {
+                    const id = items.get(row).serverId;
+                    if (namedIds.indexOf(id) < 0) ids.push(id);
+                }
                 return ids;
             }
             return saved[name] || [];
         }
-        function tilesetForItem(category, id) { return category === "raw" ? "Others" : ""; }
+        function tilesetForItem(category, id) {
+            return namesFor(category).find(name => itemsFor(category, name).indexOf(id) >= 0) || "";
+        }
         function isCustomOnly(category, name) { return true; }
         function newTileset(category, name) {
             const copy = Object.assign({}, saved);
@@ -277,6 +284,42 @@ Item {
             compare(items.detailsProbe.reads, 0,
                     "RAW Others must not build full item details for the hidden Doodad grid");
             compare(findChild(panel, "doodadPaletteGrid").count, 0);
+        }
+        function test_selectRawOpensOthers_data() {
+            return ["classic", "windows-classic", "github", "gray-dark", "gray-modern", "fluent-dark"]
+                    .map(theme => ({tag: theme, theme: theme}));
+        }
+        function test_selectRawOpensOthers(data) {
+            Backend.uiTheme.style = data.theme;
+            tilesets.rawNames = ["Architecture", "Others"];
+            tilesets.saved = ({Walls: [], Architecture: [500]});
+            ++tilesets.revision;
+            const panel = createTemporaryObject(panelComponent, testRoot);
+            verify(panel);
+            panel.revealRequested.connect(function () { panel.visible = true; });
+            const tileset = findChild(panel, "paletteTilesetCombo");
+            const grid = findChild(panel, "paletteItemGrid");
+            // Exercise both uncategorized items and items listed in a named RAW tileset.
+            for (const serverId of [725, 500]) {
+                prefs.lastRawTileset = "Architecture";
+                panel.selectKind("Terrain Palette");
+                panel.visible = false;
+                grid.filterModel.searchText = "missing item";
+                mockMap.houseBrush = 42;
+                mockMap.eraseMode = true;
+                mockMap.lassoMode = true;
+                panel.selectRaw(serverId);
+                verify(panel.visible, "Select RAW must reveal a hidden palette");
+                compare(panel.currentKind, "RAW Palette");
+                tryCompare(tileset, "currentText", "Others");
+                compare(prefs.lastRawTileset, "Others");
+                compare(grid.filterModel.searchText, "");
+                compare(mockMap.brushServerId, serverId);
+                compare(mockMap.houseBrush, 0);
+                verify(!mockMap.eraseMode && !mockMap.lassoMode);
+                if (serverId === 725)
+                    tryCompare(grid, "currentIndex", grid.filterModel.rowForServerId(serverId));
+            }
         }
         function test_hideNamedItems_data() {
             return ["classic", "windows-classic", "github", "gray-dark",

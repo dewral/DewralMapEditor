@@ -577,19 +577,25 @@ Item {
                                       displayedServerId: 500, category: "terrain", tileset: "Walls"});
             compare(mockMap.brushServerId, 506);
         }
-        function test_contextBrushActivatesUnlistedWall_data() {
-            return [{tag: "named-raw-tileset", named: true}, {tag: "raw-others", named: false}];
+        function test_contextBrushActivatesUnlistedBrush_data() {
+            const rows = [];
+            for (const kind of ["ground", "wall"]) {
+                rows.push({tag: kind + "-named-raw-tileset", kind: kind, named: true});
+                rows.push({tag: kind + "-raw-others", kind: kind, named: false});
+            }
+            return rows;
         }
-        function test_contextBrushActivatesUnlistedWall(data) {
+        function test_contextBrushActivatesUnlistedBrush(data) {
             tilesets.saved = ({Walls: [], Architecture: data.named ? [506] : [500]});
             tilesets.rawNames = ["Architecture", "Others"];
             tilesets.rawOnlyNames = ["Architecture"];
             ++tilesets.revision;
             const panel = createTemporaryObject(panelComponent, testRoot);
             verify(panel);
-            const option = ContextBrushes.options({singleTile: true,
-                brushes: {wall: {kind: "wall", name: "stone", serverId: 506}}},
-                mockMap, tilesets, Backend.brushStore).wall;
+            const brushes = ({});
+            brushes[data.kind] = {kind: data.kind, name: "stone", serverId: 506};
+            const option = ContextBrushes.options({singleTile: true, brushes: brushes},
+                mockMap, tilesets, Backend.brushStore)[data.kind];
             verify(option);
             mockMap.selectionMode = true;
             panel.selectContextBrush(option);
@@ -597,7 +603,7 @@ Item {
             const grid = findChild(panel, "paletteItemGrid");
             tryVerify(() => grid.filterModel.rowForServerId(506) >= 0
                       && grid.currentIndex === grid.filterModel.rowForServerId(506));
-            compare(mockMap.selectedBrushKind, "wall");
+            compare(mockMap.selectedBrushKind, data.kind);
             compare(mockMap.brushServerId, 506);
             verify(!mockMap.selectionMode);
         }

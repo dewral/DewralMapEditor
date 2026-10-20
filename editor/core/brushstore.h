@@ -72,6 +72,7 @@ public:
     Q_INVOKABLE bool hasData() const { return !m_grounds.isEmpty(); }
 
     QString groundBrushForServerId(int serverId) const { return m_groundByServerId.value(serverId); }
+    QString groundBrushForItem(int serverId) const;
     QHash<int, QString> groundBrushAssignments() const { return m_groundByServerId; }
     Q_INVOKABLE QStringList searchAliasesForServerId(int serverId) const;
     Q_INVOKABLE bool isGroundBrushItem(int serverId) const { return m_groundByServerId.contains(serverId); }

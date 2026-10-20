@@ -27,7 +27,7 @@ QString MapView::typedBrushName(const QString &kind, int serverId) const
 {
     const BrushStore *store = m_brushController.store();
     if (!store || serverId <= 0) return {};
-    if (kind == QLatin1String("ground")) return store->groundBrushForServerId(serverId);
+    if (kind == QLatin1String("ground")) return store->groundBrushForItem(serverId);
     if (kind == QLatin1String("wall")) return store->wallBrushForServerId(serverId);
     if (kind == QLatin1String("carpet")) return store->carpetBrushForServerId(serverId);
     if (kind == QLatin1String("table")) return store->tableBrushForServerId(serverId);
@@ -273,6 +273,7 @@ QVariantMap MapView::contextInfo() const
                                {QStringLiteral("serverId"), id}};
         };
         bool groundFound = false;
+        QVariantMap borderGround;
         for (const OtbmMapItem &item : tile->items) {
             const bool ground = item.is_ground
                 || (m_otb && m_otb->isClientGroundForServerId(item.server_id));
@@ -284,6 +285,11 @@ QVariantMap MapView::contextInfo() const
                 }
                 continue;
             }
+            if (m_brushController.store()
+                && m_brushController.store()->isManagedBorderItem(item.server_id)) {
+                const auto value = candidate(QStringLiteral("ground"), item.server_id);
+                if (!value.isEmpty()) borderGround = value;
+            }
             for (const QString &kind : {QStringLiteral("wall"), QStringLiteral("table"),
                                         QStringLiteral("carpet"), QStringLiteral("doodad")}) {
                 const auto value = candidate(kind, item.server_id);
@@ -293,8 +299,16 @@ QVariantMap MapView::contextInfo() const
                     brushes.insert(kind, value);
             }
         }
+        if (!brushes.contains(QStringLiteral("ground")) && !borderGround.isEmpty())
+            brushes.insert(QStringLiteral("ground"), borderGround);
         if (singleItem) {
             const int id = m.value(QStringLiteral("serverId")).toInt();
+            // Picking an ice edge over another ground should select ice. A
+            // shared border with no unique owner keeps the underlying ground.
+            if (m_brushController.store() && m_brushController.store()->isManagedBorderItem(id)) {
+                const auto value = candidate(QStringLiteral("ground"), id);
+                if (!value.isEmpty()) brushes.insert(QStringLiteral("ground"), value);
+            }
             for (const QString &kind : {QStringLiteral("doodad"), QStringLiteral("door")}) {
                 const auto value = candidate(kind, id);
                 if (!value.isEmpty()) brushes.insert(kind, value);

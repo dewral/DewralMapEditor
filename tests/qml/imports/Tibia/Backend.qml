@@ -2,6 +2,12 @@ pragma Singleton
 import QtQuick
 QtObject {
     property string screenshotPath: ""
+    property var wallExportCalls: []
+    property string wallExportError: ""
+    function exportWallBrush(cells, destination) {
+        wallExportCalls = wallExportCalls.concat([{cells: cells.slice(), destination: String(destination)}]);
+        return wallExportError;
+    }
     function previewScreenshotPath() { return screenshotPath; }
     property var obdExportCalls: []
     function obdExportUrl(serverId) { return Qt.resolvedUrl("../../../../build/tmp/item-" + serverId + ".obd"); }

@@ -165,19 +165,34 @@ bool TilesetStore::isCustomOnly(const QString &category, const QString &name) co
     return !(category == QLatin1String("raw") && name == QLatin1String("Others")) && m_names.value(category).contains(name);
 }
 
-bool TilesetStore::newTileset(const QString &category, const QString &name)
+bool TilesetStore::newTileset(const QString &category, const QString &name,
+                             const QVariantList &serverIds)
 {
     if (category == QLatin1String("raw") && name.trimmed() == QLatin1String("Others")) {
         setErrorString(QStringLiteral("RAW Others is managed automatically. Choose a named RAW tileset."));
         return false;
     }
     const QString cleanName = name.trimmed();
-    if (cleanName.isEmpty()) return false;
-    if (m_names.value(category).contains(cleanName)) return false;
+    if (cleanName.isEmpty()) {
+        setErrorString(QStringLiteral("Enter a name."));
+        return false;
+    }
+    if (m_names.value(category).contains(cleanName)) {
+        setErrorString(QStringLiteral("A tileset named '%1' already exists.").arg(cleanName));
+        return false;
+    }
     const auto oldNames = m_names;
     const auto oldItems = m_items;
     m_names[category].append(cleanName);
-    m_items[category][cleanName] = {};
+    QVariantList ids;
+    QSet<int> seen;
+    for (const QVariant &value : serverIds) {
+        const int id = value.toInt();
+        if (id <= 0 || seen.contains(id)) continue;
+        ids.append(id);
+        seen.insert(id);
+    }
+    m_items[category][cleanName] = ids;
     if (!saveJson()) {
         m_names = oldNames;
         m_items = oldItems;

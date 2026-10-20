@@ -4,6 +4,7 @@ import QtQuick.Controls
 import Tibia 1.0
 import "../style"
 import "../controllers"
+import "../dialogs"
 
 Item {
     id: workspace
@@ -229,6 +230,12 @@ Item {
                 onTriggered: mapView.copySelection()
             }
             Action {
+                objectName: "createCollectionAction"
+                text: "Create Collection..."
+                enabled: mapView.selectionCount > 0
+                onTriggered: collectionDialog.openForSelection()
+            }
+            Action {
                 text: "Add Prefab..."
                 enabled: mapView.selectionCount > 0
                 onTriggered: prefabDialog.openForSelection()
@@ -315,14 +322,14 @@ Item {
             MenuSeparator {}
             DmeMenuItem {
                 objectName: "selectGroundBrush"
-                text: "Select Groundbrush"
+                text: "Select Ground Brush"
                 visible: !!mapArea.brushOptions.ground
                 height: visible ? implicitHeight : 0
                 onTriggered: workspace.paletteNavigator.selectContextBrush(mapArea.brushOptions.ground)
             }
             DmeMenuItem {
                 objectName: "selectWallBrush"
-                text: "Select Wallbrush"
+                text: "Select Wall Brush"
                 visible: !!mapArea.brushOptions.wall
                 height: visible ? implicitHeight : 0
                 onTriggered: workspace.paletteNavigator.selectContextBrush(mapArea.brushOptions.wall)
@@ -420,6 +427,14 @@ Item {
                 enabled: mapArea.ctx.hasItem || mapArea.ctx.creatureName !== "" || mapArea.ctx.spawnRadius > 0
                 onTriggered: workspace.propertiesDialog.open()
             }
+        }
+
+        CreateCollectionDialog {
+            id: collectionDialog
+            mapCtrl: mapView
+            tilesetStore: Backend.tilesetStore
+            onCollectionCreated: (name, firstServerId) =>
+                workspace.paletteNavigator.showItemLocation("collection", name, firstServerId)
         }
 
         DmeDialog {

@@ -35,7 +35,8 @@ public:
 
     Q_INVOKABLE bool isCustomOnly(const QString &category, const QString &name) const;
 
-    Q_INVOKABLE bool newTileset(const QString &category, const QString &name);
+    Q_INVOKABLE bool newTileset(const QString &category, const QString &name,
+                               const QVariantList &serverIds = QVariantList());
 
     Q_INVOKABLE bool renameTileset(const QString &category, const QString &name,
                                    const QString &newName);

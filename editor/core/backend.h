@@ -114,6 +114,7 @@ public:
     Q_INVOKABLE QUrl obdExportUrl(int serverId) const;
     Q_INVOKABLE QString exportObd(int serverId, const QUrl &destination);
     Q_INVOKABLE QString exportGroundBrush(const QVariantList &cells, const QUrl &destination);
+    Q_INVOKABLE QString exportWallBrush(const QVariantList &cells, const QUrl &destination);
 
 signals:
     void otbmReaderChanged();

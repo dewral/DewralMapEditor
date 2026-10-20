@@ -81,6 +81,7 @@
         <file alias="qml/dialogs/MapPropertiesDialog.qml">qml/dialogs/MapPropertiesDialog.qml</file>
         <file alias="qml/dialogs/ItemPropertiesDialog.qml">qml/dialogs/ItemPropertiesDialog.qml</file>
         <file alias="qml/dialogs/SelectionItemDialog.qml">qml/dialogs/SelectionItemDialog.qml</file>
+        <file alias="qml/dialogs/CreateCollectionDialog.qml">qml/dialogs/CreateCollectionDialog.qml</file>
         <file alias="qml/dialogs/PreferencesDialog.qml">qml/dialogs/PreferencesDialog.qml</file>
         <file alias="qml/dialogs/NewMapDialog.qml">qml/dialogs/NewMapDialog.qml</file>
         <file alias="qml/dialogs/BrushEditorDialog.qml">qml/dialogs/BrushEditorDialog.qml</file>

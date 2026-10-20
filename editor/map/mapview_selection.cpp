@@ -104,6 +104,25 @@ void MapView::copySelection()
     emit clipboardChanged();
 }
 
+QVariantList MapView::selectionItemIds()
+{
+    if (!m_otbm) return {};
+    QSet<int> uniqueIds;
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    for (quint64 key : m_selectionController.selected()) {
+        const auto *tile = m_otbm->tileAt(selX(key), selY(key), selZ(key));
+        if (!tile) continue;
+        for (const auto &item : tile->items)
+            if (item.server_id > 0) uniqueIds.insert(int(item.server_id));
+    }
+    auto ids = uniqueIds.values();
+    std::sort(ids.begin(), ids.end());
+    QVariantList result;
+    result.reserve(ids.size());
+    for (int id : ids) result.append(id);
+    return result;
+}
+
 QVariantMap MapView::brushSelectionSnapshot(bool includeGround)
 {
     const auto &selection = m_selectionController.selected();

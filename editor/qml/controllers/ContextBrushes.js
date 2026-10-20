@@ -45,6 +45,21 @@ function options(context, map, tilesets, store) {
                     break;
             }
         }
+        // A loaded wall brush remains usable without a brush-palette entry.
+        // Prefer listed brushes above, then reveal the clicked wall's RAW item.
+        if (!location && kind === "wall") {
+            const candidates = [brushes.wall].concat(context.collectionBrushes || []);
+            for (const candidate of candidates) {
+                if (!candidate || candidate.kind !== "wall" || !candidate.serverId
+                        || !candidate.name
+                        || map.typedBrushName("wall", candidate.serverId) !== candidate.name)
+                    continue;
+                location = {kind: "wall", name: candidate.name,
+                            serverId: candidate.serverId, displayedServerId: candidate.serverId,
+                            category: "raw", tileset: tilesets.tilesetForItem("raw", candidate.serverId)};
+                break;
+            }
+        }
         if (location)
             result[kind] = location;
     }

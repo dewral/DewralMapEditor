@@ -1,5 +1,6 @@
 #include "backend.h"
 #include "groundbrushexport.h"
+#include "wallbrushexport.h"
 #include "obdexport.h"
 
 #include <QDir>
@@ -70,6 +71,14 @@ QString Backend::exportGroundBrush(const QVariantList &cells, const QUrl &destin
     return GroundBrushExport::save(cells, destination, [this](int serverId, int variation) {
         const auto *item = m_datReader.itemByClientId(m_otbReader.clientIdForServerId(serverId));
         return item ? m_sprReader.itemPatternImage(*item, variation) : QImage();
+    });
+}
+
+QString Backend::exportWallBrush(const QVariantList &cells, const QUrl &destination)
+{
+    return WallBrushExport::save(cells, destination, [this](int serverId) {
+        const auto *item = m_datReader.itemByClientId(m_otbReader.clientIdForServerId(serverId));
+        return item ? m_sprReader.itemPatternImage(*item, 0) : QImage();
     });
 }
 

@@ -243,6 +243,11 @@ void MapView::updateHoverText()
                                 : QStringLiteral(": %1").arg(name);
         }
     }
+    if (const auto *tile = currentFloorTileAt(m_hoverX, m_hoverY); tile && !tile->zone_ids.empty()) {
+        QStringList ids;
+        for (auto id : tile->zone_ids.values()) ids.append(QString::number(id));
+        t += QStringLiteral("  ·  Zone ") + ids.join(QStringLiteral(", "));
+    }
     if (t != m_hoverText) {
         m_hoverText = t;
         // Throttle QML binding and layout work while keeping the property current.

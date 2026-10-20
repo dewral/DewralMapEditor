@@ -90,6 +90,8 @@ void MapView::rebuildFloorIndex()
 void MapView::appendItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out,
                               bool *animated) const
 {
+    // Metadata overlays may be edited before the client assets are available.
+    if (!tile || !m_otb || !m_dat) return;
 
     int topIdx = -1;
     for (int i = static_cast<int>(tile->items.size()) - 1; i >= 0; --i) {

@@ -198,9 +198,49 @@ struct OtbmMapItem {
 static_assert(sizeof(OtbmMapItem) <= 16,
               "OtbmMapItem must remain compact; common map items must not carry rare data inline");
 
+// Rare, deep-copied metadata: ordinary tiles allocate no zone list.
+class TileZoneIds {
+public:
+    TileZoneIds() = default;
+    TileZoneIds(const TileZoneIds &other) { *this = other; }
+    TileZoneIds(TileZoneIds &&) noexcept = default;
+    TileZoneIds &operator=(TileZoneIds &&) noexcept = default;
+    TileZoneIds &operator=(const TileZoneIds &other) {
+        if (this != &other) {
+            if (other.empty()) m_ids.reset();
+            else m_ids = std::make_unique<std::vector<uint16_t>>(other.values());
+        }
+        return *this;
+    }
+    const std::vector<uint16_t> &values() const {
+        static const std::vector<uint16_t> empty;
+        return m_ids ? *m_ids : empty;
+    }
+    bool empty() const { return !m_ids || m_ids->empty(); }
+    void clear() { m_ids.reset(); }
+    bool contains(uint16_t id) const {
+        return std::binary_search(values().begin(), values().end(), id);
+    }
+    bool add(uint16_t id) {
+        if (!id || contains(id)) return false;
+        if (!m_ids) m_ids = std::make_unique<std::vector<uint16_t>>();
+        m_ids->insert(std::lower_bound(m_ids->begin(), m_ids->end(), id), id);
+        return true;
+    }
+    bool remove(uint16_t id) {
+        if (!contains(id)) return false;
+        m_ids->erase(std::lower_bound(m_ids->begin(), m_ids->end(), id));
+        if (m_ids->empty()) clear();
+        return true;
+    }
+private:
+    std::unique_ptr<std::vector<uint16_t>> m_ids;
+};
+
 struct OtbmTile {
     CompactVector<OtbmMapItem> items;
     CompactQString creature_name;
+    TileZoneIds zone_ids;
     uint32_t flags = 0;
     uint32_t house_id = 0;
     int spawn_radius = 0;
@@ -215,7 +255,7 @@ struct OtbmTile {
 
 static_assert(sizeof(CompactVector<OtbmMapItem>) <= sizeof(std::vector<OtbmMapItem>),
               "Compact tile item storage must not increase the tile footprint");
-static_assert(sizeof(OtbmTile) <= 56,
+static_assert(sizeof(OtbmTile) <= 64,
               "OtbmTile must remain compact for large maps");
 
 struct OtbmTown {
@@ -247,6 +287,7 @@ struct OtbmHouse {
 class OtbmReader : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(bool numberedZonesEnabled READ numberedZonesEnabled WRITE setNumberedZonesEnabled NOTIFY mapChanged)
     QML_ANONYMOUS
     Q_PROPERTY(bool loaded READ isLoaded NOTIFY loadedChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY errorChanged)
@@ -374,6 +415,10 @@ public:
     bool removeItemAt(int x, int y, int z, int index);
     bool moveItemAt(int x, int y, int z, int index, int targetIndex);
 
+    bool numberedZonesEnabled() const { return m_numberedZonesEnabled; }
+    void setNumberedZonesEnabled(bool enabled);
+    bool setTileZoneIds(int x, int y, int z, const TileZoneIds &ids);
+    bool editNumberedZone(int x, int y, int z, int id, bool erase = false);
     bool setTileFlags(int x, int y, int z, uint32_t flags);
 
     uint32_t tileFlags(int x, int y, int z) const;
@@ -506,6 +551,7 @@ private:
         int x, y, z;
         bool existed = false;
         uint32_t flags = 0;
+        TileZoneIds zone_ids;
         int spawn_radius = 0;
         QString creature_name;
         int creature_spawntime = 60;
@@ -581,6 +627,7 @@ private:
     bool m_housesModified = false;
     int m_itemCount = 0;
 
+    bool m_numberedZonesEnabled = false;
     bool m_loaded = false;
     bool m_loading = false;
     int m_loadingProgress = 0;

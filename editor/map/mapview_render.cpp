@@ -2,6 +2,7 @@
 
 #include "mapview.h"
 #include "mapview_p.h"
+#include "numberedzonecolors.h"
 
 #include <QPainter>
 #include <QMouseEvent>
@@ -691,7 +692,11 @@ QVariantList MapView::visibleZoneLabels() const
 {
     QVariantList labels;
     const double ts = tileSize();
-    if (!m_modernZones || !m_otbm || !m_showZonesAlways || ts < 8) return labels;
+    if (!m_otbm || ts < 8) return labels;
+    const bool showIds = m_showNumberedZones && m_otbm->numberedZonesEnabled();
+    const bool showFlags = m_modernZones && m_showZonesAlways;
+    const bool showHouses = showFlags && m_showHouses;
+    if (!showFlags && !showIds) return labels;
     const double ox = renderOriginX(), oy = renderOriginY();
     const quint64 cacheVersion = (quint64(m_metadataOverlayVersion) << 32)
         ^ quint64(m_navigationController.floor()) ^ quint64(reinterpret_cast<quintptr>(m_otbm));
@@ -719,20 +724,21 @@ QVariantList MapView::visibleZoneLabels() const
                 if (tile && tile->x >= x0 && tile->x <= x1 && tile->y >= y0 && tile->y <= y1)
                     visible.insert(key(tile->x, tile->y), tile);
         }
-    auto flagsFor = [this](const OtbmTile *tile) {
-        uint32_t flags = m_showZones ? (tile->flags & m_visibleZoneMask) : 0;
-        if (m_showHouses && (tile->is_house || tile->house_id > 0)) flags &= ~1u;
+    auto flagsFor = [this, showFlags, showHouses](const OtbmTile *tile) {
+        uint32_t flags = (showFlags && m_showZones) ? (tile->flags & m_visibleZoneMask) : 0;
+        if (showHouses && (tile->is_house || tile->house_id > 0)) flags &= ~1u;
         constexpr uint32_t bits[] {1,4,8,16};
         for (int i = 0; i < 4; ++i) if (m_zoneOpacities[i].toDouble() <= 0) flags &= ~bits[i];
         return flags;
     };
+    const std::vector<uint16_t> noIds;
     QSet<quint64> visited;
     QSet<int> shownRegions;
     const QString names[] {QStringLiteral("Protection Zone"), QStringLiteral("Non-PvP"), QStringLiteral("No Logout"), QStringLiteral("PvP")};
     const QString shortNames[] {QStringLiteral("PZ"), QStringLiteral("NP"), QStringLiteral("NL"), QStringLiteral("PvP")};
     const QString colors[] {m_zoneColors[0].toString(), m_zoneColors[1].toString(), m_zoneColors[2].toString(), m_zoneColors[3].toString()};
-    auto addLabel = [&](double x, double y, const QString &name, const QString &color, uint32_t flags = 0) {
-        if (labels.size() < 64) labels.append(QVariantMap{{"x", (x + .5 - ox) * ts}, {"y", (y + .5 - oy) * ts}, {"name",name}, {"color",color}, {"flags",flags}, {"worldX",x + .5}, {"worldY",y + .5}});
+    auto addLabel = [&](double x, double y, const QString &name, const QString &color, uint32_t flags = 0, const QString &zoneIds = QString()) {
+        if (labels.size() < 64) labels.append(QVariantMap{{"x", (x + .5 - ox) * ts}, {"y", (y + .5 - oy) * ts}, {"name",name}, {"color",color}, {"flags",flags}, {"worldX",x + .5}, {"worldY",y + .5}, {"zoneIds",zoneIds}});
     };
     // Deterministic iteration prevents label flicker when chunk hash order changes.
     auto keys = visible.keys();
@@ -746,13 +752,14 @@ QVariantList MapView::visibleZoneLabels() const
                 shownRegions.insert(*cached);
                 const auto &anchor = m_zoneLabelAnchors[*cached];
                 addLabel(anchor["worldX"].toDouble() - .5, anchor["worldY"].toDouble() - .5,
-                         anchor["name"].toString(), anchor["color"].toString(), anchor["flags"].toUInt());
+                         anchor["name"].toString(), anchor["color"].toString(), anchor["flags"].toUInt(), anchor["zoneIds"].toString());
             }
             continue;
         }
         const uint32_t flags = flagsFor(tile);
-        const uint32_t house = m_showHouses ? tile->house_id : 0;
-        if (!flags && !house) continue;
+        const uint32_t house = showHouses ? tile->house_id : 0;
+        const auto &zones = showIds ? tile->zone_ids.values() : noIds;
+        if (!flags && !house && zones.empty()) continue;
         QVector<quint64> queue {start};
         visited.insert(start);
         double sx = 0, sy = 0;
@@ -764,11 +771,12 @@ QVariantList MapView::visibleZoneLabels() const
                 auto candidate = key(current->x + dx[side], current->y + dy[side]);
                 const auto *neighbor = m_otbm->tileAt(current->x + dx[side], current->y + dy[side], m_navigationController.floor());
                 if (!neighbor || visited.contains(candidate) || flagsFor(neighbor) != flags
-                    || (m_showHouses ? neighbor->house_id : 0) != house) continue;
+                    || (showHouses ? neighbor->house_id : 0) != house
+                    || (showIds ? neighbor->zone_ids.values() : noIds) != zones) continue;
                 visited.insert(candidate); queue.append(candidate);
             }
         }
-        if (queue.size() < 3 && !house) continue;
+        if (queue.size() < 3 && !house && zones.empty()) continue;
         QStringList parts;
         QString color;
         constexpr uint32_t bits[] {1,4,8,16};
@@ -779,6 +787,15 @@ QVariantList MapView::visibleZoneLabels() const
             name = QStringLiteral("House · #%1").arg(house);
             for (const auto &entry : m_otbm->houses()) if (entry.id == house && !entry.name.isEmpty()) { name = QStringLiteral("House · ") + entry.name; break; }
             color = m_zoneColors[4].toString();
+        }
+        QString numberedIds;
+        if (!zones.empty()) {
+            QStringList ids;
+            for (auto id : zones) ids.append(QString::number(id));
+            if (!name.isEmpty()) name += QStringLiteral(" · ");
+            name += QStringLiteral("Zone ") + ids.join(QStringLiteral(", "));
+            numberedIds = ids.join(QLatin1Char(','));
+            color = numberedZoneColor(zones.front()).name();
         }
         const int region = m_zoneLabelAnchors.size();
         double worldX = sx / queue.size() + .5, worldY = sy / queue.size() + .5;
@@ -791,7 +808,7 @@ QVariantList MapView::visibleZoneLabels() const
         int bestRegion = std::numeric_limits<int>::max();
         for (auto it = overlap.cbegin(); it != overlap.cend(); ++it) {
             const auto &old = previousAnchors[it.key()];
-            if (old["flags"].toUInt() != flags || old["house"].toUInt() != house
+            if (old["name"].toString() != name || old["flags"].toUInt() != flags || old["house"].toUInt() != house
                 || old["floor"].toInt() != m_navigationController.floor()
                 || old["document"].toULongLong() != qulonglong(reinterpret_cast<quintptr>(m_otbm))) continue;
             const quint64 oldPosition = key(int(std::floor(old["worldX"].toDouble())), int(std::floor(old["worldY"].toDouble())));
@@ -804,12 +821,12 @@ QVariantList MapView::visibleZoneLabels() const
             }
         }
         m_zoneLabelAnchors.append(QVariantMap{{"worldX",worldX}, {"worldY",worldY},
-                                             {"name",name}, {"color",color}, {"flags",flags}, {"house",house},
+                                             {"name",name}, {"color",color}, {"flags",flags}, {"house",house}, {"zoneIds",numberedIds},
                                              {"floor",m_navigationController.floor()},
                                              {"document",qulonglong(reinterpret_cast<quintptr>(m_otbm))}});
         for (auto position : queue) m_zoneLabelRegions.insert(position, region);
         shownRegions.insert(region);
-        addLabel(worldX - .5, worldY - .5, name, color, flags);
+        addLabel(worldX - .5, worldY - .5, name, color, flags, numberedIds);
     }
     return labels;
 }
@@ -1302,4 +1319,57 @@ void MapView::renderCollectGhostInstances(std::vector<float> &out)
             out.push_back(static_cast<float>(slot.y()));
         }
     }
+}
+
+// Viewport/chunk bounded batches: no QML object or draw call per tile.
+void MapView::renderCollectNumberedZones(std::array<std::vector<float>, 8> &out,
+                                         std::array<std::vector<float>, 8> *borders) const
+{
+    for (auto &batch : out) batch.clear();
+    if (borders) for (auto &batch : *borders) batch.clear();
+    if (!m_otbm || !m_showNumberedZones || !m_otbm->numberedZonesEnabled()) return;
+    const double ts = std::max(1, m_navigationController.tileSize());
+    const int x0 = overlayAnchor(m_navigationController.originX()) - kOverlayCacheTiles;
+    const int y0 = overlayAnchor(m_navigationController.originY()) - kOverlayCacheTiles;
+    const int x1 = x0 + int(std::ceil(width() / ts)) + 2 * kOverlayCacheTiles;
+    const int y1 = y0 + int(std::ceil(height() / ts)) + 2 * kOverlayCacheTiles;
+    const auto floor = m_chunkStore.tiles().constFind(m_navigationController.floor());
+    if (floor == m_chunkStore.tiles().cend()) return;
+    for (int cy = floorDiv(y0, kChunkTiles); cy <= floorDiv(y1, kChunkTiles); ++cy)
+        for (int cx = floorDiv(x0, kChunkTiles); cx <= floorDiv(x1, kChunkTiles); ++cx) {
+            const auto chunk = floor->constFind(chunkKey(cx, cy));
+            if (chunk == floor->cend()) continue;
+            for (const auto *tile : chunk.value()) {
+                if (!tile || tile->x < x0 || tile->x > x1 || tile->y < y0 || tile->y > y1
+                    || tile->zone_ids.empty()) continue;
+                const auto &ids = tile->zone_ids.values();
+                if (borders) {
+                    const int dx[] {-1,1,0,0}, dy[] {0,0,-1,1};
+                    for (auto id : ids) {
+                        const bool active = activeZone() == 64 && m_numberedZoneId == id;
+                        const float edge = std::min(16.0f, float((active ? 2.0 : 1.0) * 32.0 / ts));
+                        auto &batch = (*borders)[id % borders->size()];
+                        for (int side = 0; side < 4; ++side) {
+                            const auto *neighbor = m_otbm->tileAt(tile->x + dx[side], tile->y + dy[side], tile->z);
+                            if (neighbor && neighbor->zone_ids.contains(id)) continue;
+                            batch.insert(batch.end(), {
+                                tile->x * 32.0f + (side == 1 ? 32.0f - edge : 0),
+                                tile->y * 32.0f + (side == 3 ? 32.0f - edge : 0),
+                                side < 2 ? edge : 32.0f, side < 2 ? 32.0f : edge});
+                        }
+                    }
+                }
+                if (ids.size() == 1) {
+                    auto &batch = out[ids.front() % out.size()];
+                    batch.insert(batch.end(), {tile->x * 32.0f, tile->y * 32.0f, 32.0f, 32.0f});
+                    continue;
+                }
+                // Repeat a small world-anchored pattern for overlapping zones.
+                for (int stripe = 0; stripe < 8; ++stripe) {
+                    auto &batch = out[ids[stripe % ids.size()] % out.size()];
+                    batch.insert(batch.end(), {tile->x * 32.0f + stripe * 4.0f,
+                                             tile->y * 32.0f, 4.0f, 32.0f});
+                }
+            }
+        }
 }

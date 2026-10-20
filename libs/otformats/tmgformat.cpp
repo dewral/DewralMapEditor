@@ -295,7 +295,7 @@ QString TmgFormat::placementError(const OtbmReader &target, const OtbmReader &so
     if (OtbmReader::estimateActionBytes(budget) * 2 > OtbmReader::kHistoryByteLimit) return QStringLiteral("Placement exceeds the undo memory budget; open a new document");
     for (const auto &tile : target.tiles()) {
         if (tile.x >= x && tile.x < x + width && tile.y >= y && tile.y < y + height && tile.z >= z && tile.z < z + floors &&
-            (!tile.items.empty() || tile.flags || tile.is_house || tile.spawn_radius || !tile.creature_name.isEmpty())) return QStringLiteral("Placement requires an empty destination footprint");
+            (!tile.items.empty() || !tile.zone_ids.empty() || tile.flags || tile.is_house || tile.spawn_radius || !tile.creature_name.isEmpty())) return QStringLiteral("Placement requires an empty destination footprint");
     }
     Q_UNUSED(baseZ); return {};
 }

@@ -19,6 +19,7 @@ DmeDialog {
         heightField.value = h.height || 256;
         spawnField.text = h.spawnFile || "";
         houseField.text = h.houseFile || "";
+        numberedZones.checked = Backend.otbmReader.numberedZonesEnabled;
         errorText = "";
     }
 
@@ -33,6 +34,7 @@ DmeDialog {
             errorText = Backend.otbmReader.errorString;
             return;
         }
+        Backend.otbmReader.numberedZonesEnabled = numberedZones.checked;
         dialog.close();
     }
 
@@ -122,6 +124,22 @@ DmeDialog {
                 width: 400
                 placeholderText: "Optional, e.g. map-house.xml"
             }
+        }
+
+        DmeCheckBox {
+            id: numberedZones
+            objectName: "numberedZonesEnabled"
+            text: "Save numbered zones (RME-ZONES)"
+            onClicked: checked = !checked
+        }
+        Text {
+            width: 480
+            text: numberedZones.checked
+                ? "Requires a server with RME-ZONES support. Standard PZ / PvP flags are unchanged."
+                : "Standard TFS output: numbered zones are omitted on save. Existing zones stay in memory and recovery copies only."
+            color: "#dfa65a"
+            font.pixelSize: 11
+            wrapMode: Text.WordWrap
         }
 
         Grid {

@@ -26,6 +26,7 @@ DmeMenuBar {
     required property var townsDialog
     required property var waypointsDialog
     required property var creatureManagerDialog
+    property var numberedZonesDialog
     required property var mapPropertiesDialog
     required property var statsDialog
     required property var brushEditorDialog
@@ -505,6 +506,11 @@ DmeMenuBar {
 
     DmeMenu {
         title: "Tools"
+        Action {
+            text: "Numbered zones..."
+            enabled: Backend.otbmReader.loaded && !!menuBar.numberedZonesDialog
+            onTriggered: menuBar.numberedZonesDialog.open()
+        }
         DmeMenuItem {
             text: "Tile Map Generator..."
             visible: Backend.tileMapGen.available
@@ -751,6 +757,12 @@ DmeMenuBar {
             checkable: true
             checked: menuBar.mapView.showHouses
             onTriggered: menuBar.mapView.showHouses = !menuBar.mapView.showHouses
+        }
+        Action {
+            text: "Show numbered zones"
+            checkable: true
+            checked: menuBar.mapView.showNumberedZones
+            onTriggered: menuBar.mapView.showNumberedZones = !menuBar.mapView.showNumberedZones
         }
         Action {
             id: hotkeyAction_show_special_zones

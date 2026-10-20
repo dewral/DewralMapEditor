@@ -20,6 +20,7 @@ struct MapClipboardTile {
     bool npc = false;
     uint8_t direction = 0;
     int spawnRadius = 0;
+    TileZoneIds zoneIds;
 };
 
 class MapSelectionController

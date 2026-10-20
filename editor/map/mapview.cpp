@@ -432,6 +432,14 @@ void MapView::setOtbm(OtbmReader *reader)
     m_optionalBorderTiles.clear();
     m_optionalBorderOverrides.clear();
     if (m_otbm) connect(m_otbm, &OtbmReader::loadedChanged, this, &MapView::onMapLoaded);
+    if (m_otbm) connect(m_otbm, &OtbmReader::mapChanged, this,
+        [this, enabled = m_otbm->numberedZonesEnabled()]() mutable {
+            if (enabled == m_otbm->numberedZonesEnabled()) return;
+            enabled = m_otbm->numberedZonesEnabled();
+            if (!enabled && activeZone() == 64) setActiveZone(0);
+            ++m_metadataOverlayVersion;
+            emit contentUpdated(); update();
+        });
     emit readersChanged();
     onMapLoaded();
 }
@@ -726,6 +734,7 @@ void MapView::setOptionalBorderMode(bool on)
 
 void MapView::setActiveZone(int zone)
 {
+    if (zone == 64 && (!m_otbm || !m_otbm->numberedZonesEnabled())) return;
     const quint32 z = static_cast<quint32>(zone < 0 ? 0 : zone);
     if (z != 0 && m_groundClusterStampActive) cancelGroundClusterStamp();
     if (z != 0 && m_pathBuilder.active()) cancelPathBuilder();
@@ -752,7 +761,7 @@ void MapView::setActiveZone(int zone)
     }
     setCursor(z != 0 ? Qt::CrossCursor : Qt::ArrowCursor);
     emit activeZoneChanged();
-    if (m_modernZones) ++m_metadataOverlayVersion;
+    ++m_metadataOverlayVersion;
     emit contentUpdated(); update();
 }
 
@@ -897,6 +906,7 @@ bool MapView::useGroundBrushName(const QString &name)
 
 void MapView::onMapLoaded()
 {
+    if (activeZone() == 64 && (!m_otbm || !m_otbm->numberedZonesEnabled())) setActiveZone(0);
     clearLuaPreview();
     clearTerrainPreview();
     const bool reportProgress = m_otbm && m_otbm->isLoading() && m_otbm->isLoaded();

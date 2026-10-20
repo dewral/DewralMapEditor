@@ -197,7 +197,8 @@ Item {
 
         ZoneLabels {
             anchors.fill: parent
-            visible: workspace.fluentUi
+            visible: workspace.fluentUi || !!(workspace.mapView.showNumberedZones
+                && workspace.mapView.otbm && workspace.mapView.otbm.numberedZonesEnabled)
             mapView: workspace.mapView
         }
 

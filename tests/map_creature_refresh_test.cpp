@@ -266,7 +266,7 @@ int main(int argc, char **argv)
     }
     if (!testMapHotkeys()) return 1;
     if (!testContextBrushes()) return 1;
-    if (!testZoneOverlays()) return 1;
+    if (!testZoneOverlays() || !testNumberedZoneOverlays() || !testNumberedZoneBoundaries()) return 1;
     if (QCoreApplication::arguments().contains(QStringLiteral("--zone-overlay-only"))) return 0;
     QTemporaryDir directory(QDir(QDir::currentPath()).filePath(
         QStringLiteral("creature-refresh-fixtures-XXXXXX")));

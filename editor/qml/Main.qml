@@ -346,6 +346,7 @@ DmeWindow {
         townsDialog: townsDialog
         waypointsDialog: waypointsDialog
         creatureManagerDialog: creatureManagerDialog
+        numberedZonesDialog: numberedZonesDialog
         mapPropertiesDialog: mapPropsDialog
         statsDialog: statsDialog
         brushEditorDialog: brushEditorDialog
@@ -1086,6 +1087,23 @@ DmeWindow {
         sourceComponent: MapAnalyzerDialog {
             mapCtrl: workspace.mapView
             onClosed: Qt.callLater(() => statsLoader.active = false)
+        }
+    }
+
+    QtObject {
+        id: numberedZonesDialog
+        function open() {
+            numberedZonesLoader.active = true;
+            numberedZonesLoader.item.open();
+        }
+    }
+    Loader {
+        id: numberedZonesLoader
+        active: false
+        sourceComponent: NumberedZonesDialog {
+            mapView: workspace.mapView
+            mapReader: Backend.otbmReader
+            onClosed: Qt.callLater(() => numberedZonesLoader.active = false)
         }
     }
 

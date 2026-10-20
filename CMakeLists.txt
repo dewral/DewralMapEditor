@@ -400,6 +400,9 @@ if(BUILD_TESTING)
     target_include_directories(otbm_compact_storage_test PRIVATE libs/otformats)
     target_link_libraries(otbm_compact_storage_test PRIVATE OTFormats Qt6::Core)
     add_test(NAME otbm_compact_storage COMMAND otbm_compact_storage_test)
+    add_executable(otbm_numbered_zones_test EXCLUDE_FROM_ALL tests/otbm_numbered_zones_test.cpp)
+    target_link_libraries(otbm_numbered_zones_test PRIVATE OTFormats Qt6::Core)
+    add_test(NAME otbm_numbered_zones COMMAND otbm_numbered_zones_test)
     add_executable(otbm_editing_storage_test EXCLUDE_FROM_ALL
         tests/otbm_editing_storage_test.cpp)
     target_include_directories(otbm_editing_storage_test PRIVATE libs/otformats)
@@ -590,7 +593,7 @@ if(BUILD_TESTING)
     target_link_libraries(update_version_test PRIVATE Qt6::Core)
     add_test(NAME update_version COMMAND update_version_test)
     if(WIN32)
-        set_tests_properties(otbm_legacy_subtypes otbm_compact_storage otbm_editing_storage
+        set_tests_properties(otbm_numbered_zones otbm_legacy_subtypes otbm_compact_storage otbm_editing_storage
                              otbm_background_load atlas_background_build map_path_builder
                              map_terrain_generator map_terrain_profile map_dungeon_generator
                              map_ground_cluster_generator map_selection_rotation

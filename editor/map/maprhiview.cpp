@@ -1,4 +1,5 @@
 #include "maprhiview.h"
+#include "numberedzonecolors.h"
 #include "maprhibackend.h"
 #include "loadprofile.h"
 #include <QQuickWindow>
@@ -421,6 +422,11 @@ public:
         if (!m_previewWindow && rebuildMetadataOverlays) {
             m_metadataOverlayVersion = metadataOverlayVersion;
             m_overlayAtlasGeneration = m_atlasGen;
+            src->renderCollectNumberedZones(m_numberedZoneInstances, &m_numberedZoneBorders);
+            for (int i = 0; i < 8; ++i) {
+                uploadDyn(m_numberedZoneVbo[i], m_numberedZoneInstances[i], m_numberedZoneCount[i]);
+                uploadDyn(m_numberedZoneBorderVbo[i], m_numberedZoneBorders[i], m_numberedZoneBorderCount[i]);
+            }
             src->renderCollectZoneMarkInstances(m_zoneHouseInst, m_zoneSelectedHouseInst,
                                             m_zonePzInst,
                                             m_zoneNoPvpInst, m_zoneNoLogoutInst,
@@ -620,6 +626,13 @@ public:
                        QVector4D(0.95f, 0.43f, 0.25f, 0.24f), matrix);
 
         }
+        // Draw numbered zones last so PZ/house fills cannot cover their borders.
+        for (int i = 0; i < 8; ++i) {
+            const auto color = numberedZoneColors()[i];
+            const QVector3D rgb(float(color.redF()), float(color.greenF()), float(color.blueF()));
+            rectangles(draws, m_numberedZoneVbo[i], m_numberedZoneCount[i], QVector4D(rgb, 0.26f), matrix);
+            rectangles(draws, m_numberedZoneBorderVbo[i], m_numberedZoneBorderCount[i], QVector4D(rgb, 0.95f), matrix);
+        }
         rectangles(draws, m_terrainLandVbo, m_terrainLandCount,
                        QVector4D(0.12f, 0.78f, 0.36f, 0.30f), matrix);
         rectangles(draws, m_terrainBeachVbo, m_terrainBeachCount,
@@ -759,6 +772,8 @@ public:
         m_zoneNoPvpVbo.resetGpu();
         m_zoneNoLogoutVbo.resetGpu();
         m_zonePvpVbo.resetGpu();
+        for (auto &buffer : m_numberedZoneVbo) buffer.resetGpu();
+        for (auto &buffer : m_numberedZoneBorderVbo) buffer.resetGpu();
         for (auto &buffer : m_zoneBorderVbo) buffer.resetGpu();
         m_lassoVbo.resetGpu();
         m_rubberLines.resetGpu();
@@ -873,6 +888,12 @@ public:
     QVector4D m_selectionColor {0.2902f, 0.6196f, 0.7804f, 0.25f};
     QVector4D m_zoneColors[5];
     float m_zoneAlpha[4] {0.25f, 0.25f, 0.25f, 0.25f};
+    std::array<std::vector<float>, 8> m_numberedZoneInstances;
+    MapRenderBuffer m_numberedZoneVbo[8];
+    int m_numberedZoneCount[8] {};
+    std::array<std::vector<float>, 8> m_numberedZoneBorders;
+    MapRenderBuffer m_numberedZoneBorderVbo[8];
+    int m_numberedZoneBorderCount[8] {};
     std::array<std::vector<float>, 6> m_zoneBorders;
     MapRenderBuffer m_zoneBorderVbo[6];
     int m_zoneBorderCount[6] {};

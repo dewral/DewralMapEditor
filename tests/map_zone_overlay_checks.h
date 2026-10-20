@@ -1,5 +1,6 @@
 #pragma once
 #include <QMouseEvent>
+#include "numberedzonecolors.h"
 
 bool testZoneOverlays()
 {
@@ -142,4 +143,116 @@ bool testZoneOverlays()
     if (!require(!liveView.zoneLabelEditInProgress(), "Mouse release must finish deferred label updates")) return false;
     return require(view.zoneOpacities()[0].toDouble() == 1.0 && view.zoneOpacities()[1].toDouble() == 0.0,
                    "Zone opacity must clamp to valid values");
+}
+
+
+bool testNumberedZoneOverlays()
+{
+    OtbmReader map;
+    map.newMap(1024,1024,860,2,22);
+    map.placeItem(100,100,7,1000,0,false,true);
+    MapView view;
+    view.setOtbm(&map); view.setSize({320,320}); view.setTileSize(32);
+    view.centerOnPosition(100,100,7); view.setModernZones(true);
+    view.setActiveZone(64);
+    if (!require(view.activeZone() != 64, "Disabled maps must reject numbered zone brushes")) return false;
+    auto before = view.renderMetadataOverlayVersion();
+    map.setNumberedZonesEnabled(true);
+    if (!require(view.renderMetadataOverlayVersion() > before, "Enabling zones must invalidate overlays")) return false;
+    view.setProperty("numberedZoneId",42); view.setActiveZone(64);
+    const QPointF point((100.5-view.renderOriginX())*32,(100.5-view.renderOriginY())*32);
+    auto stroke = [&](Qt::KeyboardModifiers modifiers) {
+        QMouseEvent press(QEvent::MouseButtonPress,point,point,Qt::LeftButton,Qt::LeftButton,modifiers);
+        QCoreApplication::sendEvent(&view,&press);
+        QMouseEvent release(QEvent::MouseButtonRelease,point,point,Qt::LeftButton,Qt::NoButton,modifiers);
+        QCoreApplication::sendEvent(&view,&release);
+    };
+    stroke(Qt::NoModifier);
+    if (!require(map.tileAt(100,100,7)->zone_ids.contains(42), "Zone brush must paint a numbered zone")) return false;
+    view.setProperty("numberedZoneId",7); stroke(Qt::NoModifier);
+    if (!require(map.tileAt(100,100,7)->zone_ids.values().size()==2, "Zone brush must retain overlapping IDs")) return false;
+    std::array<std::vector<float>,8> batches;
+    view.renderCollectNumberedZones(batches);
+    if (!require(!batches[42%8].empty() && !batches[7].empty(), "Overlapping zones need visible color batches")) return false;
+    const auto labels=view.visibleZoneLabels();
+    if (!require(labels.size()==1 && labels[0].toMap()["name"].toString()=="Zone 7, 42", "A single numbered tile must show its IDs")) return false;
+    if (!require(view.findNumberedZones(42)["total"].toInt()==1
+        && view.findNumberedZones(9)["total"].toInt()==0
+        && view.findNumberedZones(0,true)["total"].toInt()==0, "Zone search must filter IDs and selection")) return false;
+    stroke(Qt::ControlModifier);
+    if (!require(!map.tileAt(100,100,7)->zone_ids.contains(7) && map.tileAt(100,100,7)->zone_ids.contains(42), "Ctrl must erase only the chosen ID")) return false;
+    view.undo();
+    if (!require(map.tileAt(100,100,7)->zone_ids.contains(7), "Undo must restore zone IDs")) return false;
+    view.setSelectionMode(true); stroke(Qt::ShiftModifier);
+    if (!require(view.findNumberedZones(42,true)["total"].toInt()==1, "Selection search must include selected zone tiles")) return false;
+    view.copySelection(); view.startPasting();
+    const QPointF paste = point + QPointF(64,0);
+    QMouseEvent pastePress(QEvent::MouseButtonPress,paste,paste,Qt::LeftButton,Qt::LeftButton,Qt::NoModifier);
+    QCoreApplication::sendEvent(&view,&pastePress);
+    QMouseEvent pasteRelease(QEvent::MouseButtonRelease,paste,paste,Qt::LeftButton,Qt::NoButton,Qt::NoModifier);
+    QCoreApplication::sendEvent(&view,&pasteRelease);
+    if (!require(map.tileAt(102,100,7) && map.tileAt(102,100,7)->zone_ids.contains(42)
+        && map.tileAt(102,100,7)->zone_ids.contains(7), "Whole-tile paste must preserve every zone ID")) return false;
+    view.undo();
+    if (!require(!map.tileAt(102,100,7), "Undo must remove pasted zone metadata")) return false;
+    view.setSelectionMode(true); stroke(Qt::ShiftModifier);
+    view.moveSelection(1,0);
+    if (!require(map.tileAt(101,100,7) && map.tileAt(101,100,7)->zone_ids.contains(42)
+        && map.tileAt(100,100,7)->zone_ids.empty(), "Moving tiles must transfer zone metadata")) return false;
+    view.undo();
+    if (!require(map.tileAt(100,100,7)->zone_ids.contains(42), "Undo must restore moved zones")) return false;
+    view.setActiveZone(64);
+    view.setShowNumberedZones(false); view.renderCollectNumberedZones(batches);
+    for (const auto &batch:batches) if (!require(batch.empty(), "Hidden numbered zones must have no draw batches")) return false;
+    map.setNumberedZonesEnabled(false);
+    if (!require(view.activeZone()!=64 && view.visibleZoneLabels().isEmpty(), "Disabling zones must leave the brush and clear labels")) return false;
+    map.setNumberedZonesEnabled(true); view.setActiveZone(64);
+    view.setOtbm(nullptr);
+    return require(view.activeZone()==0, "Closing a map must deactivate its numbered-zone brush");
+}
+
+
+bool testNumberedZoneBoundaries()
+{
+    OtbmReader map;
+    map.newMap(1024,1024,860,2,22);
+    map.setNumberedZonesEnabled(true);
+    for (int x=100; x<=101; ++x) {
+        map.placeItem(x,100,7,1000,0,false,true);
+        map.editNumberedZone(x,100,7,42);
+    }
+    map.setTileFlags(100,100,7,1);
+    MapView view;
+    view.setOtbm(&map); view.setSize({320,320}); view.setTileSize(32);
+    view.centerOnPosition(100,100,7); view.setModernZones(true);
+    std::array<std::vector<float>,8> fills, borders;
+    view.renderCollectNumberedZones(fills,&borders);
+    if (!require(fills[2].size()==8 && borders[2].size()==24,
+                 "Adjacent tiles of the same numbered zone need one outer outline without an internal edge")) return false;
+    for (int i=0; i<int(borders[2].size()); i+=4)
+        if (!require(std::min(borders[2][i+2],borders[2][i+3])==1.0f,
+                     "Inactive numbered zone outlines should be one screen pixel thick")) return false;
+    view.setNumberedZoneId(42); view.setActiveZone(64);
+    view.renderCollectNumberedZones(fills,&borders);
+    for (int i=0; i<int(borders[2].size()); i+=4)
+        if (!require(std::min(borders[2][i+2],borders[2][i+3])==2.0f,
+                     "The active numbered zone needs a stronger outline")) return false;
+    const auto before=view.renderMetadataOverlayVersion();
+    view.setNumberedZoneId(7);
+    if (!require(view.renderMetadataOverlayVersion()>before,
+                 "Changing the zone ID must refresh active outlines immediately")) return false;
+    view.setShowZonesAlways(false);
+    auto labels=view.visibleZoneLabels();
+    if (!require(labels.size()==1 && labels[0].toMap()["name"]=="Zone 42"
+        && labels[0].toMap()["color"].toString()==numberedZoneColor(42).name()
+        && labels[0].toMap()["zoneIds"]=="42",
+        "Numbered labels must keep their own ID/color when PZ overlays are hidden")) return false;
+    view.setModernZones(false);
+    labels=view.visibleZoneLabels();
+    if (!require(labels.size()==1 && labels[0].toMap()["name"]=="Zone 42",
+        "Numbered labels must also work with the classic zone renderer")) return false;
+    view.setShowNumberedZones(false);
+    view.renderCollectNumberedZones(fills,&borders);
+    for (const auto &batch:borders) if (!require(batch.empty(),"Hiding numbered zones must also hide their outlines")) return false;
+    return require(view.visibleZoneLabels().isEmpty(),"Hiding numbered zones must hide their labels");
 }

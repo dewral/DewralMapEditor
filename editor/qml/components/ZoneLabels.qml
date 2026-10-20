@@ -24,7 +24,7 @@ Item {
     function refreshRegions() {
         const next = mapView.visibleZoneLabels();
         next.sort((a,b) => a.worldX - b.worldX || a.worldY - b.worldY || a.name.localeCompare(b.name));
-        const keys = ["worldX", "worldY", "name", "color", "flags"];
+        const keys = ["worldX", "worldY", "name", "color", "flags", "zoneIds"];
         let changed = next.length !== regions.length;
         for (let i = 0; !changed && i < next.length; ++i)
             for (const key of keys)
@@ -49,7 +49,9 @@ Item {
             y: (modelData.worldY - root.originY) * root.mapView.tileSize - height / 2
             width: caption.implicitWidth + 30; height: 24; radius: 4
             color: "#e6191d1f"
-            border { width: hover.hovered || (root.mapView.activeZone & modelData.flags) ? 2 : 1; color: modelData.color }
+            readonly property bool activeNumberedZone: root.mapView.activeZone === 64 && !!modelData.zoneIds
+                && ("," + modelData.zoneIds + ",").indexOf("," + root.mapView.numberedZoneId + ",") >= 0
+            border { width: hover.hovered || activeNumberedZone || (root.mapView.activeZone & modelData.flags) ? 2 : 1; color: modelData.color }
             HoverHandler { id: hover }
             ToolTip.visible: hover.hovered
             ToolTip.delay: 250

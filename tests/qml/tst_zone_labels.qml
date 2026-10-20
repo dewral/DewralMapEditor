@@ -9,6 +9,8 @@ Item {
         property real oy: 100
         property int tileSize: 32
         property int activeZone: 0
+        property int numberedZoneId: 42
+        property bool numbered: false
         property bool editing: false
         property int rebuilds: 0
         signal contentUpdated()
@@ -16,11 +18,22 @@ Item {
         function renderOriginX() { return ox }
         function renderOriginY() { return oy }
         function zoneLabelEditInProgress() { return editing }
-        function visibleZoneLabels() { ++rebuilds; return [{worldX:105.5,worldY:105.5,name:"PvP",color:"#d46b79",flags:16}] }
+        function visibleZoneLabels() { ++rebuilds; return numbered ? [{worldX:105.5,worldY:105.5,name:"Zone 7, 42",color:"#c6dc70",flags:0,zoneIds:"7,42"}] : [{worldX:105.5,worldY:105.5,name:"PvP",color:"#d46b79",flags:16}] }
     }
     Components.ZoneLabels { id: labels; anchors.fill: parent; mapView: map }
     TestCase {
         name: "ZoneLabelAnchoring"; when: windowShown
+        function test_numberedZoneHighlight() {
+            map.numbered=true; map.activeZone=64; map.numberedZoneId=42;
+            labels.refreshRegions();
+            const label=findChild(labels,"zoneLabel0");
+            verify(label.activeNumberedZone);
+            compare(label.border.width,2);
+            map.numberedZoneId=1;
+            compare(label.activeNumberedZone,false);
+            compare(label.border.width,1);
+            map.numbered=false; map.activeZone=0; labels.refreshRegions();
+        }
         function test_panImmediatelyTracksWorldPosition() {
             tryVerify(() => findChild(labels,"zoneLabel0") !== null);
             const label = findChild(labels,"zoneLabel0");

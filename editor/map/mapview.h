@@ -126,6 +126,8 @@ class MapView : public QQuickItem
     Q_PROPERTY(bool selectionMode READ selectionMode WRITE setSelectionMode NOTIFY selectionModeChanged)
     Q_PROPERTY(bool lassoMode READ lassoMode WRITE setLassoMode NOTIFY lassoModeChanged)
 
+    Q_PROPERTY(int numberedZoneId READ numberedZoneId WRITE setNumberedZoneId NOTIFY brushParamsChanged)
+    Q_PROPERTY(bool showNumberedZones READ showNumberedZones WRITE setShowNumberedZones NOTIFY viewFlagsChanged)
     Q_PROPERTY(int activeZone READ activeZone WRITE setActiveZone NOTIFY activeZoneChanged)
 
     Q_PROPERTY(bool eraseMode READ eraseMode WRITE setEraseMode NOTIFY eraseModeChanged)
@@ -167,6 +169,24 @@ public:
     void setSelectionMode(bool on);
     bool lassoMode() const { return m_selectionController.lassoMode(); }
     void setLassoMode(bool on);
+    int numberedZoneId() const { return m_numberedZoneId; }
+    void setNumberedZoneId(int id) {
+        id = std::clamp(id, 0, 65535);
+        if (m_numberedZoneId == id) return;
+        m_numberedZoneId = id;
+        ++m_metadataOverlayVersion;
+        emit brushParamsChanged(); emit contentUpdated(); update();
+    }
+    bool showNumberedZones() const { return m_showNumberedZones; }
+    void setShowNumberedZones(bool on) {
+        if (m_showNumberedZones == on) return;
+        m_showNumberedZones = on;
+        ++m_metadataOverlayVersion;
+        emit viewFlagsChanged(); emit contentUpdated(); update();
+    }
+    Q_INVOKABLE QVariantMap findNumberedZones(int id = 0, bool selectionOnly = false) const;
+    void renderCollectNumberedZones(std::array<std::vector<float>, 8> &out,
+                                    std::array<std::vector<float>, 8> *borders = nullptr) const;
     int activeZone() const { return static_cast<int>(m_editController.activeZone()); }
     void setActiveZone(int zone);
     bool eraseMode() const { return m_editController.eraseMode(); }
@@ -1086,6 +1106,8 @@ private:
     double m_selectionOpacity = 0.25;
     QVariantList m_zoneColors {"#399ee8", "#48b883", "#dfa65a", "#d46b79", "#9173be"};
     QVariantList m_zoneOpacities {0.25, 0.25, 0.25, 0.25};
+    int m_numberedZoneId = 1;
+    bool m_showNumberedZones = true;
     bool m_showZones = true;
     bool m_showZonesAlways = true;
 

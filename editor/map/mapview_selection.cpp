@@ -35,6 +35,7 @@ void MapView::deleteSelectedTop()
 
             bool removedHere = false;
             if (m_selectionController.wholeStack()) {
+                if (m_otbm->setTileZoneIds(x, y, z, TileZoneIds())) removedHere = true;
                 while (m_otbm->removeTopItem(x, y, z)) removedHere = true;
                 if (m_otbm->clearCreatureAt(x, y, z)) removedHere = true;
                 if (m_otbm->clearSpawnAt(x, y, z)) {
@@ -88,6 +89,7 @@ void MapView::copySelection()
             ct.npc = t->creature_is_npc;
             ct.direction = t->creature_direction;
             ct.spawnRadius = t->spawn_radius;
+            ct.zoneIds = t->zone_ids;
         } else if (!t->creature_name.isEmpty()) {
             ct.creature = t->creature_name;
             ct.spawntime = t->creature_spawntime;
@@ -96,7 +98,7 @@ void MapView::copySelection()
         } else if (!t->items.empty()) {
             ct.items.push_back(t->items.back());
         }
-        if (ct.items.empty() && ct.creature.isEmpty() && ct.spawnRadius == 0) continue;
+        if (ct.items.empty() && ct.creature.isEmpty() && ct.spawnRadius == 0 && ct.zoneIds.empty()) continue;
         m_selectionController.clipboard().push_back(std::move(ct));
     }
     emit clipboardChanged();
@@ -254,6 +256,7 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
         std::vector<OtbmMapItem> items;
         QString creature; int spawntime = 60; bool npc = false; uint8_t direction = 0;
         int spawnRadius = 0;
+        TileZoneIds zoneIds;
     };
     std::vector<Snap> snap;
     for (quint64 key : m_selectionController.selected()) {
@@ -274,6 +277,7 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
             s.npc = t->creature_is_npc;
             s.direction = static_cast<uint8_t>((t->creature_direction + quarterTurns + 4) % 4);
             s.spawnRadius = t->spawn_radius;
+            if (m_selectionController.wholeStack()) s.zoneIds = t->zone_ids;
         } else if (!t->creature_name.isEmpty()) {
 
             s.creature = t->creature_name;
@@ -284,8 +288,9 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
             s.items.push_back(t->items.back());
         } else if (t->spawn_radius > 0) {
             s.spawnRadius = t->spawn_radius;
+            if (m_selectionController.wholeStack()) s.zoneIds = t->zone_ids;
         }
-        if (s.items.empty() && s.creature.isEmpty() && s.spawnRadius == 0) continue;
+        if (s.items.empty() && s.creature.isEmpty() && s.spawnRadius == 0 && s.zoneIds.empty()) continue;
         snap.push_back(std::move(s));
     }
     if (snap.empty()) return;
@@ -319,6 +324,7 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
     for (const Snap &s : snap) {
         for (size_t i = 0; i < s.items.size(); ++i) m_otbm->removeTopItem(s.x, s.y, s.z);
         if (!s.creature.isEmpty()) m_otbm->clearCreatureAt(s.x, s.y, s.z);
+        if (!s.zoneIds.empty()) m_otbm->setTileZoneIds(s.x, s.y, s.z, TileZoneIds());
         if (s.spawnRadius > 0) { m_otbm->clearSpawnAt(s.x, s.y, s.z); movedSpawn = true; }
         onTileEdited(s.x, s.y, s.z);
     }
@@ -346,6 +352,7 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
             m_otbm->setCreatureAt(nx, ny, nz, s.creature, s.spawntime, s.npc, s.direction);
             onTileEdited(nx, ny, nz);
         }
+        if (!s.zoneIds.empty() && m_otbm->setTileZoneIds(nx, ny, nz, s.zoneIds)) onTileEdited(nx, ny, nz);
         if (s.spawnRadius > 0) {
             m_otbm->setSpawnAt(nx, ny, nz, s.spawnRadius);
             onTileEdited(nx, ny, nz);
@@ -822,6 +829,7 @@ void MapView::commitPasteAt(int px, int py)
             m_otbm->setCreatureAt(tx, ty, tz, ct.creature, ct.spawntime, ct.npc, ct.direction);
             onTileEdited(tx, ty, tz);
         }
+        if (!ct.zoneIds.empty() && m_otbm->setTileZoneIds(tx, ty, tz, ct.zoneIds)) onTileEdited(tx, ty, tz);
         if (ct.spawnRadius > 0) {
             m_otbm->setSpawnAt(tx, ty, tz, ct.spawnRadius);
             onTileEdited(tx, ty, tz);

@@ -513,6 +513,7 @@ void OtbmReader::reset()
     m_waypoints.clear();
     m_houses.clear();
     m_otbmVersion = 0;
+    m_numberedZonesEnabled = false;
     m_width = 0;
     m_height = 0;
     m_otbItemsMajor = 0;
@@ -772,6 +773,7 @@ bool OtbmReader::adoptLoadedState(OtbmReader &source)
     swap(m_waypoints, source.m_waypoints);
     swap(m_houses, source.m_houses);
     swap(m_otbmVersion, source.m_otbmVersion);
+    swap(m_numberedZonesEnabled, source.m_numberedZonesEnabled);
     swap(m_itemTypes, source.m_itemTypes);
     swap(m_width, source.m_width);
     swap(m_height, source.m_height);
@@ -1093,6 +1095,21 @@ bool OtbmReader::parseTile(BinaryNode &tile, uint16_t baseX, uint16_t baseY, uin
                              .arg(result.x).arg(result.y).arg(result.z));
                 return false;
             }
+            // RME-ZONES extends TileFlags bit 0x40 with zero-terminated U16 IDs.
+            if (result.flags & 0x40u) {
+                m_numberedZonesEnabled = true;
+                uint16_t id = 0;
+                do {
+                    if (!tile.getU16(id)) {
+                        setError(QStringLiteral("Truncated zone IDs at %1, %2, %3")
+                                     .arg(result.x).arg(result.y).arg(result.z));
+                        return false;
+                    }
+                    result.zone_ids.add(id);
+                } while (id != 0);
+            }
+            // The extension bit is derived at save time, never an ordinary flag.
+            result.flags &= ~0x40u;
         } else if (static_cast<OtbmAttribute>(attrType) == OtbmAttribute::Item) {
             uint16_t serverId = 0;
             if (!tile.getU16(serverId) || serverId == 0) {
@@ -2553,6 +2570,43 @@ uint32_t OtbmReader::tileFlags(int x, int y, int z) const
     return m_tiles[static_cast<size_t>(it.value())].flags;
 }
 
+void OtbmReader::setNumberedZonesEnabled(bool enabled)
+{
+    if (!m_loaded || m_numberedZonesEnabled == enabled) return;
+    m_numberedZonesEnabled = enabled;
+    emit mapChanged();
+}
+
+bool OtbmReader::setTileZoneIds(int x, int y, int z, const TileZoneIds &ids)
+{
+    if (!m_loaded || x < 0 || x > 65535 || y < 0 || y > 65535 || z < 0 || z > 15) return false;
+    auto *tile = tileAt(x, y, z);
+    if (tile ? tile->zone_ids.values() == ids.values() : ids.empty()) return false;
+    recordTile(x, y, z);
+    getOrCreateTileRaw(x, y, z)->zone_ids = ids;
+    if (!m_undoGrouping) emit mapChanged();
+    return true;
+}
+
+bool OtbmReader::editNumberedZone(int x, int y, int z, int id, bool erase)
+{
+    if (!m_numberedZonesEnabled || id < 0 || id > 65535) return false;
+    auto it = m_posIndex.find(posKey3d(x, y, z));
+    if (it == m_posIndex.end()) return false;
+    auto &tile = m_tiles[static_cast<size_t>(it.value())];
+    if (id == 0 ? tile.zone_ids.empty()
+                : (erase ? !tile.zone_ids.contains(uint16_t(id))
+                         : tile.zone_ids.contains(uint16_t(id)))) return false;
+    // The view verifies ground through client definitions; erasing is always allowed.
+    if (!erase && id != 0 && tile.items.empty()) return false;
+    recordTile(x, y, z);
+    if (id == 0) tile.zone_ids.clear();
+    else if (erase) tile.zone_ids.remove(uint16_t(id));
+    else tile.zone_ids.add(uint16_t(id));
+    if (!m_undoGrouping) emit mapChanged();
+    return true;
+}
+
 bool OtbmReader::setTileFlags(int x, int y, int z, uint32_t flags)
 {
     auto it = m_posIndex.find(posKey3d(x, y, z));
@@ -2560,6 +2614,7 @@ bool OtbmReader::setTileFlags(int x, int y, int z, uint32_t flags)
         return false;
     }
     OtbmTile &tile = m_tiles[static_cast<size_t>(it.value())];
+    flags &= ~0x40u;
     if (tile.flags == flags) {
         return false;
     }
@@ -2684,6 +2739,7 @@ void OtbmReader::recordTile(int x, int y, int z)
         const OtbmTile &t = m_tiles[static_cast<size_t>(it.value())];
         snap.items.assign(t.items.begin(), t.items.end());
         snap.flags = t.flags;
+        snap.zone_ids = t.zone_ids;
         snap.spawn_radius = t.spawn_radius;
         snap.creature_name = t.creature_name;
         snap.creature_spawntime = t.creature_spawntime;
@@ -2754,6 +2810,7 @@ qsizetype OtbmReader::estimateActionBytes(const UndoAction &action)
     bytes += static_cast<qsizetype>(action.tiles.capacity())
              * static_cast<qsizetype>(sizeof(TileSnapshot));
     for (const TileSnapshot &snapshot : action.tiles) {
+        bytes += snapshot.zone_ids.values().capacity() * sizeof(uint16_t);
         bytes += snapshot.creature_name.capacity()
                  * static_cast<qsizetype>(sizeof(QChar));
         bytes += static_cast<qsizetype>(snapshot.items.capacity())
@@ -2804,6 +2861,7 @@ OtbmReader::TileSnapshot OtbmReader::currentSnapshot(int x, int y, int z) const
         const OtbmTile &t = m_tiles[static_cast<size_t>(it.value())];
         snap.items.assign(t.items.begin(), t.items.end());
         snap.flags = t.flags;
+        snap.zone_ids = t.zone_ids;
         snap.spawn_radius = t.spawn_radius;
         snap.creature_name = t.creature_name;
         snap.creature_spawntime = t.creature_spawntime;
@@ -2863,6 +2921,7 @@ void OtbmReader::restoreSnapshots(const std::vector<TileSnapshot> &snapshots)
         for (const OtbmMapItem &item : tile.items) m_itemCount -= countItems(item);
         tile.items = snap.items;
         tile.flags = snap.flags;
+        tile.zone_ids = snap.zone_ids;
         tile.spawn_radius = snap.spawn_radius;
         tile.creature_name = snap.creature_name;
         tile.creature_spawntime = snap.creature_spawntime;
@@ -2900,6 +2959,7 @@ void OtbmReader::restoreSnapshots(const std::vector<TileSnapshot> &snapshots)
         tile.y = static_cast<uint16_t>(snap.y);
         tile.z = static_cast<uint8_t>(snap.z);
         tile.flags = snap.flags;
+        tile.zone_ids = snap.zone_ids;
         tile.items = snap.items;
         tile.spawn_radius = snap.spawn_radius;
         tile.creature_name = snap.creature_name;
@@ -3200,6 +3260,7 @@ QVariantMap OtbmReader::importFile(const QString &path, int offsetX, int offsetY
         if (destination != m_posIndex.end() && collisionMode == 2) {
             OtbmTile &old = m_tiles[static_cast<size_t>(destination.value())];
             old.flags |= tile.flags;
+            for (auto id : tile.zone_ids.values()) old.zone_ids.add(id);
             old.items.reserve(old.items.size() + tile.items.size());
             for (OtbmMapItem &item : tile.items) {
                 m_itemCount += countItems(item);
@@ -3345,7 +3406,7 @@ QVariantMap OtbmReader::cleanupMap(const QSet<uint16_t> &validServerIds,
         for (auto tile = m_tiles.begin(); tile != m_tiles.end();) {
             const bool empty = tile->items.empty() && tile->creature_name.isEmpty()
                                && tile->spawn_radius == 0 && !tile->is_house
-                               && tile->flags == 0;
+                               && tile->flags == 0 && tile->zone_ids.empty();
             if (!empty) {
                 ++tile;
                 continue;
@@ -3429,6 +3490,7 @@ struct OtbmReader::RecoverySnapshot {
     decltype(OtbmReader::m_towns) towns;
     decltype(OtbmReader::m_waypoints) waypoints;
     decltype(OtbmReader::m_houses) houses;
+    bool numberedZonesEnabled;
     decltype(OtbmReader::m_otbmVersion) otbmVersion;
     decltype(OtbmReader::m_width) width;
     decltype(OtbmReader::m_height) height;
@@ -3464,6 +3526,9 @@ std::shared_ptr<OtbmReader::RecoverySnapshot> OtbmReader::createRecoverySnapshot
     snapshot->towns = m_towns;
     snapshot->waypoints = m_waypoints;
     snapshot->houses = m_houses;
+    // Recovery must retain zones even when regular output is set to TFS mode.
+    snapshot->numberedZonesEnabled = m_numberedZonesEnabled || std::any_of(
+        m_tiles.begin(), m_tiles.end(), [](const auto &tile) { return !tile.zone_ids.empty(); });
     snapshot->otbmVersion = m_otbmVersion;
     snapshot->width = m_width;
     snapshot->height = m_height;
@@ -3494,6 +3559,7 @@ QString OtbmReader::writeRecoverySnapshot(std::shared_ptr<RecoverySnapshot> snap
     writer.m_towns = std::move(snapshot->towns);
     writer.m_waypoints = std::move(snapshot->waypoints);
     writer.m_houses = std::move(snapshot->houses);
+    writer.m_numberedZonesEnabled = snapshot->numberedZonesEnabled;
     writer.m_otbmVersion = std::move(snapshot->otbmVersion);
     writer.m_width = std::move(snapshot->width);
     writer.m_height = std::move(snapshot->height);
@@ -3522,6 +3588,7 @@ bool OtbmReader::saveRecoveryFile(const QString &path)
         setError(QStringLiteral("Cannot create recovery data while a map XML file is unread. Correct the XML file and reload the map first."));
         return false;
     }
+    const bool oldNumberedZones = m_numberedZonesEnabled;
     const QString oldFilePath = m_filePath;
     const QString oldSpawnFile = m_spawnFile;
     const QString oldHouseFile = m_houseFile;
@@ -3537,7 +3604,10 @@ bool OtbmReader::saveRecoveryFile(const QString &path)
     m_houseFile = base + QStringLiteral(".house.xml");
     m_spawnsXmlLoaded = true;
     m_housesXmlLoaded = true;
+    m_numberedZonesEnabled = m_numberedZonesEnabled || std::any_of(
+        m_tiles.begin(), m_tiles.end(), [](const auto &tile) { return !tile.zone_ids.empty(); });
     const bool result = saveFileInternal(path, true);
+    m_numberedZonesEnabled = oldNumberedZones;
 
     m_filePath = oldFilePath;
     m_spawnFile = oldSpawnFile;
@@ -3677,9 +3747,15 @@ bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
         if (house) {
             w.u32(tile.house_id);
         }
-        if (tile.flags != 0) {
+        const bool saveZones = m_numberedZonesEnabled && !tile.zone_ids.empty();
+        const uint32_t flags = (tile.flags & ~0x40u) | (saveZones ? 0x40u : 0u);
+        if (flags != 0) {
             w.data(static_cast<uint8_t>(OtbmAttribute::TileFlags));
-            w.u32(tile.flags);
+            w.u32(flags);
+            if (saveZones) {
+                for (auto id : tile.zone_ids.values()) w.u16(id);
+                w.u16(0);
+            }
         }
 
         for (const OtbmMapItem &item : tile.items) {

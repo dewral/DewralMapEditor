@@ -883,3 +883,21 @@ QVariantList MapView::previewMonsterLabels(int centerX, int centerY, int z, int 
         }
     return result;
 }
+
+QVariantMap MapView::findNumberedZones(int id, bool selectionOnly) const
+{
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    QVariantList results;
+    int total = 0;
+    if (m_otbm && id >= 0 && id <= 65535) for (const auto &tile : m_otbm->tiles()) {
+        if (tile.zone_ids.empty() || (id && !tile.zone_ids.contains(uint16_t(id)))) continue;
+        if (selectionOnly && !m_selectionController.selected().contains(selKey(tile.x, tile.y, tile.z))) continue;
+        ++total;
+        if (results.size() >= 1000) continue;
+        QStringList ids;
+        for (auto zone : tile.zone_ids.values()) ids.append(QString::number(zone));
+        results.append(QVariantMap{{"x",tile.x},{"y",tile.y},{"z",tile.z},
+            {"zones",ids.join(QStringLiteral(", "))}});
+    }
+    return {{"results",results},{"total",total},{"truncated",total > results.size()}};
+}

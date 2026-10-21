@@ -669,6 +669,7 @@ Item {
         }
         function test_revealBrushSprite(data) {
             manager.tab = data.tab
+            manager.doodadRandomMode = false
             const groundItems = findChild(manager, "brushManagerGroundItems")
             groundItems.append({sid: 13614, chance: 10})
             const slots = manager.emptyBorderSlots()
@@ -700,6 +701,7 @@ Item {
             compare(groundItems.count, 0)
 
             manager.tab = "doodad"
+            manager.doodadRandomMode = false
             manager.setDoodadCell(0, 13614, false)
             const doodad = findChild(manager.contentItem, "brushManagerDoodadCell0")
             wait(50)

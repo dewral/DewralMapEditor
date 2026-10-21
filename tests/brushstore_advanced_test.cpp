@@ -128,6 +128,66 @@ int main(int argc, char **argv)
     CHECK(store.wallBrushForServerId(120) == "lava wall");
     CHECK(QDir().rmdir(dir.filePath("brushes.json")));
     CHECK(source.rename(dir.filePath("brushes.json")));
+
+    // The simple composer stores individual choices in the existing weighted picker.
+    const QVariantList choices{QVariantMap{{"id",500},{"chance",1}},
+                               QVariantMap{{"id",501},{"chance",3}},
+                               QVariantMap{{"id",502},{"chance",0}}};
+    BrushStore unloaded;
+    CHECK(!unloaded.saveRandomDoodad("flowers", "Nature", choices, "").value("success").toBool());
+    CHECK(store.saveRandomDoodad("flowers", "Nature", choices, "").value("success").toBool());
+    CHECK(store.isPrefab("flowers"));
+    CHECK(store.prefabsForPalette("Nature").size() == 1);
+    CHECK(store.prefabEdit("flowers").value("mode").toString() == "random");
+    CHECK(store.prefabEdit("flowers").value("items").toList() == choices);
+    CHECK(store.doodadVariantCount("flowers") == 2);
+    first = 0; second = 0;
+    for (int i = 0; i < 10000; ++i) {
+        const auto picked = store.pickDoodad("flowers");
+        CHECK(picked.size() == 1 && picked[0].items.size() == 1);
+        CHECK(picked[0].dx == 0 && picked[0].dy == 0 && picked[0].dz == 0);
+        const int id = picked[0].items[0];
+        CHECK(id == 500 || id == 501); // Disabled choice must never be placed.
+        first += id == 500; second += id == 501;
+    }
+    CHECK(first > 2000 && first < 3000 && second > first * 2);
+    CHECK(store.saveRandomDoodad("wild flowers", "Nature", choices, "flowers").value("success").toBool());
+    CHECK(!store.isPrefab("flowers") && store.isPrefab("wild flowers"));
+    CHECK(store.prefabEdit("wild flowers").value("items").toList() == choices);
+    CHECK(!store.saveRandomDoodad("rock pile", "Nature", choices, "").value("success").toBool());
+    CHECK(!store.saveRandomDoodad("wild flowers", "Nature", choices, "").value("success").toBool());
+    CHECK(!store.saveRandomDoodad("bad", "", choices, "").value("success").toBool());
+    for (const QVariantList &badChoices : {
+             QVariantList{},
+             QVariantList{QVariantMap{{"id",500},{"chance",0}}},
+             QVariantList{QVariantMap{{"id",500},{"chance",-1}}},
+             QVariantList{QVariantMap{{"id",500},{"chance",1000001}}},
+             QVariantList{QVariantMap{{"id",500},{"chance",1.5}}},
+             QVariantList{QVariantMap{{"id",65536},{"chance",1}}},
+             QVariantList{QVariantMap{{"id",500},{"chance",1}}, QVariantMap{{"id",500},{"chance",3}}}}) {
+        CHECK(!store.saveRandomDoodad("wild flowers", "Nature", badChoices, "wild flowers").value("success").toBool());
+        CHECK(store.prefabEdit("wild flowers").value("items").toList() == choices);
+    }
+    CHECK(reload.loadForDir(dir.path()));
+    CHECK(reload.prefabEdit("wild flowers").value("items").toList() == choices);
+    const QVariantList onlySecond{QVariantMap{{"id",500},{"chance",0}}, QVariantMap{{"id",501},{"chance",1}}};
+    CHECK(store.saveRandomDoodad("wild flowers", "Nature", onlySecond, "wild flowers").value("success").toBool());
+    CHECK(store.prefabLookId("wild flowers") == 501);
+    for (int i = 0; i < 100; ++i) CHECK(store.pickDoodad("wild flowers")[0].items[0] == 501);
+    CHECK(source.rename(dir.filePath("brushes-backup.json")));
+    CHECK(QDir().mkdir(dir.filePath("brushes.json")));
+    CHECK(!store.saveRandomDoodad("unsaved flowers", "Nature", choices, "wild flowers").value("success").toBool());
+    CHECK(store.prefabEdit("wild flowers").value("items").toList() == onlySecond);
+    CHECK(!store.isPrefab("unsaved flowers"));
+    CHECK(QDir().rmdir(dir.filePath("brushes.json")));
+    CHECK(source.rename(dir.filePath("brushes.json")));
+
+    // Existing fixed compositions retain their tile stacks and offsets.
+    CHECK(store.savePrefab("room", "Structures", tiles));
+    CHECK(store.prefabEdit("room").value("mode").toString() != "random");
+    CHECK(store.doodadPreviewTiles("room").size() == 2);
+    CHECK(store.doodadPreviewTiles("room")[0].items == QVector<int>({100,101,999}));
+    CHECK(store.doodadPreviewTiles("room")[1].dz == 1);
     qInfo() << "Advanced brushes: round trips, renaming, validation, learning and weighted picking passed";
     return 0;
 }

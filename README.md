@@ -41,6 +41,11 @@ multi-floor Tibia maps.
   and tileset (for example, **Terrain Palette > Walls**) to add every selected ID.
 - Includes ground brushes, automatic borders, wall brushes, doodad variants,
   zone tools, spawns, creatures, houses, and towns.
+- In **Tileset & Brush Manager → Doodad composer**, use **Random items** and
+  click items in the left picker to add choices without entering dimensions.
+  Adjust each **Weight** to set its relative chance; weight 0 disables a choice.
+  Every map placement picks one item. **Multi-tile grid** remains available for
+  fixed compositions and existing doodads.
 - Supports selection, multi-floor selection, moving items between floors,
   cut/copy/paste, undo/redo, item properties, search, and replacement tools.
 - Select an area, right-click and choose **Create Collection…** to save its

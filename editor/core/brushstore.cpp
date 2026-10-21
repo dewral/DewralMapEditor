@@ -915,6 +915,17 @@ QStringList BrushStore::groundBrushNames() const
     return l;
 }
 
+QString BrushStore::groundBrushForItem(int serverId) const
+{
+    const QString ground = groundBrushForServerId(serverId);
+    if (!ground.isEmpty()) return ground;
+    // Border ownership is useful for picking brushes, but must not make a
+    // border count as terrain when painting or computing neighbouring grounds.
+    const auto borders = m_borderBrushAliases.constFind(serverId);
+    if (borders == m_borderBrushAliases.constEnd() || borders->size() != 1) return {};
+    return borders->first();
+}
+
 int BrushStore::groundBrushLookId(const QString &name) const
 {
     const auto *ground = groundDef(name);

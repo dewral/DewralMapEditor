@@ -5,7 +5,7 @@ import "../../editor/qml/controllers/ContextBrushes.js" as ContextBrushes
 TestCase {
     name: "ContextBrushes"
     property var definitions: ({
-        ground: {100: "grass", 101: "grass"},
+        ground: {100: "grass", 101: "grass", 6262: "ice", 6267: "ice"},
         wall: {200: "stone", 201: "stone", 202: "stone", 203: "unlisted wall"},
         carpet: {300: "rug", 301: "rug"},
         table: {400: "table", 401: "table"},
@@ -61,9 +61,37 @@ TestCase {
         const result = options({wall: hidden}, [hidden, candidate("wall", 200)]);
         compare(result.wall.name, "stone");
     }
-    function test_unlistedBrushIsHidden() {
+    function test_unlistedGroundRemainsSelectable() {
+        palettes = ({raw: {"Ice sprites": [6262, 6267]}});
+        for (const id of [6262, 6267]) {
+            const ground = options({ground: candidate("ground", id)}).ground;
+            compare(ground.kind, "ground");
+            compare(ground.name, "ice");
+            compare(ground.serverId, id);
+            compare(ground.displayedServerId, id);
+            compare(ground.category, "raw");
+            compare(ground.tileset, "Ice sprites");
+        }
+    }
+    function test_unlistedGroundWithoutRawEntry() {
         palettes = ({terrain: {Empty: []}});
-        compare(Object.keys(options({ground: candidate("ground", 101)})).length, 0);
+        const ground = options({ground: candidate("ground", 6267)}).ground;
+        compare(ground.name, "ice");
+        compare(ground.serverId, 6267);
+        compare(ground.category, "raw");
+        compare(ground.tileset, "");
+    }
+    function test_unknownGroundIsHidden() {
+        palettes = ({});
+        verify(!options({ground: {kind: "ground", name: "missing", serverId: 999}}).ground);
+    }
+    function test_borderResolvesToListedGround() {
+        palettes = ({terrain: {Ice: [6262]}});
+        const ground = options({ground: candidate("ground", 6267)}).ground;
+        compare(ground.name, "ice");
+        compare(ground.serverId, 6267);
+        compare(ground.displayedServerId, 6262);
+        compare(ground.category, "terrain");
     }
     function test_unlistedWallRemainsSelectable() {
         palettes = ({raw: {"Wall sprites": [202]}});

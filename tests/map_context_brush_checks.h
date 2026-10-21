@@ -6,7 +6,12 @@ static bool testContextBrushes()
 {
     QTemporaryDir directory;
     if (!require(writeFile(directory.filePath("brushes.json"), R"({
-        "grounds":{"grass":{"lookid":100,"items":[[100,1],[101,1]]}},
+        "borders":{"ice-edge":[0,6267,{"variants":[[6263,1],[6264,3]]}],
+                   "ice-optional":[0,6270],"shared":[0,6290]},
+        "grounds":{"grass":{"lookid":100,"items":[[100,1],[101,1]]},
+          "ice":{"lookid":6262,"items":[[6262,1]],"optional":"ice-optional",
+                 "borders":[{"border":"ice-edge","align":"outer"},{"border":"shared","to":"*"}]},
+          "snow":{"lookid":6257,"items":[[6257,1]],"borders":[{"border":"shared"}]}},
         "walls":{"stone":{"lookid":200,"items":{"6":[[200,1]],"16":[[200,1]]}}},
         "carpets":{"rug":{"items":{"center":[[300,1]]}}},
         "tables":{"table":{"items":{"alone":[[400,1]]}}},
@@ -26,6 +31,14 @@ static bool testContextBrushes()
     map.placeItem(101, 100, 7, 202, 99, false, false);
     // A ground-brush ID in the loose stack must not invent an underlying ground.
     map.placeItem(102, 100, 7, 101, 0, false, false);
+    map.placeItem(103, 100, 7, 6262, 0, false, true);
+    map.placeItem(104, 100, 7, 6267, 99, false, false);
+    map.placeItem(105, 100, 7, 101, 0, false, true);
+    map.placeItem(105, 100, 7, 6263, 99, false, false);
+    map.placeItem(106, 100, 7, 6270, 99, false, false);
+    map.placeItem(107, 100, 7, 101, 0, false, true);
+    map.placeItem(107, 100, 7, 6290, 99, false, false);
+    map.placeItem(108, 100, 7, 6264, 0, false, true);
 
     class ContextView : public MapView {
     public:
@@ -95,6 +108,29 @@ static bool testContextBrushes()
     if (!require(!view.contextInfo().value("brushes").toMap().contains("ground"),
                  "Loose item was mistaken for the tile ground")) return false;
 
+    for (const auto &position : {qMakePair(103, 6262), qMakePair(104, 6267),
+                                qMakePair(105, 6263), qMakePair(106, 6270),
+                                qMakePair(108, 6264)}) {
+        click(Qt::RightButton, position.first);
+        const auto ground = view.contextInfo().value("brushes").toMap().value("ground").toMap();
+        if (!require(ground.value("name") == "ice"
+                     && ground.value("serverId").toInt() == position.second,
+                     "Ice ground, border variant or optional border lost its ground brush")) return false;
+    }
+    click(Qt::RightButton, 107);
+    if (!require(view.typedBrushName("ground", 6290).isEmpty()
+                 && view.contextInfo().value("brushes").toMap().value("ground")
+                        .toMap().value("name") == "grass",
+                 "A shared border must preserve the underlying ground instead of guessing")) return false;
+    if (!require(store.groundBrushForServerId(6267).isEmpty()
+                 && !store.isGroundBrushItem(6267)
+                 && !store.groundBrushAssignments().contains(6267),
+                 "Border picking must not classify border sprites as terrain")) return false;
+    if (!require(view.useTypedBrush("ground", 6267) && view.activeGroundBrush() == "ice"
+                 && !view.selectionMode(),
+                 "Picking an ice border failed to activate the full ground brush")) return false;
+    click(Qt::RightButton, 102);
+
     click(Qt::LeftButton, 100, Qt::ShiftModifier);
     click(Qt::RightButton, 100);
     context = view.contextInfo();
@@ -162,5 +198,20 @@ static bool testContextBrushes()
     pointer(QEvent::MouseButtonPress, Qt::RightButton, 100);
     view.mouseUngrabEvent();
     pointer(QEvent::MouseButtonRelease, Qt::RightButton, 100);
-    return require(menus == beforeUngrab, "Canceled right-click opened a stale menu");
+    if (!require(menus == beforeUngrab, "Canceled right-click opened a stale menu")) return false;
+
+    const auto ice = store.groundBrushEdit("ice");
+    if (!require(store.saveGroundBrush("frozen ice", 5500, ice.value("items").toList(),
+                                      ice.value("borders").toList(),
+                                      ice.value("optionalTiles").toList(), "ice")
+                 && view.typedBrushName("ground", 6267) == "frozen ice"
+                 && view.typedBrushName("ground", 6270) == "frozen ice",
+                 "Renaming the ground brush retained stale border ownership")) return false;
+    BrushStore reloaded;
+    if (!require(reloaded.loadForDir(directory.path())
+                 && reloaded.groundBrushForItem(6264) == "frozen ice",
+                 "Reloading lost the border variant's ground brush")) return false;
+    store.deleteGroundBrush("frozen ice");
+    return require(view.typedBrushName("ground", 6267).isEmpty(),
+                   "Deleting the ground brush retained its border ownership");
 }

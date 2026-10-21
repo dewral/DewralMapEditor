@@ -52,6 +52,8 @@ Item {
             brushes.grounds = {granite: original, "midhem dirt": original, stone: original}
             brushes.savedOriginalNames = []
             brushes.failSave = false
+            Backend.brushArchiveCalls = []
+            Backend.brushArchiveError = ""
             manager = createTemporaryObject(managerComponent, testRoot)
             verify(manager)
             manager.open()
@@ -88,6 +90,10 @@ Item {
             compare(name.text, "dirt")
             compare(combo.currentIndex, 0)
             tryCompare(combo, "currentText", "dirt")
+            const exportAll = findChild(manager, "brushManagerExportAllGround")
+            verify(exportAll.enabled)
+            verify(exportAll.mapToItem(manager.contentItem, exportAll.width, 0).x <= manager.contentItem.width)
+            grabImage(testRoot).save("build/ground-brush-export-" + data.theme + ".png")
             compare(JSON.stringify(brushes.grounds.dirt.items), items)
             compare(brushes.grounds.dirt.zorder, 2000)
             button.clicked()
@@ -165,6 +171,48 @@ Item {
             manager.optionalBorderIds = Array.from({length: 13}, () => [])
             manager.optionalBorderMode = true
             compare(manager.groundExportCells()[3], 0)
+        }
+        function test_exportAllUsesSavedBrushesAndDefaultBordersWithoutChangingDraft() {
+            const slots = Array.from({length: 13}, () => [])
+            slots[3] = [{id: 456, chance: 1}]
+            const inner = Array.from({length: 13}, () => [])
+            inner[3] = [{id: 789, chance: 1}]
+            brushes.grounds = {
+                outer: {items: [{id: 100, chance: 1}], borders: [
+                    {to: "", align: "inner", tiles: inner}, {to: "", align: "outer", tiles: slots}]},
+                inner: {items: [{id: 101, chance: 1}], borders: [{to: "", align: "inner", tiles: inner}]},
+                plain: {items: [{id: 102, chance: 1}], borders: []}
+            }
+            manager.borderTarget = "stone"
+            manager.optionalBorderMode = true
+            findChild(manager, "brushManagerGroundItems").append({sid: 999, chance: 1})
+            const draft = JSON.stringify({items: manager.groundExportCells(), sets: manager.borderSets, name: manager.curGround})
+            const exported = manager.groundExportBrushes()
+            compare(exported.map(brush => brush.name), ["inner", "outer", "plain"])
+            compare(exported.map(brush => brush.cells[3]), [789, 456, 0])
+            compare(exported.map(brush => brush.cells[11]), [101, 100, 102])
+            compare(JSON.stringify({items: manager.groundExportCells(), sets: manager.borderSets, name: manager.curGround}), draft)
+            compare(brushes.savedOriginalNames, [])
+        }
+        function test_exportAllDialogSendsSnapshotAndReportsErrors() {
+            const dialog = findChild(manager, "groundBrushArchiveDialog")
+            dialog.brushes = manager.groundExportBrushes()
+            const snapshot = JSON.stringify(dialog.brushes)
+            dialog.selectedFile = Qt.resolvedUrl("../../build/ground-brushes.zip")
+            brushes.grounds = {}
+            brushes.brushesChanged()
+            dialog.accepted()
+            compare(Backend.brushArchiveCalls.length, 1)
+            compare(Backend.brushArchiveCalls[0].kind, "ground")
+            compare(JSON.stringify(Backend.brushArchiveCalls[0].brushes), snapshot)
+            verify(Backend.brushArchiveCalls[0].destination.endsWith("/ground-brushes.zip"))
+            Backend.brushArchiveError = "Cannot write ZIP."
+            dialog.accepted()
+            const error = findChild(manager, "groundBrushExportError")
+            tryCompare(error, "visible", true)
+            compare(error.text, Backend.brushArchiveError)
+            error.close()
+            verify(!findChild(manager, "brushManagerExportAllGround").enabled)
         }
         function test_existingNameKeepsOriginal() {
             findChild(manager, "brushManagerGroundName").text = "granite"

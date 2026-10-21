@@ -104,7 +104,14 @@ DmeDialog {
         return variants.length > 0 ? Number(variants[0].id) : 0;
     }
 
-    function groundExportCells() {
+    function groundExportCells(items, slots) {
+        if (items === undefined) {
+            items = [];
+            for (var i = 0; i < gItems.count; ++i)
+                items.push({id: gItems.get(i).sid});
+        }
+        if (slots === undefined)
+            slots = borderSlots;
         // 8x8 stepped outline: -1 is empty, 0 is ground, 1..12 are border slots.
         // Borders face inward; outer stair caps use C* and adjacent positions use D*.
         var layout = [
@@ -126,10 +133,10 @@ DmeDialog {
                 if (bt < 0) {
                     cells.push(0);
                 } else if (bt === 0) {
-                    cells.push(gItems.count > 0 ? Number(gItems.get(groundIndex % gItems.count).sid) : 0);
+                    cells.push(items.length > 0 ? Number(items[groundIndex % items.length].id) : 0);
                     ++groundIndex;
                 } else {
-                    var variants = borderSlots[bt] || [];
+                    var variants = slots[bt] || [];
                     var index = used[bt] || 0;
                     cells.push(variants.length > 0 ? Number(variants[index % variants.length].id) : 0);
                     used[bt] = index + 1;
@@ -137,6 +144,17 @@ DmeDialog {
             }
         }
         return cells;
+    }
+
+    function groundExportBrushes() {
+        return Backend.brushStore.groundBrushNames().map(function(name) {
+            var brush = Backend.brushStore.groundBrushEdit(name);
+            // Match the default border set shown when loading this brush.
+            var borders = brush.borders || [];
+            var border = borders.find(block => block.to === "" && block.align === "outer")
+                      || borders.find(block => block.to === "" && block.align === "inner");
+            return {name: name, cells: groundExportCells(brush.items || [], border ? border.tiles : [])};
+        });
     }
 
     FileDialogs.FileDialog {
@@ -157,8 +175,26 @@ DmeDialog {
 
     FileDialogs.MessageDialog {
         id: groundExportError
+        objectName: "groundBrushExportError"
         title: "Brush export failed"
         buttons: FileDialogs.MessageDialog.Ok
+    }
+
+    FileDialogs.FileDialog {
+        id: groundArchiveDialog
+        objectName: "groundBrushArchiveDialog"
+        property var brushes: []
+        title: "Export all ground brushes as PNGs in a ZIP"
+        fileMode: FileDialogs.FileDialog.SaveFile
+        nameFilters: ["ZIP archives (*.zip)"]
+        defaultSuffix: "zip"
+        onAccepted: {
+            var error = Backend.exportGroundBrushes(brushes, selectedFile);
+            if (error !== "") {
+                groundExportError.text = error;
+                groundExportError.open();
+            }
+        }
     }
 
     function addBorderVariant(bt, sid) {
@@ -2002,6 +2038,22 @@ DmeDialog {
                             groundExportDialog.currentFolder = folder;
                             groundExportDialog.selectedFile = folder + "/" + name + ".png";
                             groundExportDialog.open();
+                        }
+                    }
+                    DmeButton {
+                        objectName: "brushManagerExportAllGround"
+                        text: "Export all PNGs (ZIP)…"
+                        width: 165
+                        enabled: groundCombo.model.length > 0
+                        HoverHandler { id: groundArchiveHover }
+                        ToolTip.visible: groundArchiveHover.hovered
+                        ToolTip.text: "Download one PNG per saved ground brush in a ZIP archive."
+                        onClicked: {
+                            groundArchiveDialog.brushes = root.groundExportBrushes();
+                            var folder = StandardPaths.writableLocation(StandardPaths.DownloadLocation);
+                            groundArchiveDialog.currentFolder = folder;
+                            groundArchiveDialog.selectedFile = folder + "/ground-brushes.zip";
+                            groundArchiveDialog.open();
                         }
                     }
                     DmeButton {

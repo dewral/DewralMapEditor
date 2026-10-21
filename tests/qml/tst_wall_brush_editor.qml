@@ -91,6 +91,8 @@ Item {
             brushes.captured = ({})
             Backend.wallExportCalls = []
             Backend.wallExportError = ""
+            Backend.brushArchiveCalls = []
+            Backend.brushArchiveError = ""
             manager = createTemporaryObject(managerComponent, testRoot)
             verify(manager)
             manager.open()
@@ -144,6 +146,9 @@ Item {
             verify(panel.visible)
             verify(panel.y + panel.height <= manager.contentItem.height)
             verify(findChild(manager.contentItem, "wallBrushSave").mapToItem(manager.contentItem, 0, 0).y < manager.contentItem.height)
+            const exportAll = findChild(manager.contentItem, "wallBrushExportAll")
+            verify(exportAll.enabled)
+            verify(exportAll.mapToItem(manager.contentItem, exportAll.width, 0).x <= manager.contentItem.width)
             wait(80)
             const shapes = findChild(manager.contentItem, "wallBrushShapes")
             verify(shapes.contentHeight <= shapes.height, "All wall shapes should fit in the standard window")
@@ -207,6 +212,46 @@ Item {
             compare(JSON.stringify(panel.draft), draft)
             verify(panel.dirty)
             compare(brushes.captured, {})
+        }
+        function test_exportAllUsesSavedBrushesWithoutChangingDraft() {
+            const panel = manager.wallEditor
+            const second = {lookid: 103, items: {"0": [[103, 10]], "6": [[100, 0], [104, 1]], "3": [[102, 10]]}}
+            brushes.stored = {"stone wall": testRoot.originalWall, "brick wall": second}
+            brushes.brushesChanged()
+            panel.load("stone wall")
+            panel.addToShape(0, [104])
+            const draft = JSON.stringify(panel.draft)
+            compare(panel.exportBrushes(), [
+                {name: "brick wall", cells: [103, 104, 0, 102]},
+                {name: "stone wall", cells: [0, 100, 101, 0]}
+            ])
+            compare(JSON.stringify(panel.draft), draft)
+            verify(panel.dirty)
+            compare(brushes.captured, {})
+            verify(findChild(manager.contentItem, "wallBrushExportAll").enabled)
+        }
+        function test_exportAllDialogSendsSnapshotAndReportsErrors() {
+            const panel = manager.wallEditor
+            const dialog = findChild(panel, "wallBrushArchiveDialog")
+            dialog.brushes = panel.exportBrushes()
+            dialog.selectedFile = Qt.resolvedUrl("../../build/wall-brushes.zip")
+            panel.addToShape(0, [104])
+            dialog.accepted()
+            compare(Backend.brushArchiveCalls.length, 1)
+            compare(Backend.brushArchiveCalls[0].kind, "wall")
+            compare(Backend.brushArchiveCalls[0].brushes, [{name: "stone wall", cells: [0, 100, 101, 0]}])
+            verify(Backend.brushArchiveCalls[0].destination.endsWith("/wall-brushes.zip"))
+            Backend.brushArchiveError = "Cannot write ZIP."
+            dialog.accepted()
+            const error = findChild(panel, "wallBrushExportError")
+            tryCompare(error, "visible", true)
+            compare(error.text, Backend.brushArchiveError)
+            error.close()
+            verify(panel.dirty)
+            compare(brushes.captured, {})
+            brushes.stored = {}
+            brushes.brushesChanged()
+            verify(!findChild(manager.contentItem, "wallBrushExportAll").enabled)
         }
         function test_pickerDropUsesChosenShape() {
             const card = findChild(manager.contentItem, "brushManagerWallSlot3")

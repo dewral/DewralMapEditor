@@ -16,6 +16,21 @@ QString save(const QVariantList &cells, const QUrl &destination,
 {
     if (!destination.isLocalFile() || destination.toLocalFile().isEmpty())
         return tr("Choose a local PNG file to export the brush.");
+
+    QSaveFile file(destination.toLocalFile());
+    if (!file.open(QIODevice::WriteOnly))
+        return tr("Could not save the brush: %1").arg(file.errorString());
+    const QString error = write(cells, &file, itemImage);
+    if (!error.isEmpty())
+        return error;
+    if (!file.commit())
+        return tr("Could not save the brush: %1").arg(file.errorString());
+    return {};
+}
+
+QString write(const QVariantList &cells, QIODevice *output,
+              const std::function<QImage(int, int)> &itemImage)
+{
     if (cells.size() != Side * Side)
         return tr("The ground brush export must contain 8 by 8 tiles.");
 
@@ -40,14 +55,9 @@ QString save(const QVariantList &cells, const QUrl &destination,
     if (!hasImage)
         return tr("Add at least one ground item before exporting the brush.");
 
-    QSaveFile file(destination.toLocalFile());
-    if (!file.open(QIODevice::WriteOnly))
-        return tr("Could not save the brush: %1").arg(file.errorString());
-    QImageWriter writer(&file, "PNG");
+    QImageWriter writer(output, "PNG");
     if (!writer.write(image))
         return tr("Could not encode the brush as PNG: %1").arg(writer.errorString());
-    if (!file.commit())
-        return tr("Could not save the brush: %1").arg(file.errorString());
     return {};
 }
 }

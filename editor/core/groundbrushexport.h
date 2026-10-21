@@ -6,12 +6,16 @@
 #include <QVariantList>
 #include <functional>
 
+class QIODevice;
+
 namespace GroundBrushExport {
 constexpr int Side = 8;
 constexpr int TileSize = 32;
 // The callback receives the server ID and its occurrence index, for variations.
 QString save(const QVariantList &cells, const QUrl &destination,
              const std::function<QImage(int, int)> &itemImage);
+QString write(const QVariantList &cells, QIODevice *output,
+              const std::function<QImage(int, int)> &itemImage);
 }
 
 #endif

@@ -115,6 +115,13 @@ Item searches support names, ID prefixes, and inclusive ID ranges. Enter
 
 ![Creating and editing a brush in the DME Brush Editor](docs/screenshots/brush-editor.png)
 
+Use **Export all PNGs (ZIP)…** in the Ground brush or Wall brush tab to download
+every saved brush of that type in one archive, with a separate PNG named after
+each brush. Ground PNGs use the 8×8 tile layout and each brush's default borders;
+wall PNGs use the 2×2 shape layout. Both preserve transparency and native pixels.
+Save any brush edits first to include them in the archive. **Export PNG…** still
+exports the current brush draft individually.
+
 ### Classic UI
 
 The interface can be changed at any time in the theme settings. Choose the

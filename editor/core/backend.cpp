@@ -1,6 +1,7 @@
 #include "backend.h"
 #include "groundbrushexport.h"
 #include "wallbrushexport.h"
+#include "brushpngexport.h"
 #include "obdexport.h"
 
 #include <QDir>
@@ -80,6 +81,28 @@ QString Backend::exportWallBrush(const QVariantList &cells, const QUrl &destinat
         const auto *item = m_datReader.itemByClientId(m_otbReader.clientIdForServerId(serverId));
         return item ? m_sprReader.itemPatternImage(*item, 0) : QImage();
     });
+}
+
+QString Backend::exportGroundBrushes(const QVariantList &brushes, const QUrl &destination)
+{
+    return BrushPngExport::saveArchive(brushes, destination,
+        [this](const QVariantList &cells, QIODevice *output) {
+            return GroundBrushExport::write(cells, output, [this](int serverId, int variation) {
+                const auto *item = m_datReader.itemByClientId(m_otbReader.clientIdForServerId(serverId));
+                return item ? m_sprReader.itemPatternImage(*item, variation) : QImage();
+            });
+        });
+}
+
+QString Backend::exportWallBrushes(const QVariantList &brushes, const QUrl &destination)
+{
+    return BrushPngExport::saveArchive(brushes, destination,
+        [this](const QVariantList &cells, QIODevice *output) {
+            return WallBrushExport::write(cells, output, [this](int serverId) {
+                const auto *item = m_datReader.itemByClientId(m_otbReader.clientIdForServerId(serverId));
+                return item ? m_sprReader.itemPatternImage(*item, 0) : QImage();
+            });
+        });
 }
 
 QString Backend::previewScreenshotPath() const

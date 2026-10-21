@@ -2,6 +2,16 @@ pragma Singleton
 import QtQuick
 QtObject {
     property string screenshotPath: ""
+    property var brushArchiveCalls: []
+    property string brushArchiveError: ""
+    function exportGroundBrushes(brushes, destination) {
+        brushArchiveCalls = brushArchiveCalls.concat([{kind: "ground", brushes: JSON.parse(JSON.stringify(brushes)), destination: String(destination)}]);
+        return brushArchiveError;
+    }
+    function exportWallBrushes(brushes, destination) {
+        brushArchiveCalls = brushArchiveCalls.concat([{kind: "wall", brushes: JSON.parse(JSON.stringify(brushes)), destination: String(destination)}]);
+        return brushArchiveError;
+    }
     property var wallExportCalls: []
     property string wallExportError: ""
     function exportWallBrush(cells, destination) {

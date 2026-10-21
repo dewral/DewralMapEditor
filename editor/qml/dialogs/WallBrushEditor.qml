@@ -73,13 +73,19 @@ Item {
         }
     }
     function variants(slot) { return (draft.items || {})[String(slot)] || []; }
-    function exportCells() {
+    function exportCells(brush = draft) {
         function primary(slot) {
-            const pair = root.variants(slot).find(value => Number(value[1]) > 0);
+            const pair = ((brush.items || {})[String(slot)] || []).find(value => Number(value[1]) > 0);
             return pair ? Number(pair[0]) : 0;
         }
         // 128x128 sheet: pillar and horizontal above vertical and corner N + W.
         return [primary(0), primary(6), primary(9), primary(3)];
+    }
+    function exportBrushes() {
+        return Backend.brushStore.wallBrushNames().map(name => ({
+            name: name,
+            cells: exportCells(Backend.brushStore.advancedBrushEdit("walls", name))
+        }));
     }
     function addToShape(slot, ids, weight = 100) {
         const value = copy(draft);
@@ -199,6 +205,22 @@ Item {
         objectName: "wallBrushExportError"
         title: "Brush export failed"
         buttons: FileDialogs.MessageDialog.Ok
+    }
+    FileDialogs.FileDialog {
+        id: archiveDialog
+        objectName: "wallBrushArchiveDialog"
+        property var brushes: []
+        title: "Export all wall brushes as PNGs in a ZIP"
+        fileMode: FileDialogs.FileDialog.SaveFile
+        nameFilters: ["ZIP archives (*.zip)"]
+        defaultSuffix: "zip"
+        onAccepted: {
+            const error = Backend.exportWallBrushes(brushes, selectedFile);
+            if (error !== "") {
+                exportError.text = error;
+                exportError.open();
+            }
+        }
     }
     DmeDialog {
         id: discardDialog
@@ -459,6 +481,21 @@ Item {
                     exportDialog.currentFolder = folder;
                     exportDialog.selectedFile = folder + "/" + name + ".png";
                     exportDialog.open();
+                }
+            }
+            DmeButton {
+                objectName: "wallBrushExportAll"
+                text: "Export all PNGs (ZIP)…"
+                enabled: root.names.length > 0
+                HoverHandler { id: wallArchiveHover }
+                ToolTip.visible: wallArchiveHover.hovered
+                ToolTip.text: "Download one PNG per saved wall brush in a ZIP archive."
+                onClicked: {
+                    archiveDialog.brushes = root.exportBrushes();
+                    const folder = StandardPaths.writableLocation(StandardPaths.DownloadLocation);
+                    archiveDialog.currentFolder = folder;
+                    archiveDialog.selectedFile = folder + "/wall-brushes.zip";
+                    archiveDialog.open();
                 }
             }
         }

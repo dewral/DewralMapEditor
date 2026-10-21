@@ -237,6 +237,7 @@ bool atlasBudget(const QTemporaryDir &directory)
 #include "map_hangable_checks.h"
 #include "map_selection_delete_checks.h"
 #include "map_view_position_checks.h"
+#include "map_item_location_checks.h"
 
 int main(int argc, char **argv)
 {
@@ -251,6 +252,14 @@ int main(int argc, char **argv)
         QTemporaryDir directory;
         return require(directory.isValid(), "Could not create map view fixtures")
                    && testMapViewPositions(directory) ? 0 : 1;
+    }
+    if (QCoreApplication::arguments().contains(QStringLiteral("--item-locations-only"))) {
+        QTemporaryDir directory;
+        OtbReader items;
+        return require(directory.isValid() && writeAssets(directory)
+                       && items.loadFile(directory.filePath("test.otb")),
+                       "Could not create item search fixtures")
+                   && testItemLocations(items) ? 0 : 1;
     }
     {
         MapView lightView;

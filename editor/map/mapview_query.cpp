@@ -276,23 +276,37 @@ int MapView::previewFirstVisibleFloor(int x, int y, int z) const
 
 QVariantMap MapView::searchItems(const QString &type, bool selectionOnly) const
 {
+    return queryItems(type, selectionOnly, 0, 10000);
+}
+
+QVariantMap MapView::findItemLocations(int itemId, bool clientId) const
+{
+    return queryItems(clientId ? QStringLiteral("client") : QStringLiteral("server"),
+                      false, itemId, 500);
+}
+
+QVariantMap MapView::queryItems(const QString &type, bool selectionOnly,
+                              int itemId, int resultLimit) const
+{
     QVariantMap output;
     QVariantList results;
-    if (!m_otbm || !m_otb) {
+    const QString normalized = type.trimmed().toLower();
+    const bool byServerId = normalized == QLatin1String("server");
+    const bool byClientId = normalized == QLatin1String("client");
+    if (!m_otbm || !m_otb || ((byServerId || byClientId) && (itemId <= 0 || itemId > 65535))) {
         output.insert(QStringLiteral("results"), results);
         output.insert(QStringLiteral("total"), 0);
         output.insert(QStringLiteral("truncated"), false);
         return output;
     }
 
-    const QString normalized = type.trimmed().toLower();
-    constexpr int kResultLimit = 10000;
     int total = 0;
 
     std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
     std::function<void(const OtbmMapItem &, const OtbmTile &, int, const QString &)> visit;
     visit = [&](const OtbmMapItem &item, const OtbmTile &tile, int depth,
                 const QString &containerPath) {
+        if (m_queryCancel.load(std::memory_order_relaxed)) return;
         QStringList matches;
         const int group = m_otb->groupForServerId(item.server_id);
         const bool hasUnique = item.uniqueId() != 0;
@@ -315,11 +329,13 @@ QVariantMap MapView::searchItems(const QString &type, bool selectionOnly) const
             || (normalized == QLatin1String("action") && hasAction)
             || (normalized == QLatin1String("container") && isContainer)
             || (normalized == QLatin1String("writable") && isWritable)
-            || (normalized == QLatin1String("everything") && !matches.isEmpty());
+            || (normalized == QLatin1String("everything") && !matches.isEmpty())
+            || (byServerId && item.server_id == itemId)
+            || (byClientId && m_otb->clientIdForServerId(item.server_id) == itemId);
 
         if (match) {
             ++total;
-            if (results.size() < kResultLimit) {
+            if (results.size() < resultLimit) {
                 QVariantMap result;
                 result.insert(QStringLiteral("x"), tile.x);
                 result.insert(QStringLiteral("y"), tile.y);
@@ -377,6 +393,8 @@ QVariantMap MapView::searchItems(const QString &type, bool selectionOnly) const
             visit(item, tile, 0, QString());
     }
 
+    if (m_queryCancel.load(std::memory_order_relaxed))
+        output.insert(QStringLiteral("cancelled"), true);
     output.insert(QStringLiteral("results"), results);
     output.insert(QStringLiteral("total"), total);
     output.insert(QStringLiteral("truncated"), total > results.size());
@@ -613,6 +631,28 @@ bool MapView::startItemSearch(const QString &type, bool selectionOnly)
             emit queryBusyChanged();
             emit queryProgressChanged();
             emit itemSearchFinished(result);
+        }, Qt::QueuedConnection);
+    });
+    return true;
+}
+
+bool MapView::startItemLocationSearch(int itemId, bool clientId)
+{
+    if (m_queryBusy || !m_otbm || !m_otb || itemId <= 0 || itemId > 65535) return false;
+    m_queryCancel.store(false, std::memory_order_relaxed);
+    m_queryProgress.store(0, std::memory_order_relaxed);
+    m_queryBusy = true;
+    emit queryBusyChanged();
+    emit queryProgressChanged();
+    m_queryFuture = QtConcurrent::run([this, itemId, clientId] {
+        const QVariantMap result = findItemLocations(itemId, clientId);
+        QMetaObject::invokeMethod(this, [this, result] {
+            m_queryBusy = false;
+            if (!result.value(QStringLiteral("cancelled")).toBool())
+                m_queryProgress.store(100, std::memory_order_relaxed);
+            emit queryBusyChanged();
+            emit queryProgressChanged();
+            emit itemLocationSearchFinished(result);
         }, Qt::QueuedConnection);
     });
     return true;

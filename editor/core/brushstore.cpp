@@ -769,6 +769,21 @@ QVariantMap BrushStore::prefabEdit(const QString &name) const
     result.insert(QStringLiteral("tiles"), QVariantList{});
     if (!m_prefabs.contains(name)) return result;
 
+    const auto raw = m_rawRoot.value("doodads").toObject().value(name).toObject();
+    if (raw.value("composer_mode").toString() == "random") {
+        result.insert(QStringLiteral("mode"), QStringLiteral("random"));
+        QVariantList items;
+        for (const auto &alt : raw.value("alternates").toArray()) {
+            for (const auto &value : alt.toObject().value("singles").toArray()) {
+                const auto pair = value.toArray();
+                if (pair.size() == 2)
+                    items.append(QVariantMap{{"id", pair[0].toInt()}, {"chance", pair[1].toInt()}});
+            }
+        }
+        result.insert(QStringLiteral("items"), items);
+        return result;
+    }
+
     const QVector<DoodadTile> source = doodadPreviewTiles(name);
     if (source.isEmpty()) return result;
 
@@ -804,6 +819,38 @@ int BrushStore::prefabLookId(const QString &name) const
 {
     const DoodadDef *def = doodadDef(name);
     return def ? def->lookid : 0;
+}
+
+QVariantMap BrushStore::saveRandomDoodad(const QString &name, const QString &palette,
+                                        const QVariantList &items, const QString &originalName)
+{
+    if (m_path.isEmpty())
+        return {{"success", false}, {"error", "Load a client before saving a doodad."}};
+    if (palette.trimmed().isEmpty())
+        return {{"success", false}, {"error", "Choose a doodad palette."}};
+    if (!originalName.isEmpty() && !m_prefabs.contains(originalName))
+        return {{"success", false}, {"error", "The original doodad no longer exists. Reload it first."}};
+
+    QVariantList singles;
+    QVariant lookid;
+    QSet<int> seen;
+    for (const auto &value : items) {
+        const auto item = value.toMap();
+        const auto id = item.value("id");
+        const auto chance = item.value("chance");
+        if (seen.contains(id.toInt()))
+            return {{"success", false}, {"error", "Each item can only be added once."}};
+        seen.insert(id.toInt());
+        singles.append(QVariant::fromValue(QVariantList{id, chance}));
+        if (!lookid.isValid() && chance.toInt() > 0) lookid = id;
+    }
+    if (!lookid.isValid())
+        return {{"success", false}, {"error", "Add at least one item with a positive weight."}};
+    const QVariantMap alternate{{"singles", singles}, {"composites", QVariantList{}}};
+    return saveAdvancedBrush("doodads", name, originalName,
+                             {{"lookid", lookid}, {"prefab", true},
+                              {"prefab_palette", palette.trimmed()}, {"composer_mode", "random"},
+                              {"alternates", QVariantList{alternate}}});
 }
 
 bool BrushStore::savePrefab(const QString &nameValue, const QString &paletteValue,

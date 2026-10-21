@@ -33,6 +33,9 @@ public:
     Q_INVOKABLE QVariantMap prefabEdit(const QString &name) const;
     Q_INVOKABLE bool savePrefab(const QString &name, const QString &palette,
                                  const QVariantList &tiles);
+    Q_INVOKABLE QVariantMap saveRandomDoodad(const QString &name, const QString &palette,
+                                            const QVariantList &items,
+                                            const QString &originalName);
     Q_INVOKABLE void deletePrefab(const QString &name);
     Q_INVOKABLE bool renamePrefabPalette(const QString &oldName,
                                          const QString &newName);

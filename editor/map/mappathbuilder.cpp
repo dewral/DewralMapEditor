@@ -6,11 +6,11 @@
 bool MapPathBuilder::configure(const Configuration &configuration, QString *error)
 {
     if (configuration.straightPrefab.trimmed().isEmpty()) {
-        if (error) *error = QStringLiteral("Select a straight prefab.");
+        if (error) *error = QStringLiteral("Select a straight Blueprint.");
         return false;
     }
     if (configuration.cornerPrefab.trimmed().isEmpty()) {
-        if (error) *error = QStringLiteral("Select a corner prefab.");
+        if (error) *error = QStringLiteral("Select a corner Blueprint.");
         return false;
     }
 

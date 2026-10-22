@@ -10,6 +10,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVector>
+#include <QUrl>
 #include <QtQml/qqmlregistration.h>
 #include <array>
 
@@ -42,6 +43,15 @@ public:
     Q_INVOKABLE bool deletePrefabsForPalette(const QString &palette);
     Q_INVOKABLE bool isPrefab(const QString &name) const { return m_prefabs.contains(name); }
     Q_INVOKABLE int prefabLookId(const QString &name) const;
+    Q_INVOKABLE bool isBlueprint(const QString &name) const;
+    Q_INVOKABLE QVariantMap blueprintData(const QString &name, int clientVersion) const;
+    Q_INVOKABLE QVariantMap saveBlueprint(const QString &name, const QString &palette,
+                                          const QVariantMap &payload);
+    Q_INVOKABLE QVariantMap updateBlueprint(const QString &name, const QString &newName,
+                                            const QString &palette);
+    Q_INVOKABLE QVariantMap removeBlueprint(const QString &name);
+    Q_INVOKABLE QVariantMap exportBlueprint(const QString &name, const QUrl &file, int clientVersion) const;
+    Q_INVOKABLE QVariantMap readBlueprintFile(const QUrl &file, int clientVersion) const;
 
     Q_INVOKABLE QVariantMap groundBrushEdit(const QString &name) const;
 

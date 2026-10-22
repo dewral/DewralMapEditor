@@ -75,6 +75,7 @@ DmeDialog {
     property var doodadPaletteNames: []
     property var doodadNames: []
     property bool doodadRandomMode: true
+    property bool doodadLayoutProtected: false
     property string doodadSaveError: ""
     property alias doodadItems: dItems
     readonly property int doodadTotalWeight: {
@@ -453,7 +454,8 @@ DmeDialog {
     }
 
     function refreshDoodads(preferredPalette, preferredName) {
-        var palettes = Backend.tilesetStore.namesFor("doodad");
+        var palettes = Backend.tilesetStore.namesFor("doodad").concat(Backend.brushStore.prefabPaletteNames())
+            .filter((name, index, all) => all.indexOf(name) === index).sort();
         doodadPaletteNames = palettes;
         var paletteIndex = palettes.indexOf(preferredPalette || doodadPaletteCombo.currentText);
         if (paletteIndex < 0 && palettes.length > 0)
@@ -474,6 +476,7 @@ DmeDialog {
     }
 
     function resizeDoodadGrid(widthValue, heightValue) {
+        if (doodadLayoutProtected) return;
         var width = Math.max(1, Math.min(12, widthValue));
         var height = Math.max(1, Math.min(12, heightValue));
         var oldWidth = doodadWidth;
@@ -495,6 +498,7 @@ DmeDialog {
     }
 
     function setDoodadCell(index, serverId, append) {
+        if (doodadLayoutProtected) return;
         if (index < 0 || index >= doodadWidth * doodadHeight)
             return;
         var cells = [];
@@ -526,6 +530,7 @@ DmeDialog {
     }
 
     function newDoodad() {
+        doodadLayoutProtected = false;
         curDoodad = "";
         doodadRandomMode = true;
         doodadSaveError = "";
@@ -544,8 +549,15 @@ DmeDialog {
         curDoodad = name;
         doodadNameField.text = name;
         doodadRandomMode = data.mode === "random";
+        doodadLayoutProtected = data.layoutProtected === true;
         doodadSaveError = "";
         dItems.clear();
+        if (doodadLayoutProtected) {
+            doodadWidth = Number(data.width || 1);
+            doodadHeight = Number(data.height || 1);
+            doodadCellItems = [];
+            return;
+        }
         var choices = data.items || [];
         for (var c = 0; c < choices.length; ++c)
             dItems.append({sid: Number(choices[c].id), chance: Number(choices[c].chance)});
@@ -568,6 +580,10 @@ DmeDialog {
     }
 
     function saveDoodad() {
+        if (doodadLayoutProtected) {
+            doodadSaveError = "Place this Blueprint on the map, edit it, and save a new Blueprint. Use its palette menu to rename or move it.";
+            return false;
+        }
         var name = doodadNameField.text.trim();
         var palette = doodadPaletteCombo.currentText;
         doodadSaveError = "";
@@ -1368,7 +1384,7 @@ DmeDialog {
                 }
                 Text {
                     width: parent.width
-                    text: root.doodadRandomMode
+                    text: root.doodadLayoutProtected ? "This Blueprint keeps multiple floors or item properties. Place it on the map to edit its layout. Rename or move it from its palette menu." : root.doodadRandomMode
                           ? "Click items in the picker on the left to add choices. Each map placement picks one item using its weight. Equal weights give equal chances; weight 0 disables an item."
                           : "Build a fixed multi-tile doodad. Set the footprint, then drop item pieces into the grid. Dropping several items on one cell creates a stack."
                     color: root.mutedColor
@@ -1408,6 +1424,7 @@ DmeDialog {
                     Text { text: "Placement"; color: root.mutedColor; anchors.verticalCenter: parent.verticalCenter }
                     DmeComboBox {
                         objectName: "brushManagerDoodadMode"
+                        enabled: !root.doodadLayoutProtected
                         width: 210
                         model: ["Random items", "Multi-tile grid"]
                         currentIndex: root.doodadRandomMode ? 0 : 1
@@ -1443,6 +1460,7 @@ DmeDialog {
                     DmeSpinBox {
                         id: doodadWidthField
                         objectName: "brushManagerDoodadWidth"
+                        enabled: !root.doodadLayoutProtected
                         visible: !root.doodadRandomMode
                         width: 72
                         from: 1
@@ -1454,6 +1472,7 @@ DmeDialog {
                     DmeSpinBox {
                         id: doodadHeightField
                         objectName: "brushManagerDoodadHeight"
+                        enabled: !root.doodadLayoutProtected
                         visible: !root.doodadRandomMode
                         width: 72
                         from: 1
@@ -1463,6 +1482,7 @@ DmeDialog {
                     }
                     DmeButton {
                         text: root.doodadRandomMode ? "Clear items" : "Clear grid"
+                        enabled: !root.doodadLayoutProtected
                         width: 90
                         onClicked: {
                             if (root.doodadRandomMode) {
@@ -1585,6 +1605,7 @@ DmeDialog {
 
                     Flickable {
                         id: doodadFlick
+                        visible: !root.doodadLayoutProtected
                         anchors.fill: parent
                         anchors.margins: 12
                         clip: true
@@ -1601,7 +1622,7 @@ DmeDialog {
                             height: root.doodadHeight * 70 + Math.max(0, root.doodadHeight - 1) * spacing
 
                             Repeater {
-                                model: root.doodadWidth * root.doodadHeight
+                                model: root.doodadLayoutProtected ? 0 : root.doodadWidth * root.doodadHeight
                                 delegate: Rectangle {
                                     required property int index
                                     objectName: "brushManagerDoodadCell" + index
@@ -1675,6 +1696,14 @@ DmeDialog {
                             }
                         }
                     }
+                    Image {
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        visible: root.doodadLayoutProtected
+                        source: visible && root.mapCtrl ? root.mapCtrl.doodadPreviewSourceForName(root.curDoodad) : ""
+                        fillMode: Image.PreserveAspectFit
+                        smooth: false
+                    }
                 }
 
                 Row {
@@ -1691,7 +1720,7 @@ DmeDialog {
                         objectName: "brushManagerDoodadSave"
                         text: root.curDoodad === "" ? "Create doodad" : "Save doodad"
                         width: 120
-                        enabled: doodadNameField.text.trim() !== "" && doodadPaletteCombo.currentIndex >= 0
+                        enabled: !root.doodadLayoutProtected && doodadNameField.text.trim() !== "" && doodadPaletteCombo.currentIndex >= 0
                                  && (!root.doodadRandomMode || root.doodadTotalWeight > 0)
                         onClicked: root.saveDoodad()
                     }

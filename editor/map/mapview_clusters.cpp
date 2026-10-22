@@ -188,7 +188,7 @@ QVariantMap MapView::saveGroundClusterStampAsPrefab(const QString &name,
         return result;
     }
     if (name.trimmed().isEmpty() || palette.trimmed().isEmpty()) {
-        result.insert(QStringLiteral("error"), QStringLiteral("Enter a prefab name and category."));
+        result.insert(QStringLiteral("error"), QStringLiteral("Enter a Blueprint name and category."));
         return result;
     }
 
@@ -246,7 +246,7 @@ QVariantMap MapView::saveGroundClusterStampAsPrefab(const QString &name,
         });
     }
     if (!store->savePrefab(name, palette, tiles)) {
-        result.insert(QStringLiteral("error"), QStringLiteral("Could not save the generated prefab."));
+        result.insert(QStringLiteral("error"), QStringLiteral("Could not save the generated Blueprint."));
         return result;
     }
     result.insert(QStringLiteral("success"), true);

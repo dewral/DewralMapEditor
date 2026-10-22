@@ -323,6 +323,11 @@ Rectangle {
 
         property var subNames: {
             const _r = Backend.tilesetStore.revision;
+            if (currentCategory === "doodad") {
+                const brushes = Backend.brushStore.revision;
+                return Backend.tilesetStore.namesFor("doodad").concat(Backend.brushStore.prefabPaletteNames())
+                    .filter((name, index, all) => all.indexOf(name) === index).sort();
+            }
             if (currentCategory !== "")
                 return Backend.tilesetStore.namesFor(currentCategory);
             if (currentKind === "My Palettes")
@@ -999,6 +1004,7 @@ Rectangle {
                 categoryName: paletteCol.currentKind === "Doodad Palette" ? paletteCol.currentSubName : ""
                 searchText: paletteFilter.searchText
                 githubUi: paletteRoot.githubUi
+                onBlueprintSaved: (category, name) => paletteRoot.selectPrefabPalette(category, name)
                 onContextMenuRequested: serverId => {
                     palItemMenu.sid = serverId;
                     palItemMenu.serverIds = doodadGrid.selectedServerIds.slice();

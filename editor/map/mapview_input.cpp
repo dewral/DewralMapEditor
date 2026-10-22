@@ -274,6 +274,14 @@ void MapView::mousePressEvent(QMouseEvent *event)
         return;
     }
 
+    if (blueprintActive() && event->button() == Qt::LeftButton) {
+        const QPoint tile = tileAtScreen(event->position());
+        m_hoverX = tile.x(); m_hoverY = tile.y();
+        stampBlueprintAt(tile.x(), tile.y());
+        event->accept();
+        return;
+    }
+
     if (m_groundClusterStampActive
         && (event->button() == Qt::LeftButton || event->button() == Qt::RightButton)) {
         const QPoint tile = tileAtScreen(event->position());
@@ -899,8 +907,14 @@ void MapView::keyPressEvent(QKeyEvent *event)
         return;
     }
 
+    if (event->key() == Qt::Key_Escape && blueprintActive()) {
+        cancelBlueprint();
+        event->accept();
+        return;
+    }
+
     if (matches("rotate", "Z")
-        && !m_selectionController.selected().isEmpty() && !m_selectionController.pasting()) {
+        && !blueprintActive() && !m_selectionController.selected().isEmpty() && !m_selectionController.pasting()) {
         rotateSelection();
         event->accept();
         return;

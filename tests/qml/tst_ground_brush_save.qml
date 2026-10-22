@@ -18,6 +18,7 @@ Item {
         function groundBrushNames() { return Object.keys(grounds).sort() }
         function groundBrushEdit(name) { return grounds[name] }
         function wallBrushNames() { return [] }
+        function prefabPaletteNames() { return [] }
         function prefabsForPalette(name) { return [] }
         function searchAliasesForServerId(id) { return [] }
         function saveGroundBrush(name, zorder, items, borders, optionalTiles, originalName) {

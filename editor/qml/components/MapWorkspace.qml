@@ -236,9 +236,15 @@ Item {
                 onTriggered: collectionDialog.openForSelection()
             }
             Action {
-                text: "Add Prefab..."
+                objectName: "saveAsBlueprint"
+                text: "Save as Blueprint…"
                 enabled: mapView.selectionCount > 0
                 onTriggered: prefabDialog.openForSelection()
+            }
+            Action {
+                objectName: "importBlueprint"
+                text: "Import Blueprint…"
+                onTriggered: prefabDialog.beginImport()
             }
             DmeMenu {
                 title: "Rotate Selection"
@@ -257,7 +263,7 @@ Item {
                 }
             }
             Action {
-                text: "Generate Path from Prefabs..."
+                text: "Generate Path from Blueprints..."
                 enabled: Backend.otbmReader.loaded
                 onTriggered: pathBuilderDialog.openForMap()
             }
@@ -437,117 +443,34 @@ Item {
                 workspace.paletteNavigator.showItemLocation("collection", name, firstServerId)
         }
 
-        DmeDialog {
+        BlueprintDialog {
             id: prefabDialog
-            title: "Add Prefab"
-            property var paletteNames: {
-                const revision = Backend.tilesetStore.revision;
-                return Backend.tilesetStore.namesFor("doodad");
-            }
+            mapCtrl: mapView
+            onBlueprintSaved: (category, name) => workspace.paletteNavigator.selectPrefabPalette(category, name)
+        }
 
-            function openForSelection() {
-                prefabName.text = "";
-                newPrefabPalette.text = "";
-                prefabError.text = "";
-                prefabPalette.currentIndex = paletteNames.length > 0 ? 0 : paletteNames.length;
-                open();
-                Qt.callLater(function() { prefabName.forceActiveFocus(); });
-            }
-
-            function commit() {
-                const creatingPalette = prefabPalette.currentIndex >= paletteNames.length;
-                const palette = creatingPalette ? newPrefabPalette.text.trim()
-                                                : prefabPalette.currentText;
-                if (prefabName.text.trim() === "") {
-                    prefabError.text = "Enter a prefab name.";
-                    return;
-                }
-                if (palette === "") {
-                    prefabError.text = "Select or enter a doodad category.";
-                    return;
-                }
-                if (creatingPalette && !Backend.tilesetStore.newTileset("doodad", palette)) {
-                    prefabError.text = Backend.tilesetStore.errorString || "Could not create the doodad category.";
-                    return;
-                }
-                const result = mapView.saveSelectionAsPrefab(prefabName.text.trim(), palette);
-                if (!result.success) {
-                    if (creatingPalette)
-                        Backend.tilesetStore.deleteTileset("doodad", palette);
-                    prefabError.text = result.error || "Could not save the prefab.";
-                    return;
-                }
-                close();
-                workspace.paletteNavigator.selectPrefabPalette(palette, prefabName.text.trim());
-            }
-
-            contentItem: Column {
-                width: 300
-                spacing: 8
-
-                Text {
-                    text: "Name"
-                    color: workspace.grayUi ? "#E0E0E0" : (workspace.githubUi ? "#C9D1D9" : "#D0D0D0")
-                    font.pixelSize: 11
-                }
-                DmeTextField {
-                    id: prefabName
-                    width: parent.width
-                    placeholderText: "Prefab name"
-                    onAccepted: prefabDialog.commit()
-                }
-                Text {
-                    text: "Doodad category"
-                    color: workspace.grayUi ? "#E0E0E0" : (workspace.githubUi ? "#C9D1D9" : "#D0D0D0")
-                    font.pixelSize: 11
-                }
-                DmeComboBox {
-                    id: prefabPalette
-                    width: parent.width
-                    model: prefabDialog.paletteNames.concat(["New category..."])
-                }
-                DmeTextField {
-                    id: newPrefabPalette
-                    width: parent.width
-                    visible: prefabPalette.currentIndex >= prefabDialog.paletteNames.length
-                    height: visible ? implicitHeight : 0
-                    placeholderText: "New doodad category"
-                    onAccepted: prefabDialog.commit()
-                }
-                Text {
-                    id: prefabError
-                    width: parent.width
-                    color: "#F85149"
-                    font.pixelSize: 11
-                    wrapMode: Text.WordWrap
-                }
-                Text {
-                    width: parent.width
-                    text: "All item stacks in the selected tiles will be stored. Creatures and spawns are not included."
-                    color: workspace.grayUi ? "#919191" : (workspace.githubUi ? "#8B949E" : "#A0A0A0")
-                    font.pixelSize: 10
-                    wrapMode: Text.WordWrap
-                }
-                Row {
-                    spacing: 8
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    DmeButton {
-                        text: "Add"
-                        width: 90
-                        onClicked: prefabDialog.commit()
-                    }
-                    DmeButton {
-                        text: "Cancel"
-                        width: 90
-                        onClicked: prefabDialog.close()
-                    }
-                }
+        Rectangle {
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.margins: 10
+            z: 20
+            visible: mapView.blueprintActive
+            width: blueprintControls.implicitWidth + 16
+            height: blueprintControls.implicitHeight + 16
+            color: Backend.uiTheme.style === "windows-classic" ? "#D4D0C8" : "#252A32"
+            border.color: "#616974"
+            radius: 4
+            BlueprintPlacementControls {
+                id: blueprintControls
+                anchors.centerIn: parent
+                mapCtrl: mapView
+                textColor: Backend.uiTheme.style === "windows-classic" ? "#202020" : "#C9D1D9"
             }
         }
 
         DmeDialog {
             id: pathBuilderDialog
-            title: "Prefab Path Generator"
+            title: "Blueprint Path Generator"
             property var paletteNames: []
             property var prefabNames: []
 
@@ -574,7 +497,7 @@ Item {
 
             function start() {
                 if (prefabNames.length === 0) {
-                    pathError.text = "This category does not contain any prefabs.";
+                    pathError.text = "This category does not contain any Blueprints.";
                     return;
                 }
                 const ending = endPrefab.currentIndex > 0
@@ -597,7 +520,7 @@ Item {
 
                 Text {
                     width: parent.width
-                    text: "Choose base prefabs in their canonical orientation. The generator rotates the tile layout and rotatable items automatically."
+                    text: "Choose base Blueprints in their canonical orientation. The generator rotates the tile layout and rotatable items automatically."
                     color: workspace.grayUi ? "#B0B0B0" : (workspace.githubUi ? "#8B949E" : "#A0A0A0")
                     font.pixelSize: 10
                     wrapMode: Text.WordWrap
@@ -615,11 +538,11 @@ Item {
                     model: pathBuilderDialog.paletteNames
                     onActivated: pathBuilderDialog.loadPrefabs()
                 }
-                Text { text: "Straight prefab (west - east)"; color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"; font.pixelSize: 11 }
+                Text { text: "Straight Blueprint (west - east)"; color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"; font.pixelSize: 11 }
                 DmeComboBox { id: straightPrefab; width: parent.width; model: pathBuilderDialog.prefabNames }
-                Text { text: "Corner prefab (west - north)"; color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"; font.pixelSize: 11 }
+                Text { text: "Corner Blueprint (west - north)"; color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"; font.pixelSize: 11 }
                 DmeComboBox { id: cornerPrefab; width: parent.width; model: pathBuilderDialog.prefabNames }
-                Text { text: "Optional end prefab (opening to west)"; color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"; font.pixelSize: 11 }
+                Text { text: "Optional end Blueprint (opening to west)"; color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"; font.pixelSize: 11 }
                 DmeComboBox {
                     id: endPrefab
                     width: parent.width

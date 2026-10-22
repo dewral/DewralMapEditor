@@ -57,6 +57,7 @@ void MapView::paintGroundBrushAt(int cx, int cy)
 }
 void MapView::paintDoodadBrushAt(int cx, int cy)
 {
+    if (blueprintActive()) { stampBlueprintAt(cx, cy); return; }
     std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
     const QString name = m_brushController.doodadBrush();
 

@@ -2,10 +2,12 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs as FileDialogs
 import Tibia 1.0
 import "../themes/fluent/Colors.js" as Colors
 import "../style"
 import "../controllers"
+import "../dialogs"
 
 Item {
     id: root
@@ -24,6 +26,7 @@ Item {
     readonly property bool listView: root.app.settings.paletteViewMode === "list"
 
     signal contextMenuRequested(int serverId)
+    signal blueprintSaved(string category, string name)
 
     readonly property var entries: {
         const brushRevision = Backend.brushStore.revision;
@@ -72,6 +75,7 @@ Item {
                 continue;
             result.push({
                 prefab: true,
+                blueprint: prefab.blueprint === true,
                 name: prefab.name,
                 serverId: prefab.lookid,
                 spriteIds: [],
@@ -123,6 +127,7 @@ Item {
                                                     : Math.max(1, Math.floor((width + gap) / (preferredWidth + gap)))
         anchors.left: parent.left
         anchors.top: parent.top
+        anchors.topMargin: 36
         anchors.bottom: parent.bottom
         width: parent.width - (root.githubUi ? 4 : 14)
         clip: true
@@ -228,7 +233,7 @@ Item {
                     font { pixelSize: 12; bold: true }
                 }
                 Text {
-                    text: cell.modelData.prefab ? "Prefab"
+                    text: cell.modelData.prefab ? (cell.modelData.blueprint ? "Blueprint" : "Random doodad")
                                                 : "Server ID " + cell.modelData.serverId
                     color: root.grayUi ? "#929292" : "#7D8590"
                     font.pixelSize: 10
@@ -244,7 +249,7 @@ Item {
                 ToolTip.visible: containsMouse
                 ToolTip.delay: 550
                 ToolTip.text: cell.modelData.name
-                              + (cell.modelData.prefab ? "  (prefab)"
+                              + (cell.modelData.prefab ? (cell.modelData.blueprint ? "  (Blueprint)" : "  (doodad)")
                                                       : "  (sid " + cell.modelData.serverId + ")")
                 onClicked: mouse => {
                     grid.currentIndex = index;
@@ -254,6 +259,7 @@ Item {
                     if (mouse.button === Qt.RightButton) {
                         if (cell.modelData.prefab) {
                             prefabMenu.prefabName = cell.modelData.name;
+                            prefabMenu.blueprint = cell.modelData.blueprint;
                             prefabMenu.popup();
                         } else {
                             root.contextMenuRequested(cell.modelData.serverId);
@@ -291,17 +297,72 @@ Item {
     DmeMenu {
         id: prefabMenu
         property string prefabName: ""
+        property bool blueprint: false
+        DmeMenuItem {
+            objectName: "renameBlueprint"
+            text: "Rename Blueprint…"
+            visible: prefabMenu.blueprint
+            height: visible ? implicitHeight : 0
+            onTriggered: blueprintDialog.openForBlueprint(prefabMenu.prefabName)
+        }
+        DmeMenuItem {
+            objectName: "moveBlueprint"
+            text: "Move to category…"
+            visible: prefabMenu.blueprint
+            height: visible ? implicitHeight : 0
+            onTriggered: blueprintDialog.openForBlueprint(prefabMenu.prefabName)
+        }
+        DmeMenuItem {
+            objectName: "exportBlueprint"
+            text: "Export Blueprint…"
+            visible: prefabMenu.blueprint
+            height: visible ? implicitHeight : 0
+            onTriggered: { exportPicker.blueprintName = prefabMenu.prefabName; exportPicker.open(); }
+        }
         Action {
-            text: "Delete prefab"
+            text: prefabMenu.blueprint ? "Delete Blueprint" : "Delete doodad"
             onTriggered: deleteConfirm.open()
         }
     }
 
     DmeConfirmDialog {
         id: deleteConfirm
-        title: "Delete Prefab"
-        message: "Delete prefab \"" + prefabMenu.prefabName + "\"?"
-        onAccepted: Backend.brushStore.deletePrefab(prefabMenu.prefabName)
+        title: prefabMenu.blueprint ? "Delete Blueprint" : "Delete doodad"
+        message: "Delete \"" + prefabMenu.prefabName + "\"?"
+        onAccepted: {
+            if (!prefabMenu.blueprint) { Backend.brushStore.deletePrefab(prefabMenu.prefabName); return; }
+            const result = Backend.brushStore.removeBlueprint(prefabMenu.prefabName);
+            if (!result.success) {
+                blueprintDialog.openForBlueprint(prefabMenu.prefabName);
+                blueprintDialog.errorText = result.error;
+            }
+        }
+    }
+    DmeButton {
+        objectName: "importBlueprintButton"
+        text: "Import Blueprint…"
+        width: Math.min(parent.width, 160)
+        onClicked: blueprintDialog.beginImport()
+    }
+    BlueprintDialog {
+        id: blueprintDialog
+        mapCtrl: root.mapCtrl
+        onBlueprintSaved: (category, name) => root.blueprintSaved(category, name)
+    }
+    FileDialogs.FileDialog {
+        id: exportPicker
+        property string blueprintName: ""
+        title: "Export Blueprint"
+        fileMode: FileDialogs.FileDialog.SaveFile
+        nameFilters: ["DME Blueprints (*.dmeblueprint)"]
+        defaultSuffix: "dmeblueprint"
+        onAccepted: {
+            const result = root.mapCtrl.exportBlueprint(blueprintName, selectedFile);
+            if (!result.success) {
+                blueprintDialog.openForBlueprint(blueprintName);
+                blueprintDialog.errorText = result.error;
+            }
+        }
     }
     ColorHighlight { targetItem: root; colorKeys: ["cell", "cellBorder", "selectedCell", "selected", "selectedBorder"] }
 }

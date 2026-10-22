@@ -1,4 +1,5 @@
 #include "brushstore.h"
+#include "blueprintformat.h"
 
 #include "dmedatadir.h"
 
@@ -65,6 +66,8 @@ QVariantMap BrushStore::saveAdvancedBrush(const QString &kind, const QString &na
         return fail("That name already exists. Load it before editing.");
     if (!originalName.isEmpty() && !collection.contains(originalName))
         return fail("The original brush no longer exists. Reload it first.");
+    if (kind == "doodads" && prefabEdit(originalName).value("layoutProtected").toBool())
+        return fail("Edit this Blueprint by placing it on the map and saving a new selection.");
     QJsonObject object = collection.value(originalName).toObject();
     const auto patch = QJsonObject::fromVariantMap(draft);
     for (auto it = patch.begin(); it != patch.end(); ++it) object.insert(it.key(), it.value());
@@ -719,7 +722,8 @@ bool BrushStore::saveJson() const
     QDir().mkpath(QFileInfo(m_path).absolutePath());
     QSaveFile f(m_path);
     if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
-    f.write(QJsonDocument(m_rawRoot).toJson(QJsonDocument::Indented));
+    const auto bytes = QJsonDocument(m_rawRoot).toJson(QJsonDocument::Indented);
+    if (f.write(bytes) != bytes.size()) return false;
     return f.commit();
 }
 
@@ -754,6 +758,7 @@ QVariantList BrushStore::prefabsForPalette(const QString &palette) const
         QVariantMap entry;
         entry.insert(QStringLiteral("name"), name);
         entry.insert(QStringLiteral("lookid"), prefabLookId(name));
+        entry.insert(QStringLiteral("blueprint"), isBlueprint(name));
         result.append(entry);
     }
     return result;
@@ -770,6 +775,9 @@ QVariantMap BrushStore::prefabEdit(const QString &name) const
     if (!m_prefabs.contains(name)) return result;
 
     const auto raw = m_rawRoot.value("doodads").toObject().value(name).toObject();
+    bool layoutProtected = raw.contains("blueprint");
+    for (const auto &tile : doodadPreviewTiles(name)) layoutProtected |= tile.dz != 0;
+    result.insert("layoutProtected", layoutProtected);
     if (raw.value("composer_mode").toString() == "random") {
         result.insert(QStringLiteral("mode"), QStringLiteral("random"));
         QVariantList items;
@@ -811,6 +819,7 @@ QVariantMap BrushStore::prefabEdit(const QString &name) const
     }
     result.insert(QStringLiteral("width"), maxX - minX + 1);
     result.insert(QStringLiteral("height"), maxY - minY + 1);
+    result.insert("layoutProtected", layoutProtected || maxX - minX >= 12 || maxY - minY >= 12);
     result.insert(QStringLiteral("tiles"), tiles);
     return result;
 }
@@ -861,6 +870,7 @@ bool BrushStore::savePrefab(const QString &nameValue, const QString &paletteValu
                                 ? QStringLiteral("My Prefabs") : paletteValue.trimmed();
     if (name.isEmpty() || tiles.isEmpty() || m_path.isEmpty()) return false;
     if (m_doodads.contains(name) && !m_prefabs.contains(name)) return false;
+    if (prefabEdit(name).value("layoutProtected").toBool()) return false;
 
     QJsonArray jsonTiles;
     int lookid = 0;
@@ -895,19 +905,162 @@ bool BrushStore::savePrefab(const QString &nameValue, const QString &paletteValu
     prefab.insert(QStringLiteral("prefab_palette"), palette);
     prefab.insert(QStringLiteral("alternates"), QJsonArray{alternate});
 
+    const auto backup = m_rawRoot;
     QJsonObject doodads = m_rawRoot.value(QStringLiteral("doodads")).toObject();
     doodads.insert(name, prefab);
     m_rawRoot.insert(QStringLiteral("doodads"), doodads);
-    return applyRawAndSave();
+    if (applyRawAndSave()) return true;
+    m_rawRoot = backup;
+    return false;
+}
+
+bool BrushStore::isBlueprint(const QString &name) const
+{
+    if (!isPrefab(name)) return false;
+    const auto entry = m_rawRoot.value("doodads").toObject().value(name).toObject();
+    if (entry.value("composer_mode").toString() == "random") return false;
+    const auto alternatives = entry.value("alternates").toArray();
+    if (alternatives.size() != 1) return false;
+    const auto alt = alternatives.first().toObject();
+    return alt.value("singles").toArray().isEmpty() && alt.value("composites").toArray().size() == 1;
+}
+
+QVariantMap BrushStore::blueprintData(const QString &name, int clientVersion) const
+{
+    if (!isBlueprint(name)) return {{"success", false}, {"error", "Blueprint no longer exists."}};
+    const auto entry = m_rawRoot.value("doodads").toObject().value(name).toObject();
+    QJsonObject payload = entry.value("blueprint").toObject();
+    if (!entry.contains("blueprint")) {
+        QJsonArray tiles;
+        for (const auto &tile : doodadPreviewTiles(name)) {
+            QJsonArray items;
+            for (int id : tile.items) items.append(QJsonObject{{"id", id}});
+            tiles.append(QJsonObject{{"dx", tile.dx}, {"dy", tile.dy}, {"dz", tile.dz}, {"items", items}});
+        }
+        payload = {{"version", BlueprintFormat::Version}, {"mode", "map"}, {"tiles", tiles},
+                   {"source", QJsonObject{{"clientVersion", clientVersion},
+                                         {"profile", QFileInfo(m_path).dir().dirName()}}}};
+    }
+    QJsonObject normalized;
+    QString error;
+    if (!BlueprintFormat::normalize(payload, normalized, error)) return {{"success", false}, {"error", error}};
+    return {{"success", true}, {"name", name}, {"category", m_prefabPalettes.value(name)},
+            {"payload", normalized.toVariantMap()}};
+}
+
+QVariantMap BrushStore::saveBlueprint(const QString &nameValue, const QString &paletteValue,
+                                     const QVariantMap &payload)
+{
+    const QString name = nameValue.trimmed(), palette = paletteValue.trimmed();
+    if (m_path.isEmpty()) return {{"success", false}, {"error", "Load a client before saving a Blueprint."}};
+    if (name.isEmpty() || palette.isEmpty()) return {{"success", false}, {"error", "Enter a name and category."}};
+    auto doodads = m_rawRoot.value("doodads").toObject();
+    if (doodads.contains(name)) return {{"success", false}, {"error", "That name already exists. Choose another name."}};
+    QJsonObject normalized;
+    QString error;
+    if (!BlueprintFormat::normalize(QJsonObject::fromVariantMap(payload), normalized, error))
+        return {{"success", false}, {"error", error}};
+    auto source = normalized.value("source").toObject();
+    if (source.value("profile").toString().isEmpty()) {
+        source.insert("profile", QFileInfo(m_path).dir().dirName());
+        normalized.insert("source", source);
+    }
+    const auto tiles = BlueprintFormat::legacyTiles(normalized);
+    const auto backup = m_rawRoot;
+    doodads.insert(name, QJsonObject{{"prefab", true}, {"prefab_palette", palette},
+        {"lookid", tiles.first().toObject().value("items").toArray().first()}, {"blueprint", normalized},
+        {"alternates", QJsonArray{QJsonObject{{"singles", QJsonArray{}},
+            {"composites", QJsonArray{QJsonObject{{"chance", 1}, {"tiles", tiles}}}}}}}});
+    m_rawRoot.insert("doodads", doodads);
+    if (!applyRawAndSave()) {
+        m_rawRoot = backup;
+        return {{"success", false}, {"error", "Could not write brushes.json. Your Blueprint has not been saved."}};
+    }
+    return {{"success", true}};
+}
+
+QVariantMap BrushStore::updateBlueprint(const QString &name, const QString &newNameValue,
+                                       const QString &paletteValue)
+{
+    const QString newName = newNameValue.trimmed(), palette = paletteValue.trimmed();
+    if (!isBlueprint(name)) return {{"success", false}, {"error", "Blueprint no longer exists."}};
+    if (newName.isEmpty() || palette.isEmpty()) return {{"success", false}, {"error", "Enter a name and category."}};
+    auto doodads = m_rawRoot.value("doodads").toObject();
+    if (newName != name && doodads.contains(newName)) return {{"success", false}, {"error", "That name already exists."}};
+    const auto backup = m_rawRoot;
+    auto entry = doodads.take(name).toObject();
+    entry.insert("prefab_palette", palette);
+    doodads.insert(newName, entry);
+    m_rawRoot.insert("doodads", doodads);
+    if (!applyRawAndSave()) {
+        m_rawRoot = backup;
+        return {{"success", false}, {"error", "Could not save Blueprint changes."}};
+    }
+    return {{"success", true}};
+}
+
+QVariantMap BrushStore::removeBlueprint(const QString &name)
+{
+    if (!isBlueprint(name)) return {{"success", false}, {"error", "Blueprint no longer exists."}};
+    const auto backup = m_rawRoot;
+    auto doodads = m_rawRoot.value("doodads").toObject();
+    doodads.remove(name);
+    m_rawRoot.insert("doodads", doodads);
+    if (!applyRawAndSave()) {
+        m_rawRoot = backup;
+        return {{"success", false}, {"error", "Could not delete the Blueprint."}};
+    }
+    return {{"success", true}};
+}
+
+QVariantMap BrushStore::exportBlueprint(const QString &name, const QUrl &file, int clientVersion) const
+{
+    auto data = blueprintData(name, clientVersion);
+    if (!data.value("success").toBool()) return data;
+    if (!file.isLocalFile()) return {{"success", false}, {"error", "Choose a local Blueprint file."}};
+    QJsonObject document{{"format", "DME Blueprint"}, {"name", name},
+                         {"category", data.value("category").toString()},
+                         {"blueprint", QJsonObject::fromVariantMap(data.value("payload").toMap())}};
+    const auto bytes = QJsonDocument(document).toJson(QJsonDocument::Indented);
+    if (bytes.size() > BlueprintFormat::MaxFileBytes)
+        return {{"success", false}, {"error", "Blueprint exceeds the 64 MiB file limit."}};
+    QSaveFile output(file.toLocalFile());
+    if (!output.open(QIODevice::WriteOnly) || output.write(bytes) != bytes.size() || !output.commit())
+        return {{"success", false}, {"error", "Could not export the Blueprint file."}};
+    return {{"success", true}};
+}
+
+QVariantMap BrushStore::readBlueprintFile(const QUrl &url, int clientVersion) const
+{
+    if (!url.isLocalFile()) return {{"success", false}, {"error", "Choose a local Blueprint file."}};
+    QFile file(url.toLocalFile());
+    if (!file.open(QIODevice::ReadOnly) || file.size() > BlueprintFormat::MaxFileBytes)
+        return {{"success", false}, {"error", "Cannot read Blueprint (maximum file size: 64 MiB)."}};
+    QJsonParseError parseError;
+    const auto document = QJsonDocument::fromJson(file.read(BlueprintFormat::MaxFileBytes + 1), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()
+        || document.object().value("format").toString() != "DME Blueprint")
+        return {{"success", false}, {"error", "This is not a valid DME Blueprint file."}};
+    QJsonObject normalized;
+    QString error;
+    if (!BlueprintFormat::normalize(document.object().value("blueprint").toObject(), normalized, error))
+        return {{"success", false}, {"error", error}};
+    if (normalized.value("source").toObject().value("clientVersion").toInt() != clientVersion)
+        return {{"success", false}, {"error", "The Blueprint requires client version "
+            + QString::number(normalized.value("source").toObject().value("clientVersion").toInt()) + ". Load that client first."}};
+    return {{"success", true}, {"payload", normalized.toVariantMap()},
+            {"name", document.object().value("name").toString()},
+            {"category", document.object().value("category").toString()}};
 }
 
 void BrushStore::deletePrefab(const QString &name)
 {
     if (!m_prefabs.contains(name)) return;
+    const auto backup = m_rawRoot;
     QJsonObject doodads = m_rawRoot.value(QStringLiteral("doodads")).toObject();
     doodads.remove(name);
     m_rawRoot.insert(QStringLiteral("doodads"), doodads);
-    applyRawAndSave();
+    if (!applyRawAndSave()) m_rawRoot = backup;
 }
 
 bool BrushStore::renamePrefabPalette(const QString &oldNameValue,
@@ -918,6 +1071,7 @@ bool BrushStore::renamePrefabPalette(const QString &oldNameValue,
     if (oldName.isEmpty() || newName.isEmpty()) return false;
     if (oldName == newName) return true;
 
+    const auto backup = m_rawRoot;
     QJsonObject doodads = m_rawRoot.value(QStringLiteral("doodads")).toObject();
     bool changed = false;
     for (auto it = doodads.begin(); it != doodads.end(); ++it) {
@@ -931,7 +1085,9 @@ bool BrushStore::renamePrefabPalette(const QString &oldNameValue,
     }
     if (!changed) return true;
     m_rawRoot.insert(QStringLiteral("doodads"), doodads);
-    return applyRawAndSave();
+    if (applyRawAndSave()) return true;
+    m_rawRoot = backup;
+    return false;
 }
 
 bool BrushStore::deletePrefabsForPalette(const QString &paletteValue)
@@ -939,6 +1095,7 @@ bool BrushStore::deletePrefabsForPalette(const QString &paletteValue)
     const QString palette = paletteValue.trimmed();
     if (palette.isEmpty()) return false;
 
+    const auto backup = m_rawRoot;
     QJsonObject doodads = m_rawRoot.value(QStringLiteral("doodads")).toObject();
     bool changed = false;
     const QStringList names = doodads.keys();
@@ -952,7 +1109,9 @@ bool BrushStore::deletePrefabsForPalette(const QString &paletteValue)
     }
     if (!changed) return true;
     m_rawRoot.insert(QStringLiteral("doodads"), doodads);
-    return applyRawAndSave();
+    if (applyRawAndSave()) return true;
+    m_rawRoot = backup;
+    return false;
 }
 
 QStringList BrushStore::groundBrushNames() const

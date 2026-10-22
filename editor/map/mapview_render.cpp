@@ -134,6 +134,8 @@ quint64 MapView::renderPointerOverlayVersion() const
     mix(static_cast<quint32>(m_brushController.size()));
     mix(static_cast<quint32>(m_brushController.doodadVariant()));
     mix(static_cast<quint32>(m_brushController.doodadRotation()));
+    mix(static_cast<quint32>(m_brushController.store() ? m_brushController.store()->revision() : 0));
+    mix(static_cast<quint32>(showLowerFloors()));
     mix(static_cast<quint32>(m_brushController.houseBrush()));
     mix(static_cast<quint32>(m_editController.activeZone()));
     mix(qHash(m_brushController.shape()));
@@ -1122,6 +1124,37 @@ void MapView::renderCollectGhostInstances(std::vector<float> &out)
                                 out.push_back(static_cast<float>(slot.y()));
                             }
                 }
+            }
+        }
+        return;
+    }
+
+    if (blueprintActive()) {
+        const auto &tiles = blueprintTiles(doodadBrush(), doodadRotation());
+        for (const auto &tile : tiles) {
+            const int z = floor() + tile.dz;
+            if (z < 0 || z > 15 || (tile.dz != 0 && !showLowerFloors())) continue;
+            const int x = m_hoverX + tile.dx, y = m_hoverY + tile.dy;
+            int elevation = 0;
+            for (const auto &item : tile.items) {
+                const int cid = m_otb->clientIdForServerId(item.server_id);
+                const auto *type = cid > 0 ? m_dat->itemByClientId(cid) : nullptr;
+                if (!type) continue;
+                const int w = std::max<int>(1, type->width), h = std::max<int>(1, type->height);
+                const int ox = type->has(ClientProperty::Offset) ? type->offset_x : 0;
+                const int oy = type->has(ClientProperty::Offset) ? type->offset_y : 0;
+                for (int l = 0; l < std::max<int>(1, type->layers); ++l)
+                    for (int yy = 0; yy < h; ++yy) for (int xx = 0; xx < w; ++xx) {
+                        const auto id = cellSpriteId(type, xx, yy, l, w, h, x, y, z, item.count, 0,
+                            overlayHook(type, x, y, z, tile.items));
+                        const int slotIndex = id ? atlasSlotForSprite(id) : -1;
+                        if (slotIndex < 0) continue;
+                        const auto &slot = atlasSlots[static_cast<size_t>(slotIndex)];
+                        out.push_back(float((x + tile.dz - xx) * kSprite - ox - elevation));
+                        out.push_back(float((y + tile.dz - yy) * kSprite - oy - elevation));
+                        out.push_back(float(slot.x())); out.push_back(float(slot.y()));
+                    }
+                if (type->has(ClientProperty::Elevation)) elevation += type->elevation;
             }
         }
         return;

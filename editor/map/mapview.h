@@ -83,6 +83,8 @@ class MapView : public QQuickItem
     Q_PROPERTY(int brushServerId READ brushServerId WRITE setBrushServerId NOTIFY brushChanged)
     Q_PROPERTY(QString doodadBrush READ doodadBrush NOTIFY brushChanged)
     Q_PROPERTY(int doodadRotation READ doodadRotation WRITE setDoodadRotation NOTIFY brushChanged)
+    Q_PROPERTY(bool blueprintActive READ blueprintActive NOTIFY brushChanged)
+    Q_PROPERTY(QString blueprintPlacementMode READ blueprintPlacementMode WRITE setBlueprintPlacementMode NOTIFY brushChanged)
 
     Q_PROPERTY(QString creatureBrush READ creatureBrush WRITE setCreatureBrush NOTIFY brushChanged)
     Q_PROPERTY(bool creatureBrushIsNpc READ creatureBrushIsNpc NOTIFY brushChanged)
@@ -667,6 +669,17 @@ public:
     Q_INVOKABLE QVariantMap brushSelectionSnapshot(bool includeGround = false);
     Q_INVOKABLE QVariantMap saveSelectionAsPrefab(const QString &name,
                                                   const QString &palette);
+    Q_INVOKABLE QVariantMap blueprintSelectionSnapshot(const QString &mode) const;
+    Q_INVOKABLE QVariantMap saveSelectionAsBlueprint(const QString &name, const QString &category, const QString &mode);
+    Q_INVOKABLE QVariantMap saveBlueprintSnapshot(const QString &name, const QString &category, const QVariantMap &payload);
+    Q_INVOKABLE QVariantMap inspectBlueprintFile(const QUrl &file) const;
+    Q_INVOKABLE QVariantMap blueprintDetails(const QString &name) const;
+    Q_INVOKABLE QVariantMap exportBlueprint(const QString &name, const QUrl &file) const;
+    Q_INVOKABLE bool stampBlueprintAt(int x, int y);
+    Q_INVOKABLE void cancelBlueprint();
+    bool blueprintActive() const;
+    QString blueprintPlacementMode() const { return m_blueprintReplace ? QStringLiteral("replace") : QStringLiteral("merge"); }
+    void setBlueprintPlacementMode(const QString &mode);
     Q_INVOKABLE QVariantMap startPathBuilder(const QString &straightPrefab,
                                              const QString &cornerPrefab,
                                              const QString &endPrefab,
@@ -1083,6 +1096,16 @@ private:
     void cleanManagedBordersAt(int x, int y);
 
     using ClipTile = MapClipboardTile;
+    bool m_blueprintReplace = false;
+    bool m_selectedBlueprint = false;
+    mutable QString m_blueprintCacheKey;
+    mutable std::vector<ClipTile> m_blueprintCache;
+    const std::vector<ClipTile> &blueprintTiles(const QString &name, int quarterTurns) const;
+    QString validateBlueprintPayload(const QVariantMap &payload) const;
+    bool isBlueprintGround(int serverId) const;
+    QString blueprintPreview(const QVariantMap &payload) const;
+    QString validateBlueprintPlacement(const std::vector<ClipTile> &tiles, int x, int y) const;
+    void placeBlueprintTiles(const std::vector<ClipTile> &tiles, int x, int y, bool replace, bool groundOnly);
 
     void commitPasteAt(int px, int py);
     CreatureStore *m_creatureStore = nullptr;

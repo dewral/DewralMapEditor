@@ -157,6 +157,7 @@ QtObject {
         function advancedBrushNames(kind) { return [] }
         function advancedBrushEdit(kind, name) { return {} }
         function searchAliasesForServerId(id) { return [] }
+        function prefabPaletteNames() { return [] }
         function prefabsForPalette(name) {
             return name === "Structures" ? [{name: "Stone room", lookid: 100}] : []
         }

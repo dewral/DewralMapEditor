@@ -417,6 +417,7 @@ void MapView::rebuildAtlas()
 
 void MapView::setOtbm(OtbmReader *reader)
 {
+    m_blueprintCacheKey.clear();
     if (m_otbm == reader) return;
     saveViewPosition();
     m_viewPositionReady = false;
@@ -446,11 +447,13 @@ void MapView::setOtbm(OtbmReader *reader)
 
 void MapView::setOtb(OtbReader *reader)
 {
+    m_blueprintCacheKey.clear();
     if (m_otb == reader) return;
     if (m_otb) disconnect(m_otb, nullptr, this, nullptr);
     m_otb = reader;
     if (m_otb) {
         const auto updateTypes = [this] {
+            m_blueprintCacheKey.clear();
             if (m_otbm) m_otbm->setItemTypes(m_otb->otbmItemTypes());
         };
         connect(m_otb, &OtbReader::loadedChanged, this, updateTypes);
@@ -462,6 +465,7 @@ void MapView::setOtb(OtbReader *reader)
 
 void MapView::setDat(DatReader *reader)
 {
+    m_blueprintCacheKey.clear();
     if (m_dat == reader) return;
     m_dat = reader;
     m_animationPhases.clear();
@@ -553,6 +557,8 @@ QString MapView::doodadPreviewSource(int serverId) const
 QString MapView::doodadPreviewSourceForName(const QString &name) const
 {
     if (!m_brushController.store() || !m_otb || !m_dat || !m_spr || name.isEmpty()) return QString();
+    if (m_brushController.store()->isBlueprint(name))
+        return blueprintPreview(m_brushController.store()->blueprintData(name, m_dat->clientVersion()).value("payload").toMap());
     const QVector<BrushStore::DoodadTile> tiles = m_brushController.store()->doodadPreviewTiles(name);
     if (tiles.isEmpty()) return QString();
 
@@ -631,6 +637,22 @@ void MapView::useDoodadBrush(const QString &name)
 {
     BrushStore *store = m_brushController.store();
     if (!store || !store->isDoodadBrush(name)) return;
+    if (store->isBlueprint(name)) {
+        const auto data = store->blueprintData(name, m_dat ? m_dat->clientVersion() : 0);
+        const QString error = data.value("success").toBool()
+            ? validateBlueprintPayload(data.value("payload").toMap()) : data.value("error").toString();
+        if (!error.isEmpty()) { emit operationWarning(error); return; }
+        cancelPasting();
+        if (m_editController.eraseMode()) {
+            m_editController.eraseMode() = false;
+            emit eraseModeChanged();
+        }
+        m_blueprintReplace = false;
+        m_blueprintCacheKey.clear();
+        m_brushController.houseBrush() = 0;
+        m_brushController.houseExitMode() = false;
+    }
+    m_selectedBlueprint = store->isBlueprint(name);
     if (m_groundClusterStampActive) cancelGroundClusterStamp();
     if (m_pathBuilder.active()) cancelPathBuilder();
     if (m_brushController.optionalBorderBrush()) {
@@ -678,6 +700,7 @@ void MapView::useDoodadBrush(const QString &name)
 
 void MapView::setEraseMode(bool on)
 {
+    if (on && blueprintActive()) cancelBlueprint();
     if (on && m_groundClusterStampActive) cancelGroundClusterStamp();
     if (m_editController.eraseMode() == on) return;
     m_editController.eraseMode() = on;
@@ -691,6 +714,10 @@ void MapView::setDoodadRotation(int quarterTurns)
     const int normalized = ((quarterTurns % 4) + 4) % 4;
     if (m_brushController.doodadRotation() == normalized) return;
     m_brushController.doodadRotation() = normalized;
+    if (blueprintActive()) {
+        for (const auto &tile : blueprintTiles(doodadBrush(), normalized))
+            for (const auto &item : tile.items) ensureItemSprites(item.server_id);
+    }
     emit brushChanged();
     emit contentUpdated();
     update();
@@ -778,6 +805,7 @@ void MapView::setSelectionMode(bool on)
     }
     if (m_editController.selectionMode() == on) return;
     m_editController.selectionMode() = on;
+    emit brushChanged();
     if (on && m_brushController.optionalBorderBrush()) {
         m_brushController.optionalBorderBrush() = false;
         emit optionalBorderModeChanged();
@@ -797,8 +825,16 @@ void MapView::setBrushStore(BrushStore *store)
     if (m_brushController.store() == store) return;
     if (m_brushController.store())
         disconnect(m_brushController.store(), &BrushStore::advancedBrushRenamed, this, nullptr);
+    if (m_brushController.store())
+        disconnect(m_brushController.store(), &BrushStore::brushesChanged, this, nullptr);
+    m_blueprintCacheKey.clear();
     m_brushController.store() = store;
     if (store) {
+        connect(store, &BrushStore::brushesChanged, this, [this] {
+            m_blueprintCacheKey.clear();
+            if (m_selectedBlueprint && !doodadBrush().isEmpty() && !m_brushController.store()->isBlueprint(doodadBrush())) cancelBlueprint();
+            emit brushChanged(); emit contentUpdated(); update();
+        });
         connect(store, &BrushStore::advancedBrushRenamed, this,
                 [this](const QString &kind, const QString &oldName, const QString &newName) {
             if (!m_brushController.renameBrush(kind, oldName, newName)) return;
@@ -906,6 +942,7 @@ bool MapView::useGroundBrushName(const QString &name)
 
 void MapView::onMapLoaded()
 {
+    m_blueprintCacheKey.clear();
     if (activeZone() == 64 && (!m_otbm || !m_otbm->numberedZonesEnabled())) setActiveZone(0);
     clearLuaPreview();
     clearTerrainPreview();

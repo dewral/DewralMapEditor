@@ -238,6 +238,7 @@ bool atlasBudget(const QTemporaryDir &directory)
 #include "map_selection_delete_checks.h"
 #include "map_view_position_checks.h"
 #include "map_item_location_checks.h"
+#include "map_blueprint_checks.h"
 
 int main(int argc, char **argv)
 {
@@ -248,6 +249,11 @@ int main(int argc, char **argv)
     QCoreApplication::setApplicationName(QStringLiteral("MapView"));
     QSettings::setDefaultFormat(QSettings::IniFormat);
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDirectory.path());
+    if (QCoreApplication::arguments().contains(QStringLiteral("--blueprints-only"))) {
+        QTemporaryDir directory;
+        return require(directory.isValid() && writeAssets(directory), "Could not create Blueprint assets")
+            && testBlueprints(directory) ? 0 : 1;
+    }
     if (QCoreApplication::arguments().contains(QStringLiteral("--view-position-only"))) {
         QTemporaryDir directory;
         return require(directory.isValid(), "Could not create map view fixtures")

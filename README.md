@@ -48,6 +48,10 @@ multi-floor Tibia maps.
   fixed compositions and existing doodads.
 - Supports selection, multi-floor selection, moving items between floors,
   cut/copy/paste, undo/redo, item properties, search, and replacement tools.
+- Select map tiles and choose **Save as Blueprint…** to reuse map pieces or
+  ground with borders across multiple floors. Blueprints live in Doodad
+  categories, support rotation and Merge/Replace stamping, and can be shared
+  as `.dmeblueprint` files. See the [Blueprint guide](docs/blueprints.md).
 - Select an area, right-click and choose **Create Collection…** to save its
   distinct ground and item IDs in the **Collection Palette**. Review the item
   previews and use **×** to exclude entries before saving. To remove a saved
@@ -398,7 +402,7 @@ The keyboard controls below are defaults.
 | Undo / redo | `Ctrl+Z` / `Ctrl+Shift+Z` |
 | Copy / cut / paste | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` |
 | Next doodad variant | `R` |
-| Rotate selection or prefab | `Z` |
+| Rotate selection or Blueprint | `Z` |
 | Go to position | `Ctrl+G` |
 | Show / hide palette | `Ctrl+B` or **View → Show palette** |
 
@@ -459,10 +463,10 @@ each ground in the same cluster. DME places managed border items along internal
 transitions and uses each brush's standard border on the outside edge. It does
 not add ground tiles outside the generated shape.
 
-The same window can generate a reusable prefab pack. Choose the ground mix,
+The same window can generate a reusable Blueprint pack. Choose the ground mix,
 enter a category and base name, and select the number of variants. DME rolls a
 different organic shape for every variant and saves its ground tiles, internal
-transitions, normal outer borders, and optional doodads as one prefab. Saved
+transitions, normal outer borders, and optional doodads as one Blueprint. Saved
 variants appear in their Doodads palette category, where they can be attached to
 the cursor, rotated in 90-degree steps with **Z**, and pasted repeatedly.
 
@@ -474,12 +478,12 @@ decoration list to use only those brushes; remove an entry with its × button.
 
 ## Reusable roads
 
-For reusable roads, save selected segments using **Add Prefab**, then open
-**Generate Path from Prefabs** and choose straight/corner/end segments. The new
-**Preserve existing ground** option defaults on and excludes prefab ground
+For reusable roads, save selected segments using **Save as Blueprint…**, then open
+**Generate Path from Blueprints** and choose straight/corner/end segments. The
+**Preserve existing ground** option defaults on and excludes Blueprint ground
 items from both the preview and placement. Turn it off to paste a complete
 road including its ground. The placed road can be selected, copied, or saved
-as another prefab. Placement is grouped into one Undo operation.
+as another Blueprint. Placement is grouped into one Undo operation.
 
 ## Project structure
 

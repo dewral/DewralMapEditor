@@ -17,7 +17,7 @@ QVariantMap MapView::startPathBuilder(const QString &straightPrefab,
     }
     if (!store->isPrefab(straightPrefab) || !store->isPrefab(cornerPrefab)
         || (!endPrefab.isEmpty() && !store->isPrefab(endPrefab))) {
-        result.insert(QStringLiteral("error"), QStringLiteral("Select valid prefabs from a doodad category."));
+        result.insert(QStringLiteral("error"), QStringLiteral("Select valid Blueprints from a doodad category."));
         return result;
     }
 
@@ -131,7 +131,14 @@ QVector<BrushStore::DoodadTile> MapView::pathPlacementTiles(
     if (!store) return {};
     QVector<BrushStore::DoodadTile> result = store->doodadPreviewTiles(placement.prefab);
     const int turns = ((placement.quarterTurns % 4) + 4) % 4;
-    result = rotatedDoodadTiles(std::move(result), turns);
+    if (store->isBlueprint(placement.prefab)) {
+        result.clear();
+        for (const auto &tile : blueprintTiles(placement.prefab, turns)) {
+            BrushStore::DoodadTile target{tile.dx, tile.dy, tile.dz, {}};
+            for (const auto &item : tile.items) target.items.append(item.server_id);
+            result.append(target);
+        }
+    } else result = rotatedDoodadTiles(std::move(result), turns);
     for (BrushStore::DoodadTile &tile : result) {
         if (m_pathPreserveGround)
             tile.items.erase(std::remove_if(tile.items.begin(), tile.items.end(),
@@ -147,6 +154,28 @@ bool MapView::commitPathPreview()
 
     {
         std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+        std::vector<ClipTile> planned;
+        for (const auto &placement : m_pathBuilder.placements()) {
+            std::vector<ClipTile> tiles;
+            if (m_brushController.store()->isBlueprint(placement.prefab)) {
+                tiles = blueprintTiles(placement.prefab, placement.quarterTurns);
+                if (tiles.empty()) { emit operationWarning("A path Blueprint is incompatible with the active client."); return false; }
+            } else {
+                for (const auto &tile : pathPlacementTiles(placement)) {
+                    ClipTile target; target.dx = tile.dx; target.dy = tile.dy; target.dz = tile.dz;
+                    for (int id : tile.items) target.items.push_back(m_otbm->makeItem(static_cast<uint16_t>(id)));
+                    tiles.push_back(std::move(target));
+                }
+            }
+            for (auto &tile : tiles) {
+                if (m_pathPreserveGround) tile.items.erase(std::remove_if(tile.items.begin(), tile.items.end(),
+                    [this](const OtbmMapItem &item) { return itemCategory(item.server_id) == 0; }), tile.items.end());
+                tile.dx += placement.x; tile.dy += placement.y;
+                if (!tile.items.empty()) planned.push_back(std::move(tile));
+            }
+        }
+        const QString error = validateBlueprintPlacement(planned, 0, 0);
+        if (!error.isEmpty()) { emit operationWarning(error); return false; }
         beginEditBatch();
         const bool savedEffect = m_placeEffect;
         const bool savedBulk = m_brushController.bulkEdit();
@@ -154,15 +183,7 @@ bool MapView::commitPathPreview()
         m_brushController.bulkEdit() = true;
         m_otbm->beginUndoGroup();
 
-        for (const MapPathBuilder::Placement &placement : m_pathBuilder.placements()) {
-            const QVector<BrushStore::DoodadTile> tiles = pathPlacementTiles(placement);
-            for (const BrushStore::DoodadTile &tile : tiles) {
-                const int z = m_navigationController.floor() + tile.dz;
-                if (z < 0 || z > 15) continue;
-                for (int id : tile.items)
-                    placeItemOnFloor(placement.x + tile.dx, placement.y + tile.dy, z, id);
-            }
-        }
+        placeBlueprintTiles(planned, 0, 0, false, false);
 
         m_otbm->endUndoGroup();
         m_placeEffect = savedEffect;

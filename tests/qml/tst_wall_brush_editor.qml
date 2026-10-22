@@ -35,6 +35,7 @@ Item {
         signal brushesChanged()
         function groundBrushNames() { return [] }
         function wallBrushNames() { return Object.keys(stored).sort() }
+        function prefabPaletteNames() { return [] }
         function prefabsForPalette(name) { return [] }
         function searchAliasesForServerId(id) { return [] }
         function advancedBrushEdit(kind, name) { return stored[name] }

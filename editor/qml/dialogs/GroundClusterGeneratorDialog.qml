@@ -13,7 +13,7 @@ DmeDialog {
     property bool resultError: false
     property bool initializing: false
 
-    title: "Ground Prefab Generator"
+    title: "Ground Blueprint Generator"
     width: 600
     height: Math.min(780, Math.max(300, Overlay.overlay ? Overlay.overlay.height - 40 : 780))
     movable: true
@@ -156,14 +156,14 @@ DmeDialog {
         const base = prefabBaseName.text.trim();
         if (category === "" || base === "") {
             resultError = true;
-            resultText = "Enter a prefab category and base name.";
+            resultText = "Enter a Blueprint category and base name.";
             return;
         }
         const known = Backend.tilesetStore.namesFor("doodad");
         if (known.indexOf(category) < 0
                 && !Backend.tilesetStore.newTileset("doodad", category)) {
             resultError = true;
-            resultText = Backend.tilesetStore.errorString || "Could not create the prefab category.";
+            resultText = Backend.tilesetStore.errorString || "Could not create the Blueprint category.";
             return;
         }
         let saved = 0;
@@ -177,15 +177,15 @@ DmeDialog {
             const savedResult = mapCtrl.saveGroundClusterStampAsPrefab(base + suffix, category);
             if (!savedResult.success) {
                 resultError = true;
-                resultText = savedResult.error || "Could not save prefab " + (i + 1) + ".";
+                resultText = savedResult.error || "Could not save Blueprint " + (i + 1) + ".";
                 break;
             }
             ++saved;
         }
         if (saved === total) {
             resultError = false;
-            resultText = "Generated " + saved + " ready-to-paste prefabs in category “"
-                       + category + "”. Every prefab contains mixed grounds and its internal borders.";
+            resultText = "Generated " + saved + " ready-to-paste Blueprints in category “"
+                       + category + "”. Every Blueprint contains mixed grounds and its internal borders.";
         }
     }
 
@@ -237,16 +237,16 @@ DmeDialog {
                 width: parent.width; wrapMode: Text.WordWrap
                 color: "#8b949e"; font.pixelSize: 11
             }
-            Text { text: "Generate prefab pack"; color: "#f0f6fc"; font.bold: true }
+            Text { text: "Generate Blueprint pack"; color: "#f0f6fc"; font.bold: true }
             Text {
                 width: parent.width; wrapMode: Text.WordWrap
-                text: "Creates many variants like the library in the video. Each saved prefab contains the generated grounds, internal transitions, normal outer borders and selected doodads, ready to attach to the cursor."
+                text: "Creates many variants like the library in the video. Each saved Blueprint contains the generated grounds, internal transitions, normal outer borders and selected doodads, ready to attach to the cursor."
                 color: "#8b949e"; font.pixelSize: 11
             }
             Grid {
                 columns: 2; columnSpacing: 10; rowSpacing: 7
                 Text { text: "Category"; color: "#c9d1d9"; width: 150; height: 26; verticalAlignment: Text.AlignVCenter }
-                DmeTextField { id: prefabCategory; width: 386; text: "Ground Clusters"; placeholderText: "Prefab category" }
+                DmeTextField { id: prefabCategory; width: 386; text: "Ground Clusters"; placeholderText: "Blueprint category" }
                 Text { text: "Base name"; color: "#c9d1d9"; width: 150; height: 26; verticalAlignment: Text.AlignVCenter }
                 DmeTextField { id: prefabBaseName; width: 386; text: "Mixed ground"; placeholderText: "e.g. Swamp patches" }
                 Text { text: "Variants"; color: "#c9d1d9"; width: 150; height: 26; verticalAlignment: Text.AlignVCenter }
@@ -254,7 +254,7 @@ DmeDialog {
             }
             Row {
                 spacing: 8
-                DmeButton { text: "Generate prefab pack"; width: 180; variant: "primary"; onClicked: dialog.generatePrefabPack() }
+                DmeButton { text: "Generate Blueprint pack"; width: 180; variant: "primary"; onClicked: dialog.generatePrefabPack() }
             }
             Grid {
                 columns: 2; columnSpacing: 10; rowSpacing: 7

@@ -158,66 +158,9 @@ QVariantMap MapView::brushSelectionSnapshot(bool includeGround)
     return {{"tiles", tiles}};
 }
 
-QVariantMap MapView::saveSelectionAsPrefab(const QString &name,
-                                           const QString &palette)
+QVariantMap MapView::saveSelectionAsPrefab(const QString &name, const QString &palette)
 {
-    QVariantMap result;
-    result.insert(QStringLiteral("success"), false);
-    if (!m_otbm || !m_brushController.store()) {
-        result.insert(QStringLiteral("error"), QStringLiteral("No map or brush profile is loaded."));
-        return result;
-    }
-    if (m_selectionController.selected().isEmpty()) {
-        result.insert(QStringLiteral("error"), QStringLiteral("Select at least one tile first."));
-        return result;
-    }
-    if (name.trimmed().isEmpty()) {
-        result.insert(QStringLiteral("error"), QStringLiteral("Enter a prefab name."));
-        return result;
-    }
-    if (m_brushController.store()->isDoodadBrush(name.trimmed())) {
-        result.insert(QStringLiteral("error"), QStringLiteral("A brush or prefab with this name already exists."));
-        return result;
-    }
-
-    int minX = std::numeric_limits<int>::max();
-    int minY = std::numeric_limits<int>::max();
-    int minZ = std::numeric_limits<int>::max();
-    for (quint64 key : m_selectionController.selected()) {
-        minX = std::min(minX, selX(key));
-        minY = std::min(minY, selY(key));
-        minZ = std::min(minZ, selZ(key));
-    }
-
-    QVariantList tiles;
-    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
-    for (quint64 key : m_selectionController.selected()) {
-        const int x = selX(key), y = selY(key), z = selZ(key);
-        const OtbmTile *tile = m_otbm->tileAt(x, y, z);
-        if (!tile || tile->items.empty()) continue;
-        QVariantList items;
-        items.reserve(static_cast<qsizetype>(tile->items.size()));
-        for (const OtbmMapItem &item : tile->items)
-            if (item.server_id > 0) items.append(static_cast<int>(item.server_id));
-        if (items.isEmpty()) continue;
-        QVariantMap entry;
-        entry.insert(QStringLiteral("dx"), x - minX);
-        entry.insert(QStringLiteral("dy"), y - minY);
-        entry.insert(QStringLiteral("dz"), z - minZ);
-        entry.insert(QStringLiteral("items"), items);
-        tiles.append(entry);
-    }
-    if (tiles.isEmpty()) {
-        result.insert(QStringLiteral("error"), QStringLiteral("The selection contains no items."));
-        return result;
-    }
-    if (!m_brushController.store()->savePrefab(name, palette, tiles)) {
-        result.insert(QStringLiteral("error"), QStringLiteral("Could not save brushes.json."));
-        return result;
-    }
-    result.insert(QStringLiteral("success"), true);
-    result.insert(QStringLiteral("tileCount"), tiles.size());
-    return result;
+    return saveSelectionAsBlueprint(name, palette, QStringLiteral("map"));
 }
 
 void MapView::cutSelection()

@@ -546,7 +546,7 @@ DmeMenuBar {
         Action {
             id: hotkeyAction_ground_prefab_generator
             shortcut: menuBar.commandShortcut("ground_prefab_generator")
-            text: "Ground Prefab Generator..."
+            text: "Ground Blueprint Generator…"
             enabled: Backend.otbmReader.loaded
             onTriggered: menuBar.groundClusterGeneratorDialog.open()
         }

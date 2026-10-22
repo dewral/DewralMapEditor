@@ -1,5 +1,7 @@
 <RCC>
     <qresource prefix="/">
+        <file alias="qml/dialogs/BlueprintDialog.qml">qml/dialogs/BlueprintDialog.qml</file>
+        <file alias="qml/components/BlueprintPlacementControls.qml">qml/components/BlueprintPlacementControls.qml</file>
         <file alias="qml/components/TaskIcon.qml">qml/components/TaskIcon.qml</file>
         <file alias="qml/components/TaskIconPicker.qml">qml/components/TaskIconPicker.qml</file>
         <file alias="qml/components/WorkTimerTaskPanel.qml">qml/components/WorkTimerTaskPanel.qml</file>

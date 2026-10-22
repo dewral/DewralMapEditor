@@ -142,6 +142,9 @@ add_executable(DewralMapEditor
     editor/map/mapview_tmg.cpp
     editor/map/mapview_lua.cpp
     editor/map/mapview_edit.cpp
+    editor/map/mapview_blueprint.cpp
+    editor/map/mapblueprint.h
+    editor/core/blueprintformat.h
     editor/map/mapview_brush_core.cpp
     editor/map/mapview_brush_ground.cpp
     editor/map/mapview_brush_types.cpp
@@ -387,6 +390,10 @@ if(BUILD_TESTING)
     target_include_directories(brushstore_advanced_test PRIVATE editor/core editor/map libs/otformats)
     target_link_libraries(brushstore_advanced_test PRIVATE Qt6::Core)
     add_test(NAME brushstore_advanced COMMAND brushstore_advanced_test)
+    add_executable(blueprint_store_test EXCLUDE_FROM_ALL tests/blueprint_store_test.cpp editor/core/brushstore.cpp)
+    target_include_directories(blueprint_store_test PRIVATE editor/core editor/map libs/otformats)
+    target_link_libraries(blueprint_store_test PRIVATE Qt6::Core)
+    add_test(NAME blueprint_store COMMAND blueprint_store_test)
     find_program(DME_QML_TEST_RUNNER qmltestrunner HINTS
         "${Qt6_DIR}/../../../bin" "${Qt6_DIR}/../../tools/Qt6/bin")
     if(DME_QML_TEST_RUNNER)
@@ -572,10 +579,11 @@ if(BUILD_TESTING)
     add_test(NAME map_creature_refresh COMMAND map_creature_refresh_test)
     add_test(NAME map_view_position COMMAND map_creature_refresh_test --view-position-only)
     add_test(NAME map_item_locations COMMAND map_creature_refresh_test --item-locations-only)
-    set_tests_properties(map_creature_refresh map_view_position map_item_locations PROPERTIES
+    add_test(NAME map_blueprints COMMAND map_creature_refresh_test --blueprints-only)
+    set_tests_properties(map_blueprints map_creature_refresh map_view_position map_item_locations PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=minimal" TIMEOUT 30)
     if(WIN32)
-        set_tests_properties(map_creature_refresh map_view_position map_item_locations PROPERTIES ENVIRONMENT
+        set_tests_properties(map_blueprints map_creature_refresh map_view_position map_item_locations PROPERTIES ENVIRONMENT
             "QT_QPA_PLATFORM=minimal;QT_QPA_PLATFORM_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::QWindowsIntegrationPlugin>")
     endif()
     add_executable(activity_service_test EXCLUDE_FROM_ALL tests/activity_service_test.cpp editor/core/activityservice.cpp editor/core/documentmanager.cpp)
@@ -618,7 +626,7 @@ if(BUILD_TESTING)
                              map_terrain_generator map_terrain_profile map_dungeon_generator
                              map_ground_cluster_generator map_selection_rotation
                              document_recovery creature_store map_creature_refresh map_view_position map_item_locations update_version
-                             brushstore_advanced brushstore_border_variants
+                             blueprint_store map_blueprints brushstore_advanced brushstore_border_variants
                              palette_visibility hotkey_settings lua_script_engine PROPERTIES
             ENVIRONMENT_MODIFICATION
                 "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
@@ -648,6 +656,7 @@ add_custom_command(TARGET DewralMapEditor POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/docs/custom-map-generator.md"
         "${CMAKE_SOURCE_DIR}/docs/lua-api.md"
+        "${CMAKE_SOURCE_DIR}/docs/blueprints.md"
         "$<TARGET_FILE_DIR:DewralMapEditor>/docs"
 )
 

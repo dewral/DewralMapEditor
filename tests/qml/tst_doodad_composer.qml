@@ -24,6 +24,7 @@ Item {
         function groundBrushNames() { return [] }
         function wallBrushNames() { return [] }
         function searchAliasesForServerId(id) { return [] }
+        function prefabPaletteNames() { return [] }
         function prefabsForPalette(palette) { return Object.keys(saved).sort().map(name => ({name: name, lookid: 100})) }
         function prefabEdit(name) { return saved[name] }
         function saveRandomDoodad(name, palette, choices, originalName) {
@@ -88,6 +89,19 @@ Item {
             Backend.otbReader = previousItems
             Backend.tilesetStore = previousTilesets
             Backend.uiTheme.style = previousTheme
+        }
+        function test_blueprintLayoutIsProtected() {
+            brushes.saved = {"Tower": {layoutProtected: true, width: 80, height: 40,
+                tiles: [{dx: 0, dy: 0, dz: 0, items: [100]}, {dx: 0, dy: 0, dz: 1, items: [101]}]}}
+            composer.loadDoodad("Tower")
+            verify(composer.doodadLayoutProtected)
+            compare(composer.doodadCellItems.length, 0)
+            verify(!findChild(composer, "brushManagerDoodadSave").enabled)
+            verify(!findChild(composer, "brushManagerDoodadMode").enabled)
+            verify(!composer.saveDoodad())
+            compare(brushes.captured, ({}))
+            composer.newDoodad()
+            verify(!composer.doodadLayoutProtected)
         }
         function pickerClick(row, modifiers) {
             const grid = findChild(composer, "brushManagerPickerGrid")

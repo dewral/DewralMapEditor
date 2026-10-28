@@ -220,6 +220,50 @@ DmeDialog {
                     }
                 }
                 PrefCard {
+                    title: "Creature names"
+                    PrefRow {
+                        label: "Minimum zoom"
+                        Row {
+                            spacing: 10
+                            Slider {
+                                objectName: "creatureNamesMinimumZoomSlider"
+                                width: 160
+                                from: 0; to: 100; stepSize: 5
+                                value: dialog.settings.creatureNamesMinimumZoom
+                                background: Rectangle {
+                                    x: parent.leftPadding
+                                    y: parent.topPadding + parent.availableHeight / 2 - height / 2
+                                    width: parent.availableWidth; height: 4; radius: 2
+                                    color: Colors.c("border")
+                                    Rectangle { width: parent.width * parent.parent.visualPosition; height: parent.height; radius: 2; color: Colors.c("accent") }
+                                }
+                                handle: Rectangle {
+                                    x: parent.leftPadding + parent.visualPosition * (parent.availableWidth - width)
+                                    y: parent.topPadding + parent.availableHeight / 2 - height / 2
+                                    width: 16; height: 16; radius: 8
+                                    color: Colors.c("accent")
+                                    border.width: 3; border.color: Colors.c("surface")
+                                }
+                                onMoved: dialog.settings.creatureNamesMinimumZoom = Math.round(value)
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 64
+                                text: dialog.settings.creatureNamesMinimumZoom === 0 ? "No limit" : dialog.settings.creatureNamesMinimumZoom + "%"
+                                color: "#F0F0F0"
+                                font.pixelSize: 12
+                            }
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        text: "Hide creature names and health bars below this zoom level. Set 0% to show them at every zoom."
+                        color: "#8B949E"
+                        font.pixelSize: 11
+                        wrapMode: Text.WordWrap
+                    }
+                }
+                PrefCard {
                     title: "Map lighting"
                     PrefRow {
                         label: "Minimum zoom"

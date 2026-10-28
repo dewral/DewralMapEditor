@@ -53,6 +53,7 @@ Zaobserwowane konwencje: zwykle 4 spacje, klasy UpperCamelCase, metody lowerCame
 
 ## Start, przygotowanie klienta i narzędzia — wdrożone
 
+- `StartupWindow` tworzy karty recovery/postępu tylko wtedy, gdy są potrzebne. Dialogi plików, katalogu i nowej mapy są odraczane przez URL i zachowywane po pierwszym użyciu. Dalszy pomiar: [raport odchudzenia](docs/architecture/startup-followup-2026-10-28.md).
 - [Main.qml](editor/qml/Main.qml) tworzy ustawienia, `ApplicationSession` i ekran powitalny. `EditorScene.qml` jest adresem URL nieaktywnego Loader; nie jest zależnością typu ekranu startowego. Edytor powstaje dopiero na żądanie open/new/recovery i pozostaje do końca procesu.
 - [ApplicationSession.qml](editor/qml/controllers/ApplicationSession.qml) przechowuje żądanie, recent files i jeden katalog profili. `ClientProfileController` nie wymaga viewportu. Pierwsze przygotowanie klienta i tworzenie edytora mogą działać równolegle; przekazanie operacji dokumentowi czeka na oba. Gotowość Loader, klienta i pierwszej kompletnej klatki są oddzielne.
 - [ClientLoadService](editor/core/clientloadservice.h) jest dzieckiem `Backend`. Worker ma własne lokalne czytniki i wynik wartościowy; przygotowuje definicje, indeksy, miniatury i palety. Żądania mają generacje, anulowanie i fingerprint. GUI publikuje spójny wynik we **wcześniej istniejących** modelach. `SprReader` otwiera własny plik na GUI; nie przejmuje mapowania workera. Przy zajętym mutexie viewportu publikacja jest ponawiana przez timer bez blokującego oczekiwania.
@@ -62,6 +63,10 @@ Zaobserwowane konwencje: zwykle 4 spacje, klasy UpperCamelCase, metody lowerCame
 - [WorkTimerService](editor/core/worktimerservice.h) odczytuje JSON po `ensureLoaded()`, w tle; `WorkTimerHistoryModel` udostępnia wiersze na żądanie. Agregaty historyczne są cache’owane do zmiany danych. Przed gotowością mutacje historii są blokowane, a destruktor nie zapisuje pustego stanu. Nie zmieniono formatu JSON ani eksportów.
 
 Pomiary i granice weryfikacji są w [raporcie wdrożenia](docs/architecture/startup-implementation-2026-10-28.md); nie traktuj samego `Loader.Ready` ani testów na atrapach jako dowodu pełnej klatki QRhi.
+
+## Zapis mapy i potwierdzenie klatki
+
+`DocumentController.queueSave` pokazuje modalny komunikat i czeka na token `DmeWindow.requestPresentedFrame()`. Token jest przechwytywany podczas synchronizacji sceny i potwierdzany po przekazaniu klatki do prezentacji; callback wraca na GUI. Dopiero wtedy wywoływany jest istniejący synchroniczny `OtbmReader.saveFile`. Nie jest to asynchroniczna serializacja. Kontrakt obejmuje Save, Save As i Save All; opis i ograniczenia: [komunikat zapisu](docs/architecture/save-feedback-2026-10-28.md).
 
 ## Przepływ renderowania — fakty
 

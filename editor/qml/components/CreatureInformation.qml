@@ -10,6 +10,7 @@ Item {
     property real viewScale: 1
     property url nameSource: ""
     property int nameWidth: 0
+    property bool npc: false
     readonly property real screenScale: Math.max(0.01, viewScale)
     readonly property real screenWidth: viewportWidth * screenScale
     readonly property real screenHeight: viewportHeight * screenScale
@@ -23,7 +24,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         color: "black"
-        Rectangle { objectName: "monsterHealthFill"; x: 1; y: 1; width: 25; height: 2; color: "#00c000" }
+        Rectangle { objectName: "monsterHealthFill"; x: 1; y: 1; width: 25; height: 2; color: information.npc ? "#66ccff" : "#00c000" }
     }
     Image {
         objectName: "creatureNameImage"

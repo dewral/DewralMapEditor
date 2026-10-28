@@ -16,8 +16,11 @@ Item {
     property var creatures: []
     readonly property int centerX: Math.floor(controller.visualX)
     readonly property int centerY: Math.floor(controller.visualY)
-    property string cachedKey: ""
-    property string creatureKey: ""
+    property bool cacheValid: false
+    property int cachedFloor: -1
+    property int cachedColumns: 0
+    property int cachedRows: 0
+    property bool refreshQueued: false
     property int cachedX: 0
     property int cachedY: 0
     readonly property int padding: Math.max(0, Math.min(6,
@@ -50,28 +53,39 @@ Item {
             }
         }
     }
-    function refresh(force) {
-        const key = controller.z + ":" + Math.ceil(width / 32) + ":" + Math.ceil(height / 32)
-                  + ":" + visible;
-        if (!force && key === cachedKey && Math.abs(centerX - cachedX) <= padding
-                && Math.abs(centerY - cachedY) <= padding) return;
-        cachedKey = key; cachedX = centerX; cachedY = centerY;
-        const next = visible && source && typeof source.previewMonsterLabels === "function"
-                ? source.previewMonsterLabels(centerX, centerY, controller.z,
-                                              Math.ceil(width / 32) + padding * 2,
-                                              Math.ceil(height / 32) + padding * 2) : [];
-        const nextKey = JSON.stringify(next);
-        if (nextKey !== creatureKey) {
-            creatureKey = nextKey;
-            creatures = next;
-            syncLabels(next);
-        }
+    // Geometry bindings change together during zoom; query their final values once.
+    function scheduleRefresh() {
+        if (refreshQueued) return;
+        refreshQueued = true;
+        Qt.callLater(function() { root.refreshQueued = false; root.refresh(false); });
     }
-    onCenterXChanged: refresh()
-    onCenterYChanged: refresh()
-    onWidthChanged: refresh()
-    onHeightChanged: refresh()
-    onVisibleChanged: refresh()
+    function refresh(force) {
+        if (force) cacheValid = false;
+        // Keep the last bounded viewport model across the zoom cutoff. Hidden
+        // delegates cost no drawing and can be reused when names become visible.
+        if (!visible) return;
+        const columns = Math.ceil(width / 32);
+        const rows = Math.ceil(height / 32);
+        if (cacheValid && cachedFloor === controller.z
+                && Math.abs(centerX - cachedX) + columns / 2 <= cachedColumns / 2
+                && Math.abs(centerY - cachedY) + rows / 2 <= cachedRows / 2) return;
+        const queryColumns = Math.min(512, Math.ceil((columns + padding * 2) / 16) * 16);
+        const queryRows = Math.min(512, Math.ceil((rows + padding * 2) / 16) * 16);
+        const next = source && typeof source.previewMonsterLabels === "function"
+                ? source.previewMonsterLabels(centerX, centerY, controller.z,
+                                              queryColumns, queryRows) : [];
+        cachedFloor = controller.z; cachedX = centerX; cachedY = centerY;
+        cachedColumns = queryColumns; cachedRows = queryRows; cacheValid = true;
+        // syncLabels already compares individual roles; serializing PNG data URLs
+        // for a second whole-list comparison adds work without avoiding updates.
+        creatures = next;
+        syncLabels(next);
+    }
+    onCenterXChanged: scheduleRefresh()
+    onCenterYChanged: scheduleRefresh()
+    onWidthChanged: scheduleRefresh()
+    onHeightChanged: scheduleRefresh()
+    onVisibleChanged: { if (visible) refresh(false); }
     onSourceChanged: refresh(true)
     Component.onCompleted: refresh()
     Connections {
@@ -81,7 +95,10 @@ Item {
     Connections {
         target: root.source
         ignoreUnknownSignals: true
-        function onContentUpdated() { root.refresh(!root.source || !root.source.otbm) }
+        function onContentUpdated() {
+            if (root.source && root.source.otbm) root.scheduleRefresh();
+            else root.refresh(true);
+        }
         function onViewFlagsChanged() { root.refresh(true) }
         function onReadersChanged() { root.refresh(true) }
         function onAtlasChanged() { root.refresh(true) }
@@ -108,6 +125,9 @@ Item {
             viewportWidth: root.width
             viewportHeight: root.height
             viewScale: root.viewScale
+            npc: isNpc
+            visible: anchorX >= 0 && anchorX <= viewportWidth
+                && anchorY >= 0 && anchorY <= viewportHeight
             nameSource: bitmapSource
             nameWidth: bitmapWidth
         }

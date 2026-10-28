@@ -41,7 +41,7 @@ class IngamePreviewScene
 public:
     IngamePreviewScene();
     IngamePreviewFrame build(MapView *, const IngamePreviewState &);
-    QVariantMap nameBitmap(const QString &name) { return label(name, {}, false); }
+    QVariantMap nameBitmap(const QString &name, bool npc = false) { return label(name, {}, false, npc); }
     void reset()
     {
         m_images.clear();
@@ -51,7 +51,7 @@ public:
 private:
     QImage itemImage(MapView *, const OtbmMapItem &, const ClientItem &, int, int, int, qint64, int);
     QImage outfitImage(MapView *, int, int, int, const std::array<int, 4> &);
-    QVariantMap label(const QString &, QPointF, bool);
+    QVariantMap label(const QString &, QPointF, bool, bool npc = false);
     QColor outfitColor(int) const;
     QCache<QString, QImage> m_images{4096};
     QHash<QString, QVariantMap> m_names;

@@ -2,6 +2,7 @@
 #define DMEWINDOW_H
 
 #include <QPointer>
+#include <memory>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QtQml/qqmlregistration.h>
@@ -20,6 +21,10 @@ class DmeWindow : public QQuickWindow
 public:
     explicit DmeWindow(QWindow *parent = nullptr);
 
+    // Coalesces requests; emits on the GUI thread after a frame synchronized
+    // after this call has been presented. Returns 0 for a hidden/minimized window.
+    Q_INVOKABLE quint64 requestPresentedFrame();
+
     QQuickItem *maximizeButton() const { return m_maximizeButton; }
     void setMaximizeButton(QQuickItem *button);
     bool roundedCorners() const { return m_roundedCorners; }
@@ -28,6 +33,7 @@ public:
     bool maximizePressed() const { return m_maximizePressed; }
 
 signals:
+    void presentedFrame(quint64 token);
     void roundedCornersChanged();
     void maximizeButtonChanged();
     void maximizeInteractionChanged();
@@ -42,6 +48,9 @@ private:
     void setMaximizeInteraction(bool hovered, bool pressed);
     bool containsMaximizeButton(const QPointF &clientPosition) const;
 
+    struct PresentedFrameState;
+    std::shared_ptr<PresentedFrameState> m_presentedFrameState;
+    quint64 m_nextFrameToken = 0;
     QPointer<QQuickItem> m_maximizeButton;
     bool m_roundedCorners = true;
     bool m_maximizeHovered = false;

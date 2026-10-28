@@ -32,6 +32,7 @@ Settings {
     property bool showTooltips: true
     property int tooltipMinimumZoom: 25
     property int lightingMinimumZoom: 25
+    property int creatureNamesMinimumZoom: 25
     property bool showWaypoints: true
     property bool showWallOutlines: true
     property bool showGrid: false

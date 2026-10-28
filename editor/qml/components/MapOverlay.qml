@@ -27,7 +27,10 @@ Item {
     readonly property int tooltipMinimumZoom: typeof settings.tooltipMinimumZoom === "number" ? settings.tooltipMinimumZoom : 0
     readonly property bool tooltipsVisible: settings.showTooltips && currentTileSize / 32 * 100 >= tooltipMinimumZoom
     onTooltipsVisibleChanged: { scheduleRefresh(true); syncTooltipModels(); }
+    readonly property int creatureNamesMinimumZoom: typeof settings.creatureNamesMinimumZoom === "number"
+        ? Math.max(0, settings.creatureNamesMinimumZoom) : 25
     readonly property bool creaturesVisible: !!mapCtrl && mapCtrl.showCreatures === true
+        && currentTileSize / 32 * 100 >= creatureNamesMinimumZoom
     readonly property real canvasMargin: 64
 
     clip: true
@@ -439,7 +442,7 @@ Item {
     }
     Component.onCompleted: refreshData(true)
 
-    // Editor names follow creature visibility independently of item tooltips.
+    // Editor labels have their own zoom cutoff; creature sprites and Preview are unaffected.
     QtObject {
         id: monsterCamera
         property real visualX: overlay.currentOriginX + overlay.width / (2 * overlay.currentTileSize) - 0.5

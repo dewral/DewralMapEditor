@@ -1012,7 +1012,7 @@ QVariantList MapView::previewMonsterLabels(int centerX, int centerY, int z, int 
                     if (client && client->has(ClientProperty::Elevation)) elevation += client->elevation;
                 }
                 static thread_local IngamePreviewScene information;
-                const auto bitmap = information.nameBitmap(tile->creature_name.value());
+                const auto bitmap = information.nameBitmap(tile->creature_name.value(), tile->creature_is_npc);
                 result.append(QVariantMap{{QStringLiteral("name"), tile->creature_name.value()},
                     {QStringLiteral("nameSource"), bitmap.value("nameSource")},
                     {QStringLiteral("nameWidth"), bitmap.value("nameWidth")},

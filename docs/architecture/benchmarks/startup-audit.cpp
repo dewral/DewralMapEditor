@@ -145,6 +145,26 @@ int main(int argc,char **argv) {
                 }
                 report["loaders"]=loaders;report["inactiveLoaders"]=inactive;
                 report["objectTypes"]=types;
+                if (qEnvironmentVariableIsSet("DME_STARTUP_AUDIT_WELCOME_DIALOGS")) {
+                    bool dialogsOk = true;
+                    for (auto *object : objects) {
+                        const QString name = object->objectName();
+                        if (name != "startupNewMapHost" && name != "startupOpenMapHost" && name != "startupFolderHost") continue;
+                        QVariant ready;
+                        dialogsOk = QMetaObject::invokeMethod(object, "ensureLoaded", Q_RETURN_ARG(QVariant, ready)) && ready.toBool() && dialogsOk;
+                        auto *dialog = object->property("item").value<QObject*>();
+                        if (!dialog || !dialog->property("startupWindow").value<QObject*>()) { dialogsOk = false; continue; }
+                        if (name == "startupNewMapHost") {
+                            dialogsOk = QMetaObject::invokeMethod(dialog, "open") && dialogsOk;
+                            QElapsedTimer frame; frame.start();
+                            while (frame.elapsed() < 100) { app.processEvents(); QThread::msleep(1); }
+                            dialogsOk = dialog->property("visible").toBool() && dialogsOk;
+                            QMetaObject::invokeMethod(dialog, "close");
+                        }
+                    }
+                    report["welcomeDialogsOk"] = dialogsOk;
+                    if (!dialogsOk) code = 17;
+                }
                 const QString client=args[5];
                 if (client!="-") {
                     const double openRequestFromQmlBeginMs = ms(clock);
@@ -174,6 +194,44 @@ int main(int argc,char **argv) {
                         report["editorObjects"] = editorObjects.size();
                         report["editorTypes"] = editorTypes;
                         if (!invoked || !presented) code = 12;
+                        if (presented && qEnvironmentVariableIsSet("DME_STARTUP_AUDIT_CREATURE_ZOOM")) {
+                            QObject *overlay = nullptr, *preferencesHost = nullptr;
+                            for (auto *object : editorObjects) {
+                                if (object->property("creatureNamesMinimumZoom").isValid() && object->property("mapCtrl").isValid()) overlay = object;
+                                if (object->property("toolSource").toUrl().path().endsWith("PreferencesDialogTool.qml")) preferencesHost = object;
+                            }
+                            bool zoomOk = overlay && preferencesHost;
+                            const auto settleBindings = [&] {
+                                QElapsedTimer deadline; deadline.start();
+                                while (deadline.elapsed() < 40) { app.processEvents(); QThread::msleep(1); }
+                            };
+                            if (zoomOk) {
+                                auto *settings = overlay->property("settings").value<QObject*>();
+                                auto *view = overlay->property("mapCtrl").value<QObject*>();
+                                zoomOk = settings && view;
+                                if (zoomOk) {
+                                    settings->setProperty("creatureNamesMinimumZoom",25); view->setProperty("showCreatures",true);
+                                    view->setProperty("tileSize",2); settleBindings();
+                                    zoomOk = !overlay->property("creaturesVisible").toBool() && view->property("showCreatures").toBool();
+                                    view->setProperty("tileSize",8); settleBindings();
+                                    zoomOk = overlay->property("creaturesVisible").toBool() && zoomOk;
+                                    QVariant ready;
+                                    zoomOk = QMetaObject::invokeMethod(preferencesHost,"ensureLoaded",Q_RETURN_ARG(QVariant,ready)) && ready.toBool() && zoomOk;
+                                    auto *dialog = preferencesHost->property("item").value<QObject*>();
+                                    auto *slider = dialog ? dialog->findChild<QObject*>("creatureNamesMinimumZoomSlider") : nullptr;
+                                    zoomOk = slider && zoomOk;
+                                    if (slider) {
+                                        settings->setProperty("creatureNamesMinimumZoom",0);settleBindings();
+                                        zoomOk = slider->property("value").toInt() == 0 && zoomOk;
+                                        slider->setProperty("value",50);QMetaObject::invokeMethod(slider,"moved");settleBindings();
+                                        zoomOk = settings->property("creatureNamesMinimumZoom").toInt() == 50
+                                            && !overlay->property("creaturesVisible").toBool() && zoomOk;
+                                    }
+                                }
+                            }
+                            report["creatureZoomOk"] = zoomOk;
+                            if (!zoomOk) code = 19;
+                        }
                         if (presented && qEnvironmentVariableIsSet("DME_STARTUP_AUDIT_DOCUMENTS")) {
                             QObject *controller = nullptr;
                             for (auto *window : QGuiApplication::allWindows())
@@ -192,9 +250,23 @@ int main(int argc,char **argv) {
                             });
                             report["newDocumentPassed"] = documentsOk;
                             report["documentAfterNew"] = backend.docMgr()->current()->filePath();
+                            bool feedbackVisible = false;
+                            int manualSaves = 0;
+                            const auto saveProbe = QObject::connect(backend.docMgr()->current(), &OtbmReader::activitySave,
+                                &app, [&](bool automatic, bool) {
+                                    if (automatic) return;
+                                    ++manualSaves;
+                                    QSet<QObject*> feedbackObjects; QJsonObject feedbackTypes;
+                                    for (auto *root : engine.rootObjects()) countObjects(root, feedbackObjects, feedbackTypes);
+                                    for (auto *object : feedbackObjects)
+                                        if (object->objectName() == "saveProgressDialog") feedbackVisible = object->property("visible").toBool();
+                                });
                             const QString saved = fixture.filePath("new-map.otbm");
                             if (documentsOk) documentsOk = QMetaObject::invokeMethod(controller, "handleSaveAsAccepted", Q_ARG(QVariant, QUrl::fromLocalFile(saved)))
                                 && waitUntil([&] { return backend.docMgr()->current()->filePath() == saved && QFileInfo::exists(saved); });
+                            if (documentsOk) documentsOk = QMetaObject::invokeMethod(controller, "saveMap")
+                                && waitUntil([&] { return manualSaves == 2 && !controller->property("saving").toBool(); });
+                            report["manualSaves"] = manualSaves;
                             report["saveNewDocumentPassed"] = documentsOk;
                             report["documentAfterSave"] = backend.docMgr()->current()->filePath();
                             if (documentsOk) {
@@ -203,6 +275,9 @@ int main(int argc,char **argv) {
                                     Q_ARG(QVariant, map), Q_ARG(QVariant, QString("860"))) && accepted.toBool()
                                     && waitUntil([&] { return backend.docMgr()->current() == original && !backend.clientLoader()->busy(); });
                             }
+                            QObject::disconnect(saveProbe);
+                            report["saveFeedbackVisible"] = feedbackVisible;
+                            if (!feedbackVisible) code = 18;
                             report["newSaveSwitchPassed"] = documentsOk;
                             if (!documentsOk) code = 16;
                         }

@@ -4,6 +4,10 @@
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QScreen>
+#include <QElapsedTimer>
+#include <QThread>
+#include <QSGSimpleRectNode>
+#include <atomic>
 #include <QtCore/qt_windows.h>
 #include <windowsx.h>
 #include <dwmapi.h>
@@ -19,6 +23,39 @@ void expect(bool condition, const char *message)
         std::cerr << "FAILED: " << message << '\n';
         std::exit(EXIT_FAILURE);
     }
+}
+
+class FrameMarker : public QQuickItem {
+public:
+    FrameMarker() { setFlag(ItemHasContents); setWidth(10); setHeight(10); }
+    std::atomic_bool painted{false};
+protected:
+    QSGNode *updatePaintNode(QSGNode *node, UpdatePaintNodeData *) override {
+        auto *rectangle = node ? static_cast<QSGSimpleRectNode*>(node) : new QSGSimpleRectNode;
+        rectangle->setRect(0,0,10,10); rectangle->setColor(Qt::red);
+        painted.store(true);
+        return rectangle;
+    }
+};
+void expectPresentedFeedback(DmeWindow &window, QGuiApplication &app)
+{
+    FrameMarker marker;
+    marker.setParentItem(window.contentItem());
+    bool received = false;
+    quint64 expected = 0;
+    const auto connection = QObject::connect(&window, &DmeWindow::presentedFrame, &app, [&](quint64 token) {
+        expect(QThread::currentThread() == app.thread(), "Frame confirmation must run on GUI");
+        expect(token == expected && marker.painted.load(), "Feedback must render before confirmation");
+        received = true;
+    });
+    const auto superseded = window.requestPresentedFrame();
+    expected = window.requestPresentedFrame();
+    expect(expected > superseded, "Frame request tokens must be distinct");
+    expect(expected > 0, "Visible window must accept a frame request");
+    QElapsedTimer deadline; deadline.start();
+    while (!received && deadline.elapsed() < 5000) { app.processEvents(); QThread::msleep(1); }
+    QObject::disconnect(connection);
+    expect(received, "Presented frame confirmation did not arrive");
 }
 
 LPARAM buttonPosition(HWND hwnd, const DmeWindow &window, const QQuickItem &button)
@@ -84,6 +121,7 @@ int main(int argc, char **argv)
         startupWindow.showMaximized();
         app.processEvents();
         expectWorkArea(startupWindow, "First show maximized");
+        expectPresentedFeedback(startupWindow, app);
         startupWindow.showMinimized();
         startupWindow.showMaximized();
         app.processEvents();

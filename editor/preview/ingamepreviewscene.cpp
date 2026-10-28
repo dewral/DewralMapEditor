@@ -155,10 +155,11 @@ QImage IngamePreviewScene::outfitImage(MapView *source, int look, int direction,
     m_images.insert(key, new QImage(image));
     return image;
 }
-QVariantMap IngamePreviewScene::label(const QString &name, QPointF anchor, bool player)
+QVariantMap IngamePreviewScene::label(const QString &name, QPointF anchor, bool player, bool npc)
 {
     const auto text = name.left(256);
-    auto saved = m_names.value(text);
+    const QString nameKey = (npc ? QStringLiteral("npc/") : QStringLiteral("creature/")) + text;
+    auto saved = m_names.value(nameKey);
     if (!saved.isEmpty())
     {
         saved.insert("x", anchor.x());
@@ -166,7 +167,7 @@ QVariantMap IngamePreviewScene::label(const QString &name, QPointF anchor, bool 
         saved.insert("player", player);
         return saved;
     }
-    const QString key = "n/" + text;
+    const QString key = "n/" + nameKey;
     QImage image;
     if (const auto *cached = m_images.object(key))
         image = *cached;
@@ -187,7 +188,10 @@ QVariantMap IngamePreviewScene::label(const QString &name, QPointF anchor, bool 
                 for (int xx = 0; xx < glyph.width(); ++xx)
                 {
                     const auto pixel = glyph.pixel(xx, yy);
-                    glyph.setPixel(xx, yy, qRgba(0, qGreen(pixel) * 192 / 255, 0, qAlpha(pixel)));
+                    const int intensity = qGreen(pixel);
+                    glyph.setPixel(xx, yy, npc
+                        ? qRgba(intensity * 102 / 255, intensity * 204 / 255, intensity, qAlpha(pixel))
+                        : qRgba(0, intensity * 192 / 255, 0, qAlpha(pixel)));
                 }
             p.drawImage(x, -2, glyph);
             x += m_widths[c] - 1;
@@ -207,7 +211,7 @@ QVariantMap IngamePreviewScene::label(const QString &name, QPointF anchor, bool 
                        {"nameSource", "data:image/png;base64," + QString::fromLatin1(png.toBase64())}};
     if (m_names.size() >= 512)
         m_names.clear();
-    m_names.insert(text, result);
+    m_names.insert(nameKey, result);
     return result;
 }
 IngamePreviewFrame IngamePreviewScene::build(MapView *source, const IngamePreviewState &s)

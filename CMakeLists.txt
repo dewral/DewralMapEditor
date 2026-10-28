@@ -644,6 +644,8 @@ if(BUILD_TESTING)
         tests/preview772.qrc
         editor/preview/ingamepreviewcontroller.cpp
         tests/map_creature_refresh_test.cpp
+        editor/map/maprhiview.cpp
+        editor/map/maprhiview.h
         editor/core/brushstore.cpp
         editor/core/creaturestore.cpp
         ${_dme_creature_refresh_sources})
@@ -655,12 +657,18 @@ if(BUILD_TESTING)
         PREFIX "/shaders" BASE "editor/map/shaders"
         GLSL "300es,330" HLSL 50 MSL 12
         FILES editor/map/shaders/map.vert editor/map/shaders/map.frag)
+    target_compile_definitions(map_creature_refresh_test PRIVATE DME_RENDER_TEST_HOOKS)
     target_compile_options(map_creature_refresh_test PRIVATE
         $<$<CXX_COMPILER_ID:MSVC>:/MP4>)
     add_test(NAME map_creature_refresh COMMAND map_creature_refresh_test)
     add_test(NAME map_view_position COMMAND map_creature_refresh_test --view-position-only)
     add_test(NAME map_item_locations COMMAND map_creature_refresh_test --item-locations-only)
     add_test(NAME map_rubber_band COMMAND map_creature_refresh_test --rubber-band-only)
+    add_test(NAME map_goto_render COMMAND map_creature_refresh_test --goto-render-only)
+    set_tests_properties(map_goto_render PROPERTIES
+        ENVIRONMENT "QSG_RHI_BACKEND=opengl;QSG_RENDER_LOOP=basic" TIMEOUT 90)
+    set_tests_properties(map_goto_render PROPERTIES ENVIRONMENT_MODIFICATION
+        "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
     set_tests_properties(map_creature_refresh map_view_position map_item_locations map_rubber_band PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=minimal" TIMEOUT 30)
     if(WIN32)

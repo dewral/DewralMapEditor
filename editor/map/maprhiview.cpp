@@ -9,6 +9,11 @@
 #include <limits>
 #include <unordered_map>
 
+#ifdef DME_RENDER_TEST_HOOKS
+#include <functional>
+std::function<void()> mapRhiAfterChunksForTest;
+#endif
+
 namespace {
 class MapRhiRenderer : public QQuickRhiItemRenderer
 {
@@ -154,6 +159,9 @@ public:
                                      || groundOnly != m_lastGroundOnly
                                      || previewContentChanged;
 
+        // Sample before draining ready chunks. A worker finishing during traversal
+        // must still invalidate a later frame, even if this frame could not use it.
+        const int quadCacheVersion = src->renderQuadCacheVersion();
         QVector<QPair<int, quint64>> dirtyChunks;
         if (!m_previewWindow) src->renderTakeDirtyChunks(dirtyChunks);
 
@@ -215,14 +223,19 @@ public:
             }
 
             const auto listed = std::find(list.begin(), list.end(), key);
-            if (cb->count > 0 && listed == list.end())
+            if (cb->count > 0 && listed == list.end()) {
                 list.push_back(key);
-            else if (cb->count == 0 && listed != list.end())
+                changed = true;
+            } else if (cb->count == 0 && listed != list.end()) {
                 list.erase(listed);
+                changed = true;
+            }
             return changed;
         };
 
         if (fullChunkTraversal) {
+            // The draw list is being replaced, including temporarily pending chunks.
+            m_cacheDirty = true;
             for (int f = 0; f < 16; ++f) m_drawList[f].clear();
 
             for (int z = wMin; z <= wMax; ++z) {
@@ -265,9 +278,15 @@ public:
                 const int cx = static_cast<int>(static_cast<qint32>(key >> 32));
                 const int cy = static_cast<int>(static_cast<qint32>(key & 0xffffffffu));
                 if (cx < minCX || cx > maxCX || cy < minCY || cy > maxCY) continue;
-                updateChunk(z, key, true);
+                // Invalidate from the data actually adopted by this renderer. The
+                // worker version can already have advanced in the previous sync.
+                if (updateChunk(z, key, true)) m_cacheDirty = true;
             }
         }
+
+#ifdef DME_RENDER_TEST_HOOKS
+        if (mapRhiAfterChunksForTest) mapRhiAfterChunksForTest();
+#endif
 
         auto uploadDyn = [](MapRenderBuffer &vbo, const std::vector<float> &data, int &count) {
             count = static_cast<int>(data.size() / 4);
@@ -490,7 +509,7 @@ public:
         };
         mixSceneVersion(contentVersion);
         mixSceneVersion(metadataOverlayVersion);
-        mixSceneVersion(static_cast<quint32>(src->renderQuadCacheVersion()));
+        mixSceneVersion(static_cast<quint32>(quadCacheVersion));
         mixSceneVersion(static_cast<quint32>(resetVersion));
         mixSceneVersion(static_cast<quint32>(m_atlasGen));
         mixSceneVersion(static_cast<quint32>(m_lightVer));

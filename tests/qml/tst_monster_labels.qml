@@ -16,13 +16,14 @@ Item {
         property QtObject otbm: QtObject { signal mapChanged() }
         property string creatureName: "Rat"
         property int creatureCount: 1
+        property bool creatureNpc: false
         signal contentUpdated()
         function previewMonsterLabels(x, y, z, columns, rows) {
             ++queries
             if (z !== 7) return [];
             const result=[];
             for(let i=0;i<creatureCount;++i)
-                result.push({name: map.creatureName, x: 101+i%20, y: 100+Math.floor(i/20), elevation: 4});
+                result.push({name: map.creatureName, x: 101+i%20, y: 100+Math.floor(i/20), elevation: 4, npc: map.creatureNpc});
             return result;
         }
     }
@@ -84,7 +85,7 @@ Item {
             compare(map.queries,calls);
             compare(findChild(overlay,"monsterInformation"),information);
             camera.visualX=120;
-            verify(map.queries>calls);
+            tryVerify(function() { return map.queries>calls; });
             compare(findChild(overlay,"monsterInformation"),information);
             camera.visualX=100;
         }
@@ -110,6 +111,49 @@ Item {
             compare(map.queries,calls);
             compare(findChild(overlay,"monsterInformation"),first);
             map.creatureCount=1;map.otbm.mapChanged();camera.visualX=100;
+        }
+        function test_npc_health_bar_is_blue() {
+            const information = findChild(overlay, "monsterInformation");
+            map.creatureNpc = true; map.otbm.mapChanged();
+            compare(findChild(information, "monsterHealthFill").color, "#66ccff");
+            map.creatureNpc = false; map.otbm.mapChanged();
+            compare(findChild(information, "monsterHealthFill").color, "#00c000");
+        }
+        function test_zoom_in_reuses_query_and_hidden_delegates() {
+            overlay.width=960; overlay.height=640; overlay.refresh(true);
+            const first=findChild(overlay,"monsterInformation");
+            const calls=map.queries;
+            overlay.width=800; overlay.height=600;
+            wait(0);
+            compare(map.queries,calls);
+            overlay.visible=false; wait(0); overlay.visible=true;
+            compare(map.queries,calls);
+            compare(findChild(overlay,"monsterInformation"),first);
+            overlay.visible=false;
+            map.creatureName="Wolf";map.otbm.mapChanged();
+            compare(map.queries,calls);
+            overlay.visible=true;
+            compare(findChild(overlay,"monsterInformation").labelName,"Wolf");
+            map.creatureName="Rat";map.otbm.mapChanged();
+            overlay.width=480;overlay.height=352;
+        }
+        function test_cached_labels_outside_zoomed_view_are_not_drawn() {
+            camera.visualX=100;camera.visualY=100;overlay.refresh(true);
+            const first=findChild(overlay,"monsterInformation");
+            verify(first.visible);
+            camera.visualX=120;
+            compare(first.visible,false);
+            camera.visualX=100;
+            compare(first.visible,true);
+        }
+        function test_zoom_geometry_changes_are_coalesced() {
+            overlay.width=480;overlay.height=352;overlay.refresh(true);
+            const calls=map.queries;
+            overlay.width=1200;overlay.height=900;
+            compare(map.queries,calls);
+            wait(0);
+            compare(map.queries,calls+1);
+            overlay.width=480;overlay.height=352;
         }
         function test_redBitmapPreservesFontMetrics() {
             const green = nameComponent.createObject(overlay, {text: "Rat"})

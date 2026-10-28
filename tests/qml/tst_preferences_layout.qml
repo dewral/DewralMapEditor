@@ -8,6 +8,7 @@ Item {
         id: prefs
         property int tooltipMinimumZoom: 25
         property int lightingMinimumZoom: 25
+        property int creatureNamesMinimumZoom: 25
         property string paletteViewMode: "grid"
         property int iconSize: 66
         property int renderMaxFps: 60
@@ -72,6 +73,12 @@ Item {
             compare(lighting.value, 25);
             prefs.lightingMinimumZoom = 0;
             tryCompare(lighting, "value", 0);
+            const names = findChild(dialog,"creatureNamesMinimumZoomSlider");
+            verify(names !== null); compare(names.value,25);
+            prefs.creatureNamesMinimumZoom = 0;
+            tryCompare(names,"value",0);
+            names.value = 50; names.moved();
+            compare(prefs.creatureNamesMinimumZoom,50);
             dialog.close();
         }
     }

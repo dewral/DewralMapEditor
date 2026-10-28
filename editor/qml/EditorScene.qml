@@ -60,6 +60,7 @@ DmeWindow {
                 root.editorPresented = false;
         }
     }
+    onPresentedFrame: token => app.afterPresentedFrame(token)
     onFrameSwapped: {
         if (app.started && !Backend.otbmReader.loading)
             editorPresented = true;
@@ -361,7 +362,7 @@ DmeWindow {
     }
 
     MainMenuBar {
-        enabled: !root.clientBusy
+        enabled: !root.clientBusy && !app.saving
         id: menuBar
         onActivityRequested: { if (!activityLoader.ensureLoaded()) return false; activityLoader.item.open(); }
         menuLeftInset: root.fluentUi ? 8 : root.githubUi ? 52 : 4
@@ -471,7 +472,7 @@ DmeWindow {
         Text { anchors.centerIn: parent; text: root.dockDragKind === "tools" ? "Tools" : "Brush size"; color: "white"; font.pixelSize: 12 }
     }
     FluentFileBar {
-        enabled: !root.clientBusy
+        enabled: !root.clientBusy && !app.saving
         id: fluentFileBar
         anchors.leftMargin: root.tibiaUi ? 6 : 0
         anchors.rightMargin: root.tibiaUi ? 6 : 0
@@ -873,7 +874,7 @@ DmeWindow {
     WorkTimerPopupHost { id: sharedWorkTimerPopup; activityHost: activityLoader }
 
     MapWorkspace {
-        enabled: !root.clientBusy
+        enabled: !root.clientBusy && !app.saving
         workTimerPopupHost: sharedWorkTimerPopup
         id: workspace
         proceduralBrushSession: generationLibraryLoader.active ? generationLibraryLoader.item : null
@@ -920,6 +921,11 @@ DmeWindow {
         z: 40
         mapView: workspace.mapView
         settings: prefs
+    }
+
+    SaveProgressDialog {
+        visible: app.saving
+        fileName: app.savingFileName
     }
 
     FolderDialog {

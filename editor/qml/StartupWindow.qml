@@ -2,9 +2,7 @@ import Tibia 1.0
 import QtQuick
 import "themes/tibia" as TibiaSkin
 import QtQuick.Window
-import QtQuick.Dialogs
 import QtQuick.Controls
-import "dialogs"
 import "style"
 import "components"
 import "themes/fluent/Colors.js" as Colors
@@ -57,11 +55,15 @@ Window {
             loadingMap = false;
     }
 
+    readonly property string selectedProfileKey: verCombo.selKey
     function openMapDialog() {
-        startMapDialog.open();
+        if (openMapHost.ensureLoaded()) openMapHost.item.open();
+    }
+    function openNewMapDialog() {
+        if (newMapHost.ensureLoaded()) newMapHost.item.open();
     }
     function openVersionFolderDialog() {
-        versionFolderDialogStartup.open();
+        if (folderHost.ensureLoaded()) folderHost.item.open();
     }
     function beginRecoveryLoad(path) {
         loadingMapPath = path;
@@ -213,14 +215,14 @@ Window {
                             height: 40
                             text: "Open map..."
                             variant: "primary"
-                            onClicked: startMapDialog.open()
+                            onClicked: startupScreen.openMapDialog()
                         }
 
                         DmeButton {
                             width: 113
                             height: 40
                             text: "New map..."
-                            onClicked: startupNewMapDialog.open()
+                            onClicked: startupScreen.openNewMapDialog()
                         }
                     }
 
@@ -503,181 +505,187 @@ Window {
         }
     }
 
-    DmeDialogBackground {
-        visible: !startupScreen.loadingMap && Backend.docMgr.recoveryCount > 0
+    Loader {
+        objectName: "startupRecoveryHost"
         anchors.centerIn: parent
-        width: Math.min(parent.width - 40, 620)
-        height: Math.min(parent.height - 80, 330)
-        frameSource: (Backend.uiTheme.tex + "popupwindow_tall.png")
-        topBorder: 45
+        width: Math.min(startupScreen.width - 40, 620)
+        height: Math.min(startupScreen.height - 80, 330)
+        active: !startupScreen.loadingMap && Backend.docMgr.recoveryCount > 0
+        sourceComponent: DmeDialogBackground {
+            visible: !startupScreen.loadingMap && Backend.docMgr.recoveryCount > 0
+            frameSource: (Backend.uiTheme.tex + "popupwindow_tall.png")
+            topBorder: 45
 
-        Column {
-            anchors {
-                fill: parent
-                margins: 28
-                topMargin: 52
-            }
-            spacing: 14
-
-            Text {
-                width: parent.width
-                text: "Recover unsaved maps"
-                color: startupScreen.fluentTheme ? Colors.c("heading") : startupScreen.grayTheme ? "#F0F0F0" : (startupScreen.modernTheme ? "#F0F6FC" : "#d6d6d6")
-                font.family: startupScreen.fluentTheme ? Colors.family() : Qt.application.font.family
-                font.pixelSize: 18
-                font.bold: true
-            }
-            Text {
-                width: parent.width
-                text: "DME found " + Backend.docMgr.recoveryCount
-                      + (Backend.docMgr.recoveryCount === 1
-                         ? " map from an interrupted session."
-                         : " maps from an interrupted session.")
-                color: startupScreen.fluentTheme ? Colors.c("muted") : startupScreen.grayTheme ? "#999999" : (startupScreen.modernTheme ? "#9DA7B3" : "#b8b8b8")
-                font.family: startupScreen.fluentTheme ? Colors.family() : Qt.application.font.family
-                font.pixelSize: 12
-                wrapMode: Text.WordWrap
-            }
             Column {
-                width: parent.width
-                spacing: 5
-                Repeater {
-                    model: Backend.docMgr.recoveries.slice(0, 5)
-                    Text {
-                        required property var modelData
-                        width: parent.width
-                        text: "• " + modelData.title + "  —  " + modelData.savedAt
-                        color: startupScreen.fluentTheme ? Colors.c("text") : startupScreen.grayTheme ? "#E0E0E0" : (startupScreen.modernTheme ? "#C9D1D9" : "#c0c0c0")
-                        font.family: startupScreen.fluentTheme ? Colors.family() : Qt.application.font.family
-                        font.pixelSize: 11
-                        elide: Text.ElideMiddle
+                anchors {
+                    fill: parent
+                    margins: 28
+                    topMargin: 52
+                }
+                spacing: 14
+
+                Text {
+                    width: parent.width
+                    text: "Recover unsaved maps"
+                    color: startupScreen.fluentTheme ? Colors.c("heading") : startupScreen.grayTheme ? "#F0F0F0" : (startupScreen.modernTheme ? "#F0F6FC" : "#d6d6d6")
+                    font.family: startupScreen.fluentTheme ? Colors.family() : Qt.application.font.family
+                    font.pixelSize: 18
+                    font.bold: true
+                }
+                Text {
+                    width: parent.width
+                    text: "DME found " + Backend.docMgr.recoveryCount
+                          + (Backend.docMgr.recoveryCount === 1
+                             ? " map from an interrupted session."
+                             : " maps from an interrupted session.")
+                    color: startupScreen.fluentTheme ? Colors.c("muted") : startupScreen.grayTheme ? "#999999" : (startupScreen.modernTheme ? "#9DA7B3" : "#b8b8b8")
+                    font.family: startupScreen.fluentTheme ? Colors.family() : Qt.application.font.family
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+                Column {
+                    width: parent.width
+                    spacing: 5
+                    Repeater {
+                        model: Backend.docMgr.recoveries.slice(0, 5)
+                        Text {
+                            required property var modelData
+                            width: parent.width
+                            text: "• " + modelData.title + "  —  " + modelData.savedAt
+                            color: startupScreen.fluentTheme ? Colors.c("text") : startupScreen.grayTheme ? "#E0E0E0" : (startupScreen.modernTheme ? "#C9D1D9" : "#c0c0c0")
+                            font.family: startupScreen.fluentTheme ? Colors.family() : Qt.application.font.family
+                            font.pixelSize: 11
+                            elide: Text.ElideMiddle
+                        }
                     }
                 }
-            }
-            Item { width: 1; height: 8 }
-            Row {
-                anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 10
-                DmeButton {
-                    text: "Recover all"
-                    width: 150
-                    variant: "primary"
-                    onClicked: startupScreen.app.recoverPreviousSession()
-                }
-                DmeButton {
-                    text: "Discard recovery"
-                    width: 150
-                    variant: "danger"
-                    onClicked: startupScreen.app.discardPreviousSession()
+                Item { width: 1; height: 8 }
+                Row {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    spacing: 10
+                    DmeButton {
+                        text: "Recover all"
+                        width: 150
+                        variant: "primary"
+                        onClicked: startupScreen.app.recoverPreviousSession()
+                    }
+                    DmeButton {
+                        text: "Discard recovery"
+                        width: 150
+                        variant: "danger"
+                        onClicked: startupScreen.app.discardPreviousSession()
+                    }
                 }
             }
         }
     }
 
-    DmeDialogBackground {
-        id: loadingCard
-        visible: startupScreen.loadingMap
+    Loader {
+        objectName: "startupLoadingHost"
         anchors.centerIn: parent
         width: 420
         height: 142
+        active: startupScreen.loadingMap
+        sourceComponent: DmeDialogBackground {
+            id: loadingCard
+            visible: startupScreen.loadingMap
 
-        Column {
-            anchors {
-                fill: parent
-                margins: 24
-            }
-            spacing: 10
-
-            Text {
-                text: "Loading map"
-                color: startupScreen.fluentTheme ? Colors.c("heading") : "#F0F6FC"
-                font.family: startupScreen.fluentTheme ? Colors.family() : Qt.application.font.family
-                font.pixelSize: 15
-                font.weight: Font.DemiBold
-            }
-
-            Item {
-                width: parent.width
-                height: 18
-
-                Text {
-                    anchors {
-                        left: parent.left
-                        right: progressPercent.left
-                        rightMargin: 12
-                        verticalCenter: parent.verticalCenter
-                    }
-                    text: Backend.fileTools.fileName(startupScreen.loadingMapPath)
-                    color: startupScreen.fluentTheme ? Colors.c("text") : startupScreen.grayTheme ? "#E0E0E0" : "#C9D1D9"
-                    font.family: startupScreen.fluentTheme ? Colors.family() : Qt.application.font.family
-                    font.pixelSize: 13
-                    elide: Text.ElideMiddle
+            Column {
+                anchors {
+                    fill: parent
+                    margins: 24
                 }
+                spacing: 10
 
                 Text {
-                    id: progressPercent
-                    anchors {
-                        right: parent.right
-                        verticalCenter: parent.verticalCenter
-                    }
-                    text: Backend.otbmReader.loadingProgress + "%"
-                    color: startupScreen.fluentTheme ? Colors.c("text") : startupScreen.grayTheme ? "#E3BC62" : "#56D364"
+                    text: "Loading map"
+                    color: startupScreen.fluentTheme ? Colors.c("heading") : "#F0F6FC"
                     font.family: startupScreen.fluentTheme ? Colors.family() : Qt.application.font.family
-                    font.pixelSize: 12
+                    font.pixelSize: 15
                     font.weight: Font.DemiBold
                 }
-            }
 
-            Rectangle {
-                id: progressTrack
-                width: parent.width
-                height: 7
-                radius: 4
-                color: startupScreen.fluentTheme ? Colors.c("scrollTrack") : startupScreen.grayTheme ? "#353535" : "#21262D"
-                clip: true
+                Item {
+                    width: parent.width
+                    height: 18
 
-                Rectangle {
-                    id: progressChunk
-                    width: progressTrack.width * Backend.otbmReader.loadingProgress / 100
-                    height: parent.height
-                    radius: 4
-                    color: startupScreen.fluentTheme ? Colors.c("loading") : startupScreen.grayTheme ? "#C79A3B" : "#2EA043"
+                    Text {
+                        anchors {
+                            left: parent.left
+                            right: progressPercent.left
+                            rightMargin: 12
+                            verticalCenter: parent.verticalCenter
+                        }
+                        text: Backend.fileTools.fileName(startupScreen.loadingMapPath)
+                        color: startupScreen.fluentTheme ? Colors.c("text") : startupScreen.grayTheme ? "#E0E0E0" : "#C9D1D9"
+                        font.family: startupScreen.fluentTheme ? Colors.family() : Qt.application.font.family
+                        font.pixelSize: 13
+                        elide: Text.ElideMiddle
+                    }
 
-                    Behavior on width {
-                        NumberAnimation { duration: 25; easing.type: Easing.OutCubic }
+                    Text {
+                        id: progressPercent
+                        anchors {
+                            right: parent.right
+                            verticalCenter: parent.verticalCenter
+                        }
+                        text: Backend.otbmReader.loadingProgress + "%"
+                        color: startupScreen.fluentTheme ? Colors.c("text") : startupScreen.grayTheme ? "#E3BC62" : "#56D364"
+                        font.family: startupScreen.fluentTheme ? Colors.family() : Qt.application.font.family
+                        font.pixelSize: 12
+                        font.weight: Font.DemiBold
                     }
                 }
-            }
 
-            Text {
-                text: Backend.otbmReader.loadingStage.length > 0
-                      ? Backend.otbmReader.loadingStage
-                      : "Preparing map..."
-                color: "#7D8590"
-                font.family: startupScreen.fluentTheme ? Colors.family() : Qt.application.font.family
-                font.pixelSize: 11
+                Rectangle {
+                    id: progressTrack
+                    width: parent.width
+                    height: 7
+                    radius: 4
+                    color: startupScreen.fluentTheme ? Colors.c("scrollTrack") : startupScreen.grayTheme ? "#353535" : "#21262D"
+                    clip: true
+
+                    Rectangle {
+                        id: progressChunk
+                        width: progressTrack.width * Backend.otbmReader.loadingProgress / 100
+                        height: parent.height
+                        radius: 4
+                        color: startupScreen.fluentTheme ? Colors.c("loading") : startupScreen.grayTheme ? "#C79A3B" : "#2EA043"
+
+                        Behavior on width {
+                            NumberAnimation { duration: 25; easing.type: Easing.OutCubic }
+                        }
+                    }
+                }
+
+                Text {
+                    text: Backend.otbmReader.loadingStage.length > 0
+                          ? Backend.otbmReader.loadingStage
+                          : "Preparing map..."
+                    color: "#7D8590"
+                    font.family: startupScreen.fluentTheme ? Colors.family() : Qt.application.font.family
+                    font.pixelSize: 11
+                }
             }
         }
     }
 
-    FolderDialog {
-        id: versionFolderDialogStartup
-        title: "Select client folder for " + app.profileLabel(app.pendingKey) + " (Tibia.dat / Tibia.spr / items.otb)"
-        onAccepted: app.onVersionFolderPicked(selectedFolder)
-        onRejected: startupScreen.loadingMap = false
+    LazyToolHost {
+        id: folderHost
+        objectName: "startupFolderHost"
+        toolSource: Qt.resolvedUrl("tools/StartupFolderDialog.qml")
+        initialProperties: ({startupWindow: startupScreen})
     }
-
-    FileDialog {
-        id: startMapDialog
-        title: "Open .otbm map"
-        nameFilters: ["OTBM maps (*.otbm)", "All files (*)"]
-        onAccepted: startupScreen.beginLoadMap(Backend.fileTools.toLocalFile(selectedFile),
-                                               verCombo.selKey)
+    LazyToolHost {
+        id: openMapHost
+        objectName: "startupOpenMapHost"
+        toolSource: Qt.resolvedUrl("tools/StartupOpenMapDialog.qml")
+        initialProperties: ({startupWindow: startupScreen})
     }
-
-    NewMapDialog {
-        id: startupNewMapDialog
-        app: startupScreen.app
-        preferredProfileKey: verCombo.selKey
+    LazyToolHost {
+        id: newMapHost
+        objectName: "startupNewMapHost"
+        toolSource: Qt.resolvedUrl("tools/StartupNewMapDialog.qml")
+        initialProperties: ({startupWindow: startupScreen})
     }
 }

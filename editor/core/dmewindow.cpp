@@ -1,6 +1,7 @@
 #include "dmewindow.h"
 
 #include <QPlatformSurfaceEvent>
+#include <atomic>
 
 #ifdef Q_OS_WIN
 #include <QtCore/qt_windows.h>
@@ -8,9 +9,37 @@
 #include <dwmapi.h>
 #endif
 
-DmeWindow::DmeWindow(QWindow *parent) : QQuickWindow(parent)
+struct DmeWindow::PresentedFrameState {
+    std::atomic<quint64> requested{0};
+    std::atomic<quint64> synchronized{0};
+};
+
+DmeWindow::DmeWindow(QWindow *parent) : QQuickWindow(parent),
+    m_presentedFrameState(std::make_shared<PresentedFrameState>())
 {
     setFlags(Qt::Window | Qt::FramelessWindowHint);
+    // Synchronization blocks the GUI thread. Capturing the request here avoids
+    // accepting a queued frameSwapped from before the feedback became visible.
+    const auto state = m_presentedFrameState;
+    connect(this, &QQuickWindow::beforeSynchronizing, this, [state] {
+        state->synchronized.store(state->requested.exchange(0));
+    }, Qt::DirectConnection);
+    connect(this, &QQuickWindow::frameSwapped, this, [this, state] {
+        const auto token = state->synchronized.exchange(0);
+        if (token) QMetaObject::invokeMethod(this, [this, token] {
+            emit presentedFrame(token);
+        }, Qt::QueuedConnection);
+    }, Qt::DirectConnection);
+
+}
+
+quint64 DmeWindow::requestPresentedFrame()
+{
+    if (!isVisible() || visibility() == QWindow::Minimized) return 0;
+    const auto token = ++m_nextFrameToken;
+    m_presentedFrameState->requested.store(token);
+    update();
+    return token;
 }
 
 void DmeWindow::setRoundedCorners(bool rounded)

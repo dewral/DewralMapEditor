@@ -47,6 +47,7 @@ set(DME_QML_FILES
     editor/qml/components/WorkTimerExportDialog.qml
     editor/qml/components/WorkTimerPopupContent.qml
     editor/qml/components/WorkTimerPopupHost.qml
+    editor/qml/components/SaveProgressDialog.qml
     editor/qml/components/WorkTimerStatus.qml
     editor/qml/components/WorkTimerTaskPanel.qml
     editor/qml/components/ZoneDisplayPanel.qml
@@ -187,6 +188,9 @@ set(DME_QML_FILES
     editor/qml/tools/SearchResultsDialogTool.qml
     editor/qml/tools/SelectionItemDialogTool.qml
     editor/qml/tools/StartupErrorDialog.qml
+    editor/qml/tools/StartupFolderDialog.qml
+    editor/qml/tools/StartupNewMapDialog.qml
+    editor/qml/tools/StartupOpenMapDialog.qml
     editor/qml/tools/TerrainGeneratorDialogTool.qml
     editor/qml/tools/TileMapGenDialogTool.qml
     editor/qml/tools/TownsDialogTool.qml

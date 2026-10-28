@@ -21,6 +21,9 @@ Item {
     property alias recentMaps: documents.recentMaps
     property alias pendingMapPath: documents.pendingMapPath
     property alias pendingKey: documents.pendingKey
+    readonly property bool saving: documents.saving
+    readonly property string savingFileName: documents.savingFileName
+    function afterPresentedFrame(token) { documents.afterPresentedFrame(token); }
     property alias savedToast: documents.savedToast
     property alias appCloseAllowed: documents.appCloseAllowed
     property alias appCloseSaveAsPending: documents.appCloseSaveAsPending

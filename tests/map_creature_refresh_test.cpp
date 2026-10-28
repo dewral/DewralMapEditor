@@ -241,6 +241,7 @@ bool atlasBudget(const QTemporaryDir &directory)
 #include "map_pixel_selection_checks.h"
 #include "map_preview_renderer_checks.h"
 #include "map_view_position_checks.h"
+#include "map_goto_render_checks.h"
 #include "map_item_location_checks.h"
 #include "map_rubber_band_checks.h"
 
@@ -259,6 +260,8 @@ int main(int argc, char **argv)
     QCoreApplication::setApplicationName(QStringLiteral("MapView"));
     QSettings::setDefaultFormat(QSettings::IniFormat);
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDirectory.path());
+    if (application.arguments().contains("--goto-render-only"))
+        return testGoToRendering() ? 0 : 1;
     if (application.arguments().contains(QStringLiteral("--rubber-band-only")))
         return testRubberBandRegions() ? 0 : 1;
     if (QCoreApplication::arguments().contains(QStringLiteral("--view-position-only"))) {
@@ -347,11 +350,28 @@ int main(int argc, char **argv)
     if (!expectOutfits(view, red, red)) return 1;
     {
         IngamePreviewScene previewStyle;
+        const auto hasNameColor = [](const QVariantMap &bitmap, QColor expected) {
+            const auto url = bitmap.value("nameSource").toString().toLatin1();
+            const auto image = QImage::fromData(QByteArray::fromBase64(url.mid(url.indexOf(',') + 1)));
+            for (int y = 0; y < image.height(); ++y)
+                for (int x = 0; x < image.width(); ++x)
+                    if (image.pixelColor(x, y) == expected) return true;
+            return false;
+        };
+        const auto monster = previewStyle.nameBitmap(QStringLiteral("Guide"), false);
+        const auto npc = previewStyle.nameBitmap(QStringLiteral("Guide"), true);
+        if (!require(hasNameColor(monster, QColor(0, 192, 0))
+                     && hasNameColor(npc, QColor(102, 204, 255))
+                     && monster.value("nameSource") != npc.value("nameSource")
+                     && previewStyle.nameBitmap(QStringLiteral("Guide"), false) == monster
+                     && previewStyle.nameBitmap(QStringLiteral("Guide"), true) == npc,
+                     "NPC and monster name colors or separate bitmap caches are incorrect")) return 1;
         const auto labels = view.previewMonsterLabels(1, 1, 7, 15, 11);
         if (!require(labels.size() == 2, "Editor creature labels were not generated")) return 1;
         for (const auto &entry : labels) {
             const auto information = entry.toMap();
-            const auto expected = previewStyle.nameBitmap(information.value("name").toString());
+            const auto expected = previewStyle.nameBitmap(information.value("name").toString(),
+                                                          information.value("npc").toBool());
             if (!require(information.value("nameSource") == expected.value("nameSource")
                          && information.value("nameWidth") == expected.value("nameWidth")
                          && information.value("nameWidth").toInt() > 0,

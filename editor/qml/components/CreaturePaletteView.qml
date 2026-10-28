@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import "../themes/tibia" as TibiaSkin
 import QtQuick.Controls
 import Tibia 1.0
 import "../style"
@@ -10,7 +11,7 @@ Column {
 
     required property var app
     required property var mapCtrl
-    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
+    readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
     required property bool githubUi
     required property string searchText
     required property string filterMode
@@ -133,6 +134,12 @@ Column {
                               ? (root.fluentUi ? "#B8BDC2" : root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
                               : (root.githubUi ? (root.grayUi ? "#424242" : "#202A35") : "#3a3a3a")
                 border.width: isBrush ? 2 : 1
+
+                Loader {
+                    anchors.fill: parent
+                    active: Backend.uiTheme.style === "tibia-ui"
+                    sourceComponent: TibiaSkin.TibiaSlot { selected: creatureDelegate.isBrush; hovered: creatureMouseArea.containsMouse }
+                }
 
                 Column {
                     anchors.centerIn: parent

@@ -1,6 +1,11 @@
 pragma Singleton
 import QtQuick
 QtObject {
+    property QtObject workTimer: QtObject {
+        property bool ready: true
+        property bool loading: false
+        function ensureLoaded() {}
+    }
     property string screenshotPath: ""
     property var brushArchiveCalls: []
     property string brushArchiveError: ""
@@ -24,6 +29,32 @@ QtObject {
     function exportObd(serverId, destination) {
         obdExportCalls = obdExportCalls.concat([{serverId: serverId, destination: String(destination)}]);
         return "";
+    }
+    property QtObject generationLibrary: QtObject {
+        signal stateChanged()
+        onBusyChanged: stateChanged()
+        property var entries: []
+        property bool busy: false
+        property int progress: 0
+        property string status: "Ready"
+        property var result: ({})
+        property var lastBlueprint: ({})
+        function selectProfile(profile) { return profile.length > 0; }
+        function load(id) { return entries.find(e => e.id === id) || {}; }
+        function capture(name,snapshot) {return {success:!!snapshot.success,id:"captured-example"};}
+        function saveBlueprint(name,blueprint,id) { return {success:true}; }
+        function remove(id) { return {success:true}; }
+        property var learnedParameters: ({})
+        property var learnedExamples: []
+        function learnStyle(name,examples,prefabs,parameters) {learnedExamples=examples;learnedParameters=parameters;busy=true;result={};return true;}
+        function generate(style,blueprint,context) { lastBlueprint=blueprint;busy=true;result={};return true; }
+        function reviseStyle(id,roles) {return {success:false,error:"test"};}
+        function saveRecipe(name,recipe) {return {success:true,id:"recipe"};}
+        function attachRecipe(style,id,prefabs) {return {success:false,error:"test"};}
+        function exportPackage(path) {return {success:true};}
+        function importPackage(path) {return {success:true};}
+        function cancel() { busy=false; }
+        function importExample(name,path,region,materials) { return true; }
     }
     property QtObject tileMapGenProfiles: QtObject {
         property var profiles: []
@@ -108,6 +139,7 @@ QtObject {
         property int redoCount: 0
         property var fileHeader: ({success: false})
         function inspectFileHeader(path) { return fileHeader; }
+        function reportLoadingProgress(value, stage) { loadingProgress = value; loadingStage = stage; }
         function finishLoading(success) { loading = false; }
         signal mapChanged()
     }

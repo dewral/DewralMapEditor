@@ -1,0 +1,12 @@
+api,timing,case,frames,draws_per_render,sprites,mean_ms,p95_ms,p99_ms,image_equal
+opengl,cpu-submit,merged,120,1,3072,0.002105,0.0029,0.005,1
+opengl,cpu-submit,chunk64,120,48,3072,0.0120267,0.0148,0.017,1
+opengl,cpu-submit,per-sprite,120,3072,3072,1.0603,1.4693,1.592,1
+opengl,cpu-submit,cache-static,120,1,3072,0.0018925,0.0039,0.0042,1
+opengl,cpu-submit,merged-upload-every-frame,120,1,3072,0.0184608,0.0586,0.1294,1
+api,timing,case,frames,draws_per_render,sprites,mean_ms,p95_ms,p99_ms,image_equal
+opengl,serialized-completed,merged,120,1,3072,0.00211333,0.0042,0.0059,1
+opengl,serialized-completed,chunk64,120,48,3072,0.0150258,0.0277,0.0361,1
+opengl,serialized-completed,per-sprite,120,3072,3072,1.00874,1.299,1.5775,1
+opengl,serialized-completed,cache-static,120,1,3072,0.00121083,0.0013,0.0013,1
+opengl,serialized-completed,merged-upload-every-frame,120,1,3072,0.008915,0.0191,0.0204,1

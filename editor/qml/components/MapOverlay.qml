@@ -27,11 +27,12 @@ Item {
     readonly property int tooltipMinimumZoom: typeof settings.tooltipMinimumZoom === "number" ? settings.tooltipMinimumZoom : 0
     readonly property bool tooltipsVisible: settings.showTooltips && currentTileSize / 32 * 100 >= tooltipMinimumZoom
     onTooltipsVisibleChanged: { scheduleRefresh(true); syncTooltipModels(); }
+    readonly property bool creaturesVisible: !!mapCtrl && mapCtrl.showCreatures === true
     readonly property real canvasMargin: 64
 
     clip: true
     visible: settings.showClientBox || settings.showTooltips || settings.showWaypoints
-             || settings.showHouses || settings.showLightSources
+             || settings.showHouses || settings.showLightSources || creaturesVisible
 
     function refreshData(force) {
         if (!mapCtrl)
@@ -220,7 +221,7 @@ Item {
                 textFormat: Text.PlainText
                 wrapMode: Text.Wrap
                 color: itemTip.textColor
-                font.family: Colors.fontFamily
+                font.family: Colors.family()
                 font.pixelSize: 12
             }
         }
@@ -264,7 +265,7 @@ Item {
                     width: parent.width
                     text: containerTip.modelData.text
                     color: containerTip.textColor
-                    font.family: Colors.fontFamily
+                    font.family: Colors.family()
                     font.pixelSize: 12
                     textFormat: Text.PlainText
                 }
@@ -315,7 +316,7 @@ Item {
                     text: "+" + (containerTip.modelData.itemCount - containerTip.modelData.items.length)
                           + " more"
                     color: containerTip.textColor
-                    font.family: Colors.fontFamily
+                    font.family: Colors.family()
                     font.pixelSize: 12
                 }
             }
@@ -438,7 +439,7 @@ Item {
     }
     Component.onCompleted: refreshData(true)
 
-    // Use the same fixed-size creature information as the in-game preview.
+    // Editor names follow creature visibility independently of item tooltips.
     QtObject {
         id: monsterCamera
         property real visualX: overlay.currentOriginX + overlay.width / (2 * overlay.currentTileSize) - 0.5
@@ -446,12 +447,13 @@ Item {
         property int z: overlay.mapCtrl.floor
     }
     IngameMonsterOverlay {
+        objectName: "editorCreatureLabels"
         alignToMapPixels: true
         width: overlay.width / viewScale
         height: overlay.height / viewScale
         scale: viewScale
         transformOrigin: Item.TopLeft
-        visible: overlay.tooltipsVisible
+        visible: overlay.creaturesVisible
         source: overlay.mapCtrl
         controller: monsterCamera
         viewScale: overlay.currentTileSize / 32

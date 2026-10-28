@@ -14,7 +14,7 @@ ColumnLayout {
         return (command.label + " " + command.category + " " + command.shortcut
                 + " " + command.defaultShortcut).toLowerCase().includes(query);
     }).sort((a, b) => a.category.localeCompare(b.category) || a.label.localeCompare(b.label))
-    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
+    readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
     readonly property color textColor: fluentUi ? Colors.c("text") : "#F0F3F6"
     readonly property color mutedColor: fluentUi ? Colors.c("muted") : "#8B949E"
     readonly property color accentColor: fluentUi ? Colors.c("accent") : "#58A6FF"

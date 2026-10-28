@@ -1,4 +1,5 @@
 import QtQuick
+import "../themes/tibia" as TibiaSkin
 import QtQuick.Controls
 import QtQuick.Effects
 import "../themes/fluent/Colors.js" as Colors
@@ -6,6 +7,9 @@ import Tibia 1.0
 
 Rectangle {
     id: root
+    readonly property bool tibiaUi: Backend.uiTheme.style === "tibia-ui"
+    readonly property int commandWidth: tibiaUi ? 38 : 40
+    readonly property int commandHeight: tibiaUi ? 38 : 32
     required property var mapView
     property var settings
     property bool brushDragActive: false
@@ -19,23 +23,25 @@ Rectangle {
     readonly property bool toolsDocked: settings && settings.toolsDock === "topbar"
     readonly property bool hasDockedPanels: brushDocked || toolsDocked
     readonly property int dockedWidth: (brushDocked ? 280 : 0) + (toolsDocked ? 489 : 0) + (brushDocked && toolsDocked ? 12 : 0)
-    readonly property bool compactLighting: width < commands.width + 472
+    readonly property bool compactLighting: width < commands.width + (tibiaUi ? 570 : 472)
     readonly property bool secondRow: hasDockedPanels && (compactLighting || width < commands.width + lightSwitch.width + previewButton.width + animationButton.width + ambientButton.width + dockedWidth + 62)
     signal newRequested()
     signal openRequested()
     signal saveRequested()
     signal saveAsRequested()
     color: Colors.c("toolbar")
+    TibiaSkin.TibiaSkin { anchors.fill: parent; visible: !root.tibiaUi }
+    Loader { anchors.fill: parent; active: root.tibiaUi; sourceComponent: TibiaSkin.TibiaClassicFrame { kind: "panel" } }
     Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Colors.c("separator") }
     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Colors.c("separator") }
-    implicitHeight: 42 + (compactLighting ? 36 : 0) + (secondRow ? 36 : 0)
+    implicitHeight: (tibiaUi ? 54 : 42) + (compactLighting ? (tibiaUi ? 46 : 36) : 0) + (secondRow ? 36 : 0)
     Behavior on implicitHeight { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
     Row {
         id: commands
-        y: 5
+        y: root.tibiaUi ? 8 : 5
         anchors.left: parent.left
         anchors.leftMargin: 10
-        spacing: 2
+        spacing: root.tibiaUi ? 4 : 2
         Repeater {
             model: [
                 {name: "New map", op: "new"},
@@ -51,8 +57,8 @@ Rectangle {
             delegate: Item {
                 id: commandCell
                 required property var modelData
-                readonly property bool dividerBefore: modelData.op === "open" || modelData.op === "undo" || modelData.op === "cut"
-                width: 40 + (dividerBefore ? 13 : 0); height: 32
+                readonly property bool dividerBefore: (!root.tibiaUi && modelData.op === "open") || modelData.op === "undo" || modelData.op === "cut"
+                width: root.commandWidth + (dividerBefore ? 13 : 0); height: root.commandHeight
                 Rectangle {
                     visible: commandCell.dividerBefore
                     x: 5; width: 1; height: 28; anchors.verticalCenter: parent.verticalCenter
@@ -60,26 +66,29 @@ Rectangle {
                 }
                 ToolButton {
                 id: toolButton
+                objectName: "topbarCommand_" + modelData.op
                 focusPolicy: Qt.NoFocus
                 onPressed: root.mapView.forceActiveFocus()
                 readonly property var modelData: commandCell.modelData
                 x: commandCell.dividerBefore ? 13 : 0
-                width: 40; height: 32
+                width: root.commandWidth; height: root.commandHeight
                 contentItem: Item {
                     Image {
                         anchors.centerIn: parent
-                        width: 20
-                        height: 20
-                        source: "image://tibiaui/fluent-icon/" + toolButton.modelData.op + "/" + String(Colors.c("buttonText")).replace("#", "")
-                        sourceSize: Qt.size(20, 20)
-                        opacity: toolButton.enabled ? 1 : 0.35
+                        width: root.tibiaUi ? 26 : 20
+                        height: width
+                        source: root.tibiaUi ? Qt.resolvedUrl("../themes/tibia/icons/" + toolButton.modelData.op + ".svg") : "image://tibiaui/fluent-icon/" + toolButton.modelData.op + "/" + String(root.tibiaUi ? ({open:"#e7af42",save:"#4da6d2",saveAs:"#79bce0"}[toolButton.modelData.op] || Colors.c("buttonText")) : Colors.c("buttonText")).replace("#", "")
+                        sourceSize: Qt.size(width, height)
+                        opacity: toolButton.enabled ? 1 : root.tibiaUi ? 0.42 : 0.35
                     }
                 }
                 background: Rectangle {
-                    radius: 4
+                    radius: root.tibiaUi ? 0 : 4
                     color: toolButton.down ? Colors.c("selectedHover") : toolButton.hovered ? Colors.c("selected") : "transparent"
                     border.width: 0
                     border.color: "#777C80"
+                    TibiaSkin.TibiaSkin { anchors.fill: parent; kind: "button"; pressed: toolButton.down; hovered: toolButton.hovered; visible: !root.tibiaUi }
+                    Loader { anchors.fill: parent; active: root.tibiaUi; sourceComponent: TibiaSkin.TibiaClassicFrame { kind: "button"; pressed: toolButton.down } }
                 }
                 font.pixelSize: 16
                 palette.buttonText: "#eeeeee"
@@ -112,7 +121,7 @@ Rectangle {
     }
     Flickable {
         x: root.secondRow ? 10 : ambientButton.x + ambientButton.width + 14
-        y: root.secondRow ? (root.compactLighting ? 79 : 43) : 6
+        y: root.secondRow ? (root.tibiaUi ? (root.compactLighting ? 100 : 54) : (root.compactLighting ? 79 : 43)) : 6
         width: Math.max(0, root.width - 10 - x)
         height: 30
         opacity: root.hasDockedPanels ? 1 : 0
@@ -178,9 +187,9 @@ Rectangle {
         objectName: "fluentIngamePreviewButton"
         anchors.left: commands.right
         anchors.leftMargin: 12
-        y: 5
-        width: 40
-        height: 32
+        y: root.tibiaUi ? 8 : 5
+        width: root.commandWidth
+        height: root.commandHeight
 
         enabled: Backend.otbmReader.loaded && !!root.settings
         checkable: true
@@ -189,16 +198,18 @@ Rectangle {
         contentItem: Item {
             Image {
                 anchors.centerIn: parent
-                width: 20; height: 20
-                source: "image://tibiaui/fluent-icon/preview/" + String(Colors.c("buttonText")).replace("#", "")
-                sourceSize: Qt.size(20, 20)
+                width: root.tibiaUi ? 26 : 20; height: width
+                source: root.tibiaUi ? Qt.resolvedUrl("../themes/tibia/icons/preview.svg") : "image://tibiaui/fluent-icon/preview/" + String(Colors.c("buttonText")).replace("#", "")
+                sourceSize: Qt.size(width, height)
                 opacity: previewButton.enabled ? 1 : 0.35
             }
         }
         background: Rectangle {
-            radius: 4
+            radius: root.tibiaUi ? 0 : 4
             color: previewButton.down ? Colors.c("selectedHover")
                    : previewButton.checked || previewButton.hovered ? Colors.c("selected") : "transparent"
+            TibiaSkin.TibiaSkin { anchors.fill: parent; kind: "button"; selected: previewButton.checked; hovered: previewButton.hovered; pressed: previewButton.down; visible: !root.tibiaUi }
+            Loader { anchors.fill: parent; active: root.tibiaUi; sourceComponent: TibiaSkin.TibiaClassicFrame { kind: "button"; pressed: previewButton.down || previewButton.checked } }
         }
         Accessible.name: "In-game Preview"
         ToolTip.visible: hovered
@@ -212,9 +223,9 @@ Rectangle {
         objectName: "fluentAnimationButton"
         anchors.left: previewButton.right
         anchors.leftMargin: 2
-        y: 5
-        width: 40
-        height: 32
+        y: root.tibiaUi ? 8 : 5
+        width: root.commandWidth
+        height: root.commandHeight
 
         enabled: Backend.otbmReader.loaded
         checkable: true
@@ -223,16 +234,18 @@ Rectangle {
         contentItem: Item {
             Image {
                 anchors.centerIn: parent
-                width: 20; height: 20
-                source: "image://tibiaui/fluent-icon/" + (animationButton.checked ? "animation-pause/" : "animation-play/") + String(Colors.c("buttonText")).replace("#", "")
-                sourceSize: Qt.size(20, 20)
+                width: root.tibiaUi ? 26 : 20; height: width
+                source: root.tibiaUi ? Qt.resolvedUrl("../themes/tibia/icons/"+(animationButton.checked ? "animation-pause" : "animation-play")+".svg") : "image://tibiaui/fluent-icon/" + (animationButton.checked ? "animation-pause/" : "animation-play/") + String(Colors.c("buttonText")).replace("#", "")
+                sourceSize: Qt.size(width, height)
                 opacity: animationButton.enabled ? 1 : 0.35
             }
         }
         background: Rectangle {
-            radius: 4
+            radius: root.tibiaUi ? 0 : 4
             color: animationButton.down ? Colors.c("selectedHover")
                    : animationButton.checked || animationButton.hovered ? Colors.c("selected") : "transparent"
+            TibiaSkin.TibiaSkin { anchors.fill: parent; kind: "button"; selected: animationButton.checked; hovered: animationButton.hovered; pressed: animationButton.down; visible: !root.tibiaUi }
+            Loader { anchors.fill: parent; active: root.tibiaUi; sourceComponent: TibiaSkin.TibiaClassicFrame { kind: "button"; pressed: animationButton.down || animationButton.checked } }
         }
         Accessible.name: "Item animations"
         ToolTip.visible: hovered
@@ -244,9 +257,9 @@ Rectangle {
         focusPolicy: Qt.NoFocus
         onPressed: root.mapView.forceActiveFocus()
         objectName: "fluentLightSwitch"
-        anchors.left: animationButton.right; anchors.leftMargin: 2
-        y: 5
-        width: 40; height: 32
+        anchors.left: animationButton.right; anchors.leftMargin: root.tibiaUi ? 14 : 2
+        y: root.tibiaUi ? 8 : 5
+        width: root.commandWidth; height: root.commandHeight
         enabled: Backend.otbmReader.loaded
         checkable: true
         checked: root.mapView.torchOn
@@ -256,9 +269,9 @@ Rectangle {
                 id: lightingIcon
                 objectName: "lightingButtonIcon"
                 anchors.centerIn: parent
-                width: 20; height: 20
-                source: "image://tibiaui/fluent-icon/lighting/" + String(Colors.c("buttonText")).replace("#", "")
-                sourceSize: Qt.size(20, 20)
+                width: root.tibiaUi ? 26 : 20; height: width
+                source: root.tibiaUi ? Qt.resolvedUrl("../themes/tibia/icons/lighting.svg") : "image://tibiaui/fluent-icon/lighting/" + String(Colors.c("buttonText")).replace("#", "")
+                sourceSize: Qt.size(width, height)
                 opacity: lightSwitch.enabled ? 1 : 0.35
             }
         MultiEffect {
@@ -277,29 +290,34 @@ Rectangle {
         }
         background: Rectangle {
             objectName: "lightingButtonBackground"
-            radius: 4
+            TibiaSkin.TibiaSkin { anchors.fill: parent; kind: "button"; selected: lightSwitch.checked; hovered: lightSwitch.hovered; pressed: lightSwitch.down; visible: !root.tibiaUi }
+            Loader { anchors.fill: parent; active: root.tibiaUi; sourceComponent: TibiaSkin.TibiaClassicFrame { kind: "button"; pressed: lightSwitch.down || lightSwitch.checked } }
+            radius: root.tibiaUi ? 0 : 4
             border.width: 0
             color: lightSwitch.down ? Colors.c("selectedHover")
                    : lightSwitch.hovered ? Colors.c("selected") : "transparent"
         }
         Accessible.name: "Lighting"
         ToolTip.visible: hovered
-        ToolTip.text: (checked ? "Disable map lighting" : "Enable map lighting") + " · Right-click: settings"
+        ToolTip.text: (checked ? "Disable map lighting" : "Enable map lighting") + " Â· Right-click: settings"
         ToolTip.delay: 650
     }
     Row {
         id: ambientButton
+        objectName: "topbarLightingControls"
         anchors.left: root.compactLighting ? parent.left : lightSwitch.right; anchors.leftMargin: root.compactLighting ? 10 : 8
-        y: root.compactLighting ? 41 : 5; height: 32; spacing: 8
+        y: root.compactLighting ? (root.tibiaUi ? 54 : 49) : root.tibiaUi ? 8 : 5; height: root.commandHeight; spacing: 8
         enabled: Backend.otbmReader.loaded
         opacity: enabled ? 1 : 0.35
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: "Brightness"; color: Colors.c("muted"); font.pixelSize: 11
+            text: root.tibiaUi ? "Brightness:" : "Brightness"; color: root.tibiaUi ? "#dededb" : Colors.c("muted"); font.pixelSize: root.tibiaUi ? 12 : 11; font.family: Colors.family(); font.bold: Colors.bold()
         }
         LightingSlider {
             id: brightnessSlider
-            width: 130; height: 32
+            objectName: "topbarBrightnessSlider"
+            classicValueFill: root.tibiaUi
+            width: root.tibiaUi ? 176 : 130; height: root.commandHeight
             from: 0; to: 255; stepSize: 1
             focusPolicy: Qt.NoFocus
             value: root.mapView.lightAmbient
@@ -308,8 +326,8 @@ Rectangle {
         }
         TextField {
             id: brightnessValue
-            width: 42; height: 24; anchors.verticalCenter: parent.verticalCenter
-            padding: 3; font.pixelSize: 11
+            width: root.tibiaUi ? 64 : 42; height: root.tibiaUi ? 30 : 24; anchors.verticalCenter: parent.verticalCenter
+            padding: 3; font.pixelSize: root.tibiaUi ? 12 : 11; font.family: Colors.family(); font.bold: Colors.bold()
             color: Colors.c("buttonText"); horizontalAlignment: Text.AlignHCenter
             selectByMouse: true
             validator: IntValidator { bottom: 0; top: 255 }
@@ -323,12 +341,13 @@ Rectangle {
             background: Rectangle {
                 color: "transparent"
                 border.color: brightnessValue.activeFocus ? Colors.c("sliderFill") : Colors.c("border")
+                Loader { anchors.fill: parent; active: root.tibiaUi; sourceComponent: TibiaSkin.TibiaClassicFrame { kind: "field" } }
             }
         }
         ToolButton {
             id: ambientColorButton
             objectName: "brightnessColorButton"
-            width: 76; height: 24; anchors.verticalCenter: parent.verticalCenter
+            width: 92; height: root.tibiaUi ? 30 : 24; anchors.verticalCenter: parent.verticalCenter
             padding: 4
             focusPolicy: Qt.NoFocus
             onClicked: { lightingControls.paletteOpen = true; lightingPopup.open(); }
@@ -340,14 +359,15 @@ Rectangle {
                     border.color: Colors.c("border")
                 }
                 Text {
-                    text: root.mapView.lightAmbientColor + " ▾"
+                    text: root.mapView.lightAmbientColor + " \u25be"
                     anchors.verticalCenter: parent.verticalCenter
-                    color: Colors.c("buttonText"); font.pixelSize: 11
+                    color: Colors.c("buttonText"); font.pixelSize: root.tibiaUi ? 12 : 11; font.family: Colors.family(); font.bold: Colors.bold()
                 }
             }
             background: Rectangle {
                 color: ambientColorButton.hovered || lightingPopup.opened ? Colors.c("selected") : "transparent"
                 border.color: Colors.c("border")
+                Loader { anchors.fill: parent; active: root.tibiaUi; sourceComponent: TibiaSkin.TibiaClassicFrame { kind: "button"; pressed: ambientColorButton.down || lightingPopup.opened } }
             }
             Accessible.name: "Light color"
             ToolTip.visible: hovered; ToolTip.delay: 650; ToolTip.text: "Choose light color"

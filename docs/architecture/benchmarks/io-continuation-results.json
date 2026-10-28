@@ -1,0 +1,24 @@
+{
+    "allObserved": true,
+    "backupAlias": {
+        "backupContainsSpawnsXml": true,
+        "backupEqualsPreviousMap": false,
+        "backupValidOtbm": false,
+        "primaryValidOtbm": true,
+        "saveAccepted": true
+    },
+    "multiProcess": {
+        "offeredRecoveries": 0,
+        "otherInstanceMarkedClean": true,
+        "snapshotExistedBefore": true,
+        "snapshotStillExists": true,
+        "writerSessionDirty": true
+    },
+    "timestamps": {
+        "offeredRecoveries": 0,
+        "originalHasNewTile": false,
+        "originalMtimeAfterSnapshot": true,
+        "snapshotHasNewTile": true,
+        "snapshotStillExists": true
+    }
+}

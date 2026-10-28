@@ -185,6 +185,8 @@ signals:
     void clientVersionChanged();
 
 private:
+    friend class ClientLoadService;
+    friend struct ClientPreparedState;
 
     void readCategory(BinaryReader &reader,
                       std::vector<ClientItem> *outItems,

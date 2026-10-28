@@ -9,9 +9,11 @@ import "../dialogs"
 
 Item {
     id: root
-    component TimerLabel: Text { font.family: "Segoe UI" }
+    component TimerLabel: Text { font.family: Backend.uiTheme.style === "tibia-ui" ? "Verdana" : "Segoe UI"; font.bold: Backend.uiTheme.style === "tibia-ui" }
     property var timerService: Backend.workTimer
     property var activityService: Backend.activity
+    property var popupHost
+    function openPanel() { if (popupHost) popupHost.openFor(root); }
     property bool statusBarMode: false
     implicitWidth: statusBarMode ? 344 : 245
     implicitHeight: 30
@@ -20,7 +22,7 @@ Item {
     property var selectedSession: null
     property string pendingTimerRemoval: ""
     property bool showTimerDetails: false
-    readonly property bool fluentTheme: Backend.uiTheme.style === "fluent-dark"
+    readonly property bool fluentTheme: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
     readonly property bool grayTheme: fluentTheme || Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
     readonly property color panelColor: grayTheme ? "#202122" : "#0F141B"
@@ -43,7 +45,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: root.statusBarMode ? 4 : root.fluentTheme ? 0 : 4
+        radius: Backend.uiTheme.style === "tibia-ui" ? 0 : root.statusBarMode ? 4 : root.fluentTheme ? 0 : 4
         color: hit.containsMouse ? root.hoverColor : "transparent"
     }
     RowLayout {
@@ -125,7 +127,7 @@ Item {
 
             Rectangle {
                 anchors.fill: parent
-                radius: root.statusBarMode ? 4 : root.fluentTheme ? 0 : 4
+                radius: Backend.uiTheme.style === "tibia-ui" ? 0 : root.statusBarMode ? 4 : root.fluentTheme ? 0 : 4
                 color: statusToggleMouse.containsMouse ? root.activeFill : "transparent"
                 border.width: root.statusBarMode || root.timerService.active ? 1 : 0
                 border.color: root.accent
@@ -173,7 +175,7 @@ Item {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     if (!root.timerService.active) {
-                        panel.open()
+                        root.openPanel()
                     } else if (root.timerService.running) {
                         root.timerService.pauseSession()
                     } else {
@@ -189,231 +191,7 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: panel.open()
+        onClicked: root.openPanel()
     }
 
-    Popup {
-        id: panel
-        objectName: "workTimerPopup"
-        width: Math.min(560, (root.Window.window ? root.Window.window.width : 584) - 24)
-        height: Math.min(root.showTimerDetails || stack.currentIndex !== 0 ? 700
-            : 454 + Math.min(3, Math.max(1, root.timerService.taskTimers.length)) * 62,
-            (root.Window.window ? root.Window.window.height : 724) - 24)
-        margins: 12
-        x: Math.min(0, root.width - width)
-        y: -height - 8
-        padding: 0
-        modal: false
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle {
-            color: root.panelColor
-            border.color: root.borderColor
-            border.width: 1
-            radius: 8
-        }
-
-        Column {
-            anchors.fill: parent
-            anchors.margins: 20
-            spacing: 14
-
-            RowLayout {
-                width: parent.width; height: 34; spacing: 8
-                TimerLabel { text: "\uE916"; font.family: "Segoe Fluent Icons"; font.pixelSize: 22; color: root.accent }
-                TimerLabel {
-                    Layout.fillWidth: true
-                    text: stack.currentIndex === 0 ? "Work timer" : stack.currentIndex === 1 ? "History" : "My activity"
-                    color: root.strongText; font.pixelSize: 20; font.weight: Font.DemiBold; elide: Text.ElideRight
-                }
-                DmeButton { id: activityButton; objectName: "workTimerActivity"; Layout.preferredWidth: 96; Layout.preferredHeight: 30; text: stack.currentIndex === 2 ? "Timer" : "My activity"; onClicked: stack.currentIndex = stack.currentIndex === 2 ? 0 : 2 }
-                DmeButton { id: historyButton; objectName: "workTimerHistory"; Layout.preferredWidth: 76; Layout.preferredHeight: 30; text: stack.currentIndex === 1 ? "Back" : "History"; onClicked: stack.currentIndex = stack.currentIndex === 1 ? 0 : 1 }
-                DmeButton { objectName: "workTimerClose"; Layout.preferredWidth: 28; Layout.preferredHeight: 30; text: "×"; onClicked: panel.close() }
-            }
-
-            StackLayout {
-                id: stack
-                width: parent.width
-                height: parent.height - 48
-                currentIndex: 0
-
-                Item {
-                    Flickable {
-                        id: timerScroll
-                        anchors { fill: parent; rightMargin: 12 }
-                        contentWidth: width
-                        contentHeight: timerContent.height
-                        clip: true
-                        boundsBehavior: Flickable.StopAtBounds
-
-                    Column {
-                    id: timerContent
-                    width: timerScroll.width
-                    spacing: 10
-                    WorkTimerTaskPanel {
-                        id: taskDashboard
-                        width: parent.width
-                        timerService: root.timerService
-                        canStart: typeof Backend.docMgr.currentDocumentId === "string" && Backend.docMgr.currentDocumentId.length > 0
-                        note: noteField.text
-                        detailsExpanded: root.showTimerDetails
-                        panelColor: root.panelColor; cardColor: root.cardColor; borderColor: root.borderColor
-                        foreground: root.strongText; muted: root.mutedText; accent: root.accent
-                        onDetailsRequested: root.showTimerDetails = !root.showTimerDetails
-                        onRemoveRequested: task => { root.pendingTimerRemoval = task; removeTimerConfirm.open(); }
-                        onIconRequested: (task, icon) => {
-                            iconPicker.task = task; iconPicker.currentIcon = icon; iconPicker.open();
-                        }
-                    }
-                    Row {
-                        visible: root.showTimerDetails
-                        spacing: 8
-                        DmeCheckBox { text: "Session checkpoints"; checked: root.timerService.checkpointEnabled; onClicked: root.timerService.checkpointEnabled = !checked }
-                        TimerLabel { anchors.verticalCenter: parent.verticalCenter; text: "Break reminder"; color: root.mutedText; font.pixelSize: 11 }
-                        DmeSpinBox { width: 70; from: 0; to: 480; value: root.timerService.breakReminderMinutes; onValueModified: root.timerService.breakReminderMinutes = value }
-                        TimerLabel { anchors.verticalCenter: parent.verticalCenter; text: "min"; color: root.mutedText; font.pixelSize: 11 }
-                    }
-                    DmeTextField { id: noteField; width: parent.width; visible: root.showTimerDetails && root.timerService.active; placeholderText: "Optional session note" }
-                    TimerLabel { visible: root.showTimerDetails; text: "SESSION SUMMARY"; color: root.mutedText; font.pixelSize: 10; font.bold: true; font.letterSpacing: 0.6 }
-                    DmePanel {
-                        visible: root.showTimerDetails
-                        width: parent.width
-                        height: 82
-                        Grid {
-                            anchors { fill: parent; margins: 9 }
-                            columns: 2; columnSpacing: 42; rowSpacing: 7
-                            TimerLabel { text: "Today   " + root.timerService.todayText; color: root.foreground; font.pixelSize: 11 }
-                            TimerLabel { text: "This week   " + root.timerService.weekText; color: root.foreground; font.pixelSize: 11 }
-                            TimerLabel { text: "This map   " + root.timerService.currentMapText; color: root.foreground; font.pixelSize: 11 }
-                            TimerLabel { text: "Total   " + root.timerService.totalText; color: root.foreground; font.pixelSize: 11 }
-                            TimerLabel { text: "Operations   " + root.timerService.operationCount; color: root.mutedText; font.pixelSize: 10 }
-                            TimerLabel { text: "Changed tiles   " + root.timerService.changedTileCount; color: root.mutedText; font.pixelSize: 10 }
-                        }
-                    }
-                    Row {
-                        visible: root.showTimerDetails
-                        spacing: 8
-                        DmeCheckBox {
-                            text: "Idle-Pause"
-                            checked: root.timerService.idlePauseMinutes > 0
-                            onClicked: root.timerService.idlePauseMinutes = checked ? 0 : 15
-                        }
-                        DmeSpinBox { width: 70; from: 0; to: 120; value: root.timerService.idlePauseMinutes; onValueModified: root.timerService.idlePauseMinutes = value }
-                        TimerLabel { anchors.verticalCenter: parent.verticalCenter; text: "min"; color: root.mutedText; font.pixelSize: 11 }
-                    }
-                    Item { width: 1; height: 2 }
-                    }
-                    }
-
-                    DmeScrollBar {
-                        anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
-                        flickable: timerScroll
-                    }
-                }
-
-                Column {
-                    spacing: 8
-                    ListView {
-                        id: historyList
-                        width: parent.width
-                        height: root.selectedSession ? 280 : 390
-                        clip: true
-                        model: root.timerService.history
-                        delegate: Rectangle {
-                            id: historyRow
-                            required property var modelData
-                            required property int index
-                            width: historyList.width
-                            height: 58
-                            radius: root.fluentTheme ? 0 : 4
-                            color: historyMouse.containsMouse ? root.hoverColor : (index % 2 ? root.panelColor : root.cardColor)
-                            border.width: 1
-                            border.color: root.borderColor
-                            Column {
-                                anchors { fill: parent; margins: 7 }
-                                TimerLabel { width: parent.width; text: modelData.task + "  ·  " + root.timerService.formatDuration(modelData.durationSeconds); color: root.strongText; font.pixelSize: 12; elide: Text.ElideRight }
-                                TimerLabel { width: parent.width; text: modelData.mapName + "  |  " + modelData.startedAt + "  |  " + modelData.changedTiles + " tiles"; color: root.mutedText; font.pixelSize: 10; elide: Text.ElideRight }
-                            }
-                            MouseArea {
-                                id: historyMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    root.selectedSession = modelData
-                                    editTask.text = modelData.task
-                                    editNote.text = modelData.note || ""
-                                    editDuration.text = modelData.durationText
-                                }
-                            }
-                        }
-                        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-                    }
-                    Column {
-                        width: parent.width
-                        visible: root.selectedSession !== null
-                        spacing: 5
-                        Row {
-                            spacing: 6
-                            DmeTextField { id: editTask; width: 190; placeholderText: "Task" }
-                            DmeTextField { id: editDuration; width: 105; placeholderText: "HH:MM:SS" }
-                        }
-                        DmeTextField { id: editNote; width: parent.width; placeholderText: "Note" }
-                        Row {
-                            spacing: 6
-                            DmeButton {
-                                text: "Save changes"
-                                onClicked: {
-                                    var seconds = root.durationFromText(editDuration.text)
-                                    if (seconds >= 0 && root.timerService.updateSession(root.selectedSession.id, editTask.text, editNote.text, seconds))
-                                        root.selectedSession = null
-                                }
-                            }
-                            DmeButton { text: "Delete"; onClicked: { root.timerService.removeSession(root.selectedSession.id); root.selectedSession = null } }
-                            DmeButton { text: "Cancel"; onClicked: root.selectedSession = null }
-                        }
-                    }
-                    Row {
-                        spacing: 8
-                        DmeButton { text: "Export CSV"; onClicked: csvDialog.open() }
-                        DmeButton { text: "Export JSON"; onClicked: jsonDialog.open() }
-                    }
-                }
-                Flickable {
-                    contentWidth: width; contentHeight: personalActivity.implicitHeight
-                    clip: true; boundsBehavior: Flickable.StopAtBounds
-                    WorkActivityPanel {
-                        id: personalActivity; width: parent.width; service: root.activityService
-                        foreground: root.strongText; muted: root.mutedText; accent: root.accent
-                        cardColor: root.cardColor; borderColor: root.borderColor
-                        onAccountRequested: activityAccount.open()
-                    }
-                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-                }
-            }
-        }
-    }
-    TaskIconPicker {
-        id: iconPicker
-        parent: panel.contentItem
-        x: (parent.width - width) / 2; y: 50
-        timerService: root.timerService
-        panelColor: root.panelColor; cardColor: root.cardColor; borderColor: root.borderColor
-        foreground: root.strongText; muted: root.mutedText; accent: root.accent
-        onDraftSelected: icon => taskDashboard.chooseDraftIcon(icon)
-    }
-    ActivityDialog { id: activityAccount; service: root.activityService }
-
-    DmeConfirmDialog {
-        id: removeTimerConfirm
-        title: "Delete timer"
-        message: "Delete timer \"" + root.pendingTimerRemoval
-                 + "\", including its current run and recorded sessions?"
-        onAccepted: {
-            root.timerService.removeTaskTimer(root.pendingTimerRemoval)
-            root.pendingTimerRemoval = ""
-        }
-    }
-
-    FileDialog { id: csvDialog; title: "Export work sessions as CSV"; fileMode: FileDialog.SaveFile; nameFilters: ["CSV files (*.csv)"]; defaultSuffix: "csv"; onAccepted: root.timerService.exportCsv(selectedFile) }
-    FileDialog { id: jsonDialog; title: "Export work sessions as JSON"; fileMode: FileDialog.SaveFile; nameFilters: ["JSON files (*.json)"]; defaultSuffix: "json"; onAccepted: root.timerService.exportJson(selectedFile) }
 }

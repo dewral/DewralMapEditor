@@ -221,6 +221,50 @@ Item {
             mouseClick(grid.itemAtIndex(row), 8, 8, button || Qt.LeftButton,
                        modifiers || Qt.NoModifier);
         }
+        function test_tibiaWindowFramePersistsWhenDocked() {
+            Backend.uiTheme.style="tibia-ui";
+            const panel=createTemporaryObject(panelComponent,testRoot);
+            verify(panel);
+            const background=findChild(panel,"floatingPaletteBackground");
+            verify(background!==null); compare(background.active,true);
+            panel.floating=true;
+            tryCompare(background,"active",true);
+            tryVerify(()=>background.item!==null);
+            const image=findChild(background,"tibiaDialogFrame");
+            tryCompare(image,"status",Image.Ready);
+            compare(background.width,panel.width); verify(background.height<panel.height);
+            const toolsFrame=findChild(panel,"toolsSectionFrame");
+            const brushFrame=findChild(panel,"brushSectionFrame");
+            verify(toolsFrame.active && brushFrame.active);
+            verify(toolsFrame.mapToItem(panel,0,0).y>=background.height);
+            verify(brushFrame.mapToItem(panel,0,0).y>=toolsFrame.mapToItem(panel,0,toolsFrame.height).y);
+            compare(image.border.left,4); compare(image.border.top,17);
+            verify(String(image.source).indexOf("dialog-frame-borderimage.png")>=0);
+            compare(image.caption,panel.currentKind); compare(image.contentTopMargin,25);
+            image.captionActivated();
+            const kindPicker=findChild(panel,"paletteKindCombo");
+            tryCompare(kindPicker,"open",true);
+            keyClick(Qt.Key_Escape); tryCompare(kindPicker,"open",false);
+
+            verify(findChild(image,"tibiaWindowMouseShield")!==null);
+            wait(250);
+            grabImage(panel).save("build/tibia-palette-window.png");
+            for(const width of [260,340,480]) {
+                panel.width=width; panel.height=600; wait(250);
+                compare(background.width,panel.width);
+                const toolsTop=toolsFrame.mapToItem(panel,0,0);
+                const brushTop=brushFrame.mapToItem(panel,0,0);
+                verify(toolsTop.y>=background.height);
+                verify(brushTop.y>=toolsTop.y+toolsFrame.height);
+                verify(brushTop.y+brushFrame.height<=panel.height);
+                const doors=findChild(panel,"fluentToolDoors");
+                verify(doors.mapToItem(panel,doors.width,0).x<=panel.width);
+            }
+            panel.floating=false;
+            tryCompare(background,"active",true); compare(background.item,image);
+            Backend.uiTheme.style="fluent-dark";
+            tryCompare(background,"active",false); compare(background.item,null);
+        }
         function test_rawTilesetSurvivesRestart_data() {
             return ["fluent-dark", "gray-dark", "gray-modern", "github", "classic", "windows-classic"]
                     .map(theme => ({tag: theme, theme: theme}));

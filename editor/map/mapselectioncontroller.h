@@ -3,6 +3,7 @@
 
 #include "otbmreader.h"
 
+#include <QHash>
 #include <QSet>
 #include <QPoint>
 #include <QString>
@@ -26,6 +27,10 @@ struct MapClipboardTile {
 class MapSelectionController
 {
 public:
+    // Nonnegative values are item indices; -2 is a creature, -3 a spawn.
+    QHash<quint64, int> entities;
+    bool pixelPerfect = false;
+    int entity(quint64 key) const { return entities.value(key, -1); }
     QSet<quint64> &selected() { return m_selected; }
     const QSet<quint64> &selected() const { return m_selected; }
     QSet<quint64> &selectedChunks() { return m_selectedChunks; }

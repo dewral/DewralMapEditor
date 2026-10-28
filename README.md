@@ -271,7 +271,7 @@ cmake --build --preset windows-release
 ### Build with an existing Qt installation
 
 Developers who already have a compatible Qt 6 SDK may use it directly.
-The renderer requires Qt 6.7 or later, including Shader Tools (`qsb`) and
+The editor requires Qt 6.10 or later, including Shader Tools (`qsb`) and
 GuiPrivate development headers. Qt 6.10.2 is the currently validated SDK:
 
 ```powershell

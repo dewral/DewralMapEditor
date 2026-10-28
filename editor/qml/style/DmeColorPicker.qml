@@ -102,7 +102,7 @@ DmeDialog {
                 width: parent.width - 52; height: 32
                 text: String(root.selectedColor).toUpperCase()
                 color: Colors.c("text")
-                font.family: Colors.fontFamily
+                font.family: Colors.family()
                 validator: RegularExpressionValidator { regularExpression: /#[0-9a-fA-F]{6}/ }
                 selectByMouse: true
                 background: Rectangle { radius: 4; color: Colors.c("field"); border.color: hex.activeFocus ? Colors.c("accent") : Colors.c("border") }

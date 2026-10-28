@@ -1311,7 +1311,7 @@ OtbmMapItem OtbmReader::makeItem(uint16_t serverId) const
 
 bool OtbmReader::addItem(int x, int y, int z, uint16_t serverId)
 {
-    if (serverId == 0 || x < 0 || y < 0 || z < 0 || z > 15) {
+    if (serverId == 0 || !validPosition(x, y, z)) {
         return false;
     }
 
@@ -1349,7 +1349,7 @@ bool OtbmReader::placeItem(int x, int y, int z, uint16_t serverId,
 bool OtbmReader::placeItem(int x, int y, int z, const OtbmMapItem &src,
                            int index, bool replace, bool isGround)
 {
-    if (src.server_id == 0 || x < 0 || y < 0 || z < 0 || z > 15) {
+    if (src.server_id == 0 || !validPosition(x, y, z)) {
         return false;
     }
 
@@ -1474,7 +1474,7 @@ int OtbmReader::replaceItemsById(int x, int y, int z, uint16_t fromId, uint16_t 
 
 OtbmTile *OtbmReader::getOrCreateTileRaw(int x, int y, int z)
 {
-    if (x < 0 || y < 0 || z < 0 || z > 15) return nullptr;
+    if (!validPosition(x, y, z)) return nullptr;
     const quint64 key = posKey3d(x, y, z);
     auto it = m_posIndex.find(key);
     if (it != m_posIndex.end()) return &m_tiles[static_cast<size_t>(it.value())];
@@ -1490,7 +1490,7 @@ OtbmTile *OtbmReader::getOrCreateTileRaw(int x, int y, int z)
 
 OtbmTile *OtbmReader::tileForSpawnEdit(int x, int y, int z)
 {
-    if (x < 0 || y < 0 || z < 0 || z > 15) return nullptr;
+    if (!validPosition(x, y, z)) return nullptr;
     recordTile(x, y, z);
     return getOrCreateTileRaw(x, y, z);
 }
@@ -3685,16 +3685,30 @@ bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
         setError(error);
         return false;
     }
-    auto sameTarget = [](const QString &a, const QString &b) {
-        if (a.isEmpty() || b.isEmpty()) return false;
-        return QFileInfo(a).absoluteFilePath().compare(QFileInfo(b).absoluteFilePath(),
-                                                       Qt::CaseInsensitive) == 0;
+    const auto normalizedTarget = [](const QString &path) {
+        const QFileInfo file(path);
+        const QString canonical = file.canonicalFilePath();
+        if (!canonical.isEmpty()) return canonical;
+        const QString parent = file.dir().canonicalPath();
+        return QDir::cleanPath(parent.isEmpty() ? file.absoluteFilePath()
+                                               : QDir(parent).filePath(file.fileName()));
     };
-    if (sameTarget(spawnTarget, houseTarget) || sameTarget(spawnTarget, path)
-        || sameTarget(houseTarget, path)) {
-        restoreDocumentMetadata();
-        setError(QStringLiteral("The OTBM, spawn, and house files must use different paths"));
-        return false;
+    QStringList targets;
+    for (const QString &target : {path, spawnTarget, houseTarget}) {
+        if (target.isEmpty()) continue;
+        targets.append(normalizedTarget(target));
+        if (!recoveryMode) targets.append(normalizedTarget(target + QStringLiteral(".bak")));
+    }
+    // Preserve the existing conservative policy, also on case-insensitive
+    // volumes mounted on platforms other than Windows.
+    constexpr auto pathCase = Qt::CaseInsensitive;
+    for (qsizetype i = 0; i < targets.size(); ++i) {
+        for (qsizetype j = 0; j < i; ++j) {
+            if (targets[i].compare(targets[j], pathCase) != 0) continue;
+            restoreDocumentMetadata();
+            setError(QStringLiteral("The OTBM, spawn, house and backup files must use different paths"));
+            return false;
+        }
     }
 
     QSaveFile mapOutput(path);

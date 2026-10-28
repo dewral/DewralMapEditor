@@ -69,7 +69,8 @@ UiTheme::UiTheme(QObject *parent)
         m_style = QStringLiteral("fluent-dark");
     if (m_style == QLatin1String("flat"))
         m_style = QStringLiteral("github-dark");
-    if (m_style != QLatin1String("fluent-dark") &&
+    if (m_style != QLatin1String("tibia-ui") &&
+        m_style != QLatin1String("fluent-dark") &&
         m_style != QLatin1String("github-dark") &&
         m_style != QLatin1String("gray-dark") &&
         m_style != QLatin1String("gray-modern") &&
@@ -117,7 +118,8 @@ void UiTheme::setHighlightedColor(const QString &key)
 
 void UiTheme::setStyle(const QString &s)
 {
-    const QString v = (s == QLatin1String("fluent-dark") ||
+    const QString v = (s == QLatin1String("tibia-ui") ||
+                       s == QLatin1String("fluent-dark") ||
                        s == QLatin1String("github-dark") ||
                        s == QLatin1String("gray-dark") ||
                        s == QLatin1String("gray-modern") ||
@@ -158,6 +160,8 @@ QVariantList UiTheme::styles() const
     out.push_back(windowsClassic);
     out.push_back(QVariantMap{{QStringLiteral("id"), QStringLiteral("fluent-dark")},
                              {QStringLiteral("name"), QStringLiteral("Fluent Dark")}});
+    out.push_back(QVariantMap{{QStringLiteral("id"), QStringLiteral("tibia-ui")},
+                             {QStringLiteral("name"), QStringLiteral("Tibia-UI")}});
     return out;
 }
 
@@ -392,7 +396,7 @@ QImage UiTheme::texture(const QString &file) const
         return img;
     }
     if (style == QLatin1String("fluent-dark") || style == QLatin1String("github-dark") ||
-        style == QLatin1String("windows-classic")) {
+        style == QLatin1String("windows-classic") || style == QLatin1String("tibia-ui")) {
         return img;
     }
     if (t == QColor(Qt::white)) {

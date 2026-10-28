@@ -16,6 +16,7 @@ TestCase {
     }
     QtObject {
         id: startup
+        property bool loadingMap: false
         function openVersionFolderDialog() { testCase.folderRequests++; }
     }
     QtObject {
@@ -36,6 +37,11 @@ TestCase {
         function ensureClientVersion(key) {
             testCase.calls.push("profile:" + key);
             return clientLoadSucceeds;
+        }
+        function prepareClientVersion(key, callback) {
+            const success = ensureClientVersion(key);
+            Qt.callLater(function() { callback(success, success ? "" : "Client data missing"); });
+            return 1;
         }
     }
     Controllers.DocumentController {
@@ -72,8 +78,16 @@ TestCase {
         Backend.otbmReader.fileHeader = {success: false};
     }
 
+    function test_duplicateOpenStartsOneDecoder() {
+        verify(documents.loadEverything("legacy.otbm", "760"));
+        verify(documents.loadEverything("legacy.otbm", "760"));
+        tryVerify(() => calls.length === 2);
+        compare(calls, ["profile:760", "load:legacy.otbm"]);
+    }
+
     function test_legacyLoadsMatchingDefinitionsBeforeDecoder() {
         verify(documents.loadEverything("legacy.otbm", "760"));
+        tryVerify(() => calls.length === 2);
         compare(calls, ["profile:760", "load:legacy.otbm"]);
         compare(documents.activePreferredProfileKey, "760");
     }
@@ -82,13 +96,14 @@ TestCase {
         profiles.clientLoadSucceeds = false;
         verify(documents.loadEverything("legacy.otbm", "760"));
         compare(calls, ["profile:760"]);
-        compare(folderRequests, 1);
+        tryCompare(testCase, "folderRequests", 1);
         compare(documents.pendingKey, "760");
         compare(documents.activeLoadPath, "");
 
         profiles.clientLoadSucceeds = true;
         documents.onVersionFolderPicked("C:/client76");
         compare(profiles.clientPaths["760"], "C:/client76");
+        tryVerify(() => calls.length === 3);
         compare(calls, ["profile:760", "profile:760", "load:legacy.otbm"]);
         compare(documents.pendingMapPath, "");
     }
@@ -96,6 +111,7 @@ TestCase {
     function test_modernMapAlsoLoadsSubtypeDefinitionsBeforeDecode() {
         Backend.otbmReader.fileHeader = {success: true, otbmVersion: 2, clientVersion: 1098};
         verify(documents.loadEverything("modern.otbm", "1098"));
+        tryVerify(() => calls.length === 2);
         compare(calls, ["profile:1098", "load:modern.otbm"]);
     }
 }

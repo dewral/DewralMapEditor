@@ -2,6 +2,7 @@
 
 Application screens use neutral controls from `qml/style/Dme*.qml`.
 
+- `themes/tibia` adds the Tibia-UI texture skin to the Fluent layout.
 - `themes/classic/controls` owns Classic/Tibia textures and metrics.
 - `themes/github/controls` owns GitHub UI colors, radii and metrics.
 - `themes/gray/controls` owns the neutral gray palette and turquoise accent.
@@ -17,6 +18,7 @@ Application screens use neutral controls from `qml/style/Dme*.qml`.
 All themes can be smoke-tested without changing saved user settings:
 
 ```text
+DME_UI_STYLE_OVERRIDE=tibia-ui
 DME_UI_STYLE_OVERRIDE=classic
 DME_UI_STYLE_OVERRIDE=github-dark
 DME_UI_STYLE_OVERRIDE=gray-dark

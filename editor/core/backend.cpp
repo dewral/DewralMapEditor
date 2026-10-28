@@ -18,6 +18,7 @@ Backend::Backend(QObject *parent)
 {
     Q_ASSERT(!s_instance);
     s_instance = this;
+    m_clientLoader = new ClientLoadService(this);
     m_otbReader.setDatReader(&m_datReader);
     m_otbReader.setItemsXml(&m_itemsXml);
     m_tilesetStore.setItemSource(&m_otbReader);
@@ -27,6 +28,9 @@ Backend::Backend(QObject *parent)
 
 Backend::~Backend()
 {
+    // Cancel detached work before the model members are destroyed.
+    delete m_clientLoader;
+    m_clientLoader = nullptr;
     s_instance = nullptr;
 }
 

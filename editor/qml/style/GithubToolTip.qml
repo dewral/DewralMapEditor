@@ -8,7 +8,7 @@ import "../themes/fluent/Colors.js" as FluentColors
 // ApplicationWindow and therefore has no guaranteed Controls overlay).
 Item {
     id: root
-    readonly property bool fluentTheme: Backend.uiTheme.style === "fluent-dark"
+    readonly property bool fluentTheme: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
 
@@ -88,7 +88,7 @@ Item {
         font.pixelSize: 12
         textFormat: Text.PlainText
         wrapMode: Text.Wrap
-        font.family: FluentColors.fontFamily
+        font.family: FluentColors.family()
         verticalAlignment: Text.AlignVCenter
     }
 }

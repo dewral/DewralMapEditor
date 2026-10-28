@@ -39,7 +39,8 @@ Item {
         }
         for (const entry of next) {
             const row = {labelName: entry.name, tileX: entry.x, tileY: entry.y,
-                         elevation: entry.elevation, isNpc: !!entry.npc};
+                         elevation: entry.elevation, isNpc: !!entry.npc,
+                         bitmapSource: entry.nameSource || "", bitmapWidth: entry.nameWidth || 0};
             const index = indexes[entry.x + ":" + entry.y];
             if (index === undefined) labels.append(row);
             else {
@@ -83,6 +84,7 @@ Item {
         function onContentUpdated() { root.refresh(!root.source || !root.source.otbm) }
         function onViewFlagsChanged() { root.refresh(true) }
         function onReadersChanged() { root.refresh(true) }
+        function onAtlasChanged() { root.refresh(true) }
     }
     Connections {
         target: root.source && root.source.otbm ? root.source.otbm : null
@@ -92,33 +94,22 @@ Item {
     }
     Repeater {
         model: labels
-        delegate: Item {
+        delegate: CreatureInformation {
             objectName: "monsterInformation"
             required property string labelName
             required property int tileX
             required property int tileY
             required property int elevation
             required property bool isNpc
-            width: 27; height: 4
-            // Map creatures are rendered without the preview player's 8px displacement.
-            x: (tileX - root.renderedCenterX) * 32 + root.width / 2
-               - elevation - width / 2
-            y: (tileY - root.renderedCenterY) * 32 + root.height / 2
-               - elevation - 18
-            scale: 1 / Math.max(0.01, root.viewScale)
-            transformOrigin: Item.Top
-            OtclientName {
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: -12
-                text: labelName
-                hostile: !isNpc
-                npc: !!isNpc
-            }
-            Rectangle {
-                anchors.fill: parent
-                color: "black"
-                Rectangle { objectName: "monsterHealthFill"; x: 1; y: 1; width: 25; height: 2; color: isNpc ? "#66ccff" : "#bf0a0a" }
-            }
+            required property string bitmapSource
+            required property int bitmapWidth
+            anchorX: (tileX - root.renderedCenterX) * 32 + root.width / 2 - elevation
+            anchorY: (tileY - root.renderedCenterY) * 32 + root.height / 2 - elevation - 16
+            viewportWidth: root.width
+            viewportHeight: root.height
+            viewScale: root.viewScale
+            nameSource: bitmapSource
+            nameWidth: bitmapWidth
         }
     }
 }

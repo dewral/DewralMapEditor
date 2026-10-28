@@ -8,7 +8,6 @@ endif()
 execute_process(
     COMMAND "${WINDEPLOYQT_EXECUTABLE}"
         --release
-        --force
         --dir "${APPLICATION_DIRECTORY}"
         --qmldir "${QML_SOURCE_DIRECTORY}"
         --no-translations

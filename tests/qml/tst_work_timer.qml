@@ -19,6 +19,9 @@ Item {
         property var names: ["Blackridge Mine", "Temple exterior", "Cave details"]
         property var taskTimers: []
         property var history: []
+        property var historyModel: history
+        property bool ready: true
+        property bool loading: false
         property string errorString: ""
         property bool checkpointEnabled: false
         property int breakReminderMinutes: 60
@@ -58,11 +61,24 @@ Item {
         property var summary: ({})
         signal changed()
     }
+    Components.WorkTimerPopupHost { id: popupHost }
     Components.WorkTimerStatus {
         id: status
         x: scene.width-width-20; y: scene.height-height-10
         width:344; height:44; statusBarMode:true
+        popupHost: popupHost
         timerService:timer; activityService:activity; accent:"#49a4c5"
+    }
+    Window {
+        id: previewWindow
+        width: 800; height: 600
+        visible: false
+        Components.WorkTimerStatus {
+            id: previewStatus
+            x: 420; y: 550; width: 344; height: 44
+            popupHost: popupHost
+            timerService: timer; activityService: activity
+        }
     }
     TestCase {
         name: "WorkTimer"
@@ -92,14 +108,27 @@ Item {
         function cleanup() {
             const picker=locate("taskIconPicker"); if(picker) picker.close();
             locate("workTimerPopup").close();
-            status.showTimerDetails=false;
+            locate("workTimerContent").showTimerDetails=false;
             scene.Window.window.height=800; scene.height=800;
+        }
+        function test_sharedPopupFollowsPreviewWindow() {
+            const original = locate("workTimerPopup");
+            previewWindow.show();
+            tryCompare(previewWindow, "visible", true);
+            verify(waitForRendering(previewWindow.contentItem));
+            previewStatus.openPanel();
+            compare(locate("workTimerPopup"), original);
+            compare(original.parent, previewWindow.contentItem);
+            status.openPanel();
+            compare(locate("workTimerPopup"), original);
+            compare(original.parent, scene.Window.window.contentItem);
+            previewWindow.hide();
         }
         function test_pauseResumeAndDetails() {
             mouseClick(locate("workTimerResumePause")); compare(timer.running,true);
             mouseClick(locate("workTimerResumePause")); compare(timer.running,false);
-            mouseClick(locate("workTimerDetails")); compare(status.showTimerDetails,true);
-            mouseClick(locate("workTimerDetails")); compare(status.showTimerDetails,false);
+            mouseClick(locate("workTimerDetails")); compare(locate("workTimerContent").showTimerDetails,true);
+            mouseClick(locate("workTimerDetails")); compare(locate("workTimerContent").showTimerDetails,false);
         }
         function test_activeTaskIconPicker() {
             const icon=locate("activeTaskIcon");

@@ -28,7 +28,7 @@ Item {
     Loader {
         id: controlLoader
         anchors.fill: parent
-        sourceComponent: Backend.uiTheme.style === "fluent-dark" ? fluentSpinBox : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicSpinBox : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? graySpinBox : githubSpinBox)
+        sourceComponent: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui") ? fluentSpinBox : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicSpinBox : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? graySpinBox : githubSpinBox)
     }
     // Keep external changes flowing to the themed control after a user edit.
     Binding {

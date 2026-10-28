@@ -92,7 +92,10 @@ quint32 MapView::renderCollectChunkInstances(int z, quint64 key, bool groundOnly
         if (groundOnly && !q.ground) continue;
         const QRect &slot = atlasSlots[static_cast<size_t>(q.atlasSlot)];
 
-        const float sel = ((m_selectionController.wholeStack() || q.topItem)
+        const float sel = ((m_selectionController.wholeStack()
+                           || (m_selectionController.entity(selKey(q.tileX, q.tileY, z)) != -1
+                               ? q.itemIndex == m_selectionController.entity(selKey(q.tileX, q.tileY, z))
+                               : q.topItem))
                            && m_selectionController.selected().contains(selKey(q.tileX, q.tileY, z))) ? 1.0f : 0.0f;
         out.push_back(static_cast<float>(q.worldX));
         out.push_back(static_cast<float>(q.worldY));
@@ -123,6 +126,7 @@ quint64 MapView::renderPointerOverlayVersion() const
     };
 
     mix(static_cast<quint32>(m_dataVersion));
+    mix(static_cast<quint32>(m_generationPaintMode));
     mix(static_cast<quint32>(m_hoverX));
     mix(static_cast<quint32>(m_hoverY));
     mix(static_cast<quint32>(m_navigationController.floor()));
@@ -784,15 +788,15 @@ QVariantList MapView::visibleZoneLabels() const
         QString name = parts.join(QStringLiteral(" + "));
         if (parts.size() == 1) for (int i = 0; i < 4; ++i) if (flags == bits[i]) name = names[i];
         if (house) {
-            name = QStringLiteral("House · #%1").arg(house);
-            for (const auto &entry : m_otbm->houses()) if (entry.id == house && !entry.name.isEmpty()) { name = QStringLiteral("House · ") + entry.name; break; }
+            name = QStringLiteral("House Â· #%1").arg(house);
+            for (const auto &entry : m_otbm->houses()) if (entry.id == house && !entry.name.isEmpty()) { name = QStringLiteral("House Â· ") + entry.name; break; }
             color = m_zoneColors[4].toString();
         }
         QString numberedIds;
         if (!zones.empty()) {
             QStringList ids;
             for (auto id : zones) ids.append(QString::number(id));
-            if (!name.isEmpty()) name += QStringLiteral(" · ");
+            if (!name.isEmpty()) name += QStringLiteral(" Â· ");
             name += QStringLiteral("Zone ") + ids.join(QStringLiteral(", "));
             numberedIds = ids.join(QLatin1Char(','));
             color = numberedZoneColor(zones.front()).name();
@@ -972,6 +976,7 @@ void MapView::renderCollectBrushCursorInstances(std::vector<float> &out,
 {
     out.clear();
     outBorder.clear();
+    if(m_generationPaintMode>=3)return;
 
     if (m_selectionController.moving() || m_selectionController.selecting() || m_editController.selectionMode()
         || m_selectionController.pasting() || m_hoverX < 0) return;
@@ -1043,6 +1048,7 @@ void MapView::renderCollectBrushCursorInstances(std::vector<float> &out,
 void MapView::renderCollectGhostInstances(std::vector<float> &out)
 {
     out.clear();
+    if(m_generationPaintMode)return;
     const auto &atlasSlots = m_atlasService.atlasSlots();
     if (m_hoverX < 0 || atlasSlots.empty() || !m_otb || !m_dat)
         return;
@@ -1297,7 +1303,8 @@ void MapView::renderCollectGhostInstances(std::vector<float> &out)
         previewTile.x = static_cast<uint16_t>(targetX);
         previewTile.y = static_cast<uint16_t>(targetY);
         previewTile.z = static_cast<uint8_t>(targetZ);
-        if (!m_selectionController.wholeStack() && !tile->items.empty()) {
+        if (!m_selectionController.wholeStack() && m_selectionController.entity(key) == -1
+            && !tile->items.empty()) {
             const OtbmMapItem &top = tile->items.back();
             const int clientId = m_otb->clientIdForServerId(top.server_id);
             const ClientItem *client = clientId > 0
@@ -1310,7 +1317,12 @@ void MapView::renderCollectGhostInstances(std::vector<float> &out)
             }
         }
         quads.clear();
-        appendTopItemQuads(&previewTile, quads);
+        const int entity = m_selectionController.entity(key);
+        if (!m_selectionController.wholeStack() && entity != -1) {
+            appendItemQuads(&previewTile, quads);
+            quads.erase(std::remove_if(quads.begin(), quads.end(),
+                [entity](const QuadRef &q) { return q.itemIndex != entity; }), quads.end());
+        } else appendTopItemQuads(&previewTile, quads);
         for (const QuadRef &q : quads) {
             const QRect &slot = atlasSlots[static_cast<size_t>(q.atlasSlot)];
             out.push_back(static_cast<float>(q.worldX));

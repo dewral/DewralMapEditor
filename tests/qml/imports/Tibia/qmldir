@@ -5,3 +5,9 @@ CreatureFilter 1.0 CreatureFilter.qml
 
 IngamePreviewController 1.0 IngamePreviewController.qml
 MapRhiView 1.0 MapRhiView.qml
+
+WeatherPreview 1.0 WeatherPreview.qml
+
+IngamePreviewView 1.0 IngamePreviewView.qml
+
+MinimapView 1.0 MinimapView.qml

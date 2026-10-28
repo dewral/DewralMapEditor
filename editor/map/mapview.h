@@ -119,6 +119,7 @@ class MapView : public QQuickItem
 
     Q_PROPERTY(bool showZonesAlways READ showZonesAlways WRITE setShowZonesAlways NOTIFY viewFlagsChanged)
 
+    Q_PROPERTY(bool pixelPerfectSelection READ pixelPerfectSelection WRITE setPixelPerfectSelection NOTIFY selectionOptionsChanged)
     Q_PROPERTY(int selectionFloors READ selectionFloors WRITE setSelectionFloors NOTIFY selectionOptionsChanged)
 
     Q_PROPERTY(bool compensatedSelect READ compensatedSelect WRITE setCompensatedSelect NOTIFY selectionOptionsChanged)
@@ -135,6 +136,16 @@ class MapView : public QQuickItem
     Q_PROPERTY(bool pathBuilderDrawing READ pathBuilderDrawing NOTIFY pathBuilderChanged)
     Q_PROPERTY(int pathPreviewCount READ pathPreviewCount NOTIFY pathBuilderChanged)
     Q_PROPERTY(bool terrainPreviewActive READ terrainPreviewActive NOTIFY terrainGeneratorChanged)
+    Q_PROPERTY(int generationPaintMode MEMBER m_generationPaintMode NOTIFY generationMaskChanged)
+    Q_PROPERTY(bool generationInputBlocked MEMBER m_generationInputBlocked NOTIFY generationBrushChanged)
+    Q_PROPERTY(int generationBrushWidth MEMBER m_generationBrushWidth NOTIFY generationBrushChanged)
+    Q_PROPERTY(int generationBrushRoughness MEMBER m_generationBrushRoughness NOTIFY generationBrushChanged)
+    Q_PROPERTY(uint generationBrushSeed MEMBER m_generationBrushSeed NOTIFY generationBrushChanged)
+    Q_PROPERTY(bool generationConnectRooms MEMBER m_generationConnectRooms NOTIFY generationBrushChanged)
+    Q_PROPERTY(QVariantList generationMask READ generationMask NOTIFY generationMaskChanged)
+    Q_PROPERTY(QVariantList generationPaths READ generationPaths NOTIFY generationMaskChanged)
+    Q_PROPERTY(bool generationPreviewActive READ generationPreviewActive NOTIFY generationPreviewChanged)
+    Q_PROPERTY(quint64 generationRevision READ generationRevision NOTIFY generationInvalidated)
     Q_PROPERTY(bool luaPreviewActive READ luaPreviewActive NOTIFY luaPreviewChanged)
     Q_PROPERTY(int terrainPreviewCount READ terrainPreviewCount NOTIFY terrainGeneratorChanged)
     Q_PROPERTY(bool groundClusterStampActive READ groundClusterStampActive NOTIFY groundClusterStampChanged)
@@ -397,6 +408,12 @@ public:
         emit contentUpdated(); update();
     }
 
+    bool pixelPerfectSelection() const { return m_selectionController.pixelPerfect; }
+    void setPixelPerfectSelection(bool value) {
+        if (m_selectionController.pixelPerfect == value) return;
+        m_selectionController.pixelPerfect = value;
+        emit selectionOptionsChanged();
+    }
     int selectionFloors() const { return m_selectionController.floorMode(); }
     void setSelectionFloors(int m) {
         m = std::clamp(m, 0, 2);
@@ -465,6 +482,7 @@ public:
     }
 
     const QImage &minimapImage();
+    const QImage &minimapImageForFloor(int z, MapMinimapService &cache) { return cache.image(z,m_chunkStore.tiles(),m_otb,m_dat); }
     int minimapOriginX() const { return m_minimapService.originX(); }
     int minimapOriginY() const { return m_minimapService.originY(); }
     quint32 minimapVersion() const { return m_minimapService.version(); }
@@ -664,6 +682,21 @@ public:
     Q_INVOKABLE void copySelection();
     Q_INVOKABLE QVariantList selectionItemIds();
     Q_INVOKABLE void rotateSelection(int quarterTurns = 1);
+    QVariantList generationMask() const;
+    QVariantList generationPaths() const;
+    bool generationPreviewActive() const { return !m_generationPatch.isEmpty() && luaPreviewActive(); }
+    quint64 generationRevision() const { return m_generationRevision; }
+    Q_INVOKABLE void setGenerationMask(const QVariantList &mask,const QVariantList &paths);
+    Q_INVOKABLE void generationMaskFromSelection(bool extend=false);
+    Q_INVOKABLE QVariantMap generationExample() const;
+    Q_INVOKABLE QVariantMap generationContext(bool refineSelection=false);
+    Q_INVOKABLE QVariantList generationPrefabs() const;
+    Q_INVOKABLE QVariantList generationCursorFootprint() const;
+    Q_INVOKABLE QVariantMap setGenerationPreview(const QVariantMap &patch,quint64 revision);
+    Q_INVOKABLE QVariantMap applyGenerationPreview();
+    Q_INVOKABLE void clearGenerationPreview();
+    Q_INVOKABLE void invalidateGeneration();
+    void paintGenerationAt(const QPoint &tile,bool erase=false);
     Q_INVOKABLE QVariantMap brushSelectionSnapshot(bool includeGround = false);
     Q_INVOKABLE QVariantMap saveSelectionAsPrefab(const QString &name,
                                                   const QString &palette);
@@ -757,6 +790,13 @@ public:
     void refreshUndoRedoTilesLocked();
 
 signals:
+    void generationMaskChanged();
+    void generationBrushChanged();
+    void generationStrokeFinished();
+    void generationBrushStopped();
+    void generationPrefabRequested(int x,int y,int z,bool erase);
+    void generationPreviewChanged();
+    void generationInvalidated();
     void hotkeyBindingsChanged();
     void readersChanged();
     void floorChanged();
@@ -825,6 +865,7 @@ private slots:
     void refreshCreatures();
 
 private:
+    friend class ClientLoadService;
     void saveViewPosition();
     bool restoreViewPosition();
     bool m_viewPositionReady = false;
@@ -839,8 +880,12 @@ private:
     using QuadRef = MapQuadRef;
 
     void buildStaticIndex();
-    QVariantMap queryItems(const QString &type, bool selectionOnly,
+    struct QuerySnapshot;
+    std::shared_ptr<const QuerySnapshot> captureQuerySnapshot(bool selectionOnly) const;
+    QVariantMap queryItems(const QuerySnapshot *snapshot, const QString &type,
                           int itemId, int resultLimit) const;
+    QVariantMap analyzeMap(const QuerySnapshot *snapshot) const;
+    void invalidateMapQuery();
     void updateCurrentFloor();
     void rebuildFloorIndex();
     void resetAtlas();
@@ -870,8 +915,19 @@ private:
                          bool animated = false);
     void invalidateChunkQuads(int z, quint64 chunkKey);
 
+    friend class IngamePreviewScene;
+    struct SelectionHit { QPoint tile; int entity = -1; bool hit = false; };
+    SelectionHit pickSelection(const QPointF &position) const;
     void refreshSelectionTint();
     void notifySelectionChanged() {
+        if (m_selectionController.wholeStack()) m_selectionController.entities.clear();
+        else {
+            auto &entities = m_selectionController.entities;
+            for (auto it = entities.begin(); it != entities.end(); ) {
+                if (!m_selectionController.selected().contains(it.key())) it = entities.erase(it);
+                else ++it;
+            }
+        }
         clearTerrainPreview();
         clearDungeonPreview();
         refreshSelectionTint();
@@ -994,6 +1050,18 @@ private:
         int serverId = 0;
     };
     QVector<TerrainPreviewTile> m_terrainPreview;
+    QVariantMap generationTile(int x,int y,int z,const QVariantMap &info) const;
+    QVariantMap generationMaterials() const;
+    QSet<quint64> m_generationMask,m_generationPaths;
+    int m_generationPaintMode=0;
+    bool m_generationInputBlocked=false;
+    int m_generationBrushWidth=7,m_generationBrushRoughness=35;
+    quint32 m_generationBrushSeed=1;
+    bool m_generationConnectRooms=true;
+    bool m_generationDrawing=false,m_generationErasing=false;
+    QPoint m_generationLast;
+    quint64 m_generationRevision=0,m_generationPreviewRevision=0;
+    QVariantMap m_generationPatch,m_generationRefinementBase;
     QHash<quint64,OtbmTile> m_luaPreviewTiles;
     QHash<int,QHash<quint64,QVector<quint64>>> m_luaPreviewChunks;
     QSet<QPair<int,quint64>> m_luaPreviewAnimated;
@@ -1056,6 +1124,7 @@ private:
     mutable std::recursive_mutex m_dataMutex;
     mutable std::atomic_bool m_queryCancel{false};
     mutable std::atomic_int m_queryProgress{0};
+    quint64 m_queryGeneration = 0; // GUI thread: rejects results for previous readers.
     bool m_queryBusy = false;
     QFuture<void> m_queryFuture;
     static constexpr int kPlaceEffectId = 3;

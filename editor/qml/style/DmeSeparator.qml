@@ -13,7 +13,7 @@ Item {
     Loader {
         id: controlLoader
         anchors.fill: parent
-        sourceComponent: Backend.uiTheme.style === "fluent-dark" ? fluentSeparator : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicSeparator : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? graySeparator : githubSeparator)
+        sourceComponent: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui") ? fluentSeparator : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicSeparator : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? graySeparator : githubSeparator)
     }
     Component { id: classicSeparator; Classic.ClassicSeparator { orientation: root.orientation } }
     Component { id: githubSeparator; Github.GithubSeparator { orientation: root.orientation } }

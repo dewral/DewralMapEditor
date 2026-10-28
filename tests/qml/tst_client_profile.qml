@@ -30,6 +30,11 @@ TestCase {
             requestedKey = key;
             return clientLoadSucceeds;
         }
+        function prepareClientVersion(key, callback) {
+            const success = ensureClientVersion(key);
+            Qt.callLater(function() { callback(success, success ? "" : "Client data missing"); });
+            return 1;
+        }
     }
 
     function init() {
@@ -87,16 +92,17 @@ TestCase {
 
     function test_switchingClientProfileSavesSelection() {
         verify(profiles.switchMapProfile("Midhem"));
-        compare(prefs.selectedClientKey, "Midhem");
+        tryCompare(prefs, "selectedClientKey", "Midhem");
         verify(profiles.switchMapProfile("1098"));
-        compare(prefs.selectedClientKey, "1098");
+        tryCompare(prefs, "selectedClientKey", "1098");
     }
 
     function test_failedProfileSwitchKeepsSavedSelection() {
         prefs.selectedClientKey = "Midhem";
         profiles.clientLoadSucceeds = false;
-        verify(!profiles.switchMapProfile("1098"));
-        compare(prefs.selectedClientKey, "Midhem");
+        verify(profiles.switchMapProfile("1098"));
+        wait(10);
+        tryCompare(prefs, "selectedClientKey", "Midhem");
     }
     function test_redux_profiles_and_version_labels() {
         verify(profiles.knownVersions.includes(740));

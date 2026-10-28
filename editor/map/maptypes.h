@@ -31,6 +31,7 @@ struct MapQuadRef {
     int tileY = 0;
     bool topItem = false;
     int zoneFlags = 0;
+    int itemIndex = -1;
 };
 
 #endif

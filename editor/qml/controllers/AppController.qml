@@ -1,4 +1,5 @@
 import QtQuick
+import Tibia 1.0
 
 Item {
     id: controller
@@ -6,6 +7,7 @@ Item {
     width: 0
     height: 0
 
+    required property var profiles
     required property var settings
     required property var mapView
     required property var appWindow
@@ -28,12 +30,12 @@ Item {
         documents.showToast(message)
     }
 
-    property alias clientPaths: profiles.clientPaths
-    property alias customProfiles: profiles.customProfiles
-    property alias mapProfiles: profiles.mapProfiles
-    property alias loadedClientVersion: profiles.loadedClientVersion
-    property alias loadedClientKey: profiles.loadedClientKey
-    property alias loadedClientFolder: profiles.loadedClientFolder
+    readonly property var clientPaths: profiles.clientPaths
+    readonly property var customProfiles: profiles.customProfiles
+    readonly property var mapProfiles: profiles.mapProfiles
+    readonly property var loadedClientVersion: profiles.loadedClientVersion
+    readonly property var loadedClientKey: profiles.loadedClientKey
+    readonly property var loadedClientFolder: profiles.loadedClientFolder
 
     property alias customPalettes: palettes.customPalettes
     property alias customPaletteNames: palettes.customPaletteNames
@@ -41,11 +43,7 @@ Item {
     property alias recentBrushIds: palettes.recentBrushIds
     property alias favoriteBrushIds: palettes.favoriteBrushIds
 
-    ClientProfileController {
-        id: profiles
-        settings: controller.settings
-        mapView: controller.mapView
-    }
+
 
     PaletteController {
         id: palettes
@@ -56,7 +54,7 @@ Item {
     DocumentController {
         id: documents
         settings: controller.settings
-        profiles: profiles
+        profiles: controller.profiles
         palettes: palettes
         mapView: controller.mapView
         appWindow: controller.appWindow
@@ -68,6 +66,8 @@ Item {
     }
 
     function initialize() {
+        profiles.mapView = controller.mapView;
+        Backend.clientLoader.attachViewport(controller.mapView);
         documents.initialize();
     }
 

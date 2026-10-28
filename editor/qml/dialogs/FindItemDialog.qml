@@ -19,7 +19,7 @@ DmeDialog {
     property int total: 0
     property bool truncated: false
     readonly property bool propertyMode: searchMode === "properties"
-    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
+    readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
     readonly property bool neutralUi: fluentUi || Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
     readonly property color foreground: windowsClassic ? "#202020"

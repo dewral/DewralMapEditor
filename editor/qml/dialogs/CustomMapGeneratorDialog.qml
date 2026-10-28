@@ -298,7 +298,7 @@ DmeDialog {
                 radius:6; color:Colors.c("surface"); border.color:Colors.c("border")
                 Column {
                     anchors.fill:parent; anchors.margins:10; spacing:8
-                    Text { font.family:Colors.fontFamily; text:"Available items"; color:Colors.c("text"); font.bold:true }
+                    Text { font.family:Colors.family(); text:"Available items"; color:Colors.c("text"); font.bold:true }
                     DmeTextField { id:search; width:parent.width; placeholderText:"Search name or ID…" }
                     GridView {
                         id:itemGrid; objectName:"customGeneratorItemsGrid"; width:parent.width; height:parent.height-108; clip:true; cellWidth:54; cellHeight:54
@@ -319,7 +319,7 @@ DmeDialog {
                                 id:image; anchors.centerIn:parent; width:38; height:38; smooth:false; fillMode:Image.PreserveAspectFit
                                 source:cell.spriteIds.length ? Backend.sprReader.itemImageSource(cell.spriteIds,cell.itemWidth,cell.itemHeight,cell.layers) : ""
                             }
-                            Text { font.family:Colors.fontFamily; anchors.bottom:parent.bottom; anchors.right:parent.right; text:cell.serverId; color:Colors.c("text"); font.pixelSize:9 }
+                            Text { font.family:Colors.family(); anchors.bottom:parent.bottom; anchors.right:parent.right; text:cell.serverId; color:Colors.c("text"); font.pixelSize:9 }
                             MouseArea {
                                 id:mouse; anchors.fill:parent; hoverEnabled:true; enabled:!Backend.luaScripts.busy
                                 drag.target:ghost
@@ -376,7 +376,7 @@ DmeDialog {
                         width:parent.width; wrapMode:Text.WordWrap
                         text:category.currentIndex===1 ? "Choosing a brush fills the four wall slots."
                             : "Choosing a brush adds it to "+dialog.groundRoleLabels[groundTarget.currentIndex]+". You can add multiple brushes."
-                        color:Colors.c("muted"); font.family:Colors.fontFamily; font.pixelSize:11
+                        color:Colors.c("muted"); font.family:Colors.family(); font.pixelSize:11
                     }
                 }
                 Text {
@@ -388,9 +388,9 @@ DmeDialog {
                         }
                         return "Used for room floor tiles without their own border set. Load a ground brush or add a ground item to edit its borders separately.";
                     }
-                    wrapMode:Text.WordWrap; color:Colors.c("muted"); font.family:Colors.fontFamily; font.pixelSize:11
+                    wrapMode:Text.WordWrap; color:Colors.c("muted"); font.family:Colors.family(); font.pixelSize:11
                 }
-                Text { font.family:Colors.fontFamily; text:"Variant weights: 1–100"; color:Colors.c("muted"); font.pixelSize:11 }
+                Text { font.family:Colors.family(); text:"Variant weights: 1–100"; color:Colors.c("muted"); font.pixelSize:11 }
                 ScrollView {
                     id:slotScroll; width:parent.width; height:parent.height-56-(brushControls.visible ? brushControls.height+8 : 0)-(borderHint.visible ? borderHint.height+8 : 0); clip:true
                     Column {
@@ -421,7 +421,7 @@ DmeDialog {
                     Column {
                         width:optionsScroll.availableWidth; spacing:8
                         enabled:!Backend.luaScripts.busy
-                        Text { font.family:Colors.fontFamily; text:"Generation settings"; color:Colors.c("text"); font.bold:true }
+                        Text { font.family:Colors.family(); text:"Generation settings"; color:Colors.c("text"); font.bold:true }
                         DmeComboBox { id:kindPicker; objectName:"customGeneratorKind"; width:parent.width; model:["Dungeon","Cave"]; onActivated: index => dialog.edit("kind",index===1 ? "cave" : "dungeon") }
                         Binding { target:kindPicker; property:"currentIndex"; value:dialog.profile.kind==="cave" ? 1 : 0 }
                         Repeater {
@@ -432,12 +432,12 @@ DmeDialog {
                                 id:settingField
                                 required property var modelData
                                 width:parent.width; spacing:4
-                                Text { font.family:Colors.fontFamily; text:parent.modelData.label; color:Colors.c("muted"); font.pixelSize:11 }
+                                Text { font.family:Colors.family(); text:parent.modelData.label; color:Colors.c("muted"); font.pixelSize:11 }
                                 DmeSpinBox { id:settingInput; objectName:"customGenerator_"+settingField.modelData.key; width:parent.width; from:settingField.modelData.min; to:settingField.modelData.max; onValueModified:dialog.edit(settingField.modelData.key,value) }
                                 Binding { target:settingInput; property:"value"; value:dialog.profile[settingField.modelData.key] }
                             }
                         }
-                        Text { text:"Destination"; font.family:Colors.fontFamily; color:Colors.c("muted"); font.pixelSize:11 }
+                        Text { text:"Destination"; font.family:Colors.family(); color:Colors.c("muted"); font.pixelSize:11 }
                         Row {
                             objectName:"customGeneratorDestinationRow"; width:parent.width; spacing:6
                             Repeater {
@@ -446,7 +446,7 @@ DmeDialog {
                                     id:coordinateField
                                     required property var modelData
                                     width:modelData.key==="z" ? 52 : (parent.width-64)/2; spacing:4
-                                    Text { text:coordinateField.modelData.label; font.family:Colors.fontFamily; color:Colors.c("muted"); font.pixelSize:11 }
+                                    Text { text:coordinateField.modelData.label; font.family:Colors.family(); color:Colors.c("muted"); font.pixelSize:11 }
                                     DmeSpinBox { id:coordinateInput; objectName:"customGenerator_"+coordinateField.modelData.key; width:parent.width; from:0; to:coordinateField.modelData.max; onValueModified:dialog.edit(coordinateField.modelData.key,value) }
                                     Binding { target:coordinateInput; property:"value"; value:dialog.profile[coordinateField.modelData.key] }
                                 }
@@ -461,7 +461,7 @@ DmeDialog {
         }
         Column {
             id:footer; anchors.bottom:parent.bottom; width:parent.width; spacing:8
-            Text { font.family:Colors.fontFamily; width:parent.width; text:dialog.status; color:dialog.error ? "#f85149" : Colors.c("text"); wrapMode:Text.WordWrap; maximumLineCount:3; elide:Text.ElideRight }
+            Text { font.family:Colors.family(); width:parent.width; text:dialog.status; color:dialog.error ? "#f85149" : Colors.c("text"); wrapMode:Text.WordWrap; maximumLineCount:3; elide:Text.ElideRight }
             Row {
                 spacing:8
                 DmeButton {
@@ -512,10 +512,10 @@ DmeDialog {
         required property int maximum
         property string help: ""
         spacing:4
-        Text { text:field.label; font.family:Colors.fontFamily; color:Colors.c("text"); font.pixelSize:12 }
+        Text { text:field.label; font.family:Colors.family(); color:Colors.c("text"); font.pixelSize:12 }
         DmeSpinBox { id:input; objectName:"customGenerator_"+field.key; width:parent.width; from:field.minimum; to:field.maximum; onValueModified:dialog.edit(field.key,value) }
         Binding { target:input; property:"value"; value:dialog.advancedValue(field.key) }
-        Text { visible:field.help.length>0; text:field.help; width:parent.width; wrapMode:Text.WordWrap; font.family:Colors.fontFamily; color:Colors.c("muted"); font.pixelSize:11 }
+        Text { visible:field.help.length>0; text:field.help; width:parent.width; wrapMode:Text.WordWrap; font.family:Colors.family(); color:Colors.c("muted"); font.pixelSize:11 }
     }
     DmeDialog {
         id:advancedDialog; objectName:"customGeneratorAdvancedDialog"
@@ -533,23 +533,23 @@ DmeDialog {
                         AdvancedNumber { key:"roomWidth"; label:"Room width (tiles)"; minimum:5; maximum:21; width:(parent.width-8)/2 }
                         AdvancedNumber { key:"roomHeight"; label:"Room height (tiles)"; minimum:5; maximum:21; width:(parent.width-8)/2 }
                     }
-                    Text { text:dialog.profile.kind==="cave" ? "Cave chambers vary around these approximate dimensions." : "Dungeon rooms use these dimensions."; width:parent.width; wrapMode:Text.WordWrap; font.family:Colors.fontFamily; color:Colors.c("muted"); font.pixelSize:11 }
+                    Text { text:dialog.profile.kind==="cave" ? "Cave chambers vary around these approximate dimensions." : "Dungeon rooms use these dimensions."; width:parent.width; wrapMode:Text.WordWrap; font.family:Colors.family(); color:Colors.c("muted"); font.pixelSize:11 }
                     AdvancedNumber { key:"roomSpacing"; label:"Room center spacing (tiles)"; minimum:6; maximum:40; width:parent.width; help:"Larger spacing spreads rooms out and reduces how many fit in the map. Large rooms can overlap." }
                     AdvancedNumber { key:"corridorWidth"; label:"Corridor width (tiles)"; minimum:3; maximum:5; width:parent.width; help:"Width of the paths joining rooms." }
                     Column {
                         width:parent.width; spacing:4
-                        Text { text:"Room connections"; font.family:Colors.fontFamily; color:Colors.c("text"); font.pixelSize:12 }
+                        Text { text:"Room connections"; font.family:Colors.family(); color:Colors.c("text"); font.pixelSize:12 }
                         DmeComboBox { id:connectionPicker; objectName:"customGeneratorConnectionMode"; width:parent.width; model:["Chain", "Nearest network"]; onActivated:index => dialog.edit("connectionMode",index===1 ? "nearest" : "chain") }
                         Binding { target:connectionPicker; property:"currentIndex"; value:dialog.advancedValue("connectionMode")==="nearest" ? 1 : 0 }
-                        Text { text:"Chain links rooms in random order. Nearest network joins the closest unconnected room to the existing network."; width:parent.width; wrapMode:Text.WordWrap; font.family:Colors.fontFamily; color:Colors.c("muted"); font.pixelSize:11 }
+                        Text { text:"Chain links rooms in random order. Nearest network joins the closest unconnected room to the existing network."; width:parent.width; wrapMode:Text.WordWrap; font.family:Colors.family(); color:Colors.c("muted"); font.pixelSize:11 }
                     }
                     AdvancedNumber { key:"extraConnections"; label:"Extra room connections"; minimum:0; maximum:16; width:parent.width; help:"Adds up to this many extra links between rooms, creating more routes through the map." }
                     Column {
                         width:parent.width; spacing:4; enabled:dialog.profile.kind==="cave"; opacity:enabled ? 1 : 0.5
-                        Text { text:"Cave tunnels"; font.family:Colors.fontFamily; color:Colors.c("text"); font.pixelSize:12 }
+                        Text { text:"Cave tunnels"; font.family:Colors.family(); color:Colors.c("text"); font.pixelSize:12 }
                         DmeComboBox { id:cavePathPicker; objectName:"customGeneratorCavePaths"; width:parent.width; model:["Winding", "Direct"]; onActivated:index => dialog.edit("cavePaths",index===1 ? "direct" : "winding") }
                         Binding { target:cavePathPicker; property:"currentIndex"; value:dialog.advancedValue("cavePaths")==="direct" ? 1 : 0 }
-                        Text { text:"Winding tunnels add bends between rooms. Applies to Cave generation."; width:parent.width; wrapMode:Text.WordWrap; font.family:Colors.fontFamily; color:Colors.c("muted"); font.pixelSize:11 }
+                        Text { text:"Winding tunnels add bends between rooms. Applies to Cave generation."; width:parent.width; wrapMode:Text.WordWrap; font.family:Colors.family(); color:Colors.c("muted"); font.pixelSize:11 }
                     }
                     AdvancedNumber { key:"secondaryDensity"; label:"Secondary floor (%)"; minimum:0; maximum:100; width:parent.width; enabled:dialog.slotEntries("secondary").length>0; opacity:enabled ? 1 : 0.5; help:"Chance of replacing a room or corridor tile with Secondary floor. Requires materials in that slot." }
                 }

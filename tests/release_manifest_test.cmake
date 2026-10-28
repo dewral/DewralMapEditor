@@ -55,3 +55,28 @@ file(READ "${TEST_ROOT}/update-manifest.json" unchanged_manifest)
 if(NOT unchanged_manifest STREQUAL manifest)
     message(FATAL_ERROR "Invalid metadata must not overwrite a valid manifest")
 endif()
+
+# A development deployment can contain profiler preferences and diagnostic EXEs.
+set(deployment "${TEST_ROOT}/deployment")
+file(MAKE_DIRECTORY "${deployment}/profile-settings" "${deployment}/data/860")
+file(WRITE "${deployment}/DME.exe" "application fixture")
+file(WRITE "${deployment}/DMEUpdater.exe" "updater fixture")
+file(WRITE "${deployment}/DME-startup-audit.exe" "diagnostic fixture")
+file(WRITE "${deployment}/profile-settings/local.ini" "private-profile-path=fixture")
+file(WRITE "${deployment}/data/860/Tibia.dat" "private client fixture")
+file(WRITE "${deployment}/data/860/tilesets.json" "{}")
+execute_process(COMMAND "${CMAKE_COMMAND}"
+    "-DDEPLOYED_DIRECTORY=${deployment}"
+    "-DRELEASE_ROOT=${TEST_ROOT}/portable"
+    "-DSOURCE_ROOT=${SOURCE_ROOT}"
+    -P "${SOURCE_ROOT}/cmake/CreateReleasePackage.cmake"
+    RESULT_VARIABLE package_result OUTPUT_QUIET)
+set(portable "${TEST_ROOT}/portable/DewralMapEditor-windows-x64")
+if(NOT package_result EQUAL 0 OR NOT EXISTS "${portable}/DME.exe"
+    OR NOT EXISTS "${portable}/DMEUpdater.exe"
+    OR NOT EXISTS "${portable}/data/860/tilesets.json"
+    OR EXISTS "${portable}/profile-settings"
+    OR EXISTS "${portable}/DME-startup-audit.exe"
+    OR EXISTS "${portable}/data/860/Tibia.dat")
+    message(FATAL_ERROR "Portable package contains local diagnostic data or lost runtime files")
+endif()

@@ -5,12 +5,13 @@ import Tibia 1.0
 
 Item {
     id: root
-    readonly property bool fluentTheme: Backend.uiTheme.style === "fluent-dark"
+    readonly property bool tibiaTheme: Backend.uiTheme.style === "tibia-ui"
+    readonly property bool fluentTheme: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
     property var scrollController: null
     property var flickable
     property bool dragging: false
     readonly property bool githubTheme: Backend.uiTheme.style !== "classic"
-                                        && Backend.uiTheme.style !== "windows-classic"
+                                        && Backend.uiTheme.style !== "windows-classic" && Backend.uiTheme.style !== "tibia-ui"
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
 
@@ -18,6 +19,11 @@ Item {
     clip: true
     width: 12
 
+    readonly property int pixelStep: tibiaTheme ? 20 : 32
+    function scrollBy(delta) {
+        if (scrollController) scrollController.scrollBy(delta, false);
+        else if (flickable) flickable.contentY=Math.max(minY,Math.min(maxY,flickable.contentY+delta));
+    }
     readonly property real minY: flickable ? flickable.originY : 0
     readonly property real maxY: flickable ? flickable.originY + flickable.contentHeight - flickable.height : 0
     readonly property real scrollPos: flickable && flickable.contentHeight > flickable.height
@@ -32,35 +38,45 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         Loader { anchors.fill: parent; sourceComponent: root.githubTheme ? githubTrack : classicTrack }
+        MouseArea {
+            anchors.fill: parent
+            onClicked: mouse => root.scrollBy((mouse.y+track.y<thumb.y ? -1 : 1)*(root.flickable ? root.flickable.height : 100))
+        }
     }
 
     Item {
         id: upArrow
         anchors.top: parent.top
-        width: 12; height: 12
+        width: root.width; height: root.width
         Loader { anchors.fill: parent; sourceComponent: root.githubTheme ? githubUp : classicUp }
         MouseArea {
             id: upArea; anchors.fill: parent; hoverEnabled: true
-            onClicked: if (root.scrollController) root.scrollController.scrollBy(-32, false); else if (root.flickable) root.flickable.contentY = Math.max(root.minY, root.flickable.contentY - 32)
+            onPressed: { root.scrollBy(-root.pixelStep); upRepeat.interval=350; upRepeat.start(); }
+            onReleased: upRepeat.stop()
+            onCanceled: upRepeat.stop()
+            Timer { id: upRepeat; interval: 350; repeat: true; onTriggered: { if(upArea.containsMouse) root.scrollBy(-root.pixelStep); interval=60; } }
         }
     }
 
     Item {
         id: downArrow
         anchors.bottom: parent.bottom
-        width: 12; height: 12
+        width: root.width; height: root.width
         Loader { anchors.fill: parent; sourceComponent: root.githubTheme ? githubDown : classicDown }
         MouseArea {
             id: downArea; anchors.fill: parent; hoverEnabled: true
-            onClicked: if (root.scrollController) root.scrollController.scrollBy(32, false); else if (root.flickable) root.flickable.contentY = Math.min(root.maxY, root.flickable.contentY + 32)
+            onPressed: { root.scrollBy(root.pixelStep); downRepeat.interval=350; downRepeat.start(); }
+            onReleased: downRepeat.stop()
+            onCanceled: downRepeat.stop()
+            Timer { id: downRepeat; interval: 350; repeat: true; onTriggered: { if(downArea.containsMouse) root.scrollBy(root.pixelStep); interval=60; } }
         }
     }
 
     Item {
         id: thumb
-        width: 12
+        width: root.width
         height: root.flickable && root.flickable.contentHeight > 0
-                ? Math.min(track.height, Math.max(24, track.height * (root.flickable.height / root.flickable.contentHeight)))
+                ? Math.min(track.height, Math.max(root.tibiaTheme ? 14 : 24, track.height * (root.flickable.height / root.flickable.contentHeight)))
                 : 20
         Loader { anchors.fill: parent; sourceComponent: root.githubTheme ? githubThumb : classicThumb }
         Binding {
@@ -93,7 +109,10 @@ Item {
 
     Component {
         id: classicTrack
-        BorderImage { source: Backend.uiTheme.tex + "scrollbar_track.png"; smooth: false; border { left: 1; right: 1; top: 1; bottom: 1 } }
+        Item {
+            Image { anchors.fill: parent; visible: root.tibiaTheme; source: Qt.resolvedUrl("../themes/tibia/images/scrollbar-texture-vertical.png"); fillMode: Image.Tile; smooth: false }
+            BorderImage { anchors.fill: parent; visible: !root.tibiaTheme; source: Backend.uiTheme.tex + "scrollbar_track.png"; smooth: false; border { left: 1; right: 1; top: 1; bottom: 1 } }
+        }
     }
     Component {
         id: githubTrack
@@ -101,7 +120,7 @@ Item {
     }
     Component {
         id: classicUp
-        Image { smooth: false; source: upArea.pressed ? (Backend.uiTheme.tex + "scrollbar_arrow_up_hover.png") : (Backend.uiTheme.tex + "scrollbar_arrow_up.png") }
+        Image { smooth: false; source: root.tibiaTheme ? Qt.resolvedUrl("../themes/tibia/images/scrollbar-buttonup-"+(upArea.pressed ? "down" : "up")+".png") : upArea.pressed ? (Backend.uiTheme.tex + "scrollbar_arrow_up_hover.png") : (Backend.uiTheme.tex + "scrollbar_arrow_up.png") }
     }
     Component {
         id: githubUp
@@ -109,7 +128,7 @@ Item {
     }
     Component {
         id: classicDown
-        Image { smooth: false; source: downArea.pressed ? (Backend.uiTheme.tex + "scrollbar_arrow_down_hover.png") : (Backend.uiTheme.tex + "scrollbar_arrow_down.png") }
+        Image { smooth: false; source: root.tibiaTheme ? Qt.resolvedUrl("../themes/tibia/images/scrollbar-buttondown-"+(downArea.pressed ? "down" : "up")+".png") : downArea.pressed ? (Backend.uiTheme.tex + "scrollbar_arrow_down_hover.png") : (Backend.uiTheme.tex + "scrollbar_arrow_down.png") }
     }
     Component {
         id: githubDown
@@ -117,7 +136,7 @@ Item {
     }
     Component {
         id: classicThumb
-        BorderImage { source: Backend.uiTheme.tex + "scrollbar_thumb.png"; smooth: false; border { left: 6; right: 6; top: 6; bottom: 6 } }
+        BorderImage { objectName: "clientScrollbarHandle"; source: root.tibiaTheme ? Qt.resolvedUrl("../themes/tibia/images/scrollbar-handle-vertical.png") : Backend.uiTheme.tex + "scrollbar_thumb.png"; smooth: false; border { left: root.tibiaTheme ? 0 : 6; right: root.tibiaTheme ? 0 : 6; top: 6; bottom: 6 } }
     }
     Component {
         id: githubThumb

@@ -21,7 +21,7 @@ DmeDialog {
         Text {
             Layout.fillWidth: true; wrapMode: Text.WordWrap
             text: "Fluent Dark colors · Click a row to flash its UI elements. Changes are saved immediately."
-            color: Colors.c("muted"); font.family: Colors.fontFamily; font.pixelSize: 12
+            color: Colors.c("muted"); font.family: Colors.family(); font.pixelSize: 12
         }
         DmeTextField {
             Layout.fillWidth: true; height: 28; placeholderText: "Find a UI element…"
@@ -41,7 +41,7 @@ DmeDialog {
                 color: root.selectedKey === modelData[0] ? Colors.c("selected") : Colors.c("button")
                 RowLayout {
                     anchors.fill: parent; anchors.margins: 7
-                    Text { Layout.fillWidth: true; text: entry.modelData[1]; color: Colors.c("text"); font.family: Colors.fontFamily; font.pixelSize: 12; elide: Text.ElideRight }
+                    Text { Layout.fillWidth: true; text: entry.modelData[1]; color: Colors.c("text"); font.family: Colors.family(); font.pixelSize: 12; elide: Text.ElideRight }
                     Rectangle { width: 22; height: 22; color: Colors.c(entry.modelData[0]); border.color: Colors.c("muted") }
                     Text { text: String(Colors.c(entry.modelData[0])).toUpperCase(); color: Colors.c("text"); font.family: "Consolas"; font.pixelSize: 12; Layout.preferredWidth: 82 }
                 }
@@ -51,7 +51,7 @@ DmeDialog {
         Text {
             Layout.fillWidth: true
             text: "Editing: " + Colors.roles.filter(role => role[0] === root.selectedKey)[0][1]
-            color: Colors.c("heading"); font.family: Colors.fontFamily; font.pixelSize: 12
+            color: Colors.c("heading"); font.family: Colors.family(); font.pixelSize: 12
         }
         RowLayout {
             Layout.fillWidth: true

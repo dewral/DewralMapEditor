@@ -8,17 +8,31 @@
 #include <QFileInfo>
 #include <QDebug>
 #include <QUuid>
+#include <QThread>
+#include <QElapsedTimer>
+#include <QJsonArray>
+#include <QJsonDocument>
 
 static bool require(bool value, const char *message)
 {
     if (!value) qCritical() << message;
     return value;
 }
+static bool loadTimer(WorkTimerService &timer)
+{
+    timer.ensureLoaded();
+    QElapsedTimer deadline; deadline.start();
+    while (!timer.ready() && timer.loading() && deadline.elapsed() < 5000) {
+        QCoreApplication::processEvents(); QThread::msleep(1);
+    }
+    return require(timer.ready(), "Could not asynchronously load timer history");
+}
 class WorkTimerServiceTest {
 public:
  static bool clocks(DocumentManager &documents,const QString &folder) {
     qint64 monotonic=1000,utc=QDateTime::currentMSecsSinceEpoch();
     WorkTimerService timer(&documents,nullptr,folder,{{[&]{return monotonic;}},{[&]{return utc;}}});
+    if (!loadTimer(timer)) return false;
     timer.setIdlePauseMinutes(0);
     if(!timer.startSession("Clock test"))return false;
     monotonic+=5000;utc+=3600000;
@@ -58,6 +72,7 @@ int main(int argc, char **argv)
     QString imported;
     {
         WorkTimerService timer(&documents, nullptr, directory.path());
+        if (!loadTimer(timer)) return 1;
         if (!require(timer.startSession("Blackridge Mine") && timer.taskIcon() == "mapping", "Legacy task must have default icon")) return 1;
         timer.pauseSession();
         if (!require(timer.setTaskIcon("Blackridge Mine", "mine") && timer.taskIcon() == "mine", "Preset icon was not applied")) return 1;
@@ -79,6 +94,7 @@ int main(int argc, char **argv)
     }
     {
         WorkTimerService timer(&documents, nullptr, directory.path());
+        if (!loadTimer(timer)) return 1;
         if (!require(timer.taskIcon()=="town" && timer.taskTimers().size()==2, "Task icon did not survive restart")) return 1;
         if (!require(timer.taskIconFor("Blackridge Mine")==QUrl::fromLocalFile(imported).toString(), "Custom icon was not persisted")) return 1;
         if (!require(timer.switchTask("Blackridge Mine") && QUrl(timer.taskIcon()).toLocalFile()==imported, "Switching tasks lost its icon")) return 1;
@@ -88,7 +104,46 @@ int main(int argc, char **argv)
     }
     {
         WorkTimerService timer(&documents, nullptr, directory.path());
+        if (!loadTimer(timer)) return 1;
         if (!require(timer.taskTimers().size()==1 && timer.taskIconFor("Temple exterior")=="town", "Task removal was not persisted")) return 1;
+    }
+    for (int count : {0, 1000, 10000}) {
+        QTemporaryDir fixture;
+        const QString historyPath = fixture.filePath("work-timer.json");
+        QJsonArray sessions;
+        for (int i = 0; i < count; ++i) sessions.append(QJsonObject{
+            {"id", QString::number(i)}, {"task", "Fixture"}, {"durationMs", 60000}, {"mapName", "fixture"}});
+        const QByteArray original = QJsonDocument(QJsonObject{{"schemaVersion", 1}, {"sessions", sessions}}).toJson();
+        QFile file(historyPath); if (!file.open(QIODevice::WriteOnly)) return 1;
+        file.write(original); file.close();
+        { WorkTimerService unopened(&documents, nullptr, fixture.path()); }
+        if (!file.open(QIODevice::ReadOnly)) return 1;
+        if (!require(file.readAll() == original, "Unopened service overwrote history")) return 1;
+        file.close();
+        { WorkTimerService interrupted(&documents, nullptr, fixture.path()); interrupted.ensureLoaded(); }
+        if (!file.open(QIODevice::ReadOnly)) return 1;
+        if (!require(file.readAll() == original, "Closing during asynchronous load overwrote history")) return 1;
+        file.close();
+        WorkTimerService modelService(&documents, nullptr, fixture.path());
+        if (!loadTimer(modelService)) return 1;
+        if (!require(modelService.historyModel()->rowCount() == count, "History model lost rows")) return 1;
+        if (count && !require(modelService.historyModel()->data(modelService.historyModel()->index(0,0), Qt::UserRole+1)
+            .toMap().value("id").toString() == QString::number(count-1), "History model order differs from legacy history")) return 1;
+        if (!require(modelService.taskTimers().size() == (count ? 1 : 0), "Task aggregate differs from history")) return 1;
+        if (!require(modelService.totalText() == modelService.formatDuration(qint64(count) * 60),
+                     "Historical total changed with the list model")) return 1;
+        const auto legacyRows = modelService.history();
+        for (int row = 0; row < count; ++row)
+            if (!require(modelService.historyModel()->data(modelService.historyModel()->index(row, 0), Qt::UserRole+1)
+                == legacyRows[row], "List model differs from legacy row values")) return 1;
+        const QString exportedJson = fixture.filePath("history-export.json");
+        const QString exportedCsv = fixture.filePath("history-export.csv");
+        if (!require(modelService.exportJson(QUrl::fromLocalFile(exportedJson))
+            && modelService.exportCsv(QUrl::fromLocalFile(exportedCsv)), "History export failed")) return 1;
+        QFile jsonFile(exportedJson), csvFile(exportedCsv);
+        if (!jsonFile.open(QIODevice::ReadOnly) || !csvFile.open(QIODevice::ReadOnly)) return 1;
+        if (!require(QJsonDocument::fromJson(jsonFile.readAll()).array().size() == count
+            && csvFile.readAll().count('\n') == count + 1, "Export lost historical sessions")) return 1;
     }
     if (!WorkTimerServiceTest::clocks(documents,directory.filePath("clock-tests"))) return 1;
     qInfo() << "Task icons: presets, import, restart, switching, invalid images and cleanup passed";

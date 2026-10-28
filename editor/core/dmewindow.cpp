@@ -13,6 +13,27 @@ DmeWindow::DmeWindow(QWindow *parent) : QQuickWindow(parent)
     setFlags(Qt::Window | Qt::FramelessWindowHint);
 }
 
+void DmeWindow::setRoundedCorners(bool rounded)
+{
+    if (m_roundedCorners == rounded)
+        return;
+    m_roundedCorners = rounded;
+    applyCornerPreference();
+    emit roundedCornersChanged();
+}
+
+void DmeWindow::applyCornerPreference()
+{
+#ifdef Q_OS_WIN
+    if (handle()) {
+        // DWMWCP_DONOTROUND for the square Tibia skin; DWMWCP_ROUND otherwise.
+        const int preference = m_roundedCorners ? 2 : 1;
+        DwmSetWindowAttribute(reinterpret_cast<HWND>(winId()), 33,
+                             &preference, sizeof(preference));
+    }
+#endif
+}
+
 void DmeWindow::setMaximizeButton(QQuickItem *button)
 {
     if (m_maximizeButton == button)
@@ -92,8 +113,7 @@ bool DmeWindow::event(QEvent *event)
         // Windows versions simply ignore the Windows 11 corner attributes.
         const BOOL darkFrame = TRUE;
         DwmSetWindowAttribute(hwnd, 20, &darkFrame, sizeof(darkFrame));
-        const int roundCorners = 2; // DWMWCP_ROUND
-        DwmSetWindowAttribute(hwnd, 33, &roundCorners, sizeof(roundCorners));
+        applyCornerPreference();
         const COLORREF systemBorder = 0xffffffff; // DWMWA_COLOR_DEFAULT
         DwmSetWindowAttribute(hwnd, 34, &systemBorder, sizeof(systemBorder));
         const MARGINS frameMargins{1, 1, 1, 1};

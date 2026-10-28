@@ -399,7 +399,9 @@ bool MapView::setContextFromSelection()
     const OtbmTile *tile = m_otbm->tileAt(x, y, z);
     if (!tile || tile->items.empty()) return false;
 
-    m_itemController.setContext(x, y, static_cast<int>(tile->items.size()) - 1);
+    const int entity = m_selectionController.entity(key);
+    if (entity == -2 || entity == -3) return false;
+    m_itemController.setContext(x, y, entity >= 0 ? entity : int(tile->items.size()) - 1);
     return true;
 }
 

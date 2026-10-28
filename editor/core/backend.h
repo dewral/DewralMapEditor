@@ -10,6 +10,7 @@
 #include <QtQml/qqmlregistration.h>
 
 #include "sprreader.h"
+#include "clientloadservice.h"
 #include "loadprofile.h"
 #include "datreader.h"
 #include "otbreader.h"
@@ -31,10 +32,12 @@
 #include "customgeneratorprofiles.h"
 #include "tilemapgenbridge.h"
 #include "tilemapgenprofiles.h"
+#include "generationlibrary.h"
 
 class Backend : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(ClientLoadService *clientLoader READ clientLoader CONSTANT)
     QML_NAMED_ELEMENT(Backend)
     QML_SINGLETON
     Q_PROPERTY(SprReader *sprReader READ sprReader CONSTANT)
@@ -55,6 +58,7 @@ class Backend : public QObject
     Q_PROPERTY(ActivityService *activity READ activity CONSTANT)
     Q_PROPERTY(HotkeySettings *hotkeys READ hotkeys CONSTANT)
     Q_PROPERTY(LuaScriptEngine *luaScripts READ luaScripts CONSTANT)
+    Q_PROPERTY(GenerationLibrary *generationLibrary READ generationLibrary CONSTANT)
     Q_PROPERTY(TileMapGenBridge *tileMapGen READ tileMapGen CONSTANT)
     Q_PROPERTY(TileMapGenProfiles *tileMapGenProfiles READ tileMapGenProfiles CONSTANT)
     Q_PROPERTY(CustomGeneratorProfiles *generatorProfiles READ generatorProfiles CONSTANT)
@@ -79,10 +83,12 @@ public:
     ItemsXmlReader *itemsXml() { return &m_itemsXml; }
     AiMapAssistant *aiMapAssistant() { return &m_aiMapAssistant; }
     UpdateService *updateService() { return &m_updateService; }
+    ClientLoadService *clientLoader() { return m_clientLoader; }
     WorkTimerService *workTimer() { return &m_workTimer; }
     ActivityService *activity() { return &m_activity; }
     HotkeySettings *hotkeys() { return &m_hotkeys; }
     LuaScriptEngine *luaScripts() { return &m_luaScripts; }
+    GenerationLibrary *generationLibrary() { return &m_generationLibrary; }
     TileMapGenBridge *tileMapGen() { return &m_tileMapGen; }
     TileMapGenProfiles *tileMapGenProfiles() { return &m_tileMapGenProfiles; }
     CustomGeneratorProfiles *generatorProfiles() { return &m_generatorProfiles; }
@@ -97,14 +103,8 @@ public:
                                           const QString &otb, int version,
                                           bool extended, bool alpha,
                                           bool frameDurations, bool frameGroups) const {
-        QString key = QStringLiteral("%1/%2/%3/%4/%5").arg(version).arg(extended)
-            .arg(alpha).arg(frameDurations).arg(frameGroups);
-        for (const QString &path : {dat, spr, otb}) {
-            const QFileInfo info(path);
-            key += QStringLiteral("|%1:%2:%3").arg(info.canonicalFilePath())
-                .arg(info.size()).arg(info.lastModified().toMSecsSinceEpoch());
-        }
-        return key;
+        return ClientLoadService::fingerprint(dat, spr, otb, version, extended, alpha,
+                                              frameDurations, frameGroups);
     }
 
     Q_INVOKABLE QString previewScreenshotPath() const;
@@ -122,6 +122,8 @@ signals:
     void otbmReaderChanged();
 
 private:
+    friend class ClientLoadService;
+    ClientLoadService *m_clientLoader = nullptr;
     static Backend *s_instance;
     SprReader m_sprReader;
     DatReader m_datReader;
@@ -143,6 +145,7 @@ private:
     CustomGeneratorProfiles m_generatorProfiles;
     TileMapGenBridge m_tileMapGen;
     TileMapGenProfiles m_tileMapGenProfiles;
+    GenerationLibrary m_generationLibrary;
 };
 
 #endif

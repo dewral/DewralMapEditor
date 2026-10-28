@@ -1,0 +1,15 @@
+{
+  "cpu": {
+    "Name": "12th Gen Intel(R) Core(TM) i5-12400F",
+    "NumberOfCores": 6,
+    "NumberOfLogicalProcessors": 12
+  },
+  "os": {
+    "Caption": "Microsoft Windows 11 Pro",
+    "Version": "10.0.26200"
+  },
+  "gpu": {
+    "Name": "NVIDIA GeForce RTX 3060",
+    "DriverVersion": "32.0.16.1714"
+  }
+}

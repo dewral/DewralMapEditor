@@ -22,6 +22,7 @@ Item {
         property int lightAmbientColor:125
         property real originX: 0
         property real originY: 0
+        signal readersChanged()
         signal contentUpdated()
         signal hoverChanged()
         function renderOriginX() { return originX; }
@@ -40,6 +41,58 @@ Item {
         function openOutfit() {
             mouseClick(findChild(host,"previewOutfit"));
             mouseClick(findChild(preview,"previewChangeOutfit"));
+        }
+        function test_tibiaSidebarAndIndependentSettings() {
+            Backend.uiTheme.style="tibia-ui"; host.x=0; host.width=1100; host.height=720;
+            wait(80);
+            const sidebar=findChild(host,"tibiaPreviewSidebar");
+            verify(sidebar!==null); compare(sidebar.visible,true); compare(sidebar.width,254);
+            settings.weatherRain=19;
+            const rain=findChild(sidebar,"sidebarWeatherRain"); rain.value=73; rain.moved();
+            compare(settings.previewWeatherRain,73); compare(settings.weatherRain,19);
+            const speed=findChild(sidebar,"sidebarPlayerSpeed"); speed.value=315; speed.valueModified();
+            compare(settings.ingamePreviewSpeed,315);
+            const explorer=findChild(preview,"previewExplorer"); compare(explorer.speed,315);
+            const minimap=findChild(sidebar,"previewSidebarMinimap");
+            minimap.tileActivated(123,234); compare(explorer.x,123); compare(explorer.y,234); compare(settings.ingamePreviewFollowCursor,false);
+            compare(minimap.centerTile.x,123); compare(minimap.centerTile.y,234);
+            settings.ingamePreviewShowCreatures=false;
+            settings.ingamePreviewShowItems=false;
+            const renderer=findChild(host,"clientPreviewRenderer"); compare(renderer.showCreatures,false); compare(renderer.showItems,false);
+            settings.ingamePreviewShowCreatures=true; settings.ingamePreviewShowItems=true;
+            grabImage(host).save("build/tibia-preview-sidebar.png");
+            mouseClick(findChild(host,"previewSidebarToggle")); compare(sidebar.visible,false);
+            mouseClick(findChild(host,"previewSidebarToggle")); compare(sidebar.visible,true);
+            host.x=740; host.width=440; host.height=700; settings.ingamePreviewSpeed=0;
+            Backend.uiTheme.style="fluent-dark";
+        }
+        function test_previewWeatherControls() {
+            settings.weatherRain=55; settings.weatherEnabled=true;
+            settings.previewWeatherEnabled=false;
+            const button=findChild(host,"previewWeather");
+            verify(button!==null); mouseClick(button);
+            const dialog=findChild(preview,"previewWeatherDialog");
+            tryCompare(dialog,"opened",true);
+            compare(dialog.settingsPrefix,"previewWeather");
+            wait(30);
+            verify(dialog.x>=0 && dialog.x+dialog.width<=root.Window.window.width);
+            verify(dialog.y>=0 && dialog.y+dialog.height<=root.Window.window.height);
+            dialog.preset(3);
+            compare(settings.previewWeatherSnow,65); verify(button.checked);
+            compare(settings.weatherRain,55); compare(settings.weatherEnabled,true);
+            const layer=findChild(host,"previewWeatherLayer");
+            compare(layer.settingsPrefix,"previewWeather");
+            compare(findChild(layer,"weatherRenderer").configuration.snow,65);
+            wait(30);
+            grabImage(root.Window.window.contentItem).save("build/preview-weather-controls.png");
+            dialog.close();
+            preview.dock("window");
+            button.clicked(); tryCompare(dialog,"opened",true); wait(30);
+            verify(dialog.x>=0 && dialog.x+dialog.width<=dialog.parent.width);
+            verify(dialog.y>=0 && dialog.y+dialog.height<=dialog.parent.height);
+            compare(settings.previewWeatherSnow,65);
+            preview.dock("right"); tryCompare(dialog,"opened",false);
+            settings.previewWeatherEnabled=false; settings.weatherEnabled=false;
         }
         function test_playerOptionsSpeed() {
             settings.ingamePreviewPlayerLevel=150;

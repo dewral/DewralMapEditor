@@ -1,3 +1,8 @@
+#include <QFileInfo>
+#include <QTemporaryDir>
+#include <QStandardPaths>
+#include <QUuid>
+#include <QDir>
 #include <QGuiApplication>
 #include <QIcon>
 #include <QQmlApplicationEngine>
@@ -115,6 +120,29 @@ int main(int argc, char *argv[])
         QCoreApplication::setApplicationName(QStringLiteral("DME-LoadProfile"));
     }
 
+    // Smoke tests must never load or save the user's profiles, timer or recovery files.
+    std::unique_ptr<QTemporaryDir> smokeState;
+    if (app.arguments().contains(QStringLiteral("--smoke-test"))) {
+        smokeState = std::make_unique<QTemporaryDir>();
+        if (!smokeState->isValid()) return 6;
+        QStandardPaths::setTestModeEnabled(true);
+        QCoreApplication::setApplicationName(QStringLiteral("DME-Smoke-")
+            + QUuid::createUuid().toString(QUuid::WithoutBraces));
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, smokeState->path());
+        qputenv("DME_RECOVERY_DIR", smokeState->filePath(QStringLiteral("recovery")).toUtf8());
+        const QString ownedData = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        const QString ownedLocalData = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+        const QString ownedName = QCoreApplication::applicationName();
+        QObject::connect(&app, &QObject::destroyed, [ownedData, ownedLocalData, ownedName] {
+            for (const auto &path : {ownedData, ownedLocalData}) {
+                const QFileInfo info(path);
+                if (info.isAbsolute() && info.fileName() == ownedName && !info.isSymLink())
+                    QDir(info.absoluteFilePath()).removeRecursively();
+            }
+        });
+    }
+
     Backend backend(nullptr);
     LoadProfile::record(QStringLiteral("backend_ready"));
     QObject::connect(&app, &QCoreApplication::aboutToQuit,
@@ -159,6 +187,7 @@ int main(int argc, char *argv[])
         const QString version = option(QStringLiteral("--profile-version"));
         if (!path.isEmpty() && !folder.isEmpty() && !version.isEmpty()) {
             QObject *root = engine.rootObjects().first();
+            QMetaObject::invokeMethod(root, "prepareProfileEditor");
             const int repeats = qMax(1, option(QStringLiteral("--profile-repeat")).toInt());
             if (args.contains(QStringLiteral("--profile-exit")) || repeats > 1
                     || args.contains(QStringLiteral("--profile-scroll"))) {
@@ -196,13 +225,27 @@ int main(int argc, char *argv[])
     }
 
     if (app.arguments().contains(QStringLiteral("--smoke-test"))) {
+        if (app.arguments().contains(QStringLiteral("--smoke-map-brush"))) {
+            QVariant ready;
+            if (!QMetaObject::invokeMethod(engine.rootObjects().first(), "smokeMapBrush",
+                                          Q_RETURN_ARG(QVariant, ready)) || !ready.toBool()) return 4;
+        }
+        if (app.arguments().contains(QStringLiteral("--smoke-generation-library"))) {
+            QVariant ready;
+            if (!QMetaObject::invokeMethod(engine.rootObjects().first(), "smokeGenerationLibrary",
+                                          Q_RETURN_ARG(QVariant, ready)) || !ready.toBool()) return 3;
+        }
         if (app.arguments().contains(QStringLiteral("--smoke-tilemapgen"))) {
             QVariant ready;
             if (!QMetaObject::invokeMethod(engine.rootObjects().first(), "smokeTileMapGen",
                                           Q_RETURN_ARG(QVariant, ready)) || !ready.toBool())
                 return 2;
         }
-        QTimer::singleShot(0, &app, &QCoreApplication::quit);
+        for (auto *window : QGuiApplication::allWindows())
+            if (auto *quick = qobject_cast<QQuickWindow*>(window))
+                QObject::connect(quick, &QQuickWindow::frameSwapped, &app,
+                    &QCoreApplication::quit, Qt::QueuedConnection);
+        QTimer::singleShot(10000, &app, [] { QCoreApplication::exit(5); });
     }
 
     return app.exec();

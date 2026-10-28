@@ -1,4 +1,5 @@
 import QtQuick
+import "themes/tibia" as TibiaSkin
 import QtQuick.Controls
 import QtQuick.Dialogs as Dialogs
 import QtCore
@@ -14,12 +15,14 @@ Rectangle {
     required property var app
 
     required property var mapCtrl
-    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
+    readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
+    readonly property bool tibiaUi: Backend.uiTheme.style === "tibia-ui"
     readonly property bool windowsClassicUi: Backend.uiTheme.style === "windows-classic"
     readonly property bool githubUi: Backend.uiTheme.style !== "classic" && !windowsClassicUi && !fluentUi
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
     property bool modernLayout: false
+    property bool floating: false
     property var brushDockSettings
     signal toolsDockDragStarted()
     signal brushDockDragStarted()
@@ -249,8 +252,35 @@ Rectangle {
         visible: !paletteRoot.githubUi && !paletteRoot.fluentUi
     }
 
+    MouseArea {
+        anchors.fill: parent
+        enabled: paletteRoot.tibiaUi
+        acceptedButtons: Qt.AllButtons
+        onWheel: wheel => wheel.accepted=true
+    }
+    Loader {
+        id: floatingFrame
+        objectName: "floatingPaletteBackground"
+        anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+        height: Math.max(60, paletteCol.y + paletteContents.y + paletteContents.height + 4)
+        active: paletteRoot.tibiaUi
+        sourceComponent: TibiaSkin.TibiaWindowFrame {
+            caption: paletteCol.currentKind
+            captionIconSource: "image://tibiaui/fluent-icon/"+({"Terrain Palette":"palette-terrain","RAW Palette":"palette-raw","Creature Palette":"palette-creature","Doodad Palette":"palette-doodad"}[paletteCol.currentKind] || "palette-raw")+"/dfdfdf"
+            onCaptionActivated: kindCombo.openPopup()
+            showLockButton: true
+            locked: paletteRoot.positionLocked
+            onCloseRequested: paletteRoot.collapseRequested()
+            onLockRequested: paletteRoot.lockRequested()
+            onDragStarted: (x,y) => paletteRoot.dragStarted(x,y)
+            onDragMoved: (x,y) => paletteRoot.dragMoved(x,y)
+            onDragFinished: paletteRoot.dragFinished()
+            onDragCanceled: paletteRoot.dragCanceled()
+        }
+    }
+
     Rectangle {
-        visible: paletteRoot.fluentUi
+        visible: paletteRoot.fluentUi && !paletteRoot.tibiaUi
         x: 6; y: 6; width: parent.width - 12
         height: parent.height - 12
         color: FluentColors.c("surface"); border.color: FluentColors.c("border"); radius: 6
@@ -286,11 +316,11 @@ Rectangle {
     Column {
         id: paletteCol
         anchors.fill: parent
-        anchors.leftMargin: paletteRoot.modernLayout ? 88 : (paletteRoot.githubUi || paletteRoot.fluentUi ? 16 : 6)
-        anchors.rightMargin: paletteRoot.githubUi || paletteRoot.fluentUi ? 16 : 6
-        anchors.topMargin: paletteRoot.fluentUi ? 16 : paletteRoot.githubUi ? 8 : 6
-        anchors.bottomMargin: paletteRoot.githubUi || paletteRoot.fluentUi ? 16 : 6
-        spacing: paletteRoot.fluentUi ? 16 : paletteRoot.githubUi ? 10 : 4
+        anchors.leftMargin: paletteRoot.tibiaUi ? 8 : paletteRoot.modernLayout ? 88 : (paletteRoot.githubUi || paletteRoot.fluentUi ? 16 : 6)
+        anchors.rightMargin: paletteRoot.tibiaUi ? 8 : paletteRoot.githubUi || paletteRoot.fluentUi ? 16 : 6
+        anchors.topMargin: paletteRoot.tibiaUi ? 25 : paletteRoot.fluentUi ? 16 : paletteRoot.githubUi ? 8 : 6
+        anchors.bottomMargin: paletteRoot.tibiaUi ? 8 : paletteRoot.githubUi || paletteRoot.fluentUi ? 16 : 6
+        spacing: paletteRoot.tibiaUi ? 8 : paletteRoot.fluentUi ? 16 : paletteRoot.githubUi ? 10 : 4
 
         property var kinds: ["Recent", "Favorites", "Terrain Palette", "Doodad Palette", "Collection Palette", "Door Palette", "Item Palette", "RAW Palette", "Creature Palette", "House Palette", "My Palettes"]
         property bool creatureMode: currentKind === "Creature Palette"
@@ -572,7 +602,7 @@ Rectangle {
                     color: paletteRoot.grayUi ? "#E8E8E8" : "#E6EDF3"
                     selectionColor: paletteRoot.grayUi ? "#C79A3B" : "#2EA043"
                     selectedTextColor: "#FFFFFF"
-                    font.pixelSize: 12
+                    font.pixelSize: paletteRoot.tibiaUi ? 11 : 12
                     background: Rectangle {
                         radius: 4
                         color: paletteRoot.grayUi ? "#242424" : "#0D1117"
@@ -702,7 +732,7 @@ Rectangle {
                        : paletteCol.currentKind)
                       + "  (" + paletteCol.displayedCount + ")"
                 color: paletteRoot.grayUi ? "#929292" : "#8B949E"
-                font.pixelSize: 12
+                font.pixelSize: paletteRoot.tibiaUi ? 11 : 12
                 elide: Text.ElideRight
             }
         }
@@ -715,7 +745,7 @@ Rectangle {
             spacing: paletteRoot.fluentUi ? 8 : 4
 
             Item {
-                visible: paletteRoot.fluentUi; width: parent.width; height: visible ? 22 : 0
+                visible: paletteRoot.fluentUi && !paletteRoot.tibiaUi; width: parent.width; height: visible ? 22 : 0
                 Text { anchors.verticalCenter: parent.verticalCenter; anchors.verticalCenterOffset: -4; text: "Palette"; color: FluentColors.c("heading"); font.family: "Segoe UI"; font.pixelSize: 13; font.weight: Font.DemiBold }
                 MouseArea {
                     anchors.fill: parent; anchors.rightMargin: 52
@@ -790,7 +820,8 @@ Rectangle {
                 objectName: "paletteKindCombo"
                 paletteCategories: true
                 width: parent.width
-                height: paletteRoot.fluentUi ? 29 : 23
+                height: paletteRoot.tibiaUi ? 0 : paletteRoot.fluentUi ? 29 : 23
+                visible: !paletteRoot.tibiaUi
                 model: paletteCol.kinds
                 currentIndex: paletteCol.initialKindIndex()
                 onActivated: index => paletteCol.selectKind(paletteCol.kinds[index])
@@ -798,10 +829,11 @@ Rectangle {
 
             Text {
                 visible: paletteCol.showSub || paletteCol.creatureMode
-                text: paletteCol.creatureMode ? "Type"
-                      : (paletteCol.currentKind === "My Palettes" ? "Palette" : "Tileset")
+                text: paletteCol.creatureMode ? "Type:"
+                      : (paletteCol.currentKind === "My Palettes" ? "Palette" : "Tileset:")
                 color: paletteRoot.fluentUi ? "#D8DADD" : paletteRoot.windowsClassicUi ? "#202020" : "#7fdc8f"
-                font.pixelSize: 10
+                font.pixelSize: paletteRoot.tibiaUi ? 12 : 10
+                font.family: paletteRoot.fluentUi ? FluentColors.family() : Qt.application.font.family
                 font.bold: true
             }
             DmeComboBox {
@@ -809,7 +841,7 @@ Rectangle {
                 objectName: "paletteTilesetCombo"
                 visible: paletteCol.showSub || paletteCol.creatureMode
                 width: parent.width
-                height: 23
+                height: paletteRoot.tibiaUi ? 28 : 23
                 model: paletteCol.creatureMode
                        ? ["All creatures", "Monsters", "NPCs"] : paletteCol.subNames
                 currentIndex: paletteCol.creatureMode
@@ -846,6 +878,7 @@ Rectangle {
                     onClicked: fluentFilterMenu.popup()
                     background: Rectangle {
                         radius: 4; border.color: FluentColors.c("border")
+                        TibiaSkin.TibiaSkin { anchors.fill: parent; kind: "button"; pressed: fluentFilterButton.down; selected: !!paletteRoot.app.settings.hideInvisibleSprites || !!paletteRoot.app.settings.hideNamedItems }
                         color: paletteRoot.app.settings.hideInvisibleSprites || paletteRoot.app.settings.hideNamedItems ? FluentColors.c("selected") : fluentFilterButton.down ? FluentColors.c("pressed") : fluentFilterButton.hovered ? FluentColors.c("hover") : FluentColors.c("button")
                     }
                     contentItem: Canvas {
@@ -902,9 +935,9 @@ Rectangle {
             Text {
                 text: (paletteCol.showSub && paletteCol.currentSubName !== "" ? paletteCol.currentSubName : paletteCol.currentKind) + "  (" + paletteCol.displayedCount + ")"
                 color: paletteRoot.fluentUi ? FluentColors.c("heading") : paletteRoot.windowsClassicUi ? "#202020" : "#ddd"
-                font.pixelSize: 12
+                font.pixelSize: paletteRoot.tibiaUi ? 11 : 12
                 font.bold: true
-                font.family: paletteRoot.fluentUi ? "Segoe UI" : Qt.application.font.family
+                font.family: paletteRoot.fluentUi ? FluentColors.family() : Qt.application.font.family
                 elide: Text.ElideRight
                 width: parent.width
             }
@@ -914,7 +947,7 @@ Rectangle {
             id: paletteContents
             objectName: "paletteContents"
             width: parent.width
-            height: parent.height - controlsColumn.height - githubControlsColumn.height - brushSizeBox.height - fluentTools.height - paletteCol.spacing * 3
+            height: Math.max(0, parent.height - controlsColumn.height - githubControlsColumn.height - brushSizeBox.height - fluentTools.height - paletteCol.spacing * 3)
             clip: true
             property bool motionReady: false
             Component.onCompleted: motionReady = true
@@ -1010,7 +1043,9 @@ Rectangle {
 
         FluentTools {
             id: fluentTools
-            width: parent.width
+            sectionFrame: paletteRoot.tibiaUi
+            x: paletteRoot.tibiaUi ? -8 : 0
+            width: parent.width + (paletteRoot.tibiaUi ? 16 : 0)
             readonly property bool shownInPalette: paletteRoot.fluentUi && (!paletteRoot.brushDockSettings || paletteRoot.brushDockSettings.toolsDock !== "topbar")
             opacity: shownInPalette ? 1 : 0
             visible: shownInPalette || height > 0 || opacity > 0
@@ -1029,6 +1064,7 @@ Rectangle {
 
         PaletteBrushSizeSelector {
             id: brushSizeBox
+            sectionFrame: paletteRoot.tibiaUi
             readonly property bool shownInPalette: !paletteRoot.fluentUi || !paletteRoot.brushDockSettings || paletteRoot.brushDockSettings.brushSizeDock !== "topbar"
             opacity: shownInPalette ? 1 : 0
             visible: shownInPalette || height > 0 || opacity > 0
@@ -1041,7 +1077,8 @@ Rectangle {
             onDockDragMoved: (x,y) => paletteRoot.brushDockDragMoved(x,y)
             onDockDragFinished: (x,y) => paletteRoot.brushDockDragFinished(x,y)
             onDockDragCanceled: paletteRoot.brushDockDragCanceled()
-            width: parent.width
+            x: paletteRoot.tibiaUi ? -8 : 0
+            width: parent.width + (paletteRoot.tibiaUi ? 16 : 0)
             mapCtrl: paletteRoot.mapCtrl
             githubUi: paletteRoot.githubUi
         }

@@ -1,5 +1,124 @@
 #pragma once
 
+#include <QSemaphore>
+#include <QThreadPool>
+#include <QtConcurrent/QtConcurrentRun>
+
+// Hold the global pool so document changes happen before a query can start.
+class QueryPoolBlocker
+{
+public:
+    QueryPoolBlocker() : m_pool(QThreadPool::globalInstance()), m_maxThreads(m_pool->maxThreadCount())
+    {
+        m_pool->setMaxThreadCount(1);
+        m_future = QtConcurrent::run([this] { m_started.release(); m_release.acquire(); });
+        m_started.acquire();
+    }
+    void release()
+    {
+        if (m_released) return;
+        m_released = true;
+        m_release.release();
+        m_future.waitForFinished();
+    }
+    ~QueryPoolBlocker() { release(); m_pool->setMaxThreadCount(m_maxThreads); }
+private:
+    QThreadPool *m_pool;
+    int m_maxThreads;
+    QSemaphore m_started, m_release;
+    QFuture<void> m_future;
+    bool m_released = false;
+};
+
+
+static bool testQueryDocumentLifetime(OtbReader &items)
+{
+    for (int kind = 0; kind < 3; ++kind) {
+        auto oldMap = std::make_unique<OtbmReader>();
+        OtbmReader newMap;
+        oldMap->newMap(1024, 1024, 860, 2, 22);
+        newMap.newMap(1024, 1024, 860, 2, 22);
+        oldMap->addItem(1, 1, 7, 1000);
+        newMap.addItem(2, 2, 7, 1000);
+        MapView view;
+        view.setOtb(&items);
+        view.setOtbm(oldMap.get());
+        int published = 0;
+        const auto record = [&](const QVariantMap &) { ++published; };
+        QObject::connect(&view, &MapView::itemSearchFinished, record);
+        QObject::connect(&view, &MapView::itemLocationSearchFinished, record);
+        QObject::connect(&view, &MapView::mapAnalysisFinished, record);
+        const auto start = [&] {
+            return kind == 0 ? view.startItemSearch("everything", false)
+                 : kind == 1 ? view.startItemLocationSearch(1000, false)
+                             : view.startMapAnalysis();
+        };
+        // Closing the document before worker entry must never publish stale data.
+        {
+            QueryPoolBlocker blocker;
+            const bool started = start();
+            view.setOtbm(&newMap);
+            oldMap.reset();
+            blocker.release();
+            if (!require(started && waitUntil([&] { return !view.queryBusy(); })
+                         && published == 0,
+                         "A query published results after its document was closed")) return false;
+        }
+        // A finished worker can still have a queued GUI callback. Invalidate
+        // that callback even when the document is switched away and back.
+        if (!start()) return false;
+        QThreadPool::globalInstance()->waitForDone();
+        view.setOtbm(nullptr);
+        view.setOtbm(&newMap);
+        if (!require(waitUntil([&] { return !view.queryBusy(); }) && published == 0,
+                     "A queued result survived a document generation change")) return false;
+        if (!require(start() && waitUntil([&] { return !view.queryBusy(); })
+                     && published == 1 && view.queryProgress() == 100,
+                     "Document changes prevented a fresh query from completing")) return false;
+        // UI handlers can switch documents synchronously from busyChanged.
+        bool switchOnCompletion = true;
+        const auto connection = QObject::connect(&view, &MapView::queryBusyChanged, [&] {
+            if (!view.queryBusy() && switchOnCompletion) {
+                switchOnCompletion = false;
+                view.setOtbm(nullptr);
+            }
+        });
+        if (!require(start() && waitUntil([&] { return !view.queryBusy(); })
+                     && published == 1 && !switchOnCompletion,
+                     "A result was published after a reentrant document switch")) return false;
+        QObject::disconnect(connection);
+    }
+    // A query observes a consistent input snapshot even if the map is edited
+    // while it is queued. It must not read the live reader on the pool thread.
+    OtbmReader map;
+    map.newMap(1024, 1024, 860, 2, 22);
+    OtbmMapItem container;
+    container.server_id = 5710;
+    OtbmMapItem child;
+    child.server_id = 1000;
+    container.ensureChildren().push_back(child);
+    map.placeItem(1, 1, 7, container, 0, false, false);
+    MapView view;
+    view.setOtb(&items);
+    view.setOtbm(&map);
+    QVariantMap result;
+    QObject::connect(&view, &MapView::itemLocationSearchFinished,
+                     [&](const QVariantMap &value) { result = value; });
+    {
+        QueryPoolBlocker blocker;
+        const bool started = view.startItemLocationSearch(1000, false);
+        map.removeTopItem(1, 1, 7);
+        map.addItem(2, 2, 7, 1000);
+        map.addItem(3, 3, 7, 1000);
+        blocker.release();
+        if (!require(started && waitUntil([&] { return !view.queryBusy(); })
+                     && result.value("total").toInt() == 1
+                     && result.value("results").toList().first().toMap().value("depth").toInt() == 1,
+                     "A background query read mutations made after its start")) return false;
+    }
+    return true;
+}
+
 static bool testItemLocations(OtbReader &items)
 {
     OtbmReader map, largeMap;
@@ -93,6 +212,37 @@ static bool testItemLocations(OtbReader &items)
                  && view.queryProgress() == 100 && asynchronous.value("total").toInt() == 500
                  && !asynchronous.value("cancelled").toBool(),
                  "Asynchronous location search failed to reset cancellation or guard concurrent queries")) return false;
+    if (!testQueryDocumentLifetime(items)) return false;
     qInfo() << "Map item location checks passed";
+    return true;
+}
+
+static bool benchmarkQuerySnapshot(OtbReader &items)
+{
+    OtbmReader map;
+    if (!map.newMap(1024, 1024, 860, 2, 22)) return false;
+    map.setUndoLimit(0);
+    for (int y = 0; y < 1024; ++y)
+        for (int x = 0; x < 1024; ++x)
+            if (!map.addItem(x, y, 7, 1000)) return false;
+    MapView view;
+    view.setOtb(&items);
+    view.setOtbm(&map);
+    QVariantMap result;
+    QObject::connect(&view, &MapView::itemLocationSearchFinished,
+                     [&](const QVariantMap &value) { result = value; });
+    for (int run = 0; run < 3; ++run) {
+        QElapsedTimer timer;
+        timer.start();
+        if (!view.startItemLocationSearch(1000, false)) return false;
+        const double startMs = timer.nsecsElapsed() / 1000000.0;
+        if (!waitUntil([&] { return !view.queryBusy(); })
+            || result.value("total").toInt() != 1024 * 1024
+            || result.value("results").toList().size() != 500) return false;
+        qInfo().nospace() << "query-benchmark run=" << run + 1
+                         << " tiles=" << map.tileCount()
+                         << " startMs=" << startMs
+                         << " totalMs=" << timer.nsecsElapsed() / 1000000.0;
+    }
     return true;
 }

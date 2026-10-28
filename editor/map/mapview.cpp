@@ -59,6 +59,12 @@ MapView::MapView(QQuickItem *parent)
     m_hoverEmitTimer->setInterval(50);
     connect(m_hoverEmitTimer, &QTimer::timeout, this, [this] { emit hoverChanged(); });
     connect(qApp, &QCoreApplication::aboutToQuit, this, &MapView::saveViewPosition);
+    connect(this,&MapView::luaPreviewChanged,this,[this]{m_generationPatch.clear();emit generationPreviewChanged();});
+    connect(this,&MapView::readersChanged,this,[this]{
+        invalidateMapQuery();
+        invalidateGeneration();m_generationMask.clear();m_generationPaths.clear();m_generationDrawing=false;
+        emit generationMaskChanged();
+    });
     startWorker();
 }
 
@@ -432,6 +438,7 @@ void MapView::setOtbm(OtbmReader *reader)
     m_optionalBorderTiles.clear();
     m_optionalBorderOverrides.clear();
     if (m_otbm) connect(m_otbm, &OtbmReader::loadedChanged, this, &MapView::onMapLoaded);
+    if (m_otbm) connect(m_otbm, &OtbmReader::mapChanged, this, &MapView::invalidateGeneration);
     if (m_otbm) connect(m_otbm, &OtbmReader::mapChanged, this,
         [this, enabled = m_otbm->numberedZonesEnabled()]() mutable {
             if (enabled == m_otbm->numberedZonesEnabled()) return;
@@ -451,6 +458,8 @@ void MapView::setOtb(OtbReader *reader)
     m_otb = reader;
     if (m_otb) {
         const auto updateTypes = [this] {
+            invalidateMapQuery();
+            invalidateGeneration();
             if (m_otbm) m_otbm->setItemTypes(m_otb->otbmItemTypes());
         };
         connect(m_otb, &OtbReader::loadedChanged, this, updateTypes);
@@ -906,6 +915,7 @@ bool MapView::useGroundBrushName(const QString &name)
 
 void MapView::onMapLoaded()
 {
+    invalidateMapQuery();
     if (activeZone() == 64 && (!m_otbm || !m_otbm->numberedZonesEnabled())) setActiveZone(0);
     clearLuaPreview();
     clearTerrainPreview();

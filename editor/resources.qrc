@@ -1,147 +1,77 @@
 <RCC>
     <qresource prefix="/">
-        <file alias="qml/components/TaskIcon.qml">qml/components/TaskIcon.qml</file>
-        <file alias="qml/components/TaskIconPicker.qml">qml/components/TaskIconPicker.qml</file>
-        <file alias="qml/components/WorkTimerTaskPanel.qml">qml/components/WorkTimerTaskPanel.qml</file>
+        <file>qml/themes/tibia/icons/new.svg</file>
+        <file>qml/themes/tibia/icons/open.svg</file>
+        <file>qml/themes/tibia/icons/save.svg</file>
+        <file>qml/themes/tibia/icons/saveAs.svg</file>
+        <file>qml/themes/tibia/icons/undo.svg</file>
+        <file>qml/themes/tibia/icons/redo.svg</file>
+        <file>qml/themes/tibia/icons/cut.svg</file>
+        <file>qml/themes/tibia/icons/copy.svg</file>
+        <file>qml/themes/tibia/icons/paste.svg</file>
+        <file>qml/themes/tibia/icons/preview.svg</file>
+        <file>qml/themes/tibia/icons/animation-play.svg</file>
+        <file>qml/themes/tibia/icons/animation-pause.svg</file>
+        <file>qml/themes/tibia/icons/lighting.svg</file>
+        <file>qml/themes/tibia/icons/minimize.svg</file>
+        <file>qml/themes/tibia/icons/maximize.svg</file>
+        <file>qml/themes/tibia/icons/restore.svg</file>
+        <file>qml/themes/tibia/icons/close.svg</file>
+
+        <file alias="qml/themes/fluent/icons/procedural-brush.svg">qml/themes/fluent/icons/procedural-brush.svg</file>
+        <file alias="qml/themes/fluent/icons/procedural-reshape.svg">qml/themes/fluent/icons/procedural-reshape.svg</file>
+        <file alias="qml/themes/fluent/icons/procedural-path.svg">qml/themes/fluent/icons/procedural-path.svg</file>
+        <file alias="qml/themes/fluent/icons/procedural-area.svg">qml/themes/fluent/icons/procedural-area.svg</file>
+        <file alias="qml/themes/fluent/icons/procedural-prefab.svg">qml/themes/fluent/icons/procedural-prefab.svg</file>
+        <file alias="qml/themes/fluent/icons/procedural-select.svg">qml/themes/fluent/icons/procedural-select.svg</file>
+        <file alias="qml/themes/fluent/icons/procedural-learn.svg">qml/themes/fluent/icons/procedural-learn.svg</file>
+        <file alias="qml/themes/fluent/icons/procedural-settings.svg">qml/themes/fluent/icons/procedural-settings.svg</file>
+        <file alias="qml/themes/fluent/icons/procedural-library.svg">qml/themes/fluent/icons/procedural-library.svg</file>
+        <file alias="qml/themes/fluent/icons/procedural-close.svg">qml/themes/fluent/icons/procedural-close.svg</file>
+        <file alias="preview772/creature-font.png">preview/assets/creature-font.png</file>
+        <file alias="preview772/outfit-palette.bin">preview/assets/outfit-palette.bin</file>
+        <file alias="qml/themes/tibia/images/button-9grid-pressed.png">qml/themes/tibia/images/button-9grid-pressed.png</file>
+        <file alias="qml/themes/tibia/images/button-grey-up.png">qml/themes/tibia/images/button-grey-up.png</file>
+        <file alias="qml/themes/tibia/images/button-grey-down.png">qml/themes/tibia/images/button-grey-down.png</file>
+        <file alias="qml/themes/tibia/images/scrollbar-buttonup-up.png">qml/themes/tibia/images/scrollbar-buttonup-up.png</file>
+        <file alias="qml/themes/tibia/images/scrollbar-buttonup-down.png">qml/themes/tibia/images/scrollbar-buttonup-down.png</file>
+        <file alias="qml/themes/tibia/images/scrollbar-buttondown-up.png">qml/themes/tibia/images/scrollbar-buttondown-up.png</file>
+        <file alias="qml/themes/tibia/images/scrollbar-buttondown-down.png">qml/themes/tibia/images/scrollbar-buttondown-down.png</file>
+        <file alias="qml/themes/tibia/images/scrollbar-handle-vertical.png">qml/themes/tibia/images/scrollbar-handle-vertical.png</file>
+        <file alias="qml/themes/tibia/images/scrollbar-texture-vertical.png">qml/themes/tibia/images/scrollbar-texture-vertical.png</file>
+        <file alias="qml/themes/tibia/images/containerslot.png">qml/themes/tibia/images/containerslot.png</file>
+        <file alias="qml/themes/tibia/images/slider-texture.png">qml/themes/tibia/images/slider-texture.png</file>
+
+        <file alias="qml/themes/tibia/images/textedit.png">qml/themes/tibia/images/textedit.png</file>
+        <file alias="qml/themes/tibia/images/popupwindow.png">qml/themes/tibia/images/popupwindow.png</file>
+        <file alias="qml/themes/tibia/images/panel_flat.png">qml/themes/tibia/images/panel_flat.png</file>
+        <file alias="qml/themes/tibia/images/button_normal.png">qml/themes/tibia/images/button_normal.png</file>
+        <file alias="qml/themes/tibia/images/button_active.png">qml/themes/tibia/images/button_active.png</file>
+
+        <file alias="qml/themes/tibia/images/dialog-frame-borderimage.png">qml/themes/tibia/images/dialog-frame-borderimage.png</file>
+        <file alias="qml/themes/tibia/images/exit-button-small-up.png">qml/themes/tibia/images/exit-button-small-up.png</file>
+        <file alias="qml/themes/tibia/images/exit-button-small-down.png">qml/themes/tibia/images/exit-button-small-down.png</file>
+
+        <file alias="qml/themes/tibia/images/background-dark.png">qml/themes/tibia/images/background-dark.png</file>
+        <file alias="qml/themes/tibia/images/2pixel-up-frame-borderimage-dark.png">qml/themes/tibia/images/2pixel-up-frame-borderimage-dark.png</file>
+        <file alias="qml/themes/tibia/images/button-textured-up.png">qml/themes/tibia/images/button-textured-up.png</file>
+        <file alias="qml/themes/tibia/images/button-textured-down.png">qml/themes/tibia/images/button-textured-down.png</file>
+        <file alias="qml/themes/tibia/images/1pixel-down-frame.png">qml/themes/tibia/images/1pixel-down-frame.png</file>
+        <file alias="qml/themes/tibia/images/3pixel-frame-borderimage.png">qml/themes/tibia/images/3pixel-frame-borderimage.png</file>
+        <file alias="qml/themes/tibia/images/button-dropdown-20x20-idle.png">qml/themes/tibia/images/button-dropdown-20x20-idle.png</file>
+        <file alias="qml/themes/tibia/images/button-dropdown-20x20-pressed.png">qml/themes/tibia/images/button-dropdown-20x20-pressed.png</file>
+
         <file alias="qml/themes/fluent/icons/task-mine.svg">qml/themes/fluent/icons/task-mine.svg</file>
 
-        <file alias="qml/components/WorkActivityPanel.qml">qml/components/WorkActivityPanel.qml</file>
-        <file alias="qml/components/OverlayEntryModel.qml">qml/components/OverlayEntryModel.qml</file>
-        <file alias="qml/components/PaletteCellMotion.qml">qml/components/PaletteCellMotion.qml</file>
-        <file alias="qml/components/LightingSlider.qml">qml/components/LightingSlider.qml</file>
-        <file alias="qml/controllers/ContextBrushes.js">qml/controllers/ContextBrushes.js</file>
-
-        <file alias="qml/components/OtclientName.qml">qml/components/OtclientName.qml</file>
         <file alias="qml/components/fonts/otclient-name-blue.png">qml/components/fonts/otclient-name-blue.png</file>
         <file alias="qml/components/fonts/otclient-name-red.png">qml/components/fonts/otclient-name-red.png</file>
         <file alias="qml/components/fonts/otclient-name.png">qml/components/fonts/otclient-name.png</file>
-        <file alias="qml/components/ImplicitHeightLoader.qml">qml/components/ImplicitHeightLoader.qml</file>
-        <file alias="qml/components/ComboBoxTypeAhead.qml">qml/components/ComboBoxTypeAhead.qml</file>
         <!-- Wymusza styl Basic Qt Quick Controls (Qt czyta :/qtquickcontrols2.conf
              automatycznie). Bez tego Windows uzywa stylu natywnego, ktory ignoruje
              wlasne delegaty menu (zolte podswietlenie, centrowany tekst). -->
         <file alias="qtquickcontrols2.conf">qtquickcontrols2.conf</file>
-        <file alias="qml/dialogs/ActivityDialog.qml">qml/dialogs/ActivityDialog.qml</file>
-        <file alias="qml/Main.qml">qml/Main.qml</file>
-        <file alias="qml/components/LightingControls.qml">qml/components/LightingControls.qml</file>
-        <file alias="qml/components/FluentFileBar.qml">qml/components/FluentFileBar.qml</file>
-        <file alias="qml/components/FluentTools.qml">qml/components/FluentTools.qml</file>
-        <file alias="qml/components/GroundBrushPicker.qml">qml/components/GroundBrushPicker.qml</file>
-        <file alias="qml/PalettePanel.qml">qml/PalettePanel.qml</file>
-        <file alias="qml/StartupWindow.qml">qml/StartupWindow.qml</file>
-        <file alias="qml/controllers/AppSettings.qml">qml/controllers/AppSettings.qml</file>
-        <file alias="qml/controllers/PaletteDockController.qml">qml/controllers/PaletteDockController.qml</file>
-        <file alias="qml/controllers/MapViewSettings.qml">qml/controllers/MapViewSettings.qml</file>
-        <file alias="qml/controllers/AppController.qml">qml/controllers/AppController.qml</file>
-        <file alias="qml/controllers/ClientProfileController.qml">qml/controllers/ClientProfileController.qml</file>
-        <file alias="qml/controllers/DocumentController.qml">qml/controllers/DocumentController.qml</file>
-        <file alias="qml/controllers/PaletteController.qml">qml/controllers/PaletteController.qml</file>
-        <file alias="qml/controllers/PaletteSelection.qml">qml/controllers/PaletteSelection.qml</file>
-        <file alias="qml/components/DocumentTabs.qml">qml/components/DocumentTabs.qml</file>
-        <file alias="qml/components/EditorToolBar.qml">qml/components/EditorToolBar.qml</file>
-        <file alias="qml/themes/github/GithubEditorToolBar.qml">qml/themes/github/GithubEditorToolBar.qml</file>
-        <file alias="qml/themes/github/GithubDocumentTabs.qml">qml/themes/github/GithubDocumentTabs.qml</file>
-        <file alias="qml/themes/github/GithubActivityRail.qml">qml/themes/github/GithubActivityRail.qml</file>
-        <file alias="qml/themes/github/ModernMapToolRail.qml">qml/themes/github/ModernMapToolRail.qml</file>
-        <file alias="qml/components/MapWorkspace.qml">qml/components/MapWorkspace.qml</file>
-        <file alias="qml/components/ZoneDisplayPanel.qml">qml/components/ZoneDisplayPanel.qml</file>
-        <file alias="qml/components/HotkeysPage.qml">qml/components/HotkeysPage.qml</file>
-        <file alias="qml/components/ZoneLabels.qml">qml/components/ZoneLabels.qml</file>
-        <file alias="qml/components/WorkTimerStatus.qml">qml/components/WorkTimerStatus.qml</file>
-        <file alias="qml/components/DmeStatusBar.qml">qml/components/DmeStatusBar.qml</file>
-        <file alias="qml/components/MapOverlay.qml">qml/components/MapOverlay.qml</file>
-        <file alias="qml/components/PreviewMovement.js">qml/components/PreviewMovement.js</file>
-        <file alias="qml/components/IngamePreviewPanel.qml">qml/components/IngamePreviewPanel.qml</file>
-        <file alias="qml/components/IngameMonsterOverlay.qml">qml/components/IngameMonsterOverlay.qml</file>
-        <file alias="qml/components/IngamePlayerOverlay.qml">qml/components/IngamePlayerOverlay.qml</file>
-        <file alias="qml/components/GithubPaletteCombo.qml">qml/components/GithubPaletteCombo.qml</file>
-        <file alias="qml/components/PaletteBrushButton.qml">qml/components/PaletteBrushButton.qml</file>
-        <file alias="qml/components/PaletteBrushSizeSelector.qml">qml/components/PaletteBrushSizeSelector.qml</file>
-        <file alias="qml/components/PaletteItemGrid.qml">qml/components/PaletteItemGrid.qml</file>
-        <file alias="qml/components/PaletteSmoothScroll.qml">qml/components/PaletteSmoothScroll.qml</file>
-        <file alias="qml/components/DoodadPaletteGrid.qml">qml/components/DoodadPaletteGrid.qml</file>
-        <file alias="qml/components/CreaturePaletteView.qml">qml/components/CreaturePaletteView.qml</file>
-        <file alias="qml/components/HousePaletteView.qml">qml/components/HousePaletteView.qml</file>
-        <file alias="qml/components/MainMenuBar.qml">qml/components/MainMenuBar.qml</file>
-        <file alias="qml/components/WindowResizeHandles.qml">qml/components/WindowResizeHandles.qml</file>
-        <file alias="qml/dialogs/TownsDialog.qml">qml/dialogs/TownsDialog.qml</file>
-        <file alias="qml/dialogs/BrowseFieldDialog.qml">qml/dialogs/BrowseFieldDialog.qml</file>
-        <file alias="qml/dialogs/SearchResultsDialog.qml">qml/dialogs/SearchResultsDialog.qml</file>
-        <file alias="qml/dialogs/FindItemDialog.qml">qml/dialogs/FindItemDialog.qml</file>
-        <file alias="qml/dialogs/ItemPickerDialog.qml">qml/dialogs/ItemPickerDialog.qml</file>
-        <file alias="qml/dialogs/ImportMapDialog.qml">qml/dialogs/ImportMapDialog.qml</file>
-        <file alias="qml/dialogs/ContainerDialog.qml">qml/dialogs/ContainerDialog.qml</file>
-        <file alias="qml/dialogs/CleanupDialog.qml">qml/dialogs/CleanupDialog.qml</file>
-        <file alias="qml/dialogs/WaypointsDialog.qml">qml/dialogs/WaypointsDialog.qml</file>
-        <file alias="qml/dialogs/CreatureManagerDialog.qml">qml/dialogs/CreatureManagerDialog.qml</file>
-        <file alias="qml/dialogs/ExportMinimapDialog.qml">qml/dialogs/ExportMinimapDialog.qml</file>
-        <file alias="qml/dialogs/GoToPositionDialog.qml">qml/dialogs/GoToPositionDialog.qml</file>
-        <file alias="qml/dialogs/MapAnalyzerDialog.qml">qml/dialogs/MapAnalyzerDialog.qml</file>
-        <file alias="qml/dialogs/NumberedZonesDialog.qml">qml/dialogs/NumberedZonesDialog.qml</file>
-        <file alias="qml/dialogs/MapPropertiesDialog.qml">qml/dialogs/MapPropertiesDialog.qml</file>
-        <file alias="qml/dialogs/ItemPropertiesDialog.qml">qml/dialogs/ItemPropertiesDialog.qml</file>
-        <file alias="qml/dialogs/SelectionItemDialog.qml">qml/dialogs/SelectionItemDialog.qml</file>
-        <file alias="qml/dialogs/CreateCollectionDialog.qml">qml/dialogs/CreateCollectionDialog.qml</file>
-        <file alias="qml/dialogs/PreferencesDialog.qml">qml/dialogs/PreferencesDialog.qml</file>
-        <file alias="qml/dialogs/NewMapDialog.qml">qml/dialogs/NewMapDialog.qml</file>
-        <file alias="qml/dialogs/BrushEditorDialog.qml">qml/dialogs/BrushEditorDialog.qml</file>
-        <file alias="qml/dialogs/AdvancedBrushEditor.qml">qml/dialogs/AdvancedBrushEditor.qml</file>
-        <file alias="qml/dialogs/WallBrushEditor.qml">qml/dialogs/WallBrushEditor.qml</file>
-        <file alias="qml/dialogs/AiMapAssistantDialog.qml">qml/dialogs/AiMapAssistantDialog.qml</file>
-        <file alias="qml/dialogs/TileMapGenDialog.qml">qml/dialogs/TileMapGenDialog.qml</file>
-        <file alias="qml/dialogs/LuaGeneratorDialog.qml">qml/dialogs/LuaGeneratorDialog.qml</file>
-        <file alias="qml/dialogs/CustomMapGeneratorDialog.qml">qml/dialogs/CustomMapGeneratorDialog.qml</file>
-        <file alias="qml/components/GeneratorMaterialSlot.qml">qml/components/GeneratorMaterialSlot.qml</file>
-        <file alias="qml/dialogs/TerrainGeneratorDialog.qml">qml/dialogs/TerrainGeneratorDialog.qml</file>
-        <file alias="qml/dialogs/DungeonGeneratorDialog.qml">qml/dialogs/DungeonGeneratorDialog.qml</file>
-        <file alias="qml/dialogs/GroundClusterGeneratorDialog.qml">qml/dialogs/GroundClusterGeneratorDialog.qml</file>
-        <file alias="qml/dialogs/AboutDialog.qml">qml/dialogs/AboutDialog.qml</file>
-        <file alias="qml/style/TooltipSurface.qml">qml/style/TooltipSurface.qml</file>
-        <file alias="qml/style/GithubToolTip.qml">qml/style/GithubToolTip.qml</file>
-        <file alias="qml/style/GithubIcon.qml">qml/style/GithubIcon.qml</file>
-        <file alias="qml/style/GithubWindowButton.qml">qml/style/GithubWindowButton.qml</file>
         <!-- Neutral public controls. Each loader instantiates exactly one themed
              implementation, so Classic assets cannot leak into GitHub UI. -->
-        <file alias="qml/style/DmeButton.qml">qml/style/DmeButton.qml</file>
-        <file alias="qml/style/DmePanel.qml">qml/style/DmePanel.qml</file>
-        <file alias="qml/style/DmeCheckBox.qml">qml/style/DmeCheckBox.qml</file>
-        <file alias="qml/style/DmeTextField.qml">qml/style/DmeTextField.qml</file>
-        <file alias="qml/style/DmeSeparator.qml">qml/style/DmeSeparator.qml</file>
-        <file alias="qml/style/DmeSpinBox.qml">qml/style/DmeSpinBox.qml</file>
-        <file alias="qml/style/DmeComboBox.qml">qml/style/DmeComboBox.qml</file>
-        <file alias="qml/style/DmeDialogBackground.qml">qml/style/DmeDialogBackground.qml</file>
-        <file alias="qml/style/DmeDialog.qml">qml/style/DmeDialog.qml</file>
-        <file alias="qml/style/DmeConfirmDialog.qml">qml/style/DmeConfirmDialog.qml</file>
-        <file alias="qml/style/DmeColorPicker.qml">qml/style/DmeColorPicker.qml</file>
-        <file alias="qml/style/DmeMenuItem.qml">qml/style/DmeMenuItem.qml</file>
-        <file alias="qml/style/DmeMenu.qml">qml/style/DmeMenu.qml</file>
-        <file alias="qml/style/DmeMenuBar.qml">qml/style/DmeMenuBar.qml</file>
-        <file alias="qml/style/DmeScrollBar.qml">qml/style/DmeScrollBar.qml</file>
-        <file alias="qml/themes/classic/controls/ClassicButton.qml">qml/themes/classic/controls/ClassicButton.qml</file>
-        <file alias="qml/themes/classic/controls/ClassicPanel.qml">qml/themes/classic/controls/ClassicPanel.qml</file>
-        <file alias="qml/themes/classic/controls/ClassicCheckBox.qml">qml/themes/classic/controls/ClassicCheckBox.qml</file>
-        <file alias="qml/themes/classic/controls/ClassicTextField.qml">qml/themes/classic/controls/ClassicTextField.qml</file>
-        <file alias="qml/themes/classic/controls/ClassicSeparator.qml">qml/themes/classic/controls/ClassicSeparator.qml</file>
-        <file alias="qml/themes/classic/controls/ClassicSpinBox.qml">qml/themes/classic/controls/ClassicSpinBox.qml</file>
-        <file alias="qml/themes/classic/controls/ClassicComboBox.qml">qml/themes/classic/controls/ClassicComboBox.qml</file>
-        <file alias="qml/themes/classic/controls/ClassicDialogBackground.qml">qml/themes/classic/controls/ClassicDialogBackground.qml</file>
-        <file alias="qml/themes/classic/controls/ClassicDarkButton.qml">qml/themes/classic/controls/ClassicDarkButton.qml</file>
-        <file alias="qml/themes/github/controls/GithubButton.qml">qml/themes/github/controls/GithubButton.qml</file>
-        <file alias="qml/themes/github/controls/GithubPanel.qml">qml/themes/github/controls/GithubPanel.qml</file>
-        <file alias="qml/themes/github/controls/GithubCheckBox.qml">qml/themes/github/controls/GithubCheckBox.qml</file>
-        <file alias="qml/themes/github/controls/GithubTextField.qml">qml/themes/github/controls/GithubTextField.qml</file>
-        <file alias="qml/themes/github/controls/GithubSeparator.qml">qml/themes/github/controls/GithubSeparator.qml</file>
-        <file alias="qml/themes/github/controls/GithubSpinBox.qml">qml/themes/github/controls/GithubSpinBox.qml</file>
-        <file alias="qml/themes/github/controls/GithubComboBox.qml">qml/themes/github/controls/GithubComboBox.qml</file>
-        <file alias="qml/themes/github/controls/GithubDialogBackground.qml">qml/themes/github/controls/GithubDialogBackground.qml</file>
-        <file alias="qml/themes/gray/controls/GrayButton.qml">qml/themes/gray/controls/GrayButton.qml</file>
-        <file alias="qml/themes/gray/controls/GrayPanel.qml">qml/themes/gray/controls/GrayPanel.qml</file>
-        <file alias="qml/themes/gray/controls/GrayCheckBox.qml">qml/themes/gray/controls/GrayCheckBox.qml</file>
-        <file alias="qml/themes/gray/controls/GrayTextField.qml">qml/themes/gray/controls/GrayTextField.qml</file>
-        <file alias="qml/themes/gray/controls/GraySeparator.qml">qml/themes/gray/controls/GraySeparator.qml</file>
-        <file alias="qml/themes/gray/controls/GraySpinBox.qml">qml/themes/gray/controls/GraySpinBox.qml</file>
-        <file alias="qml/themes/gray/controls/GrayComboBox.qml">qml/themes/gray/controls/GrayComboBox.qml</file>
-        <file alias="qml/themes/gray/controls/GrayDialogBackground.qml">qml/themes/gray/controls/GrayDialogBackground.qml</file>
         <!-- Tekstury classic UI (zrodlo: TibiaClient / otcv8-classicui-772gui; marginesy
              image-border/image-clip w komponentach stylu wyzej udokumentowane 1:1 z .otui) -->
         <file alias="ui/actionbar_background.png">ui/actionbar_background.png</file>
@@ -280,17 +210,6 @@
         <file alias="ui/github/minimap.svg">ui/github/minimap.svg</file>
         <file alias="ui/github/waypoints.svg">ui/github/waypoints.svg</file>
         <file alias="ui/github/app-icon.png">ui/github/app-icon.png</file>
-        <file alias="qml/themes/fluent/controls/FluentButton.qml">qml/themes/fluent/controls/FluentButton.qml</file>
-        <file alias="qml/themes/fluent/controls/FluentCheckBox.qml">qml/themes/fluent/controls/FluentCheckBox.qml</file>
-        <file alias="qml/themes/fluent/controls/FluentComboBox.qml">qml/themes/fluent/controls/FluentComboBox.qml</file>
-        <file alias="qml/themes/fluent/controls/FluentDialogBackground.qml">qml/themes/fluent/controls/FluentDialogBackground.qml</file>
-        <file alias="qml/themes/fluent/controls/FluentPanel.qml">qml/themes/fluent/controls/FluentPanel.qml</file>
-        <file alias="qml/themes/fluent/controls/FluentSeparator.qml">qml/themes/fluent/controls/FluentSeparator.qml</file>
-        <file alias="qml/themes/fluent/controls/FluentSpinBox.qml">qml/themes/fluent/controls/FluentSpinBox.qml</file>
-        <file alias="qml/themes/fluent/controls/FluentTextField.qml">qml/themes/fluent/controls/FluentTextField.qml</file>
-        <file alias="qml/themes/fluent/Colors.js">qml/themes/fluent/Colors.js</file>
-        <file alias="qml/components/ColorHighlight.qml">qml/components/ColorHighlight.qml</file>
-        <file alias="qml/dialogs/UiColorizeDialog.qml">qml/dialogs/UiColorizeDialog.qml</file>
         <file alias="qml/themes/fluent/icons/Draw.svg">qml/themes/fluent/icons/Draw.svg</file>
         <file alias="qml/themes/fluent/icons/Select.svg">qml/themes/fluent/icons/Select.svg</file>
         <file alias="qml/themes/fluent/icons/Lasso.svg">qml/themes/fluent/icons/Lasso.svg</file>
@@ -331,5 +250,29 @@
             <file alias="qml/themes/fluent/icons/undo.svg">qml/themes/fluent/icons/undo.svg</file>
             <file alias="qml/themes/fluent/icons/new.svg">qml/themes/fluent/icons/new.svg</file>
             <file alias="qml/themes/fluent/icons/copy.svg">qml/themes/fluent/icons/copy.svg</file>
+        <file alias="qml/themes/tibia/images/scrollbar-handle-horizontal.png">qml/themes/tibia/images/scrollbar-handle-horizontal.png</file>
+        <file alias="qml/themes/tibia/images/scrollbar-texture-horizontal.png">qml/themes/tibia/images/scrollbar-texture-horizontal.png</file>
+        <file alias="qml/themes/tibia/images/scrollbar-buttonleft-up.png">qml/themes/tibia/images/scrollbar-buttonleft-up.png</file>
+        <file alias="qml/themes/tibia/images/scrollbar-buttonleft-down.png">qml/themes/tibia/images/scrollbar-buttonleft-down.png</file>
+        <file alias="qml/themes/tibia/images/scrollbar-buttonright-up.png">qml/themes/tibia/images/scrollbar-buttonright-up.png</file>
+        <file alias="qml/themes/tibia/images/scrollbar-buttonright-down.png">qml/themes/tibia/images/scrollbar-buttonright-down.png</file>
+        <file alias="qml/themes/tibia/images/widget-borderimage.png">qml/themes/tibia/images/widget-borderimage.png</file>
+        <file alias="qml/themes/tibia/images/min-button-small-up.png">qml/themes/tibia/images/min-button-small-up.png</file>
+        <file alias="qml/themes/tibia/images/min-button-small-down.png">qml/themes/tibia/images/min-button-small-down.png</file>
+        <file alias="qml/themes/tibia/images/max-button-small-up.png">qml/themes/tibia/images/max-button-small-up.png</file>
+        <file alias="qml/themes/tibia/images/max-button-small-down.png">qml/themes/tibia/images/max-button-small-down.png</file>
+        <file alias="qml/themes/tibia/images/4pixel-up-frame.png">qml/themes/tibia/images/4pixel-up-frame.png</file>
+        <file alias="qml/themes/tibia/images/3pixel-frame-bottom-left.png">qml/themes/tibia/images/3pixel-frame-bottom-left.png</file>
+        <file alias="qml/themes/tibia/images/3pixel-frame-bottom-right.png">qml/themes/tibia/images/3pixel-frame-bottom-right.png</file>
+        <file alias="qml/themes/tibia/images/3pixel-frame-bottom.png">qml/themes/tibia/images/3pixel-frame-bottom.png</file>
+        <file alias="qml/themes/tibia/images/3pixel-frame-left.png">qml/themes/tibia/images/3pixel-frame-left.png</file>
+        <file alias="qml/themes/tibia/images/3pixel-frame-right.png">qml/themes/tibia/images/3pixel-frame-right.png</file>
+        <file alias="qml/themes/tibia/images/3pixel-frame-top-left.png">qml/themes/tibia/images/3pixel-frame-top-left.png</file>
+        <file alias="qml/themes/tibia/images/3pixel-frame-top-right.png">qml/themes/tibia/images/3pixel-frame-top-right.png</file>
+        <file alias="qml/themes/tibia/images/3pixel-frame-top.png">qml/themes/tibia/images/3pixel-frame-top.png</file>
+        <file alias="qml/themes/tibia/images/checkbox-checked.png">qml/themes/tibia/images/checkbox-checked.png</file>
+        <file alias="qml/themes/tibia/images/checkbox-checked-disabled.png">qml/themes/tibia/images/checkbox-checked-disabled.png</file>
+        <file alias="qml/themes/tibia/images/checkbox-unchecked.png">qml/themes/tibia/images/checkbox-unchecked.png</file>
+        <file alias="qml/themes/tibia/images/menubox.png">qml/themes/tibia/images/menubox.png</file>
     </qresource>
 </RCC>

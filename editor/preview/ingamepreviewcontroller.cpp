@@ -121,8 +121,8 @@ bool IngamePreviewController::walk(int dx, int dy)
 
 bool IngamePreviewController::beginStep(const QPoint &direction)
 {
-    const int newDirection = direction.y() < 0 ? 0 : direction.x() > 0 ? 1
-                           : direction.y() > 0 ? 2 : 3;
+    const int newDirection = direction.x() > 0 ? 1 : direction.x() < 0 ? 3
+                           : direction.y() < 0 ? 0 : 2;
     if (m_direction != newDirection) {
         m_direction = newDirection;
         emit directionChanged();
@@ -180,12 +180,11 @@ void IngamePreviewController::animationTick()
 {
     if (!m_walking) return;
     m_progress = qBound<qreal>(0, qreal(m_stepClock.elapsed()) / stepDurationMs(), 1);
-    // Creature::updateWalk advances whole pixels at a constant rate.
-    const int elapsed = int(m_stepClock.elapsed());
-    const int pixels = qBound(0, elapsed * 32 / std::max(1, m_straightDuration + 10), 32);
-    const int footDelay = m_walkPhases > 0 ? std::max(20, (m_straightDuration + 20) / m_walkPhases + 10) : 20;
-    m_walkAnimationTick = m_walkPhases > 0 ? 1 + elapsed / footDelay : 0;
-    const qreal t = pixels / 32.0;
+    // Match reconstruction/src/walkanimation.h: continuous straight-step motion,
+    // with foot phases selected from the remaining displacement in 8px bands.
+    const qreal t = qBound<qreal>(0, qreal(m_stepClock.elapsed()) / std::max(1, m_straightDuration), 1);
+    const int remainingPixels = int((1 - t) * 32);
+    m_walkAnimationTick = t < 1 && m_walkPhases > 0 ? 1 + (remainingPixels / 8) % m_walkPhases : 0;
     m_visualX = m_fromX + (m_x - m_fromX) * t;
     m_visualY = m_fromY + (m_y - m_fromY) * t;
     emit visualPositionChanged();

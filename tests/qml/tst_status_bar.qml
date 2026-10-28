@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import Tibia 1.0
 import "../../editor/qml/components" as Components
 Item {
     id: scene
@@ -64,7 +65,7 @@ Item {
     TestCase {
         name: "DmeStatusBar"
         when: windowShown
-        function init() { map.brushServerId=0; bar.showWorkTimer=true; bar.showFps=true; scene.width=1920; map.floor=7; map.hoverX=65535; map.tileSize=14; }
+        function init() { Backend.uiTheme.style="fluent-dark"; bar.height=44; map.brushServerId=0; bar.showWorkTimer=true; bar.showFps=true; scene.width=1920; map.floor=7; map.hoverX=65535; map.tileSize=14; }
         function test_responsiveGroupsNeverOverlap_data() {
             return [ {tag:"minimum",w:720}, {tag:"compact",w:900}, {tag:"boundary",w:1100}, {tag:"full",w:1280}, {tag:"laptop",w:1366}, {tag:"desktop",w:1920} ];
         }
@@ -105,6 +106,17 @@ Item {
             compare(bar.itemText,"door"); verify(image.source.toString().indexOf("/120/")>=0);
             map.brushServerId=0;
             verify(!image.visible);
+        }
+        function test_tibiaStatusUsesCompactClientChrome() {
+            Backend.uiTheme.style="tibia-ui"; bar.height=32; scene.width=1024;
+            map.brushServerId=10;
+            compare(bar.implicitHeight,32);
+            const image=findChild(bar,"statusItemThumbnail");
+            tryCompare(image,"height",24); tryCompare(image,"width",24);
+            const floor=findChild(bar,"statusFloorControl");
+            wait(30);
+            verify(floor.mapToItem(bar,0,0).y>=0);
+            verify(floor.mapToItem(bar,0,floor.height).y<=bar.height);
         }
         function test_zoomButtons() {
             const initial=map.tileSize;

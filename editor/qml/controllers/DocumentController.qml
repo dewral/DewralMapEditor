@@ -18,6 +18,7 @@ Item {
     required property var closeTabConfirm
     required property var appCloseConfirm
 
+    property int newMapGeneration: 0
     property bool started: false
     property var recentMaps: []
     property string pendingMapPath: ""
@@ -70,7 +71,7 @@ Item {
 
     function initialize() {
         loadRecent();
-        profiles.load();
+        if (!profiles.catalogLoaded) profiles.load();
         palettes.load();
         Backend.docMgr.configureAutosave(settings.autosaveEnabled,
                                          settings.autosaveIntervalMinutes);
@@ -133,30 +134,32 @@ Item {
     }
 
     function createNewMap(key, width, height) {
-        if (!profiles.ensureClientVersion(key)) {
-            pendingNewMap = {
-                key: key,
-                w: width,
-                h: height
-            };
-            pendingKey = String(key);
-            if (started)
-                versionFolderDialog.open();
-            else
-                startupWindow.openVersionFolderDialog();
-            return;
-        }
-        if (Backend.otbmReader.loaded || Backend.otbmReader.filePath !== "")
-            Backend.docMgr.newDocument();
-        Backend.otbmReader.newMap(width, height, profiles.profileVer(key), Backend.otbReader.majorVersion, Backend.otbReader.minorVersion);
-        Backend.docMgr.setCurrentProfileKey(String(key));
-        mapView.centerOnTile(Math.floor(width / 2), Math.floor(height / 2), 7);
-        started = true;
+        const generation = ++newMapGeneration;
+        profiles.prepareClientVersion(key, function(success, error) {
+            if (generation !== newMapGeneration) return;
+            if (!success) {
+                pendingNewMap = {key:key, w:width, h:height};
+                pendingKey = String(key);
+                showToast(error || "Choose a client folder.");
+                startupWindow.loadingMap = false;
+                if (started) versionFolderDialog.open();
+                else startupWindow.openVersionFolderDialog();
+                return;
+            }
+            if (Backend.otbmReader.loaded || Backend.otbmReader.filePath !== "") Backend.docMgr.newDocument();
+            Backend.otbmReader.newMap(width, height, profiles.profileVer(key), Backend.otbReader.majorVersion, Backend.otbReader.minorVersion);
+            Backend.docMgr.setCurrentProfileKey(String(key));
+            mapView.centerOnTile(Math.floor(width / 2), Math.floor(height / 2), 7);
+            started = true;
+        });
+        return true;
     }
 
     function loadEverything(mapPath, preferredProfileKey) {
         if (mapPath === "")
             return false;
+        if (activeLoadPath === mapPath)
+            return true;
 
         var existing = Backend.docMgr.indexOfPath(mapPath);
         if (existing >= 0) {
@@ -169,20 +172,23 @@ Item {
         if (Backend.otbmReader.loaded && Backend.otbmReader.filePath !== mapPath)
             Backend.docMgr.newDocument();
         const header = Backend.otbmReader.inspectFileHeader(mapPath);
-        if (header.success
-                && !profiles.ensureClientForMap(header.clientVersion, mapPath, preferredProfileKey)) {
-            requestClientFolder(mapPath, preferredProfileKey, header.clientVersion);
-            return true;
-        }
+        if (!header.success) { showToast(header.error || "Could not inspect map header."); return false; }
         activeLoadPath = mapPath;
-        activePreferredProfileKey = preferredProfileKey === undefined
-                                  || preferredProfileKey === null
-                                  ? "" : String(preferredProfileKey);
-        if (!mapView.loadMap(mapPath)) {
-            activeLoadPath = "";
-            activePreferredProfileKey = "";
-            return false;
-        }
+        activePreferredProfileKey = preferredProfileKey === undefined || preferredProfileKey === null ? "" : String(preferredProfileKey);
+        profiles.prepareClientForMap(header.clientVersion, mapPath, preferredProfileKey, function(success, error) {
+            if (activeLoadPath !== mapPath) return;
+            if (!success) {
+                activeLoadPath = ""; activePreferredProfileKey = "";
+                showToast(error || "Client loading failed.");
+                requestClientFolder(mapPath, preferredProfileKey, header.clientVersion);
+                return;
+            }
+            if (!mapView.loadMap(mapPath)) {
+                activeLoadPath = ""; activePreferredProfileKey = "";
+                startupWindow.loadingMap = false;
+                showToast("Could not begin loading map.");
+            }
+        });
         return true;
     }
 
@@ -201,17 +207,20 @@ Item {
     }
 
     function completeLoadedMap(mapPath, preferredProfileKey) {
-        if (!profiles.ensureClientLoaded(Backend.otbmReader, preferredProfileKey)) {
-            requestClientFolder(mapPath, preferredProfileKey, Backend.otbmReader.suggestedClientVersion());
-            return false;
-        }
-
-        if (mapView.atlasBuilding) {
-            waitingForAtlas = true;
-            atlasCompletionPath = mapPath;
-            return true;
-        }
-        return finalizeLoadedMap(mapPath);
+        const reader = Backend.otbmReader;
+        profiles.prepareClientLoaded(reader, preferredProfileKey, function(success, error) {
+            if (Backend.otbmReader !== reader || reader.filePath !== mapPath) return;
+            if (!success) {
+                showToast(error || "Client loading failed.");
+                requestClientFolder(mapPath, preferredProfileKey, reader.suggestedClientVersion());
+                return;
+            }
+            if (mapView.atlasBuilding) {
+                waitingForAtlas = true;
+                atlasCompletionPath = mapPath;
+            } else finalizeLoadedMap(mapPath);
+        });
+        return true;
     }
 
     function finalizeLoadedMap(mapPath) {
@@ -264,6 +273,9 @@ Item {
     }
 
     function saveMap() {
+        const reader = Backend.otbmReader;
+        profiles.prepareClientLoaded(reader, undefined, function(success, error) {
+            if (!success || Backend.otbmReader !== reader) { showToast(error || "The active document changed."); return; }
         if (Backend.otbmReader.filePath === "") {
             saveDialog.open();
             return;
@@ -273,9 +285,13 @@ Item {
             profiles.rememberMapProfile(Backend.otbmReader.filePath, profiles.loadedClientKey);
             showToast("Saved: " + Backend.fileTools.fileName(Backend.otbmReader.filePath));
         }
+        });
     }
 
     function handleSaveAsAccepted(fileUrl) {
+        const reader = Backend.otbmReader;
+        profiles.prepareClientLoaded(reader, undefined, function(success, error) {
+            if (!success || Backend.otbmReader !== reader) { abortSaveAllAndClose(error || "The active document changed."); return; }
         var path = Backend.fileTools.toLocalFile(fileUrl);
         Backend.otbmReader.applyClientVersions(profiles.loadedClientVersion, Backend.otbReader.majorVersion, Backend.otbReader.minorVersion);
         if (Backend.otbmReader.saveFile(path)) {
@@ -289,6 +305,7 @@ Item {
         } else if (appCloseSaveAsPending) {
             abortSaveAllAndClose("Not all maps were saved");
         }
+        });
     }
 
     function handleSaveAsRejected() {
@@ -311,7 +328,7 @@ Item {
         if (Backend.docMgr.closeDocument(index))
             started = false;
         else
-            profiles.ensureClientLoaded(Backend.docMgr.current);
+            profiles.prepareClientLoaded(Backend.docMgr.current, undefined, function(success, error) { if (!success) controller.showToast(error); });
     }
 
     function dirtyTabIndices() {
@@ -380,10 +397,12 @@ Item {
 
         Backend.docMgr.currentIndex = index;
         var reader = Backend.docMgr.current;
-        if (!reader || !profiles.ensureClientLoaded(reader)) {
-            abortSaveAllAndClose("Not all maps were saved: client data is missing");
-            return;
-        }
+        if (!reader) { abortSaveAllAndClose("Not all maps were saved"); return; }
+        profiles.prepareClientLoaded(reader, undefined, function(success, error) {
+            if (!success || Backend.docMgr.current !== reader) {
+                abortSaveAllAndClose(error || "The active document changed while saving.");
+                return;
+            }
         reader.applyClientVersions(profiles.loadedClientVersion, Backend.otbReader.majorVersion, Backend.otbReader.minorVersion);
         if (reader.filePath === "") {
             appCloseSaveAsPending = true;
@@ -396,13 +415,14 @@ Item {
         }
         profiles.rememberMapProfile(reader.filePath, profiles.loadedClientKey);
         Qt.callLater(saveNextAndClose);
+        });
     }
 
     Connections {
         target: Backend.docMgr
         function onCurrentChanged() {
             if (Backend.docMgr.current && Backend.docMgr.current.loaded)
-                controller.profiles.ensureClientLoaded(Backend.docMgr.current);
+                controller.profiles.prepareClientLoaded(Backend.docMgr.current, undefined, function(success, error) { if (!success) controller.showToast(error); });
         }
         function onAutosaveFailed(title, error) {
             controller.showToast("Autosave failed"

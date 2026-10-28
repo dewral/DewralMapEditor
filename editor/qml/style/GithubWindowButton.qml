@@ -1,8 +1,10 @@
 import QtQuick
 import Tibia 1.0
+import "../themes/tibia" as TibiaSkin
 
 Item {
     id: root
+    readonly property bool tibiaTheme: Backend.uiTheme.style === "tibia-ui"
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
     readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
@@ -16,14 +18,15 @@ Item {
     readonly property bool pressed: controlMouse.pressed || nativePressed
     signal triggered()
 
-    implicitWidth: compact ? 38 : 46
-    implicitHeight: compact ? 27 : 40
+    implicitWidth: tibiaTheme ? 24 : compact ? 38 : 46
+    implicitHeight: tibiaTheme ? 26 : compact ? 27 : 40
 
     Rectangle {
         anchors.fill: parent
         color: {
             if (!root.hovered)
                 return "transparent";
+            if (root.tibiaTheme) return "transparent";
             if (root.controlType === "close")
                 return root.pressed ? "#B62324" : (root.windowsClassic ? "#e81123" : "#DA3633");
             if (root.windowsClassic)
@@ -32,11 +35,27 @@ Item {
         }
     }
 
+    Loader {
+        anchors.centerIn: parent; width: 22; height: 22; active: root.tibiaTheme
+        sourceComponent: TibiaSkin.TibiaClassicFrame { kind: "button"; pressed: root.pressed }
+    }
+    Image {
+        objectName: "tibiaCaptionButton"
+        visible: root.tibiaTheme
+        anchors.centerIn: parent
+        anchors.verticalCenterOffset: root.pressed ? 1 : 0
+        anchors.horizontalCenterOffset: root.pressed ? 1 : 0
+        width: 18; height: 18
+        sourceSize: Qt.size(18,18)
+        source: Qt.resolvedUrl("../themes/tibia/icons/" + (root.controlType === "maximize" && root.maximized ? "restore" : root.controlType) + ".svg")
+    }
     Item {
         id: glyph
+        visible: !root.tibiaTheme
         anchors.centerIn: parent
         width: 14
         height: 14
+        scale: 1
 
         Rectangle {
             visible: root.controlType === "minimize"

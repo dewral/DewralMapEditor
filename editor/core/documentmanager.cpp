@@ -24,6 +24,7 @@ DocumentManager::DocumentManager(QObject *parent)
 {
     m_clock.start();
     connect(&m_recoveryWatcher, &QFutureWatcher<QString>::finished, this, &DocumentManager::finishRecovery);
+    initializeSession();
     loadPreviousSession();
     newDocument();
     m_initializing = false;
@@ -216,56 +217,82 @@ void DocumentManager::clearRecovery(OtbmReader *doc)
     m_recoveryRetryAt.remove(doc);
 }
 
+void DocumentManager::initializeSession()
+{
+    QDir directory(recoveryDirectory());
+    if (!directory.mkpath(QStringLiteral("."))) return;
+    m_sessionPath = directory.filePath(QStringLiteral("session-%1.json")
+        .arg(QUuid::createUuid().toString(QUuid::WithoutBraces)));
+    m_sessionLock = std::make_unique<QLockFile>(m_sessionPath + QStringLiteral(".lock"));
+    // A long editing session is not stale just because its lock is old.
+    m_sessionLock->setStaleLockTime(0);
+    m_sessionLock->tryLock(0);
+}
+
 void DocumentManager::loadPreviousSession()
 {
-    const QString sessionPath = QDir(recoveryDirectory()).filePath(
-        QStringLiteral("session.json"));
-    QFile file(sessionPath);
-    if (!file.open(QIODevice::ReadOnly)) return;
-    QJsonParseError error;
-    const QJsonDocument json = QJsonDocument::fromJson(file.readAll(), &error);
-    if (error.error != QJsonParseError::NoError || !json.isObject()) return;
-    const QJsonObject root = json.object();
-    if (root.value(QStringLiteral("cleanExit")).toBool(true)) return;
-
-    const QJsonArray documents = root.value(QStringLiteral("documents")).toArray();
-    for (const QJsonValue &value : documents) {
-        const QJsonObject object = value.toObject();
-        if (!object.value(QStringLiteral("dirty")).toBool()) continue;
-        const QString id = object.value(QStringLiteral("id")).toString();
-        const QString original = object.value(QStringLiteral("originalPath")).toString();
-        QString recovery = object.value(QStringLiteral("recoveryPath")).toString(recoveryPath(id));
-        const QString pending = object.value(QStringLiteral("pendingRecoveryPath")).toString();
-        if (!pending.isEmpty() && QFileInfo::exists(pending)) recovery = pending;
-        const QFileInfo recoveryInfo(recovery);
-        if (id.isEmpty() || !recoveryInfo.exists()) continue;
-        const QFileInfo originalInfo(original);
-        if (originalInfo.exists()
-            && recoveryInfo.lastModified() <= originalInfo.lastModified())
-            continue;
-
-        QVariantMap entry;
-        entry.insert(QStringLiteral("id"), id);
-        entry.insert(QStringLiteral("originalPath"), original);
-        entry.insert(QStringLiteral("recoveryPath"), recovery);
-        entry.insert(QStringLiteral("title"), original.isEmpty()
-            ? QStringLiteral("Unsaved map") : originalInfo.fileName());
-        entry.insert(QStringLiteral("savedAt"), recoveryInfo.lastModified().toString(
-            QStringLiteral("yyyy-MM-dd HH:mm:ss")));
-        entry.insert(QStringLiteral("size"), recoveryInfo.size());
-        entry.insert(QStringLiteral("profileKey"),
-                     object.value(QStringLiteral("profileKey")).toString());
-        entry.insert(QStringLiteral("spawnFile"),
-                     object.value(QStringLiteral("spawnFile")).toString());
-        entry.insert(QStringLiteral("houseFile"),
-                     object.value(QStringLiteral("houseFile")).toString());
-        m_recoveries.push_back(entry);
+    if (!m_sessionLock || !m_sessionLock->isLocked()) return;
+    const QDir directory(recoveryDirectory());
+    const auto manifests = directory.entryInfoList(
+        {QStringLiteral("session.json"), QStringLiteral("session-*.json")},
+        QDir::Files, QDir::Time);
+    QSet<QString> recoveredIds;
+    QSet<QString> recoveredPaths;
+    for (const QFileInfo &manifest : manifests) {
+        if (manifest.absoluteFilePath() == QFileInfo(m_sessionPath).absoluteFilePath()) continue;
+        auto lock = std::make_unique<QLockFile>(manifest.absoluteFilePath() + QStringLiteral(".lock"));
+        lock->setStaleLockTime(0);
+        // A live instance (or another recovering instance) owns this manifest.
+        if (!lock->tryLock(0)) continue;
+        QFile file(manifest.absoluteFilePath());
+        if (!file.open(QIODevice::ReadOnly)) continue;
+        QJsonParseError error;
+        const QJsonDocument json = QJsonDocument::fromJson(file.readAll(), &error);
+        file.close();
+        if (error.error != QJsonParseError::NoError || !json.isObject()) continue;
+        const QJsonObject root = json.object();
+        if (root.value(QStringLiteral("version")).toInt(1) != 1) continue;
+        if (!root.value(QStringLiteral("cleanExit")).toBool(true)) {
+            for (const QJsonValue &value : root.value(QStringLiteral("documents")).toArray()) {
+                const QJsonObject object = value.toObject();
+                if (!object.value(QStringLiteral("dirty")).toBool()) continue;
+                const QString id = object.value(QStringLiteral("id")).toString();
+                const QString original = object.value(QStringLiteral("originalPath")).toString();
+                QString recovery = object.value(QStringLiteral("recoveryPath")).toString(recoveryPath(id));
+                const QString pending = object.value(QStringLiteral("pendingRecoveryPath")).toString();
+                if (!pending.isEmpty() && QFileInfo::exists(pending)) recovery = pending;
+                const QFileInfo recoveryInfo(recovery);
+                if (id.isEmpty() || !recoveryInfo.isFile() || recoveredIds.contains(id)
+                    || recoveredPaths.contains(recoveryInfo.absoluteFilePath())) continue;
+                // The manifest records an unsaved state. Filesystem mtime cannot
+                // prove that the original includes it (clock skew / coarse time).
+                QVariantMap entry;
+                entry.insert(QStringLiteral("id"), id);
+                entry.insert(QStringLiteral("originalPath"), original);
+                entry.insert(QStringLiteral("recoveryPath"), recovery);
+                entry.insert(QStringLiteral("title"), original.isEmpty()
+                    ? QStringLiteral("Unsaved map") : QFileInfo(original).fileName());
+                entry.insert(QStringLiteral("savedAt"), recoveryInfo.lastModified().toString(
+                    QStringLiteral("yyyy-MM-dd HH:mm:ss")));
+                entry.insert(QStringLiteral("size"), recoveryInfo.size());
+                for (const auto &key : {QStringLiteral("profileKey"), QStringLiteral("spawnFile"),
+                                       QStringLiteral("houseFile")})
+                    entry.insert(key, object.value(key).toString());
+                m_recoveries.push_back(entry);
+                recoveredIds.insert(id);
+                recoveredPaths.insert(recoveryInfo.absoluteFilePath());
+            }
+        }
+        // Retain ownership until our replacement manifest is durable. A second
+        // process must not offer or discard these same snapshots concurrently.
+        m_claimedSessions.push_back({manifest.absoluteFilePath(), std::move(lock)});
     }
 }
 
 void DocumentManager::writeSession(bool cleanExit)
 {
-    if (m_initializing || (m_shuttingDown && !cleanExit)) return;
+    if (m_initializing || (m_shuttingDown && !cleanExit)
+        || !m_sessionLock || !m_sessionLock->isLocked()) return;
     QDir dir(recoveryDirectory());
     if (!dir.exists() && !dir.mkpath(QStringLiteral("."))) return;
 
@@ -312,10 +339,18 @@ void DocumentManager::writeSession(bool cleanExit)
     root.insert(QStringLiteral("updatedAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate));
     root.insert(QStringLiteral("currentIndex"), m_current);
     root.insert(QStringLiteral("documents"), documents);
-    QSaveFile output(dir.filePath(QStringLiteral("session.json")));
+    QSaveFile output(m_sessionPath);
     if (!output.open(QIODevice::WriteOnly | QIODevice::Truncate)) return;
-    output.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
-    output.commit();
+    const QByteArray data = QJsonDocument(root).toJson(QJsonDocument::Indented);
+    if (output.write(data) != data.size() || !output.commit()) return;
+    // Migration is copy-then-remove, under the source locks. On write failure
+    // the previous manifests and their snapshots remain recoverable.
+    for (auto it = m_claimedSessions.begin(); it != m_claimedSessions.end();) {
+        if (!QFileInfo::exists(it->path) || QFile::remove(it->path))
+            it = m_claimedSessions.erase(it);
+        else
+            ++it;
+    }
 }
 
 void DocumentManager::configureAutosave(bool enabled, int intervalMinutes)

@@ -36,6 +36,8 @@ signals:
     void loadedChanged();
 
 private:
+    friend class ClientLoadService;
+    friend struct ClientPreparedState;
     struct Entry {
         QString name;
         QString type;

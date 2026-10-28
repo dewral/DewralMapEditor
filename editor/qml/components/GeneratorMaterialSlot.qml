@@ -39,7 +39,7 @@ Rectangle {
         Row {
             id: header
             width: parent.width; height: 30; spacing: 6
-            Text { font.family:Colors.fontFamily;
+            Text { font.family:Colors.family();
                 width: parent.width - 70; height: 30
                 text: root.label; color: Colors.c("text"); font.bold: true
                 verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
@@ -52,7 +52,7 @@ Rectangle {
             width: parent.width; spacing: 4
             Text {
                 objectName:"materialSummary_"+root.roleKey
-                font.family:Colors.fontFamily; width:parent.width; wrapMode:Text.WordWrap
+                font.family:Colors.family(); width:parent.width; wrapMode:Text.WordWrap
                 text:root.entries.length ? root.summary : root.emptyHint
                 visible:text.length>0; color:Colors.c("muted"); font.pixelSize:11
             }
@@ -79,7 +79,7 @@ Rectangle {
                                 item.spriteIds,item.itemWidth || 1,item.itemHeight || 1,item.layers || 1) : "";
                         }
                     }
-                    Text { font.family:Colors.fontFamily; width: Math.max(46,entry.width-158); height: 32; text: "#"+entry.modelData.id; color: Colors.c("text"); verticalAlignment: Text.AlignVCenter }
+                    Text { font.family:Colors.family(); width: Math.max(46,entry.width-158); height: 32; text: "#"+entry.modelData.id; color: Colors.c("text"); verticalAlignment: Text.AlignVCenter }
                     DmeSpinBox {
                         width: 76; height: 30; from: 1; to: 100; value: entry.modelData.weight
                         enabled: root.editable

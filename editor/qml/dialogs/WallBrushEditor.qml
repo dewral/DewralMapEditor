@@ -250,7 +250,7 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        spacing: 7
+        spacing: 5
         RowLayout {
             Layout.fillWidth: true
             DmeComboBox {
@@ -453,16 +453,17 @@ Item {
             }
             DmeScrollBar { anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom; flickable: shapeView }
         }
+        Text {
+            objectName: "wallBrushStatus"
+            Layout.fillWidth: true
+            text: root.status || (root.dirty ? "Unsaved changes · numbers below pieces are weights; 0 disables a variant" : "Numbers below pieces are weights; 0 disables a variant")
+            color: root.muted
+            font.pixelSize: 10
+            wrapMode: Text.WordWrap
+        }
         RowLayout {
             Layout.fillWidth: true
-            Text {
-                objectName: "wallBrushStatus"
-                Layout.fillWidth: true
-                text: root.status || (root.dirty ? "Unsaved changes · numbers below pieces are weights; 0 disables a variant" : "Numbers below pieces are weights; 0 disables a variant")
-                color: root.muted
-                font.pixelSize: 10
-                wrapMode: Text.WordWrap
-            }
+            Item { Layout.fillWidth: true }
             DmeButton {
                 objectName: "wallBrushAddSelected"
                 text: "Add selected"

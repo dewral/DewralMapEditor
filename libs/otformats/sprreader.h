@@ -15,6 +15,7 @@
 #include <QtQml/qqmlregistration.h>
 #include <list>
 #include <memory>
+#include <functional>
 #include <cstdint>
 
 struct SpriteData {
@@ -48,7 +49,7 @@ public:
     explicit SprReader(QObject *parent = nullptr);
     ~SprReader() override;
 
-    QString sourceFilePath() const { return m_file.fileName(); }
+    QString sourceFilePath() const { return m_file->fileName(); }
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
@@ -56,7 +57,7 @@ public:
     int spriteCount() const { return static_cast<int>(m_spriteCount); }
     bool isLoaded() const { return m_loaded; }
     QString errorString() const { return m_errorString; }
-    QString sourcePath() const { return m_file.fileName(); }
+    QString sourcePath() const { return m_file->fileName(); }
     bool extendedFormat() const { return m_extended; }
     bool usesAlpha() const { return m_useAlpha; }
 
@@ -92,7 +93,7 @@ public:
                                               int legs, int feet);
     Q_INVOKABLE QColor outfitColor(int colorIndex) const;
 
-    int preloadItemImageSources(const DatReader *datReader);
+    int preloadItemImageSources(const DatReader *datReader, const std::function<bool()> &cancelled = {});
     Q_INVOKABLE QString itemImageSourceForClientId(int clientId) const {
         return clientId > 0 ? QStringLiteral("image://paletteitem/%1/%2").arg(clientId).arg(m_itemImagesRevision) : QString();
     }
@@ -109,6 +110,8 @@ signals:
     void itemImagesChanged();
 
 private:
+    friend class ClientLoadService;
+    friend struct ClientPreparedState;
     static constexpr int kDefaultSpriteSize = 32;
 
     static constexpr qsizetype kMaxSpriteCacheBytes = 8 * 1024 * 1024;
@@ -128,7 +131,7 @@ private:
     QString cachedDataUrl(const QString &key);
     void cacheDataUrl(QString key, QString value);
 
-    QFile m_file;
+    std::unique_ptr<QFile> m_file = std::make_unique<QFile>();
     uchar *m_mappedData = nullptr;
     int m_bulkAccessDepth = 0;
     qint64 m_fileSize = 0;
@@ -160,6 +163,7 @@ private:
     qsizetype m_dataUrlCacheBytes = 0;
     mutable QReadWriteLock m_preloadedItemLock;
     struct ItemImageState;
+    void publishItemImages(std::shared_ptr<ItemImageState> images, QSet<int> visible);
     std::shared_ptr<ItemImageState> m_itemImageState;
     QSet<int> m_visibleItemImages;
     int m_itemImagesRevision = 0;

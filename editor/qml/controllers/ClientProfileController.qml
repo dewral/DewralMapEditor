@@ -4,7 +4,7 @@ import Tibia 1.0
 QtObject {
     id: controller
     required property var settings
-    required property var mapView
+    property var mapView: null
 
     property var clientPaths: ({})
     property var customProfiles: []
@@ -78,7 +78,9 @@ QtObject {
         saveClientPaths();
     }
 
+    property bool catalogLoaded: false
     function load() {
+        catalogLoaded = true;
         try {
             clientPaths = JSON.parse(settings.clientPathsJson) || ({});
         } catch (e) {
@@ -114,24 +116,6 @@ QtObject {
         saveClientPaths();
     }
 
-    function loadProfileData(key) {
-        var version = profileVer(key);
-        if (!isCustomKey(key)) {
-            Backend.tilesetStore.loadForVersion(version);
-            Backend.brushStore.loadForVersion(version);
-            Backend.creatureStore.loadForVersion(version);
-            Backend.itemsXml.loadForVersion(version);
-            return;
-        }
-        Backend.tilesetStore.loadForDir(key);
-        if (!Backend.brushStore.loadForDir(key))
-            Backend.brushStore.loadForVersion(version);
-        if (!Backend.creatureStore.loadForDir(key))
-            Backend.creatureStore.loadForVersion(version);
-        if (!Backend.itemsXml.loadForDir(key))
-            Backend.itemsXml.loadForVersion(version);
-    }
-
     function clientFiles(folder) {
         if (!folder)
             return {
@@ -156,11 +140,11 @@ QtObject {
     }
 
     function switchMapProfile(key) {
-        if (!ensureClientVersion(key))
-            return false;
-        settings.selectedClientKey = String(key);
-        if (Backend.otbmReader.filePath !== "")
-            rememberMapProfile(Backend.otbmReader.filePath, key);
+        prepareClientVersion(key, function(success) {
+            if (!success) return;
+            settings.selectedClientKey = String(key);
+            if (Backend.otbmReader.filePath !== "") rememberMapProfile(Backend.otbmReader.filePath, key);
+        });
         return true;
     }
 
@@ -209,73 +193,61 @@ QtObject {
         return ensureClientVersion(key);
     }
 
+    // Compatibility query only: expensive preparation is always asynchronous.
     function ensureClientVersion(key) {
+        return loadedClientKey === String(key) && loadedClientFingerprint !== "";
+    }
+    property var pendingCallbacks: ({})
+    property string pendingIdentity: ""
+    property var pendingId: 0
+    function prepareClientVersion(key, callback) {
         key = String(key);
-        var version = profileVer(key);
-        var folder = clientPaths[key] || "";
-        var files = clientFiles(folder);
-        if (version <= 0 || folder === "" || !files.dat || !files.spr || !files.otb)
-            return false;
-
-        var hasOtfi = Backend.otfiReader.loadFromFolder(folder);
-        var datFile = hasOtfi ? folder + "/" + Backend.otfiReader.metadataFile : files.dat;
-        var sprFile = hasOtfi ? folder + "/" + Backend.otfiReader.spritesFile : files.spr;
-        var extendedSpr = hasOtfi ? Backend.otfiReader.extended : version >= 960;
-        var alphaSpr = hasOtfi ? Backend.otfiReader.transparency : false;
-        var fingerprint = Backend.clientFingerprint(datFile, sprFile, files.otb, version,
-                          extendedSpr, alphaSpr,
-                          hasOtfi && Backend.otfiReader.frameDurations,
-                          hasOtfi && Backend.otfiReader.frameGroups);
-        mapView.setClientAtlasIdentity(fingerprint);
-        if (loadedClientKey === key && loadedClientFolder === folder
-                && loadedClientFingerprint === fingerprint)
-        {
-            if (Backend.otbmReader.loading) {
-                Backend.otbmReader.reportLoadingProgress(94, "Rebuilding sprite atlas...");
-                mapView.rebuildAtlas();
+        const identity = key + "|" + profileVer(key) + "|" + (clientPaths[key] || "");
+        if (pendingIdentity === identity && pendingCallbacks[pendingId]) {
+            pendingCallbacks[pendingId].push(callback);
+            return pendingId;
+        }
+        const id = Backend.clientLoader.request(key, profileVer(key), clientPaths[key] || "", isCustomKey(key));
+        pendingIdentity = identity; pendingId = id;
+        pendingCallbacks[id] = [callback];
+        return id;
+    }
+    function keyForMap(version, path, preferredProfileKey) {
+        if (version <= 0) version = 772;
+        const preferred = preferredProfileKey === undefined || preferredProfileKey === null ? "" : String(preferredProfileKey);
+        const remembered = path !== "" ? (mapProfiles[path] || "") : "";
+        return preferred !== "" && profileMatchesVersion(preferred, version) ? preferred
+            : remembered !== "" && (clientPaths[remembered] || "") !== "" ? remembered : resolveKeyForVersion(version);
+    }
+    function prepareClientForMap(version, path, preferredKey, callback) {
+        return prepareClientVersion(keyForMap(version, path, preferredKey), callback);
+    }
+    function prepareClientLoaded(reader, preferredKey, callback) {
+        return prepareClientForMap(reader.suggestedClientVersion(), reader.filePath, preferredKey, callback);
+    }
+    property Connections clientEvents: Connections {
+        target: typeof Backend.clientLoader !== "undefined" ? Backend.clientLoader : null
+        function onProgressChanged() {
+            if (Backend.clientLoader.busy)
+                Backend.otbmReader.reportLoadingProgress(Backend.clientLoader.progress, Backend.clientLoader.stage);
+        }
+        function onFinished(id, key, fingerprint, success, error) {
+            const callbacks = controller.pendingCallbacks[id];
+            if (!callbacks) return;
+            delete controller.pendingCallbacks[id];
+            if (id === controller.pendingId) controller.pendingIdentity = "";
+            if (success) {
+                const changed = controller.loadedClientKey !== key || controller.loadedClientFingerprint !== fingerprint;
+                controller.loadedClientKey = key;
+                controller.loadedClientFolder = controller.clientPaths[key] || "";
+                controller.loadedClientVersion = controller.profileVer(key);
+                controller.loadedClientFingerprint = fingerprint;
+                if (controller.mapView) {
+                    controller.mapView.setClientAtlasIdentity(fingerprint);
+                    if (changed || Backend.otbmReader.loading) controller.mapView.rebuildAtlas();
+                }
             }
-            return true;
+            callbacks.forEach(callback => callback(success, error));
         }
-
-        Backend.datReader.clientVersion = version;
-        Backend.traceLoadStage("client_profile_begin");
-        Backend.datReader.setOtfiOverrides(hasOtfi, Backend.otfiReader.extended, Backend.otfiReader.frameDurations, Backend.otfiReader.frameGroups);
-        if (Backend.otbmReader.loading)
-            Backend.otbmReader.reportLoadingProgress(78, "Loading item definitions...");
-        var datOk = Backend.datReader.loadFile(datFile, 0);
-        Backend.traceLoadStage("dat_ready");
-        if (Backend.otbmReader.loading)
-            Backend.otbmReader.reportLoadingProgress(83, "Loading item sprites...");
-        var sprOk = Backend.sprReader.loadFile(sprFile, 0, extendedSpr, alphaSpr);
-        Backend.traceLoadStage("spr_ready");
-        if (Backend.otbmReader.loading)
-            Backend.otbmReader.reportLoadingProgress(88, "Loading server items...");
-        var otbOk = Backend.otbReader.loadFile(files.otb);
-        Backend.traceLoadStage("otb_ready");
-
-        if (!datOk || !sprOk || !otbOk) {
-            loadedClientVersion = 0;
-            loadedClientKey = "";
-            loadedClientFolder = "";
-            loadedClientFingerprint = "";
-            mapView.rebuildAtlas();
-            return false;
-        }
-
-        loadedClientVersion = version;
-        loadedClientKey = key;
-        loadedClientFolder = folder;
-        loadedClientFingerprint = fingerprint;
-        if (Backend.otbmReader.loading)
-            Backend.otbmReader.reportLoadingProgress(90, "Preparing palette sprites...");
-        Backend.preloadPaletteSprites();
-        if (Backend.otbmReader.loading)
-            Backend.otbmReader.reportLoadingProgress(92, "Loading editor palettes...");
-        loadProfileData(key);
-        Backend.traceLoadStage("editor_definitions_ready");
-        if (Backend.otbmReader.loading)
-            Backend.otbmReader.reportLoadingProgress(94, "Rebuilding sprite atlas...");
-        mapView.rebuildAtlas();
-        return true;
     }
 }

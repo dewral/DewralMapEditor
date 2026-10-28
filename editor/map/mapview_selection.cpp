@@ -42,6 +42,13 @@ void MapView::deleteSelectedTop()
                     removedHere = true;
                     invalidateSpawnIndex();
                 }
+            } else if (m_selectionController.entity(key) >= 0) {
+                removedHere = m_otbm->removeItemAt(x, y, z, m_selectionController.entity(key));
+            } else if (m_selectionController.entity(key) == -2) {
+                removedHere = m_otbm->clearCreatureAt(x, y, z);
+            } else if (m_selectionController.entity(key) == -3) {
+                removedHere = m_otbm->clearSpawnAt(x, y, z);
+                if (removedHere) invalidateSpawnIndex();
             } else if (m_otbm->clearCreatureAt(x, y, z)) {
                 removedHere = true;
             } else if (m_otbm->clearSpawnAt(x, y, z)) {
@@ -55,7 +62,10 @@ void MapView::deleteSelectedTop()
         m_otbm->endUndoGroup();
         flushEditedChunksLocked();
     }
-    if (any) refreshAfterEdit(0);
+    if (any) {
+        if (!m_selectionController.entities.isEmpty()) clearSelection();
+        refreshAfterEdit(0);
+    }
 }
 
 void MapView::copySelection()
@@ -90,7 +100,12 @@ void MapView::copySelection()
             ct.direction = t->creature_direction;
             ct.spawnRadius = t->spawn_radius;
             ct.zoneIds = t->zone_ids;
-        } else if (!t->creature_name.isEmpty()) {
+        } else if (m_selectionController.entity(key) >= 0) {
+            const int index = m_selectionController.entity(key);
+            if (size_t(index) < t->items.size()) ct.items.push_back(t->items[size_t(index)]);
+        } else if (m_selectionController.entity(key) == -3) {
+            ct.spawnRadius = t->spawn_radius;
+        } else if (!t->creature_name.isEmpty() && m_selectionController.entity(key) != -3) {
             ct.creature = t->creature_name;
             ct.spawntime = t->creature_spawntime;
             ct.npc = t->creature_is_npc;
@@ -239,14 +254,23 @@ void MapView::cutSelection()
             if (m_otbm->clearSpawnAt(x, y, z)) { removedHere = true; any = true; invalidateSpawnIndex(); }
         } else {
 
-            if (m_otbm->clearCreatureAt(x, y, z)) { removedHere = true; any = true; }
+            const int entity = m_selectionController.entity(key);
+            if (entity >= 0) { removedHere = m_otbm->removeItemAt(x, y, z, entity); any |= removedHere; }
+            else if (entity == -3) {
+                removedHere = m_otbm->clearSpawnAt(x, y, z); any |= removedHere;
+                if (removedHere) invalidateSpawnIndex();
+            }
+            else if (m_otbm->clearCreatureAt(x, y, z)) { removedHere = true; any = true; }
             else if (m_otbm->removeTopItem(x, y, z)) { removedHere = true; any = true; }
         }
         if (removedHere) onTileEdited(x, y, z);
     }
     m_otbm->endUndoGroup();
     endEditBatch();
-    if (any) refreshAfterEdit(0);
+    if (any) {
+        if (!m_selectionController.entities.isEmpty()) clearSelection();
+        refreshAfterEdit(0);
+    }
 }
 
 void MapView::moveSelection(int dx, int dy, int dz)
@@ -275,6 +299,8 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
         std::vector<OtbmMapItem> items;
         QString creature; int spawntime = 60; bool npc = false; uint8_t direction = 0;
         int spawnRadius = 0;
+        int entity = -1;
+        int targetEntity = -1;
         TileZoneIds zoneIds;
     };
     std::vector<Snap> snap;
@@ -283,6 +309,7 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
         const OtbmTile *t = m_otbm->tileAt(x, y, z);
         if (!t) continue;
         Snap s; s.x = x; s.y = y; s.z = z;
+        s.entity = m_selectionController.wholeStack() ? -1 : m_selectionController.entity(key);
         s.nx = x + dx; s.ny = y + dy;
         if (quarterTurns != 0) {
             const QPoint target = rotatedSelectionPosition(QPoint(x, y),
@@ -297,6 +324,10 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
             s.direction = static_cast<uint8_t>((t->creature_direction + quarterTurns + 4) % 4);
             s.spawnRadius = t->spawn_radius;
             if (m_selectionController.wholeStack()) s.zoneIds = t->zone_ids;
+        } else if (s.entity >= 0) {
+            if (size_t(s.entity) < t->items.size()) s.items.push_back(t->items[size_t(s.entity)]);
+        } else if (s.entity == -3) {
+            s.spawnRadius = t->spawn_radius;
         } else if (!t->creature_name.isEmpty()) {
 
             s.creature = t->creature_name;
@@ -341,13 +372,14 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
 
     bool movedSpawn = false;
     for (const Snap &s : snap) {
-        for (size_t i = 0; i < s.items.size(); ++i) m_otbm->removeTopItem(s.x, s.y, s.z);
+        if (s.entity >= 0) m_otbm->removeItemAt(s.x, s.y, s.z, s.entity);
+        else for (size_t i = 0; i < s.items.size(); ++i) m_otbm->removeTopItem(s.x, s.y, s.z);
         if (!s.creature.isEmpty()) m_otbm->clearCreatureAt(s.x, s.y, s.z);
         if (!s.zoneIds.empty()) m_otbm->setTileZoneIds(s.x, s.y, s.z, TileZoneIds());
         if (s.spawnRadius > 0) { m_otbm->clearSpawnAt(s.x, s.y, s.z); movedSpawn = true; }
         onTileEdited(s.x, s.y, s.z);
     }
-    for (const Snap &s : snap) {
+    for (Snap &s : snap) {
         const int nx = s.nx, ny = s.ny;
         const int nz = s.z + dz;
 
@@ -366,6 +398,15 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
                     it.server_id = static_cast<uint16_t>(rotated);
             }
             placeItemOnFloor(nx, ny, nz, it);
+            if (s.entity >= 0) {
+                if (const auto *tile = m_otbm->tileAt(nx, ny, nz)) {
+                    for (int index = int(tile->items.size()) - 1; index >= 0; --index)
+                        if (tile->items[size_t(index)].server_id == it.server_id) {
+                            s.targetEntity = index;
+                            break;
+                        }
+                }
+            }
         }
         if (!s.creature.isEmpty()) {
             m_otbm->setCreatureAt(nx, ny, nz, s.creature, s.spawntime, s.npc, s.direction);
@@ -419,6 +460,15 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
     m_brushController.setBulkEdit(savedBulk);
     m_placeEffect = savedFx;
     endEditBatch();
+    m_selectionController.entities.clear();
+    for (const Snap &s : snap) {
+        if (s.entity == -1) continue;
+        int entity = s.entity;
+        if (entity >= 0) {
+            entity = s.targetEntity;
+        }
+        m_selectionController.entities.insert(selKey(s.nx, s.ny, s.z + dz), entity);
+    }
     m_selectionController.selected() = newSel;
     notifySelectionChanged();
     refreshAfterEdit(0);

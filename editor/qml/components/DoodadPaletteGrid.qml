@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import "../themes/tibia" as TibiaSkin
 import QtQuick.Controls
 import Tibia 1.0
 import "../themes/fluent/Colors.js" as Colors
@@ -16,7 +17,7 @@ Item {
     required property var itemIds
     required property string categoryName
     required property string searchText
-    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
+    readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
     required property bool githubUi
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
@@ -116,7 +117,7 @@ Item {
         id: grid
         objectName: "paletteGrid"
         readonly property int gap: root.githubUi ? 8 : 2
-        readonly property int fluentColumns: Math.max(1, Math.round(width / root.fluentCellSize))
+        readonly property int fluentColumns: Math.max(1, (Backend.uiTheme.style === "tibia-ui" ? Math.floor(width / root.fluentCellSize) : Math.round(width / root.fluentCellSize)))
         readonly property int preferredWidth: root.githubUi ? Math.max(72, root.app.iconSizePx + 14)
                                                           : root.app.iconSizePx
         readonly property int columns: root.listView ? 1
@@ -124,7 +125,7 @@ Item {
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        width: parent.width - (root.githubUi ? 4 : 14)
+        width: parent.width - (Backend.uiTheme.style === "tibia-ui" ? 14 : root.githubUi ? 4 : 14)
         clip: true
         cellWidth: root.listView ? grid.width : root.fluentUi ? Math.floor(grid.width / grid.fluentColumns) : root.githubUi ? Math.max(1, Math.floor(width / columns)) : root.app.iconSizePx
         cellHeight: root.listView ? Math.max(48, root.app.iconSizePx * 0.72) : root.fluentUi ? grid.cellWidth : root.githubUi ? (root.listView ? Math.max(48, root.app.iconSizePx * 0.72)
@@ -162,6 +163,12 @@ Item {
             border.width: selected ? 2 : 1
             border.color: selected ? (root.fluentUi ? Colors.c("selectedBorder") : root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
                                    : (root.githubUi ? (root.grayUi ? "#424242" : "#202A35") : (root.fluentUi ? Colors.c("cellBorder") : "#3a3a3a"))
+
+            Loader {
+                anchors.fill: parent
+                active: Backend.uiTheme.style === "tibia-ui"
+                sourceComponent: TibiaSkin.TibiaSlot { selected: cell.selected; hovered: area.containsMouse }
+            }
 
             Image {
                 anchors.verticalCenter: parent.verticalCenter

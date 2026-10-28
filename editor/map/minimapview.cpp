@@ -9,6 +9,7 @@
 MinimapView::MinimapView(QQuickItem *parent)
     : QQuickPaintedItem(parent)
 {
+    connect(this,&MinimapView::centerTileChanged,this,[this]{ update(); });
     setAcceptedMouseButtons(Qt::LeftButton);
 
     setRenderTarget(QQuickPaintedItem::FramebufferObject);
@@ -19,6 +20,7 @@ void MinimapView::setSource(MapView *s)
     if (m_source == s) return;
     if (m_source) disconnect(m_source, nullptr, this, nullptr);
     m_source = s;
+    m_previewMinimap.invalidate();
     if (m_source) {
 
         connect(m_source, &MapView::contentUpdated, this, [this] { maybeRepaint(); });
@@ -61,19 +63,22 @@ void MinimapView::paint(QPainter *p)
     p->fillRect(QRectF(0, 0, width(), height()), QColor(12, 14, 18));
     if (!m_source) return;
 
-    const QImage &img = m_source->minimapImage();
+    if(m_focusFloor>=0 && m_previewSourceVersion!=m_source->minimapVersion()) {
+        m_previewMinimap.invalidate(); m_previewSourceVersion=m_source->minimapVersion();
+    }
+    const QImage &img = m_focusFloor>=0 ? m_source->minimapImageForFloor(m_focusFloor,m_previewMinimap) : m_source->minimapImage();
     m_paintedVer = m_source->minimapVersion();
     if (img.isNull()) return;
 
     const double ts = std::max(1, m_source->tileSize());
-    const double cx = m_source->renderOriginX() + m_source->width() / (2.0 * ts);
-    const double cy = m_source->renderOriginY() + m_source->height() / (2.0 * ts);
+    const double cx = m_centerTile.x()>=0 ? m_centerTile.x() : m_source->renderOriginX() + m_source->width() / (2.0 * ts);
+    const double cy = m_centerTile.y()>=0 ? m_centerTile.y() : m_source->renderOriginY() + m_source->height() / (2.0 * ts);
 
     const double tilesW = width() / double(m_pxPerTile);
     const double tilesH = height() / double(m_pxPerTile);
 
-    const double sx = (cx - m_source->minimapOriginX()) - tilesW / 2.0;
-    const double sy = (cy - m_source->minimapOriginY()) - tilesH / 2.0;
+    const double sx = (cx - (m_focusFloor>=0 ? m_previewMinimap.originX() : m_source->minimapOriginX())) - tilesW / 2.0;
+    const double sy = (cy - (m_focusFloor>=0 ? m_previewMinimap.originY() : m_source->minimapOriginY())) - tilesH / 2.0;
 
     // Keep the cached map in the compact Indexed8 format, but rasterize only
     // the small visible region to a format that every Qt Quick OpenGL paint
@@ -91,6 +96,12 @@ void MinimapView::paint(QPainter *p)
     p->setRenderHint(QPainter::SmoothPixmapTransform, false);
     p->drawImage(QPointF(0, 0), viewport);
 
+    if (m_centerTile.x()>=0) {
+        p->setPen(QPen(Qt::white,1));
+        p->drawLine(QPointF(width()/2-5,height()/2),QPointF(width()/2+5,height()/2));
+        p->drawLine(QPointF(width()/2,height()/2-5),QPointF(width()/2,height()/2+5));
+        return;
+    }
     const double viewW = m_source->width() / ts * m_pxPerTile;
     const double viewH = m_source->height() / ts * m_pxPerTile;
     p->setPen(QPen(QColor(255, 255, 255, 190), 1));
@@ -103,12 +114,13 @@ void MinimapView::centerMapAt(const QPointF &pos)
 {
     if (!m_source) return;
     const double ts = std::max(1, m_source->tileSize());
-    const double cx = m_source->renderOriginX() + m_source->width() / (2.0 * ts);
-    const double cy = m_source->renderOriginY() + m_source->height() / (2.0 * ts);
+    const double cx = m_centerTile.x()>=0 ? m_centerTile.x() : m_source->renderOriginX() + m_source->width() / (2.0 * ts);
+    const double cy = m_centerTile.y()>=0 ? m_centerTile.y() : m_source->renderOriginY() + m_source->height() / (2.0 * ts);
 
     const int tx = static_cast<int>(std::floor(cx + (pos.x() - width() / 2.0) / m_pxPerTile));
     const int ty = static_cast<int>(std::floor(cy + (pos.y() - height() / 2.0) / m_pxPerTile));
-    m_source->centerOnTile(tx, ty, m_source->floor());
+    if(m_centerTile.x()>=0) emit tileActivated(tx,ty);
+    else m_source->centerOnTile(tx, ty, m_source->floor());
 }
 
 void MinimapView::mousePressEvent(QMouseEvent *e)

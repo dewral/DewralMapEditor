@@ -50,6 +50,7 @@ TestCase {
                 property bool automagic: true
                 property bool compensatedSelect: true
                 property int selectionFloors: 0
+                property bool pixelPerfectSelection: false
                 onShowWallOutlinesChanged: viewFlagsChanged()
                 onShowGridChanged: viewFlagsChanged()
                 onShowPathingChanged: viewFlagsChanged()
@@ -71,6 +72,7 @@ TestCase {
                 onLightAmbientColorChanged: torchChanged()
                 onCompensatedSelectChanged: selectionOptionsChanged()
                 onSelectionFloorsChanged: selectionOptionsChanged()
+                onPixelPerfectSelectionChanged: selectionOptionsChanged()
             }
             Controllers.MapViewSettings {
                 id: persistence

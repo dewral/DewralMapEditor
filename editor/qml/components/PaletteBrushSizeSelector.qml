@@ -1,4 +1,5 @@
 import QtQuick
+import "../themes/tibia" as TibiaSkin
 import QtQuick.Controls
 import QtQuick.Window
 import Tibia 1.0
@@ -11,6 +12,14 @@ Item {
     required property var mapCtrl
     required property bool githubUi
     property bool compact: false
+    property bool sectionFrame: false
+    readonly property bool framed: sectionFrame && Backend.uiTheme.style === "tibia-ui" && !compact
+    Loader {
+        objectName: "brushSectionFrame"
+        active: root.framed
+        anchors.fill: parent
+        sourceComponent: TibiaSkin.TibiaClassicFrame { kind: "panel" }
+    }
     signal dockDragStarted()
     signal dockDragMoved(real sceneX, real sceneY)
     signal dockDragFinished(real sceneX, real sceneY)
@@ -20,7 +29,7 @@ Item {
         objectName: "brushDockHandle"
         z: 5
         x: 0; y: 0
-        width: root.compact ? 18 : root.width
+        width: root.compact ? 18 : root.framed ? root.brushLabelWidth+10 : root.width
         height: root.compact ? root.height : 30
         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
         property bool moving: false
@@ -39,25 +48,35 @@ Item {
         onCanceled: { moving = false; root.dockDragCanceled(); }
         Text { visible: root.compact; anchors.centerIn: parent; text: "⋮"; color: Colors.c("muted"); font.pixelSize: 20 }
     }
-    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
+    readonly property bool tibiaUi: Backend.uiTheme.style === "tibia-ui"
+    // Nine buttons and one separator always fit one row, even in a narrow sidebar.
+    readonly property real brushLabelWidth: Math.min(86, Math.floor(width*0.25))
+    readonly property real brushButtonSize: tibiaUi ? Math.min(26, Math.max(1, Math.floor((brushContent.width - 6 - 8 * brushButtons.spacing) / 8))) : 24
+    readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
 
-    implicitHeight: compact ? 30 : brushHeading.implicitHeight + brushContent.spacing + brushButtons.implicitHeight
+    implicitHeight: compact ? 30 : framed ? 40 : brushHeading.implicitHeight + brushContent.spacing + brushButtons.implicitHeight
                     + (githubUi ? 1 + brushContent.spacing : 0) + (fluentUi ? 16 : 0)
     Rectangle {
         anchors.fill: parent
-        visible: root.fluentUi && !root.compact
+        visible: root.fluentUi && !root.compact && !root.framed
         radius: 6
         color: Colors.c("surface")
         border.width: 1
         border.color: Colors.c("border")
+        TibiaSkin.TibiaSkin { anchors.fill: parent }
+    }
+    Text {
+        visible: root.framed; x: 10; height: parent.height; width: root.brushLabelWidth
+        text: "Brush size"; color: Colors.c("text"); font.family: Colors.family(); font.pixelSize: 11; font.bold: true
+        verticalAlignment: Text.AlignVCenter
     }
     Column {
     id: brushContent
-    x: root.compact ? 20 : root.fluentUi ? 8 : 0
-    y: root.compact ? 3 : root.fluentUi ? 8 : 0
-    width: root.width - (root.compact ? 20 : root.fluentUi ? 16 : 0)
+    x: root.compact ? 20 : root.framed ? root.brushLabelWidth+12 : root.fluentUi ? 8 : 0
+    y: root.compact ? 3 : root.framed ? 7 : root.fluentUi ? 8 : 0
+    width: root.width - (root.compact ? 20 : root.framed ? root.brushLabelWidth+20 : root.fluentUi ? 16 : 0)
     spacing: root.compact ? 0 : root.fluentUi ? 8 : root.githubUi ? 9 : 3
 
     Rectangle {
@@ -69,12 +88,12 @@ Item {
 
     Text {
         id: brushHeading
-        visible: !root.compact
+        visible: !root.compact && !root.framed
         text: "Brush size"
         color: root.fluentUi ? Colors.c("heading") : root.grayUi ? "#F0F0F0" : (root.githubUi ? "#E6EDF3" : "#ddd")
         font.pixelSize: root.githubUi ? 12 : 11
         font.bold: !root.fluentUi
-        font.family: root.fluentUi ? "Segoe UI" : Qt.application.font.family
+        font.family: root.fluentUi ? Colors.family() : Qt.application.font.family
     }
 
     Flow {
@@ -83,23 +102,23 @@ Item {
         spacing: root.githubUi ? 5 : 3
 
         Repeater {
-            model: ["square", "circle"]
+            model: root.tibiaUi ? ["square"] : ["square", "circle"]
             delegate: PaletteBrushButton {
                 required property string modelData
                 objectName: "fluentBrush" + modelData
-                width: root.fluentUi ? 24 : root.githubUi ? 32 : 26
-                height: root.fluentUi ? 24 : root.githubUi ? 32 : 26
+                width: root.tibiaUi ? root.brushButtonSize : root.fluentUi ? 24 : root.githubUi ? 32 : 26
+                height: root.tibiaUi ? root.brushButtonSize : root.fluentUi ? 24 : root.githubUi ? 32 : 26
                 githubStyle: root.githubUi
-                active: root.mapCtrl.brushShape === modelData
-                round: modelData === "circle"
+                active: root.tibiaUi || root.mapCtrl.brushShape === modelData
+                round: root.tibiaUi ? root.mapCtrl.brushShape === "circle" : modelData === "circle"
                 iconSize: 14
-                onClicked: root.mapCtrl.brushShape = modelData
+                onClicked: root.mapCtrl.brushShape = root.tibiaUi ? (root.mapCtrl.brushShape === "square" ? "circle" : "square") : modelData
             }
         }
 
         Item {
             width: root.fluentUi ? 6 : root.githubUi ? 6 : 10
-            height: root.fluentUi ? 24 : 26
+            height: root.tibiaUi ? root.brushButtonSize : root.fluentUi ? 24 : 26
         }
 
         Repeater {
@@ -108,19 +127,19 @@ Item {
                 required property int modelData
                 required property int index
                 objectName: "brushRadius" + modelData
-                width: root.fluentUi ? 24 : root.githubUi ? 32 : 26
-                height: root.fluentUi ? 24 : root.githubUi ? 32 : 26
+                width: root.tibiaUi ? root.brushButtonSize : root.fluentUi ? 24 : root.githubUi ? 32 : 26
+                height: root.tibiaUi ? root.brushButtonSize : root.fluentUi ? 24 : root.githubUi ? 32 : 26
                 githubStyle: root.githubUi
                 active: root.mapCtrl.brushSize === modelData
                 round: root.mapCtrl.brushShape === "circle"
                 iconSize: 6 + index * 2
                 onClicked: root.mapCtrl.brushSize = modelData
-                ToolTip.visible: !root.githubUi && Backend.uiTheme.style !== "fluent-dark" && hovered
+                ToolTip.visible: !root.githubUi && Backend.uiTheme.style !== "fluent-dark" && Backend.uiTheme.style !== "tibia-ui" && hovered
                 ToolTip.text: (modelData * 2 + 1) + "x" + (modelData * 2 + 1)
 
                 GithubToolTip {
                     targetItem: hoverArea
-                    targetHovered: (root.githubUi || Backend.uiTheme.style === "fluent-dark") && hovered
+                    targetHovered: (root.githubUi || (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")) && hovered
                     message: (modelData * 2 + 1) + "x" + (modelData * 2 + 1)
                 }
             }

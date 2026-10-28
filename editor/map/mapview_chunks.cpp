@@ -143,7 +143,7 @@ void MapView::appendItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out,
 
                         idx == 0 ? ((m_showZones && !m_modernZones ? static_cast<int>(tile->flags) : 0)
                                    | ((m_showHouses && !m_modernZones && tile->is_house) ? 64 : 0))
-                                 : 0 });
+                                 : 0, idx });
                 }
 
         if (ci->has(ClientProperty::Elevation)) elevation += ci->elevation;
@@ -176,7 +176,7 @@ void MapView::appendItemQuads(const OtbmTile *tile, std::vector<QuadRef> &out,
                         out.push_back(QuadRef{
                             (tile->x - ww) * kSprite - elevation,
                             (tile->y - hh) * kSprite - elevation,
-                            as, false, tile->x, tile->y, /*topItem=*/true, 0 });
+                            as, false, tile->x, tile->y, /*topItem=*/true, 0, -2 });
                     }
         }
     }

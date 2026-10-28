@@ -1,0 +1,14 @@
+#include "otbmreader.h"
+#include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QTemporaryDir>
+#include <QFileInfo>
+#include <chrono>
+#include <iostream>
+#include <cstdlib>
+using Clock=std::chrono::steady_clock;
+double elapsed(Clock::time_point t){return std::chrono::duration<double,std::milli>(Clock::now()-t).count();}
+void check(bool ok){if(!ok){std::cerr<<"CHECK_FAILED\n";std::abort();}}
+int main(int argc,char**argv){QCoreApplication app(argc,argv);if(argc>1&&QByteArray(argv[1])=="--bounds"){OtbmReader m;check(m.newMap(1024,1024,1098,3,57));bool accepted=m.placeItem(65536,1,7,100,0,false,true);std::cout<<"accepted="<<accepted<<" tiles="<<m.tileCount()<<" original_lookup="<<bool(m.tileAt(65536,1,7))<<" wrapped_lookup="<<bool(m.tileAt(0,1,7))<<" stored_x="<<(m.tiles().empty()?0:m.tiles().front().x)<<'\n';return 0;}
+std::cout<<"scene,tiles,items,run,construct_ms,save_first_ms,load_ms,point_100k_ms,bulk4096_ms,undo_ms,redo_ms,recovery_snapshot_ms,file_bytes,sizeof_tile,sizeof_item\n";
+QTemporaryDir dir;check(dir.isValid());for(int scenario=0;scenario<5;++scenario){const char*names[]={"small","medium","large","item-heavy","four-floors"};int side=scenario==0?64:scenario==2?1024:256;int floors=scenario==4?4:1;int per=scenario==3?8:1;for(int run=0;run<3;++run){OtbmReader m;check(m.newMap(2048,2048,1098,3,57));m.setUndoLimit(0);auto t=Clock::now();for(int z=7;z<7+floors;++z)for(int y=0;y<side;++y)for(int x=0;x<side;++x)for(int i=0;i<per;++i)check(m.addItem(x,y,z,100+i));double build=elapsed(t);QString path=dir.filePath(QString("%1-%2.otbm").arg(scenario).arg(run));t=Clock::now();check(m.saveFile(path));double save=elapsed(t);OtbmReader loaded;t=Clock::now();check(loaded.loadFile(path));double load=elapsed(t);check(loaded.tileCount()==m.tileCount()&&loaded.itemCount()==m.itemCount());t=Clock::now();std::uint64_t checksum=0;for(unsigned i=0;i<100000;++i){unsigned p=(i*2654435761u)%(side*side);auto tile=loaded.tileAt(p%side,p/side,7);check(tile!=nullptr);checksum+=tile->items.size();}double lookup=elapsed(t);loaded.setUndoLimit(500);t=Clock::now();loaded.beginUndoGroup();int edits=std::min(4096,side*side);for(int i=0;i<edits;++i)check(loaded.placeItem(i%side,i/side,7,200,1,false,false));loaded.endUndoGroup();double bulk=elapsed(t);t=Clock::now();check(loaded.undo());double undo=elapsed(t);check(loaded.itemCount()==m.itemCount());t=Clock::now();check(loaded.redo());double redo=elapsed(t);check(loaded.itemCount()==m.itemCount()+edits);t=Clock::now();auto snap=loaded.createRecoverySnapshot();double snapshot=elapsed(t);check(bool(snap));std::cout<<names[scenario]<<','<<m.tileCount()<<','<<m.itemCount()<<','<<run<<','<<build<<','<<save<<','<<load<<','<<lookup<<','<<bulk<<','<<undo<<','<<redo<<','<<snapshot<<','<<QFileInfo(path).size()<<','<<sizeof(OtbmTile)<<','<<sizeof(OtbmMapItem)<<'\n';}}}

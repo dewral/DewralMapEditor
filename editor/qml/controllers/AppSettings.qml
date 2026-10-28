@@ -3,6 +3,7 @@ import QtQuick
 
 Settings {
 
+    property int tibiaPaletteWidth: 344
     property int fluentPaletteWidth: 285
     property string toolsDock: "palette"
     property string brushSizeDock: "palette"
@@ -60,15 +61,43 @@ Settings {
     property bool automagic: true
     property bool compensatedSelect: true
     property int selectionFloors: 0
+    property bool pixelPerfectSelection: false
+    property bool weatherEnabled: false
+    property bool weatherPaused: false
+    property int weatherRain: 45
+    property int weatherStorm: 0
+    property int weatherSnow: 0
+    property int weatherFog: 10
+    property int weatherLeaves: 0
+    property int weatherFireflies: 0
+    property int weatherWind: 20
+    property int weatherQuality: 1
+    property bool weatherRespectRoofs: true
+    property bool previewWeatherEnabled: false
+    property bool previewWeatherPaused: false
+    property int previewWeatherRain: 45
+    property int previewWeatherStorm: 0
+    property int previewWeatherSnow: 0
+    property int previewWeatherFog: 10
+    property int previewWeatherLeaves: 0
+    property int previewWeatherFireflies: 0
+    property int previewWeatherWind: 20
+    property int previewWeatherQuality: 1
+    property bool previewWeatherRespectRoofs: true
     property bool showIngamePreviewWindow: false
     property string ingamePreviewDockSide: "window"
     property int ingamePreviewDockWidth: 440
     property bool ingamePreviewFollowCursor: true
     property bool ingamePreviewLighting: true
+    property bool ingamePreviewShowCreatures: true
+    property bool ingamePreviewShowItems: true
+    property bool ingamePreviewAnimateItems: true
+    property bool ingamePreviewShowBorders: true
     property int ingamePreviewWidthTiles: 15
     property int ingamePreviewHeightTiles: 11
     property string ingamePreviewPlayerName: "Dewral"
     property int ingamePreviewPlayerLevel: 1
+    property int ingamePreviewSpeed: 0
     property string ingamePreviewOutfitsJson: "[]"
     property int ingamePreviewLookType: 128
     property int ingamePreviewLookHead: 78

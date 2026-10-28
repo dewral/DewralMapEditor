@@ -180,6 +180,7 @@ void MapView::undo()
         }
     }
     if (ok) {
+        if (!m_selectionController.entities.isEmpty()) clearSelection();
         invalidateSpawnIndex();
         emit contentUpdated(); update();
     }
@@ -197,6 +198,7 @@ void MapView::redo()
         }
     }
     if (ok) {
+        if (!m_selectionController.entities.isEmpty()) clearSelection();
         invalidateSpawnIndex();
         emit contentUpdated(); update();
     }

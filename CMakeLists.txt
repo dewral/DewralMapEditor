@@ -16,7 +16,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 6.7 COMPONENTS Core Gui Qml Quick ShaderTools Network Widgets Concurrent Sql REQUIRED)
+find_package(Qt6 6.10 COMPONENTS Core Gui Qml Quick ShaderTools Network Widgets Concurrent Sql REQUIRED)
 if(NOT TARGET Qt6::GuiPrivate)
     find_package(Qt6 REQUIRED COMPONENTS GuiPrivate)
 endif()
@@ -90,6 +90,14 @@ add_executable(DewralMapEditor
     editor/main.cpp
     editor/core/dmewindow.cpp
     editor/core/dmewindow.h
+    editor/core/generationlibrary.cpp
+    editor/core/generationlibrary.h
+    editor/core/mapgeneration.cpp
+    editor/core/rawmapgeneration.cpp
+    editor/core/proceduralgeneration.cpp
+    editor/core/mapgeneration.h
+    editor/map/mapview_generation.cpp
+    editor/map/mapproceduralbrush.h
     editor/core/backend.cpp
     editor/core/backend.h
     editor/core/tilemapgenprocess.cpp
@@ -132,6 +140,8 @@ add_executable(DewralMapEditor
     editor/core/updateversion.h
     editor/core/activityservice.cpp
     editor/core/activityservice.h
+    editor/core/clientloadservice.cpp
+    editor/core/clientloadservice.h
     editor/core/worktimerservice.cpp
     editor/core/worktimerservice.h
     editor/core/hotkeysettings.cpp
@@ -187,6 +197,14 @@ add_executable(DewralMapEditor
     editor/map/maprhiview.h
     editor/map/minimapview.cpp
     editor/map/minimapview.h
+    editor/preview/weatherparticles.cpp
+    editor/preview/weatherparticles.h
+    editor/preview/weatherpreviewitem.cpp
+    editor/preview/weatherpreviewitem.h
+    editor/preview/ingamepreviewscene.cpp
+    editor/preview/ingamepreviewscene.h
+    editor/preview/ingamepreviewview.cpp
+    editor/preview/ingamepreviewview.h
     editor/preview/ingamepreviewcontroller.cpp
     editor/preview/ingamepreviewcontroller.h
     editor/resources.qrc
@@ -210,18 +228,31 @@ if(WIN32)
     target_link_libraries(DewralMapEditor PRIVATE user32 dwmapi)
 endif()
 
+include(cmake/QmlFiles.cmake)
+foreach(_dme_qml_file IN LISTS DME_QML_FILES)
+    string(REGEX REPLACE "^editor/" "" _dme_qml_alias "${_dme_qml_file}")
+    set_source_files_properties("${_dme_qml_file}" PROPERTIES
+        QT_RESOURCE_ALIAS "${_dme_qml_alias}"
+        QT_QML_SKIP_QMLDIR_ENTRY TRUE)
+endforeach()
+
 qt_add_qml_module(DewralMapEditor
     URI Tibia
     VERSION 1.0
+    RESOURCE_PREFIX "/"
+    NO_RESOURCE_TARGET_PATH
+    QML_FILES ${DME_QML_FILES}
     SOURCES
         editor/core/dmewindow.h
         editor/core/backend.h
+        editor/core/generationlibrary.h
         editor/core/tilemapgenbridge.h
         editor/core/tilemapgenprofiles.h
         editor/core/aimapassistant.h
         editor/map/mapview.h
         editor/map/maprhiview.h
         editor/map/minimapview.h
+        editor/preview/ingamepreviewview.h
         editor/preview/ingamepreviewcontroller.h
         editor/core/palettefilter.h
         editor/core/documentmanager.h
@@ -233,6 +264,7 @@ qt_add_qml_module(DewralMapEditor
         editor/core/creaturefilter.h
         editor/core/updateservice.h
         editor/core/activityservice.h
+        editor/core/clientloadservice.h
         editor/core/worktimerservice.h
         editor/core/hotkeysettings.h
         libs/otformats/sprreader.h
@@ -304,6 +336,22 @@ if(BUILD_TESTING)
     target_include_directories(hotkey_settings_test PRIVATE editor/core)
     target_link_libraries(hotkey_settings_test PRIVATE Qt6::Gui Qt6::Qml)
     add_test(NAME hotkey_settings COMMAND hotkey_settings_test)
+    find_package(Qt6 QUIET COMPONENTS QuickTest)
+    if(TARGET Qt6::QuickTest)
+        add_executable(tibia_ui_qml_test EXCLUDE_FROM_ALL tests/tibia_ui_qml.cpp
+            tests/tibia_ui_resources.qrc editor/core/uitheme.cpp)
+        target_include_directories(tibia_ui_qml_test PRIVATE editor/core)
+        target_link_libraries(tibia_ui_qml_test PRIVATE Qt6::QuickTest Qt6::Quick)
+        add_test(NAME tibia_ui_qml COMMAND tibia_ui_qml_test
+            -platform "$<IF:$<PLATFORM_ID:Windows>,windows,offscreen>"
+            -input "${CMAKE_SOURCE_DIR}/tests/qml/tst_tibia_theme.qml"
+            -import "${CMAKE_SOURCE_DIR}/tests/qml/imports")
+        set_tests_properties(tibia_ui_qml PROPERTIES
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            ENVIRONMENT "QT_QUICK_CONTROLS_STYLE=Basic;QT_QUICK_BACKEND=software"
+            ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
+            TIMEOUT 30)
+    endif()
     add_executable(ui_colorize_test EXCLUDE_FROM_ALL tests/ui_colorize_test.cpp editor/core/uitheme.cpp)
     target_include_directories(ui_colorize_test PRIVATE editor/core)
     target_link_libraries(ui_colorize_test PRIVATE Qt6::Core Qt6::Gui Qt6::Quick)
@@ -419,6 +467,23 @@ if(BUILD_TESTING)
     target_include_directories(otbm_compact_storage_test PRIVATE libs/otformats)
     target_link_libraries(otbm_compact_storage_test PRIVATE OTFormats Qt6::Core)
     add_test(NAME otbm_compact_storage COMMAND otbm_compact_storage_test)
+    add_executable(weather_preview_render_test EXCLUDE_FROM_ALL
+        tests/weather_preview_render_test.cpp editor/preview/weatherparticles.cpp
+        editor/preview/weatherpreviewitem.cpp editor/preview/weatherpreviewitem.h)
+    target_include_directories(weather_preview_render_test PRIVATE editor/preview)
+    target_link_libraries(weather_preview_render_test PRIVATE OTFormats Qt6::Quick)
+    add_test(NAME weather_preview_render COMMAND weather_preview_render_test)
+    set_tests_properties(weather_preview_render PROPERTIES TIMEOUT 30
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+    add_executable(weather_particles_test EXCLUDE_FROM_ALL
+        tests/weather_particles_test.cpp editor/preview/weatherparticles.cpp)
+    target_include_directories(weather_particles_test PRIVATE editor/preview)
+    target_link_libraries(weather_particles_test PRIVATE OTFormats Qt6::Gui)
+    add_test(NAME weather_particles COMMAND weather_particles_test)
+    if(WIN32)
+        set_tests_properties(weather_particles PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+    endif()
     add_executable(otbm_numbered_zones_test EXCLUDE_FROM_ALL tests/otbm_numbered_zones_test.cpp)
     target_link_libraries(otbm_numbered_zones_test PRIVATE OTFormats Qt6::Core)
     add_test(NAME otbm_numbered_zones COMMAND otbm_numbered_zones_test)
@@ -554,10 +619,29 @@ if(BUILD_TESTING)
     target_link_libraries(atlas_background_build_test PRIVATE
         OTFormats Qt6::Core Qt6::Gui)
     add_test(NAME atlas_background_build COMMAND atlas_background_build_test)
+    add_executable(map_generation_test EXCLUDE_FROM_ALL
+        tests/map_generation_test.cpp
+        editor/core/mapgeneration.cpp
+    editor/core/rawmapgeneration.cpp
+    editor/core/proceduralgeneration.cpp
+        editor/core/generationlibrary.cpp
+        editor/core/generationlibrary.h)
+    target_include_directories(map_generation_test PRIVATE editor/core libs/otformats)
+    target_link_libraries(map_generation_test PRIVATE OTFormats Qt6::Core Qt6::Concurrent)
+    add_test(NAME map_generation COMMAND map_generation_test)
     get_target_property(_dme_creature_refresh_sources DewralMapEditor SOURCES)
     list(FILTER _dme_creature_refresh_sources INCLUDE REGEX
         "^editor/map/(mapview[^/]*|mapservices|mappathbuilder|mapgroundclustergenerator|mapterraingenerator|mapterrainprofile|mapdungeongenerator)\\.(cpp|h)$")
     add_executable(map_creature_refresh_test EXCLUDE_FROM_ALL
+        editor/core/mapgeneration.cpp
+    editor/core/rawmapgeneration.cpp
+    editor/core/proceduralgeneration.cpp
+        editor/core/generationlibrary.cpp
+        editor/core/generationlibrary.h
+        editor/preview/ingamepreviewscene.cpp
+        editor/preview/ingamepreviewview.cpp
+        editor/map/maprhibackend.cpp
+        tests/preview772.qrc
         editor/preview/ingamepreviewcontroller.cpp
         tests/map_creature_refresh_test.cpp
         editor/core/brushstore.cpp
@@ -566,16 +650,21 @@ if(BUILD_TESTING)
     target_include_directories(map_creature_refresh_test PRIVATE
         libs/otformats editor/map editor/core)
     target_link_libraries(map_creature_refresh_test PRIVATE
-        OTFormats DmeLuaScripts Qt6::Quick Qt6::Concurrent)
+        OTFormats DmeLuaScripts Qt6::Quick Qt6::Concurrent Qt6::GuiPrivate)
+    qt_add_shaders(map_creature_refresh_test preview_test_shaders
+        PREFIX "/shaders" BASE "editor/map/shaders"
+        GLSL "300es,330" HLSL 50 MSL 12
+        FILES editor/map/shaders/map.vert editor/map/shaders/map.frag)
     target_compile_options(map_creature_refresh_test PRIVATE
         $<$<CXX_COMPILER_ID:MSVC>:/MP4>)
     add_test(NAME map_creature_refresh COMMAND map_creature_refresh_test)
     add_test(NAME map_view_position COMMAND map_creature_refresh_test --view-position-only)
     add_test(NAME map_item_locations COMMAND map_creature_refresh_test --item-locations-only)
-    set_tests_properties(map_creature_refresh map_view_position map_item_locations PROPERTIES
+    add_test(NAME map_rubber_band COMMAND map_creature_refresh_test --rubber-band-only)
+    set_tests_properties(map_creature_refresh map_view_position map_item_locations map_rubber_band PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=minimal" TIMEOUT 30)
     if(WIN32)
-        set_tests_properties(map_creature_refresh map_view_position map_item_locations PROPERTIES ENVIRONMENT
+        set_tests_properties(map_creature_refresh map_view_position map_item_locations map_rubber_band PROPERTIES ENVIRONMENT
             "QT_QPA_PLATFORM=minimal;QT_QPA_PLATFORM_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::QWindowsIntegrationPlugin>")
     endif()
     add_executable(activity_service_test EXCLUDE_FROM_ALL tests/activity_service_test.cpp editor/core/activityservice.cpp editor/core/documentmanager.cpp)
@@ -584,6 +673,22 @@ if(BUILD_TESTING)
     target_link_libraries(activity_service_test PRIVATE Qt6::Concurrent)
     add_test(NAME activity_service COMMAND activity_service_test)
     set_tests_properties(activity_service PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>" TIMEOUT 30)
+
+    get_target_property(_dme_client_test_sources DewralMapEditor SOURCES)
+    list(FILTER _dme_client_test_sources INCLUDE REGEX "^editor/.*\\.(cpp|h)$")
+    list(REMOVE_ITEM _dme_client_test_sources editor/main.cpp)
+    add_executable(client_load_service_test EXCLUDE_FROM_ALL
+        tests/client_load_service_test.cpp ${_dme_client_test_sources})
+    target_include_directories(client_load_service_test PRIVATE editor/core editor/map editor/preview libs/otformats)
+    target_link_libraries(client_load_service_test PRIVATE OTFormats DmeLuaScripts
+        Qt6::Quick Qt6::GuiPrivate Qt6::Network Qt6::Concurrent Qt6::Sql)
+    if(WIN32)
+        target_link_libraries(client_load_service_test PRIVATE user32 dwmapi)
+    endif()
+    add_test(NAME client_load_service COMMAND client_load_service_test)
+    set_tests_properties(client_load_service PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>" TIMEOUT 60)
 
     add_executable(work_timer_test EXCLUDE_FROM_ALL
         tests/work_timer_test.cpp editor/core/worktimerservice.cpp editor/core/documentmanager.cpp)
@@ -599,6 +704,16 @@ if(BUILD_TESTING)
     target_link_libraries(document_recovery_test PRIVATE OTFormats Qt6::Core)
     target_link_libraries(document_recovery_test PRIVATE Qt6::Concurrent)
     add_test(NAME document_recovery COMMAND document_recovery_test)
+    add_executable(document_session_test EXCLUDE_FROM_ALL
+        tests/document_session_test.cpp editor/core/documentmanager.cpp)
+    target_include_directories(document_session_test PRIVATE libs/otformats editor/core)
+    target_link_libraries(document_session_test PRIVATE OTFormats Qt6::Core Qt6::Concurrent)
+    add_test(NAME document_session COMMAND document_session_test)
+    set_tests_properties(document_session PROPERTIES TIMEOUT 45)
+    if(WIN32)
+        set_tests_properties(document_session PROPERTIES
+            ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+    endif()
     add_executable(creature_store_test EXCLUDE_FROM_ALL
         tests/creature_store_test.cpp
         editor/core/creaturestore.cpp)
@@ -617,7 +732,7 @@ if(BUILD_TESTING)
                              otbm_background_load atlas_background_build map_path_builder
                              map_terrain_generator map_terrain_profile map_dungeon_generator
                              map_ground_cluster_generator map_selection_rotation
-                             document_recovery creature_store map_creature_refresh map_view_position map_item_locations update_version
+                             document_recovery creature_store map_creature_refresh map_view_position map_item_locations map_rubber_band update_version
                              brushstore_advanced brushstore_border_variants
                              palette_visibility hotkey_settings lua_script_engine PROPERTIES
             ENVIRONMENT_MODIFICATION
@@ -645,6 +760,15 @@ add_custom_command(TARGET DewralMapEditor POST_BUILD
         "${CMAKE_SOURCE_DIR}/libs/lua/LICENSE.txt"
         "$<TARGET_FILE_DIR:DewralMapEditor>/LUA-LICENSE.txt"
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:DewralMapEditor>/docs"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/editor/preview/assets/OTCV8-LICENSE.txt"
+        "$<TARGET_FILE_DIR:DewralMapEditor>/PREVIEW-FONT-LICENSE.txt"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/editor/preview/README.md"
+        "$<TARGET_FILE_DIR:DewralMapEditor>/docs/ingame-preview.md"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/NOTICE"
+        "$<TARGET_FILE_DIR:DewralMapEditor>/NOTICE"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/docs/custom-map-generator.md"
         "${CMAKE_SOURCE_DIR}/docs/lua-api.md"

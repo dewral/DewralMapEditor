@@ -26,12 +26,14 @@ DmeMenuBar {
     required property var townsDialog
     required property var waypointsDialog
     required property var creatureManagerDialog
+    property var weatherDialog
     property var numberedZonesDialog
     required property var mapPropertiesDialog
     required property var statsDialog
     required property var brushEditorDialog
     required property var aiMapAssistantDialog
     required property var luaGeneratorDialog
+    property var generationLibraryDialog
     required property var tileMapGenDialog
     required property var customMapGeneratorDialog
     required property var terrainGeneratorDialog
@@ -492,6 +494,24 @@ DmeMenuBar {
             }
         }
         MenuSeparator {}
+        DmeMenu {
+            title: "Selection Method"
+            ActionGroup { id: selectionMethodGroup; exclusive: true }
+            Action {
+                text: "Standard Selection"
+                checkable: true
+                checked: !menuBar.mapView.pixelPerfectSelection
+                ActionGroup.group: selectionMethodGroup
+                onTriggered: menuBar.mapView.pixelPerfectSelection = false
+            }
+            Action {
+                text: "Pixel Perfect Selection"
+                checkable: true
+                checked: menuBar.mapView.pixelPerfectSelection
+                ActionGroup.group: selectionMethodGroup
+                onTriggered: menuBar.mapView.pixelPerfectSelection = true
+            }
+        }
         DmeMenuItem { action: hotkeyAction_borderize_selection }
         DmeMenuItem { action: hotkeyAction_randomize_selection }
         MenuSeparator {}
@@ -510,6 +530,11 @@ DmeMenuBar {
             text: "Numbered zones..."
             enabled: Backend.otbmReader.loaded && !!menuBar.numberedZonesDialog
             onTriggered: menuBar.numberedZonesDialog.open()
+        }
+        Action {
+            text: "Pędzel proceduralny…"
+            enabled: Backend.otbReader.loaded && Backend.otbmReader.loaded && !!menuBar.generationLibraryDialog
+            onTriggered: menuBar.generationLibraryDialog.open()
         }
         DmeMenuItem {
             text: "Tile Map Generator..."
@@ -564,6 +589,17 @@ DmeMenuBar {
 
     DmeMenu {
         title: "View"
+        Action {
+            text: "Weather preview"
+            checkable: true
+            checked: !!menuBar.settings.weatherEnabled
+            onTriggered: menuBar.settings.weatherEnabled = !menuBar.settings.weatherEnabled
+        }
+        Action {
+            text: "Weather settings..."
+            enabled: !!menuBar.weatherDialog
+            onTriggered: menuBar.weatherDialog.open()
+        }
         Action { text: "DME Activity…"; onTriggered: menuBar.activityRequested() }
         Action {
             id: hotkeyAction_show_palette

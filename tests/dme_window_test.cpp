@@ -105,6 +105,18 @@ int main(int argc, char **argv)
         nativeWindow.setGeometry(normalGeometry);
         nativeWindow.show();
         app.processEvents();
+        const auto cornerHwnd = reinterpret_cast<HWND>(nativeWindow.winId());
+        int cornerPreference = 0;
+        const HRESULT cornerQuery = DwmGetWindowAttribute(cornerHwnd, 33,
+                                                          &cornerPreference, sizeof(cornerPreference));
+        if (SUCCEEDED(cornerQuery)) {
+            nativeWindow.setRoundedCorners(false);
+            DwmGetWindowAttribute(cornerHwnd, 33, &cornerPreference, sizeof(cornerPreference));
+            expect(cornerPreference == 1, "Tibia-UI must disable native rounded corners");
+            nativeWindow.setRoundedCorners(true);
+            DwmGetWindowAttribute(cornerHwnd, 33, &cornerPreference, sizeof(cornerPreference));
+            expect(cornerPreference == 2, "switching themes must restore native rounded corners");
+        }
         ShowWindow(reinterpret_cast<HWND>(nativeWindow.winId()), SW_MAXIMIZE);
         app.processEvents();
         expectWorkArea(nativeWindow, "Native system maximize");

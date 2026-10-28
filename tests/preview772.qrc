@@ -1,0 +1,4 @@
+<RCC><qresource prefix="/preview772">
+<file alias="creature-font.png">../editor/preview/assets/creature-font.png</file>
+<file alias="outfit-palette.bin">../editor/preview/assets/outfit-palette.bin</file>
+</qresource></RCC>

@@ -350,6 +350,16 @@ public:
     const std::deque<OtbmTile> &tiles() const { return m_tiles; }
 
     const OtbmTile *tileAt(int x, int y, int z) const;
+
+    // The authoritative position index also covers edits made through the reader API.
+    // The visitor must not mutate tile storage during iteration.
+    template <typename Visitor>
+    void forEachTileInRegion(int minX, int minY, int maxX, int maxY, int z, Visitor &&visit) const
+    {
+        m_posIndex.forEachInRegion(minX, minY, maxX, maxY, z, [&](int index) {
+            visit(m_tiles[static_cast<std::size_t>(index)]);
+        });
+    }
     OtbmMapItem makeItem(uint16_t serverId) const;
     const std::vector<OtbmTown> &towns() const { return m_towns; }
     const std::vector<OtbmWaypoint> &waypoints() const { return m_waypoints; }
@@ -583,7 +593,14 @@ private:
 
     TileSnapshot currentSnapshot(int x, int y, int z) const;
 
+    static bool validPosition(int x, int y, int z) {
+        return x >= 0 && x <= 65535 && y >= 0 && y <= 65535 && z >= 0 && z <= 15;
+    }
+
     static quint64 posKey3d(int x, int y, int z) {
+        // Reject before packing: out-of-range bits can overlap another axis.
+        // This sentinel is rejected by TilePositionIndex::decode as well.
+        if (!validPosition(x, y, z)) return ~quint64(0);
         return (static_cast<quint64>(static_cast<uint32_t>(z)) << 48)
              | (static_cast<quint64>(static_cast<uint32_t>(y)) << 24)
              | static_cast<uint32_t>(x);

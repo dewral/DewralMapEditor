@@ -1,0 +1,1 @@
+accepted=1 tiles=1 original_lookup=0 wrapped_lookup=0 stored_x=0

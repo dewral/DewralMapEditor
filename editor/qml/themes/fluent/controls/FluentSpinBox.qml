@@ -1,6 +1,7 @@
 import "../../../components"
 import "../Colors.js" as Colors
 import QtQuick
+import "../../tibia" as TibiaSkin
 
 Item {
     id: root
@@ -34,11 +35,13 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 4
+        radius: Colors.isTibia() ? 0 : 4
         color: Colors.c("field")
         border.width: input.activeFocus ? 2 : 1
         border.color: input.activeFocus ? Colors.c("accent") : Colors.c("border")
     }
+
+    TibiaSkin.TibiaSkin { anchors.fill: parent; kind: "field"; selected: input.activeFocus }
 
     TextInput {
         id: input
@@ -48,7 +51,7 @@ Item {
         anchors.rightMargin: 14
         verticalAlignment: TextInput.AlignVCenter
         color: Colors.c("text")
-        font.family: "Segoe UI"; font.pixelSize: 12
+        font.family: Colors.family(); font.pixelSize: Colors.size(12); font.bold: Colors.bold(); renderType: Text.NativeRendering
         readOnly: !root.editable
         selectByMouse: true
         text: root.value
@@ -103,7 +106,7 @@ Item {
 
                 Rectangle {
                     anchors.fill: parent
-                    radius: 4
+                    radius: Colors.isTibia() ? 0 : 4
                     color: arrowArea.containsMouse ? Colors.c("pressed") : "transparent"
                 }
                 Text {

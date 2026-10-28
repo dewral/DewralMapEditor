@@ -1,4 +1,5 @@
 import QtQuick
+import "../themes/tibia" as TibiaSkin
 import QtQuick.Controls
 import Tibia 1.0
 
@@ -6,6 +7,7 @@ Dialog {
     id: root
     property bool movable: true
     property bool floatingPositionInitialized: false
+    readonly property bool tibiaTheme: Backend.uiTheme.style === "tibia-ui"
     readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
     readonly property bool modernTheme: Backend.uiTheme.style !== "classic" && !windowsClassic
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
@@ -29,19 +31,21 @@ Dialog {
     header: Item {
         id: dialogHeader
         visible: root.title.length > 0
-        implicitHeight: visible ? (root.modernTheme ? 38 : 28) : 0
+        implicitHeight: visible ? (root.tibiaTheme ? 17 : root.modernTheme ? 38 : 28) : 0
         Rectangle {
-            visible: root.modernTheme
+            visible: root.modernTheme && !root.tibiaTheme
             anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
             height: 1; color: root.grayTheme ? "#3A3A3A" : "#30363D"
         }
+        TibiaSkin.TibiaSkin { anchors.fill: parent; visible: !root.tibiaTheme }
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            x: root.modernTheme ? 16 : (parent.width - width) / 2
+            x: root.tibiaTheme ? (parent.width-width)/2 : root.modernTheme ? 16 : (parent.width-width)/2
             text: root.title
-            color: root.windowsClassic ? "#202020" : (root.grayTheme ? "#F0F0F0" : (root.modernTheme ? "#F0F6FC" : "#c0c0c0"))
+            color: root.tibiaTheme ? "#c0c0c0" : root.windowsClassic ? "#202020" : (root.grayTheme ? "#F0F0F0" : (root.modernTheme ? "#F0F6FC" : "#c0c0c0"))
             font.bold: !root.windowsClassic
-            font.pixelSize: root.modernTheme ? 14 : 13
+            font.pixelSize: root.tibiaTheme ? 11 : root.modernTheme ? 14 : 13
+            font.family: root.tibiaTheme ? "Verdana" : Qt.application.font.family
         }
 
         MouseArea {

@@ -64,7 +64,7 @@ Item {
                 x: 21; anchors.verticalCenter: parent.verticalCenter
                 text: label.modelData.name
                 color: Colors.c("text")
-                font { family: Colors.fontFamily; pixelSize: 12 }
+                font { family: Colors.family(); pixelSize: 12 }
             }
         }
     }

@@ -11,6 +11,9 @@
 #include <QElapsedTimer>
 #include <QFutureWatcher>
 #include <QPointer>
+#include <QLockFile>
+#include <memory>
+#include <vector>
 #include <QtQml/qqmlregistration.h>
 
 class DocumentManager : public QObject
@@ -67,6 +70,7 @@ signals:
 
 private:
     void hookDocument(OtbmReader *doc);
+    void initializeSession();
     void loadPreviousSession();
     void writeSession(bool cleanExit = false);
     void scheduleSessionWrite();
@@ -80,6 +84,13 @@ private:
     void removeRecoveryFiles(const QString &id);
     QString documentId(OtbmReader *doc);
 
+    struct ClaimedSession {
+        QString path;
+        std::unique_ptr<QLockFile> lock;
+    };
+    QString m_sessionPath;
+    std::unique_ptr<QLockFile> m_sessionLock;
+    std::vector<ClaimedSession> m_claimedSessions;
     QVector<OtbmReader *> m_docs;
     QHash<OtbmReader *, QString> m_documentIds;
     QHash<OtbmReader *, qint64> m_lastEditMs;

@@ -139,6 +139,8 @@ signals:
     void errorChanged();
 
 private:
+    friend class ClientLoadService;
+    friend struct ClientPreparedState;
     static uint8_t mapGroup(uint8_t group);
 
     void reset();

@@ -12,6 +12,9 @@ file(REMOVE_RECURSE "${package_directory}")
 file(REMOVE "${package_archive}")
 file(MAKE_DIRECTORY "${RELEASE_ROOT}")
 file(COPY "${DEPLOYED_DIRECTORY}/" DESTINATION "${package_directory}")
+# The profiler stores local paths and preferences beside the development EXE.
+# They must never be included in a portable distribution.
+file(REMOVE_RECURSE "${package_directory}/profile-settings")
 if(SYSTEM_RUNTIME_LIBRARIES)
     file(COPY ${SYSTEM_RUNTIME_LIBRARIES} DESTINATION "${package_directory}")
 endif()

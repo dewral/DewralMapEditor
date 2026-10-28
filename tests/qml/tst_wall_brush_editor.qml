@@ -151,7 +151,7 @@ Item {
             verify(exportAll.mapToItem(manager.contentItem, exportAll.width, 0).x <= manager.contentItem.width)
             wait(80)
             const shapes = findChild(manager.contentItem, "wallBrushShapes")
-            verify(shapes.contentHeight <= shapes.height, "All wall shapes should fit in the standard window")
+            verify(shapes.contentHeight <= shapes.height, "All wall shapes should fit in the standard window (content=" + shapes.contentHeight + ", viewport=" + shapes.height + ", editor=" + panel.height + ")")
             grabImage(testRoot).save("build/wall-brush-" + data.theme + ".png")
         }
         function test_clickPlacesKnownPiecesAndQueuesUnknownPieces() {

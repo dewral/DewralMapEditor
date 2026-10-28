@@ -35,3 +35,6 @@ where applicable.
 Tibia is a trademark of CipSoft GmbH. Dewral Map Editor is an independent
 community project and is not affiliated with or endorsed by CipSoft GmbH.
 Tibia client data and artwork are not distributed with this project.
+
+In-game preview uses the CP1252 Verdana rounded bitmap font from the local Tibia772 reconstruction (OTCv8 origin).
+See editor/preview/assets/OTCV8-LICENSE.txt and FONT-ORIGIN.json. The preview palette is the recovered 7.72 outfit palette.

@@ -1,0 +1,9 @@
+{
+  "workload": "map-benchmark: all 5 scenes x 3 trials",
+  "wallSeconds": 2.7739617,
+  "sampledPeakWorkingSetBytes": 334606336,
+  "sampledProcessCpuSeconds": 2.453125,
+  "sampleIntervalMs": 10,
+  "exitCode": 0,
+  "interpretation": "Separate diagnostic run; sampled lower bounds, process-wide, not per scene or GPU memory"
+}

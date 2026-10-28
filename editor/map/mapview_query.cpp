@@ -1,6 +1,7 @@
 
 #include "mapview.h"
 #include "mapview_p.h"
+#include "../preview/ingamepreviewscene.h"
 
 #include <QPainter>
 #include <QMouseEvent>
@@ -10,6 +11,7 @@
 #include <QKeyEvent>
 #include <QElapsedTimer>
 #include <QTimer>
+#include <QThread>
 #include <QGuiApplication>
 #include <QDebug>
 #include <QDir>
@@ -43,6 +45,12 @@ int MapView::previewStepDurationAt(int x, int y, int z, int speed, bool diagonal
     }
     int interval = std::max(50, 1000 * groundSpeed / std::max(1, speed));
     const int version = m_dat ? m_dat->clientVersion() : 860;
+    if (version <= 772) {
+        // The reference client rounds cardinal motion to a 50ms server beat,
+        // but computes diagonal input cooldown before that rounding.
+        return diagonal ? std::clamp(groundSpeed * 3000 / std::max(1, speed), 1, 30000)
+                        : std::clamp(((interval + 49) / 50) * 50, 50, 10000);
+    }
     if (version >= 900) interval = ((interval + 49) / 50) * 50;
     return interval * (diagonal ? (version <= 810 ? 2 : 3) : 1);
 }
@@ -274,18 +282,68 @@ int MapView::previewFirstVisibleFloor(int x, int y, int z) const
     return qBound(0, firstFloor, 15);
 }
 
+// Value-only input, captured on the owner thread. Pool threads must not read
+// live map readers or Qt item models, including the XML-backed item names.
+struct MapView::QuerySnapshot
+{
+    struct ItemInfo {
+        QString name;
+        int clientId = 0;
+        int group = 0;
+        int row = -1;
+    };
+    std::vector<OtbmTile> tiles;
+    std::vector<ItemInfo> items;
+    QVariantMap header;
+
+    int clientIdForServerId(int id) const { return items[id].clientId; }
+    int groupForServerId(int id) const { return items[id].group; }
+    int rowForServerId(int id) const { return items[id].row; }
+    const QString &nameForServerId(int id) const { return items[id].name; }
+};
+
+std::shared_ptr<const MapView::QuerySnapshot> MapView::captureQuerySnapshot(bool selectionOnly) const
+{
+    Q_ASSERT(QThread::currentThread() == thread());
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    if (!m_otbm || !m_otb) return {};
+    auto snapshot = std::make_shared<QuerySnapshot>();
+    snapshot->header = m_otbm->header();
+    const auto &tiles = m_otbm->tiles();
+    snapshot->tiles.reserve(selectionOnly
+        ? std::min(tiles.size(), static_cast<size_t>(m_selectionController.selected().size()))
+        : tiles.size());
+    for (const OtbmTile &tile : tiles) {
+        if (!selectionOnly || m_selectionController.selected().contains(selKey(tile.x, tile.y, tile.z)))
+            snapshot->tiles.push_back(tile);
+    }
+    if (!snapshot->tiles.empty()) {
+        snapshot->items.resize(65536);
+        for (int id = 0; id < 65536; ++id) {
+            auto &item = snapshot->items[id];
+            item.clientId = m_otb->clientIdForServerId(id);
+            item.group = m_otb->groupForServerId(id);
+            item.row = m_otb->rowForServerId(id);
+            item.name = m_otb->nameForServerId(id);
+        }
+    }
+    return snapshot;
+}
+
 QVariantMap MapView::searchItems(const QString &type, bool selectionOnly) const
 {
-    return queryItems(type, selectionOnly, 0, 10000);
+    const auto snapshot = captureQuerySnapshot(selectionOnly);
+    return queryItems(snapshot.get(), type, 0, 10000);
 }
 
 QVariantMap MapView::findItemLocations(int itemId, bool clientId) const
 {
-    return queryItems(clientId ? QStringLiteral("client") : QStringLiteral("server"),
-                      false, itemId, 500);
+    const auto snapshot = captureQuerySnapshot(false);
+    return queryItems(snapshot.get(), clientId ? QStringLiteral("client") : QStringLiteral("server"),
+                      itemId, 500);
 }
 
-QVariantMap MapView::queryItems(const QString &type, bool selectionOnly,
+QVariantMap MapView::queryItems(const QuerySnapshot *snapshot, const QString &type,
                               int itemId, int resultLimit) const
 {
     QVariantMap output;
@@ -293,7 +351,7 @@ QVariantMap MapView::queryItems(const QString &type, bool selectionOnly,
     const QString normalized = type.trimmed().toLower();
     const bool byServerId = normalized == QLatin1String("server");
     const bool byClientId = normalized == QLatin1String("client");
-    if (!m_otbm || !m_otb || ((byServerId || byClientId) && (itemId <= 0 || itemId > 65535))) {
+    if (!snapshot || ((byServerId || byClientId) && (itemId <= 0 || itemId > 65535))) {
         output.insert(QStringLiteral("results"), results);
         output.insert(QStringLiteral("total"), 0);
         output.insert(QStringLiteral("truncated"), false);
@@ -302,13 +360,12 @@ QVariantMap MapView::queryItems(const QString &type, bool selectionOnly,
 
     int total = 0;
 
-    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
     std::function<void(const OtbmMapItem &, const OtbmTile &, int, const QString &)> visit;
     visit = [&](const OtbmMapItem &item, const OtbmTile &tile, int depth,
                 const QString &containerPath) {
         if (m_queryCancel.load(std::memory_order_relaxed)) return;
         QStringList matches;
-        const int group = m_otb->groupForServerId(item.server_id);
+        const int group = snapshot->groupForServerId(item.server_id);
         const bool hasUnique = item.uniqueId() != 0;
         const bool hasAction = item.actionId() != 0;
         const bool isContainer =
@@ -331,7 +388,7 @@ QVariantMap MapView::queryItems(const QString &type, bool selectionOnly,
             || (normalized == QLatin1String("writable") && isWritable)
             || (normalized == QLatin1String("everything") && !matches.isEmpty())
             || (byServerId && item.server_id == itemId)
-            || (byClientId && m_otb->clientIdForServerId(item.server_id) == itemId);
+            || (byClientId && snapshot->clientIdForServerId(item.server_id) == itemId);
 
         if (match) {
             ++total;
@@ -342,9 +399,9 @@ QVariantMap MapView::queryItems(const QString &type, bool selectionOnly,
                 result.insert(QStringLiteral("z"), tile.z);
                 result.insert(QStringLiteral("serverId"), item.server_id);
                 result.insert(QStringLiteral("clientId"),
-                              m_otb->clientIdForServerId(item.server_id));
+                              snapshot->clientIdForServerId(item.server_id));
                 result.insert(QStringLiteral("name"),
-                              m_otb->nameForServerId(item.server_id));
+                              snapshot->nameForServerId(item.server_id));
                 result.insert(QStringLiteral("kind"), matches.join(QStringLiteral(", ")));
                 result.insert(QStringLiteral("actionId"), item.actionId());
                 result.insert(QStringLiteral("uniqueId"), item.uniqueId());
@@ -359,7 +416,7 @@ QVariantMap MapView::queryItems(const QString &type, bool selectionOnly,
         }
 
         if (!item.children()) return;
-        const QString name = m_otb->nameForServerId(item.server_id);
+        const QString name = snapshot->nameForServerId(item.server_id);
         const QString nextPath = containerPath.isEmpty()
                                      ? (name.isEmpty()
                                             ? QStringLiteral("Container %1").arg(item.server_id)
@@ -368,13 +425,15 @@ QVariantMap MapView::queryItems(const QString &type, bool selectionOnly,
                                            + (name.isEmpty()
                                                   ? QStringLiteral("Container %1").arg(item.server_id)
                                                   : name);
-        for (const OtbmMapItem &child : *item.children())
+        for (const OtbmMapItem &child : *item.children()) {
+            if (m_queryCancel.load(std::memory_order_relaxed)) break;
             visit(child, tile, depth + 1, nextPath);
+        }
     };
 
-    const qsizetype searchTileTotal = static_cast<qsizetype>(m_otbm->tiles().size());
+    const qsizetype searchTileTotal = static_cast<qsizetype>(snapshot->tiles.size());
     qsizetype searchTileNumber = 0;
-    for (const OtbmTile &tile : m_otbm->tiles()) {
+    for (const OtbmTile &tile : snapshot->tiles) {
         if (m_queryCancel.load(std::memory_order_relaxed)) {
             output.insert(QStringLiteral("cancelled"), true);
             break;
@@ -387,10 +446,10 @@ QVariantMap MapView::queryItems(const QString &type, bool selectionOnly,
                                       &MapView::queryProgressChanged,
                                       Qt::QueuedConnection);
         }
-        if (selectionOnly && !m_selectionController.selected().contains(selKey(tile.x, tile.y, tile.z)))
-            continue;
-        for (const OtbmMapItem &item : tile.items)
+        for (const OtbmMapItem &item : tile.items) {
+            if (m_queryCancel.load(std::memory_order_relaxed)) break;
             visit(item, tile, 0, QString());
+        }
     }
 
     if (m_queryCancel.load(std::memory_order_relaxed))
@@ -403,11 +462,17 @@ QVariantMap MapView::queryItems(const QString &type, bool selectionOnly,
 
 QVariantMap MapView::analyzeMap() const
 {
+    const auto snapshot = captureQuerySnapshot(false);
+    return analyzeMap(snapshot.get());
+}
+
+QVariantMap MapView::analyzeMap(const QuerySnapshot *snapshot) const
+{
     QVariantMap output;
     QVariantList usage;
     QVariantList problems;
     QVariantList floors;
-    if (!m_otbm || !m_otb) {
+    if (!snapshot) {
         output.insert(QStringLiteral("usage"), usage);
         output.insert(QStringLiteral("problems"), problems);
         output.insert(QStringLiteral("floors"), floors);
@@ -458,9 +523,9 @@ QVariantMap MapView::analyzeMap() const
         problems.append(problem);
     };
 
-    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
     std::function<void(const OtbmMapItem &, const OtbmTile &)> visitItem;
     visitItem = [&](const OtbmMapItem &item, const OtbmTile &tile) {
+        if (m_queryCancel.load(std::memory_order_relaxed)) return;
         const int sid = item.server_id;
         if (sid > 0) {
             ++counts[static_cast<size_t>(sid)];
@@ -470,7 +535,7 @@ QVariantMap MapView::analyzeMap() const
                 firstY[static_cast<size_t>(sid)] = tile.y;
                 firstZ[static_cast<size_t>(sid)] = tile.z;
             }
-            if (m_otb->rowForServerId(sid) < 0) {
+            if (snapshot->rowForServerId(sid) < 0) {
                 ++unknownItems;
                 addProblem(QStringLiteral("Unknown item"),
                            QStringLiteral("Unknown Server ID %1").arg(sid),
@@ -480,14 +545,17 @@ QVariantMap MapView::analyzeMap() const
         const uint16_t uid = item.uniqueId();
         if (uid != 0)
             uniquePositions[uid].push_back({tile.x, tile.y, tile.z, sid});
-        if (item.children())
-            for (const OtbmMapItem &child : *item.children())
+        if (item.children()) {
+            for (const OtbmMapItem &child : *item.children()) {
+                if (m_queryCancel.load(std::memory_order_relaxed)) break;
                 visitItem(child, tile);
+            }
+        }
     };
 
-    const qsizetype tileTotal = static_cast<qsizetype>(m_otbm->tiles().size());
+    const qsizetype tileTotal = static_cast<qsizetype>(snapshot->tiles.size());
     qsizetype tileNumber = 0;
-    for (const OtbmTile &tile : m_otbm->tiles()) {
+    for (const OtbmTile &tile : snapshot->tiles) {
         if (m_queryCancel.load(std::memory_order_relaxed)) {
             output.insert(QStringLiteral("cancelled"), true);
             return output;
@@ -514,7 +582,7 @@ QVariantMap MapView::analyzeMap() const
         if (tile.is_house || tile.house_id > 0) ++houseTileCount;
 
         const bool hasGround = !tile.items.empty()
-            && m_otb->groupForServerId(tile.items.front().server_id)
+            && snapshot->groupForServerId(tile.items.front().server_id)
                    == static_cast<int>(OtbItemGroup::Ground);
         if (!hasGround) {
             ++missingGround;
@@ -529,20 +597,28 @@ QVariantMap MapView::analyzeMap() const
                            .arg(tile.items.size()),
                        tile.x, tile.y, tile.z);
         }
-        for (const OtbmMapItem &item : tile.items)
+        for (const OtbmMapItem &item : tile.items) {
+            if (m_queryCancel.load(std::memory_order_relaxed)) break;
             visitItem(item, tile);
+        }
     }
 
+    if (m_queryCancel.load(std::memory_order_relaxed))
+        return {{QStringLiteral("cancelled"), true}};
     QVector<int> duplicateIds;
     duplicateIds.reserve(static_cast<qsizetype>(uniquePositions.size()));
     for (const auto &[uid, occurrences] : uniquePositions)
         if (occurrences.size() > 1) duplicateIds.append(uid);
     std::sort(duplicateIds.begin(), duplicateIds.end());
     for (int uid : duplicateIds) {
+        if (m_queryCancel.load(std::memory_order_relaxed))
+            return {{QStringLiteral("cancelled"), true}};
         const auto &occurrences = uniquePositions[static_cast<uint16_t>(uid)];
         QVariantList positions;
         positions.reserve(static_cast<qsizetype>(occurrences.size()));
         for (const UniqueOccurrence &occurrence : occurrences) {
+            if (m_queryCancel.load(std::memory_order_relaxed))
+                return {{QStringLiteral("cancelled"), true}};
             positions.append(QVariantMap{{QStringLiteral("x"), occurrence.x},
                                          {QStringLiteral("y"), occurrence.y},
                                          {QStringLiteral("z"), occurrence.z},
@@ -569,8 +645,8 @@ QVariantMap MapView::analyzeMap() const
     for (int sid : ids) {
         QVariantMap row;
         row.insert(QStringLiteral("serverId"), sid);
-        row.insert(QStringLiteral("clientId"), m_otb->clientIdForServerId(sid));
-        row.insert(QStringLiteral("name"), m_otb->nameForServerId(sid));
+        row.insert(QStringLiteral("clientId"), snapshot->clientIdForServerId(sid));
+        row.insert(QStringLiteral("name"), snapshot->nameForServerId(sid));
         row.insert(QStringLiteral("count"),
                    QVariant::fromValue<qulonglong>(counts[static_cast<size_t>(sid)]));
         row.insert(QStringLiteral("x"), firstX[static_cast<size_t>(sid)]);
@@ -589,8 +665,8 @@ QVariantMap MapView::analyzeMap() const
         floors.append(floor);
     }
 
-    const bool empty = m_otbm->tiles().empty();
-    QVariantMap summary = m_otbm->header();
+    const bool empty = snapshot->tiles.empty();
+    QVariantMap summary = snapshot->header;
     summary.insert(QStringLiteral("uniqueItemTypes"), uniqueItemTypes);
     summary.insert(QStringLiteral("creatureCount"), creatureCount);
     summary.insert(QStringLiteral("spawnCount"), spawnCount);
@@ -617,20 +693,23 @@ QVariantMap MapView::analyzeMap() const
 bool MapView::startItemSearch(const QString &type, bool selectionOnly)
 {
     if (m_queryBusy || !m_otbm || !m_otb) return false;
+    const auto snapshot = captureQuerySnapshot(selectionOnly);
+    const quint64 generation = m_queryGeneration;
     m_queryCancel.store(false, std::memory_order_relaxed);
     m_queryProgress.store(0, std::memory_order_relaxed);
     m_queryBusy = true;
     emit queryBusyChanged();
     emit queryProgressChanged();
-    m_queryFuture = QtConcurrent::run([this, type, selectionOnly] {
-        const QVariantMap result = searchItems(type, selectionOnly);
-        QMetaObject::invokeMethod(this, [this, result] {
+    m_queryFuture = QtConcurrent::run([this, snapshot, generation, type] {
+        const QVariantMap result = queryItems(snapshot.get(), type, 0, 10000);
+        QMetaObject::invokeMethod(this, [this, result, generation] {
             m_queryBusy = false;
-            if (!result.value(QStringLiteral("cancelled")).toBool())
+            const bool current = generation == m_queryGeneration;
+            if (current && !result.value(QStringLiteral("cancelled")).toBool())
                 m_queryProgress.store(100, std::memory_order_relaxed);
             emit queryBusyChanged();
             emit queryProgressChanged();
-            emit itemSearchFinished(result);
+            if (generation == m_queryGeneration) emit itemSearchFinished(result);
         }, Qt::QueuedConnection);
     });
     return true;
@@ -639,20 +718,23 @@ bool MapView::startItemSearch(const QString &type, bool selectionOnly)
 bool MapView::startItemLocationSearch(int itemId, bool clientId)
 {
     if (m_queryBusy || !m_otbm || !m_otb || itemId <= 0 || itemId > 65535) return false;
+    const auto snapshot = captureQuerySnapshot(false);
+    const quint64 generation = m_queryGeneration;
     m_queryCancel.store(false, std::memory_order_relaxed);
     m_queryProgress.store(0, std::memory_order_relaxed);
     m_queryBusy = true;
     emit queryBusyChanged();
     emit queryProgressChanged();
-    m_queryFuture = QtConcurrent::run([this, itemId, clientId] {
-        const QVariantMap result = findItemLocations(itemId, clientId);
-        QMetaObject::invokeMethod(this, [this, result] {
+    m_queryFuture = QtConcurrent::run([this, snapshot, generation, itemId, clientId] {
+        const QVariantMap result = queryItems(snapshot.get(), clientId ? QStringLiteral("client") : QStringLiteral("server"), itemId, 500);
+        QMetaObject::invokeMethod(this, [this, result, generation] {
             m_queryBusy = false;
-            if (!result.value(QStringLiteral("cancelled")).toBool())
+            const bool current = generation == m_queryGeneration;
+            if (current && !result.value(QStringLiteral("cancelled")).toBool())
                 m_queryProgress.store(100, std::memory_order_relaxed);
             emit queryBusyChanged();
             emit queryProgressChanged();
-            emit itemLocationSearchFinished(result);
+            if (generation == m_queryGeneration) emit itemLocationSearchFinished(result);
         }, Qt::QueuedConnection);
     });
     return true;
@@ -661,23 +743,32 @@ bool MapView::startItemLocationSearch(int itemId, bool clientId)
 bool MapView::startMapAnalysis()
 {
     if (m_queryBusy || !m_otbm || !m_otb) return false;
+    const auto snapshot = captureQuerySnapshot(false);
+    const quint64 generation = m_queryGeneration;
     m_queryCancel.store(false, std::memory_order_relaxed);
     m_queryProgress.store(0, std::memory_order_relaxed);
     m_queryBusy = true;
     emit queryBusyChanged();
     emit queryProgressChanged();
-    m_queryFuture = QtConcurrent::run([this] {
-        const QVariantMap result = analyzeMap();
-        QMetaObject::invokeMethod(this, [this, result] {
+    m_queryFuture = QtConcurrent::run([this, snapshot, generation] {
+        const QVariantMap result = analyzeMap(snapshot.get());
+        QMetaObject::invokeMethod(this, [this, result, generation] {
             m_queryBusy = false;
-            if (!result.value(QStringLiteral("cancelled")).toBool())
+            const bool current = generation == m_queryGeneration;
+            if (current && !result.value(QStringLiteral("cancelled")).toBool())
                 m_queryProgress.store(100, std::memory_order_relaxed);
             emit queryBusyChanged();
             emit queryProgressChanged();
-            emit mapAnalysisFinished(result);
+            if (generation == m_queryGeneration) emit mapAnalysisFinished(result);
         }, Qt::QueuedConnection);
     });
     return true;
+}
+
+void MapView::invalidateMapQuery()
+{
+    ++m_queryGeneration;
+    cancelMapQuery();
 }
 
 void MapView::cancelMapQuery()
@@ -896,12 +987,17 @@ QVariantList MapView::previewMonsterLabels(int centerX, int centerY, int z, int 
     const int halfX = std::clamp(columns, 1, 512) / 2 + 2;
     const int halfY = std::clamp(rows, 1, 512) / 2 + 2;
     const auto floorIt = m_chunkStore.tiles().constFind(z);
-    if (floorIt == m_chunkStore.tiles().cend()) return result;
+    const auto previewFloor=m_luaPreviewChunks.constFind(z);
+    if (floorIt == m_chunkStore.tiles().cend() && previewFloor==m_luaPreviewChunks.cend()) return result;
     for (int cy = floorDiv(centerY - halfY, kChunkTiles); cy <= floorDiv(centerY + halfY, kChunkTiles); ++cy)
         for (int cx = floorDiv(centerX - halfX, kChunkTiles); cx <= floorDiv(centerX + halfX, kChunkTiles); ++cx) {
-            const auto chunk = floorIt->constFind(chunkKey(cx, cy));
-            if (chunk == floorIt->cend()) continue;
-            for (const auto *tile : chunk.value()) {
+            QVector<const OtbmTile*> visible;
+            if(floorIt!=m_chunkStore.tiles().cend()){
+                const auto chunk=floorIt->constFind(chunkKey(cx,cy));
+                if(chunk!=floorIt->cend())for(const auto *tile:chunk.value())if(!m_luaPreviewTiles.contains(selKey(tile->x,tile->y,tile->z)))visible.append(tile);
+            }
+            if(previewFloor!=m_luaPreviewChunks.cend())for(auto k:previewFloor->value(chunkKey(cx,cy))){auto t=m_luaPreviewTiles.constFind(k);if(t!=m_luaPreviewTiles.cend())visible.append(&t.value());}
+            for (const auto *tile : visible) {
                 if (!tile || tile->creature_name.isEmpty()
                     || std::abs(tile->x - centerX) > halfX || std::abs(tile->y - centerY) > halfY) continue;
                 const auto *creature = m_creatureStore->byName(tile->creature_name);
@@ -915,7 +1011,11 @@ QVariantList MapView::previewMonsterLabels(int centerX, int centerY, int z, int 
                     const auto *client = m_dat->itemByClientId(static_cast<uint16_t>(m_otb->clientIdForServerId(item.server_id)));
                     if (client && client->has(ClientProperty::Elevation)) elevation += client->elevation;
                 }
+                static thread_local IngamePreviewScene information;
+                const auto bitmap = information.nameBitmap(tile->creature_name.value());
                 result.append(QVariantMap{{QStringLiteral("name"), tile->creature_name.value()},
+                    {QStringLiteral("nameSource"), bitmap.value("nameSource")},
+                    {QStringLiteral("nameWidth"), bitmap.value("nameWidth")},
                     {QStringLiteral("x"), tile->x}, {QStringLiteral("y"), tile->y},
                     {QStringLiteral("elevation"), elevation},
                     {QStringLiteral("npc"), tile->creature_is_npc}});

@@ -57,7 +57,7 @@ DmeDialog {
             close()
         }
     }
-    function reset(nextKind) {
+    function resetDraft(nextKind) {
         kind = nextKind
         originalName = ""
         nameField.text = ""
@@ -123,7 +123,7 @@ DmeDialog {
     }
     onOpened: {
         if (dirty && pickerReturnKind !== "") kind = pickerReturnKind
-        if (!dirty && pickerReturnKind !== kind) reset(kind)
+        if (!dirty && pickerReturnKind !== kind) resetDraft(kind)
         pickerReturnKind = ""
     }
 
@@ -152,7 +152,7 @@ DmeDialog {
                     required property string modelData
                     text: modelData === "walls" ? "Wall" : modelData === "carpets" ? "Carpet" : "Doodad"
                     checked: root.kind === modelData
-                    onClicked: root.guarded(function() { root.reset(modelData) })
+                    onClicked: root.guarded(function() { root.resetDraft(modelData) })
                 }
             }
             Item { Layout.fillWidth: true }
@@ -171,7 +171,7 @@ DmeDialog {
                 id: brushCombo; objectName: "advancedBrushCombo"; Layout.preferredWidth: 290; model: root.names
                 onActivated: { let name = currentText; root.guarded(function() { root.load(name) }) }
             }
-            DmeButton { text: "New"; onClicked: root.guarded(function() { root.reset(root.kind) }) }
+            DmeButton { text: "New"; onClicked: root.guarded(function() { root.resetDraft(root.kind) }) }
             DmeButton {
                 text: "Copy as new"
                 onClicked: { root.originalName = ""; nameField.text = nameField.text + " copy"; root.dirty = true }

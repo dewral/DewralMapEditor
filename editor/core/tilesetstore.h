@@ -54,6 +54,8 @@ signals:
     void errorStringChanged();
 
 private:
+    friend class ClientLoadService;
+    friend struct ClientPreparedState;
     static bool loadJsonInto(const QString &path,
                               QHash<QString, QStringList> &names,
                               QHash<QString, QHash<QString, QVariantList>> &items);
@@ -65,6 +67,7 @@ private:
     QVariantList m_rawOthers;
     QSet<int> m_rawOtherIds;
 
+    bool m_preparedPublication = false;
     int m_revision = 0;
     QString m_path;
     QString m_errorString;

@@ -16,7 +16,7 @@ Item {
         "tilesOpacity", "itemsOpacity", "houseOpacity",
         "showAnimations", "torchOn", "lightAmbient", "lightAmbientColor", "minimapOn",
         "showShade", "showLowerFloors", "placeEffect", "automagic",
-        "compensatedSelect", "selectionFloors"
+        "compensatedSelect", "selectionFloors", "pixelPerfectSelection"
     ]
 
     Component.onCompleted: {

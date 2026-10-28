@@ -37,7 +37,7 @@ Item {
         function init() {
             previousBrushStore = Backend.brushStore
             editor.dirty = false
-            editor.reset("walls")
+            editor.resetDraft("walls")
         }
         function cleanup() {
             editor.dirty = false
@@ -105,12 +105,12 @@ Item {
             editor.addIds([102])
             compare(editor.draft.items["0"].length, 2)
             compare(editor.draft.items["6"][0][0], 102)
-            editor.reset("carpets")
+            editor.resetDraft("carpets")
             compare(editor.slotKeys.length, 13)
             editor.slotIndex = 12
             editor.addIds([200])
             compare(editor.draft.items.center[0][0], 200)
-            editor.reset("doodads")
+            editor.resetDraft("doodads")
             editor.addIds([300])
             editor.addComposite(true)
             compare(editor.currentAlt.singles[0][0], 300)

@@ -1,5 +1,6 @@
 import "../controllers/ContextBrushes.js" as ContextBrushes
 import QtQuick
+import "../themes/tibia" as TibiaSkin
 import QtQuick.Controls
 import Tibia 1.0
 import "../style"
@@ -8,7 +9,8 @@ import "../dialogs"
 
 Item {
     id: workspace
-    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
+    readonly property bool tibiaUi: Backend.uiTheme.style === "tibia-ui"
+    readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
     required property var app
     required property var settings
     required property var propertiesDialog
@@ -16,10 +18,12 @@ Item {
     required property var paletteNavigator
     readonly property bool githubUi: Backend.uiTheme.style !== "classic"
                                      && Backend.uiTheme.style !== "windows-classic"
-                                     && Backend.uiTheme.style !== "fluent-dark"
+                                     && Backend.uiTheme.style !== "fluent-dark" && Backend.uiTheme.style !== "tibia-ui"
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
 
+    property var workTimerPopupHost
+    property var proceduralBrushSession: null
     property Item previewDockHost: null
     property alias mapView: mapView
     property alias mapRenderer: mapRenderer
@@ -67,6 +71,27 @@ Item {
         }
     }
 
+    TibiaSkin.TibiaSkin { anchors.fill: parent; kind: "window"; frameOnly: true; z: 10 }
+    TibiaSkin.TibiaMapScrollBar {
+        objectName: "tibiaMapVerticalScroll"
+        visible: workspace.tibiaUi && Backend.otbmReader.loaded
+        mapView: workspace.mapView
+        anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
+        anchors.margins: 4; anchors.bottomMargin: 16; width: 12
+    }
+    TibiaSkin.TibiaMapScrollBar {
+        objectName: "tibiaMapHorizontalScroll"
+        visible: workspace.tibiaUi && Backend.otbmReader.loaded
+        mapView: workspace.mapView; horizontal: true
+        anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+        anchors.margins: 4; anchors.rightMargin: 16; height: 12
+    }
+    Loader {
+        visible: workspace.tibiaUi && Backend.otbmReader.loaded
+        active: visible; width: 12; height: 12
+        anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.margins: 4
+        sourceComponent: TibiaSkin.TibiaClassicFrame { kind: "button" }
+    }
     Column {
         id: errorArea
         anchors {
@@ -121,6 +146,8 @@ Item {
             left: parent.left
             right: parent.right
             margins: workspace.githubUi ? 1 : 3
+            rightMargin: workspace.tibiaUi ? 17 : workspace.githubUi ? 1 : 3
+            bottomMargin: workspace.tibiaUi ? 17 : workspace.githubUi ? 1 : 3
         }
         visible: Backend.otbmReader.loaded
         clip: true
@@ -196,7 +223,17 @@ Item {
             }
         }
 
+        GenerationMaskOverlay { anchors.fill: parent; mapView: workspace.mapView; session: workspace.proceduralBrushSession; z: 4 }
+
+        WeatherLayer {
+            anchors.fill: parent
+            z: 0.5
+            mapView: workspace.mapView
+            settings: workspace.settings
+        }
+
         ZoneLabels {
+            z: 2
             anchors.fill: parent
             visible: workspace.fluentUi || !!(workspace.mapView.showNumberedZones
                 && workspace.mapView.otbm && workspace.mapView.otbm.numberedZonesEnabled)
@@ -951,6 +988,7 @@ Item {
             spacing: 7
 
             WorkTimerStatus {
+        popupHost: workspace.workTimerPopupHost
                 visible: workspace.settings.showWorkTimer && githubStatus.width >= 500
                 width: githubStatus.width < 680 ? 205 : 245
                 height: 30
@@ -989,6 +1027,7 @@ Item {
     }
 
     WorkTimerStatus {
+        popupHost: workspace.workTimerPopupHost
         visible: workspace.settings.showWorkTimer && !workspace.fluentUi && !workspace.githubUi && Backend.otbmReader.loaded
         anchors {
             right: parent.right

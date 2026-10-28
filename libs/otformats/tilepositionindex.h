@@ -89,6 +89,36 @@ public:
     const_iterator end() const { return const_iterator(); }
     const_iterator cend() const { return const_iterator(); }
 
+    // Visit occupied entries only. The visitor must not mutate this index.
+    template <typename Visitor>
+    void forEachInRegion(int minX, int minY, int maxX, int maxY, int z, Visitor &&visit) const
+    {
+        minX = std::max(0, minX); minY = std::max(0, minY);
+        maxX = std::min(65535, maxX); maxY = std::min(65535, maxY);
+        if (z < 0 || z > 15 || minX > maxX || minY > maxY) return;
+        const int cx0 = minX / int(kChunkSide), cx1 = maxX / int(kChunkSide);
+        const int cy0 = minY / int(kChunkSide), cy1 = maxY / int(kChunkSide);
+        const auto visitChunk = [&](std::uint32_t key, const auto &chunk) {
+            if (int(key >> 22) != z) return;
+            const int cx = int(key & 2047u), cy = int((key >> 11) & 2047u);
+            if (cx < cx0 || cx > cx1 || cy < cy0 || cy > cy1) return;
+            chunk.visitRegion(std::max(0, minX - cx * int(kChunkSide)),
+                              std::max(0, minY - cy * int(kChunkSide)),
+                              std::min(31, maxX - cx * int(kChunkSide)),
+                              std::min(31, maxY - cy * int(kChunkSide)), visit);
+        };
+        const auto count = std::size_t(cx1 - cx0 + 1) * std::size_t(cy1 - cy0 + 1);
+        if (count < m_chunks.size()) {
+            for (int cy = cy0; cy <= cy1; ++cy) for (int cx = cx0; cx <= cx1; ++cx) {
+                const auto key = (std::uint32_t(z) << 22) | (std::uint32_t(cy) << 11) | std::uint32_t(cx);
+                const auto chunk = m_chunks.find(key);
+                if (chunk != m_chunks.end()) visitChunk(key, chunk->second);
+            }
+        } else {
+            for (const auto &entry : m_chunks) visitChunk(entry.first, entry.second);
+        }
+    }
+
     std::size_t size() const { return m_size; }
     std::size_t chunkCount() const { return m_chunks.size(); }
 
@@ -171,6 +201,22 @@ private:
             m_sparse.erase(entry);
             --m_entryCount;
             return true;
+        }
+
+        template <typename Visitor>
+        void visitRegion(int minX, int minY, int maxX, int maxY, Visitor &visit) const
+        {
+            if (m_dense) {
+                for (int y = minY; y <= maxY; ++y) for (int x = minX; x <= maxX; ++x) {
+                    const int value = m_dense[y * kChunkSide + x];
+                    if (value >= 0) visit(value);
+                }
+            } else {
+                for (const SparseEntry &entry : m_sparse) {
+                    const int x = entry.position % kChunkSide, y = entry.position / kChunkSide;
+                    if (x >= minX && x <= maxX && y >= minY && y <= maxY) visit(entry.tileIndex);
+                }
+            }
         }
 
         bool empty() const { return m_entryCount == 0; }

@@ -340,6 +340,7 @@ void TilesetStore::setItemSource(OtbReader *source)
 
 void TilesetStore::bump()
 {
+    if (m_preparedPublication) return;
     rebuildRawOthers();
     ++m_revision;
     emit tilesetsChanged();

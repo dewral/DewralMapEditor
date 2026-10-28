@@ -136,6 +136,8 @@ public:
     int computeTableItem(const QString &name, bool n, bool w, bool e, bool s) const;
 
 private:
+    friend class ClientLoadService;
+    friend struct ClientPreparedState;
     struct WeightedNode {
         QVector<QPair<int, int>> items;
         int totalChance = 0;

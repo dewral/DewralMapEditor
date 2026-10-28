@@ -16,6 +16,7 @@ Item {
     implicitWidth: controlLoader.item ? controlLoader.item.implicitWidth : 140
     implicitHeight: controlLoader.item ? controlLoader.item.implicitHeight : 23
 
+    function openPopup() { if (controlLoader.item && typeof controlLoader.item.openPopup === "function") controlLoader.item.openPopup(); }
     function handleActivation(index) {
         root.currentIndex = index;
         // The themed control assigns its index on click, replacing its binding.
@@ -23,7 +24,7 @@ Item {
         root.activated(index);
     }
 
-    Loader { id: controlLoader; anchors.fill: parent; sourceComponent: Backend.uiTheme.style === "fluent-dark" ? fluentCombo : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicCombo : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayCombo : githubCombo) }
+    Loader { id: controlLoader; anchors.fill: parent; sourceComponent: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui") ? fluentCombo : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicCombo : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayCombo : githubCombo) }
     Component {
         id: classicCombo
         Classic.ClassicComboBox {

@@ -32,7 +32,7 @@ Rectangle {
         id: content
         width: parent.width
         spacing: 10
-        Text { text: "Zone display"; color: Colors.c("heading"); font { family: Colors.fontFamily; pixelSize: 12; bold: true } }
+        Text { text: "Zone display"; color: Colors.c("heading"); font { family: Colors.family(); pixelSize: 12; bold: true } }
         Rectangle { width: parent.width; height: 1; color: Colors.c("separator") }
         Repeater {
             model: [ {name:"Protection Zone",bit:1,color:"#399ee8"}, {name:"Non-PvP",bit:4,color:"#48b883"},
@@ -81,7 +81,7 @@ Rectangle {
                         }
                         leftPadding: 0; rightPadding: 28
                         width: content.width - 26
-                        font { family: Colors.fontFamily; pixelSize: 12 }
+                        font { family: Colors.family(); pixelSize: 12 }
                         onClicked: { if (modelData.bit === 0) { root.mapView.showHouses = checked; return; } root.mapView.visibleZoneMask = checked
                             ? root.mapView.visibleZoneMask | modelData.bit : root.mapView.visibleZoneMask & ~modelData.bit; }
                     }
@@ -111,18 +111,18 @@ Rectangle {
                             root.mapView.zoneOpacities = values;
                         }
                     }
-                    Text { text: Math.round((index === 4 ? root.mapView.houseOpacity : root.mapView.zoneOpacities[index]) * 100) + "%"; color: Colors.c("muted"); font { family: Colors.fontFamily; pixelSize: 11 } anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: Math.round((index === 4 ? root.mapView.houseOpacity : root.mapView.zoneOpacities[index]) * 100) + "%"; color: Colors.c("muted"); font { family: Colors.family(); pixelSize: 11 } anchors.verticalCenter: parent.verticalCenter }
                 }
             }
         }
         Rectangle { width: parent.width; height: 1; color: Colors.c("separator") }
-        Text { text: "Map layers"; color: Colors.c("heading"); font { family: Colors.fontFamily; pixelSize: 12; bold: true } }
+        Text { text: "Map layers"; color: Colors.c("heading"); font { family: Colors.family(); pixelSize: 12; bold: true } }
         Repeater {
             model: [{name:"Tiles",key:"tilesOpacity"}, {name:"Items",key:"itemsOpacity"}]
             delegate: Column {
                 required property var modelData
                 width: content.width
-                Text { text: modelData.name + "  " + Math.round(root.mapView[modelData.key] * 100) + "%"; color: Colors.c("text"); font { family: Colors.fontFamily; pixelSize: 12 } }
+                Text { text: modelData.name + "  " + Math.round(root.mapView[modelData.key] * 100) + "%"; color: Colors.c("text"); font { family: Colors.family(); pixelSize: 12 } }
                 Slider {
                     width: parent.width
                     from: 0; to: 1; stepSize: 0.05
@@ -151,7 +151,7 @@ Rectangle {
                 checked: root.mapView[modelData.key]
                 palette.windowText: Colors.c("text")
                 palette.highlight: Colors.c("accent")
-                font { family: Colors.fontFamily; pixelSize: 12 }
+                font { family: Colors.family(); pixelSize: 12 }
                 width: content.width
                 leftPadding: 0; rightPadding: 28
                 indicator: Rectangle {

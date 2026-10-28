@@ -40,5 +40,17 @@ int main(int argc, char **argv)
     theme.resetUiColors();
     UiTheme reset;
     expect(reset.colorOverrides().isEmpty(), "Reset all must clear persisted overrides");
+    bool listed=false;
+    for (const auto &entry:theme.styles()) {
+        const auto item=entry.toMap();
+        if(item.value("id")=="tibia-ui") listed=item.value("name")=="Tibia-UI";
+    }
+    expect(listed,"Tibia-UI must be available in the theme selector");
+    theme.setStyle("tibia-ui");
+    expect(theme.style()=="tibia-ui","Tibia-UI must be accepted at runtime");
+    UiTheme savedTheme;
+    expect(savedTheme.style()=="tibia-ui","Tibia-UI must survive restarting the editor");
+    theme.setStyle("fluent-dark");
+    expect(theme.style()=="fluent-dark","Switching back to Fluent must remain supported");
     return EXIT_SUCCESS;
 }

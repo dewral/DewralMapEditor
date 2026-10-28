@@ -50,10 +50,10 @@ Item {
             overlay.viewScale = 1
             const information = findChild(overlay, "monsterInformation")
             verify(information !== null)
-            compare(information.x, 254.5)
-            compare(information.y, 154)
+            compare(information.x, 254)
+            compare(information.y, 152)
             const fill = findChild(information, "monsterHealthFill")
-            compare(fill.color, "#bf0a0a")
+            compare(fill.color, "#00c000")
             compare(fill.width, 25)
             compare(fill.height, 2)
             overlay.viewScale = 2

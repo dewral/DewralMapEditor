@@ -18,6 +18,8 @@
 #include <QStandardPaths>
 #include <QTimeZone>
 #include <QUuid>
+#include <QJsonParseError>
+#include <QtConcurrent/QtConcurrentRun>
 
 namespace {
 constexpr auto kDuration = "durationMs";
@@ -38,7 +40,25 @@ WorkTimerService::WorkTimerService(DocumentManager *documents, QObject *parent, 
     m_pomodoroWorkMinutes = settings.value(QStringLiteral("workTimer/pomodoroWorkMinutes"), 50).toInt();
     m_pomodoroBreakMinutes = settings.value(QStringLiteral("workTimer/pomodoroBreakMinutes"), 10).toInt();
     m_checkpointEnabled = settings.value(QStringLiteral("workTimer/checkpointEnabled"), false).toBool();
-    load();
+    connect(this, &WorkTimerService::historyChanged, this, [this] {
+        m_taskTotalsDirty = true; m_taskViewDirty = true;
+        m_historyStatistics.clear();
+        m_historyModel.reload();
+    });
+    connect(this, &WorkTimerService::timerChanged, this, [this] { m_taskViewDirty = true; });
+    connect(&m_loadWatcher, &QFutureWatcher<WorkTimerLoadResult>::finished, this, [this] {
+        const auto result = m_loadWatcher.result();
+        m_loading = false;
+        if (!result.error.isEmpty()) {
+            fail(result.error);
+            emit readyChanged();
+            return;
+        }
+        applyLoaded(result.root);
+        clearError();
+        m_ready = true;
+        emit readyChanged(); emit historyChanged(); emit timerChanged(); emit statisticsChanged();
+    });
     m_timer.setInterval(1000);
     connect(&m_timer, &QTimer::timeout, this, &WorkTimerService::tick);
     m_timer.start();
@@ -55,6 +75,7 @@ WorkTimerService::~WorkTimerService()
 {
     if (QCoreApplication::instance())
         QCoreApplication::instance()->removeEventFilter(this);
+    if (!m_ready) return; // Never overwrite a history which has not been read.
     if (running())
         pauseAt(m_elapsedNow());
     save();
@@ -84,13 +105,8 @@ qint64 WorkTimerService::taskElapsedSeconds() const
 {
     if (!active()) return 0;
 
-    qint64 seconds = elapsedSeconds();
-    const QString activeTask = taskName();
-    for (const QJsonObject &session : m_sessions) {
-        if (session.value(QStringLiteral("task")).toString() == activeTask)
-            seconds += session.value(QLatin1String(kDuration)).toInteger() / 1000;
-    }
-    return seconds;
+    rebuildTaskTotals();
+    return elapsedSeconds() + m_taskTotals.value(taskName()).value(QStringLiteral("durationSeconds")).toInteger();
 }
 
 QString WorkTimerService::taskElapsedText() const
@@ -122,19 +138,9 @@ QVariantList WorkTimerService::taskTimers() const
 {
     // A timer is a named task. Its total is the sum of all recorded work
     // segments, so switching tasks never loses the accumulated value.
-    QMap<QString, QJsonObject> timers;
-    for (const QJsonObject &session : m_sessions) {
-        const QString name = session.value(QStringLiteral("task")).toString();
-        if (name.isEmpty()) continue;
-        QJsonObject timer = timers.value(name);
-        timer.insert(QStringLiteral("name"), name);
-        timer.insert(QStringLiteral("durationSeconds"),
-                     timer.value(QStringLiteral("durationSeconds")).toInteger()
-                         + session.value(QLatin1String(kDuration)).toInteger() / 1000);
-        timer.insert(QStringLiteral("lastMap"), session.value(QStringLiteral("mapName")));
-        timer.insert(QStringLiteral("lastStartedAt"), session.value(QStringLiteral("startedAt")));
-        timers.insert(name, timer);
-    }
+    if (!m_taskViewDirty) return m_taskView;
+    rebuildTaskTotals();
+    auto timers = m_taskTotals;
     if (active()) {
         const QString name = taskName();
         QJsonObject timer = timers.value(name);
@@ -155,6 +161,7 @@ QVariantList WorkTimerService::taskTimers() const
         timer.insert(QStringLiteral("icon"), taskIconFor(it.key()));
         result.push_back(timer.toVariantMap());
     }
+    m_taskView = result; m_taskViewDirty = false;
     return result;
 }
 
@@ -205,12 +212,16 @@ qint64 WorkTimerService::statisticsSeconds(const QString &scope) const
         }
         return value;
     };
-    qint64 milliseconds = 0;
+    const QString cacheKey = scope + QLatin1Char('|') + today.toString(Qt::ISODate) + QLatin1Char('|') + mapKey;
+    qint64 milliseconds = m_historyStatistics.value(cacheKey);
+    if (!m_historyStatistics.contains(cacheKey)) {
     for (const QJsonObject &session : m_sessions) {
         if (scope == QStringLiteral("map") && session.value(QStringLiteral("mapKey")).toString() != mapKey) continue;
         milliseconds += (scope == QStringLiteral("today") || scope == QStringLiteral("week"))
             ? segmentMilliseconds(session, false)
             : session.value(QLatin1String(kDuration)).toInteger();
+    }
+    m_historyStatistics.insert(cacheKey, milliseconds);
     }
     if (active()) {
         if (scope == QStringLiteral("today") || scope == QStringLiteral("week"))
@@ -290,6 +301,7 @@ void WorkTimerService::setCheckpointEnabled(bool value)
 
 bool WorkTimerService::startSession(const QString &task)
 {
+    if (!requireReady()) return false;
     clearError();
     if (active()) return fail(QStringLiteral("Finish the current session first."));
     OtbmReader *map = m_documents->current();
@@ -317,6 +329,7 @@ bool WorkTimerService::startSession(const QString &task)
 
 bool WorkTimerService::switchTask(const QString &task)
 {
+    if (!requireReady()) return false;
     const QString normalized = task.trimmed();
     if (normalized.isEmpty()) return fail(QStringLiteral("Enter a task name."));
     if (active() && taskName() == normalized) {
@@ -365,6 +378,7 @@ void WorkTimerService::pauseSession() { pauseAt(m_elapsedNow()); }
 
 bool WorkTimerService::resumeSession()
 {
+    if (!requireReady()) return false;
     clearError();
     if (m_state != QStringLiteral("paused")) return false;
     if (currentMapKey() != m_active.value(QStringLiteral("mapKey")).toString())
@@ -381,6 +395,7 @@ bool WorkTimerService::resumeSession()
 
 bool WorkTimerService::finishSession(const QString &note)
 {
+    if (!requireReady()) return false;
     clearError();
     if (!active()) return false;
     if (running()) pauseAt(m_elapsedNow());
@@ -400,6 +415,7 @@ bool WorkTimerService::finishSession(const QString &note)
 bool WorkTimerService::updateSession(const QString &id, const QString &task,
                                      const QString &note, qint64 durationSeconds)
 {
+    if (!requireReady()) return false;
     for (QJsonObject &session : m_sessions) {
         if (session.value(QStringLiteral("id")).toString() != id) continue;
         session.insert(QStringLiteral("task"), task.trimmed());
@@ -412,6 +428,7 @@ bool WorkTimerService::updateSession(const QString &id, const QString &task,
 
 bool WorkTimerService::removeSession(const QString &id)
 {
+    if (!requireReady()) return false;
     for (qsizetype i = 0; i < m_sessions.size(); ++i) {
         if (m_sessions[i].value(QStringLiteral("id")).toString() != id) continue;
         m_sessions.removeAt(i); save(); emit historyChanged(); emit timerChanged(); emit statisticsChanged(); return true;
@@ -421,6 +438,7 @@ bool WorkTimerService::removeSession(const QString &id)
 
 bool WorkTimerService::removeTaskTimer(const QString &task)
 {
+    if (!requireReady()) return false;
     clearError();
     const QString normalized = task.trimmed();
     if (normalized.isEmpty()) return false;
@@ -459,16 +477,49 @@ QString WorkTimerService::storagePath() const
     return QDir(directory).filePath(QStringLiteral("work-timer.json"));
 }
 
-void WorkTimerService::load()
+void WorkTimerService::ensureLoaded()
 {
-    QFile file(storagePath());
-    if (!file.open(QIODevice::ReadOnly)) return;
-    const QJsonDocument document = QJsonDocument::fromJson(file.readAll());
-    if (!document.isObject()) return;
-    for (const QJsonValue &value : document.object().value(QStringLiteral("sessions")).toArray())
+    if (m_ready || m_loading) return;
+    m_loading = true;
+    clearError();
+    emit readyChanged();
+    const QString path = storagePath();
+    // The worker owns only its file and result, never a service/model pointer.
+    m_loadWatcher.setFuture(QtConcurrent::run([path] {
+        WorkTimerLoadResult result;
+        QFile file(path);
+        if (!file.exists()) return result;
+        if (!file.open(QIODevice::ReadOnly)) {
+            result.error = QStringLiteral("Could not read work timer history: %1").arg(file.errorString());
+            return result;
+        }
+        QJsonParseError error;
+        const auto document = QJsonDocument::fromJson(file.readAll(), &error);
+        if (error.error != QJsonParseError::NoError || !document.isObject()) {
+            result.error = QStringLiteral("Work timer history is not a valid JSON object.");
+            return result;
+        }
+        result.root = document.object();
+        if ((result.root.contains("schemaVersion") && result.root.value("schemaVersion").toInt() != 1)
+            || (result.root.contains("sessions") && !result.root.value("sessions").isArray()))
+            result.error = QStringLiteral("Unsupported work timer history format.");
+        return result;
+    }));
+}
+
+bool WorkTimerService::requireReady()
+{
+    if (m_ready) return true;
+    ensureLoaded();
+    return fail(QStringLiteral("Work timer history is still loading or could not be read."));
+}
+
+void WorkTimerService::applyLoaded(const QJsonObject &root)
+{
+    for (const QJsonValue &value : root.value(QStringLiteral("sessions")).toArray())
         if (value.isObject()) m_sessions.push_back(value.toObject());
-    m_taskIcons = document.object().value(QStringLiteral("taskIcons")).toObject();
-    const QJsonObject activeSession = document.object().value(QStringLiteral("active")).toObject();
+    m_taskIcons = root.value(QStringLiteral("taskIcons")).toObject();
+    const QJsonObject activeSession = root.value(QStringLiteral("active")).toObject();
     if (!activeSession.isEmpty()) {
         m_active = activeSession;
         m_accumulatedMs = activeSession.value(QLatin1String(kDuration)).toInteger();
@@ -480,6 +531,7 @@ void WorkTimerService::load()
 
 bool WorkTimerService::save()
 {
+    if (!m_ready) return false;
     QDir().mkpath(QFileInfo(storagePath()).absolutePath());
     QJsonArray sessions;
     for (const QJsonObject &session : m_sessions) sessions.push_back(session);
@@ -571,6 +623,7 @@ QString WorkTimerService::csvCell(QString value)
 
 bool WorkTimerService::exportCsv(const QUrl &fileUrl)
 {
+    if (!requireReady()) return false;
     QSaveFile file(localPath(fileUrl));
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) return fail(QStringLiteral("Could not create the CSV file."));
     file.write("Task,Map,Map path,Profile,Started,Ended,Duration seconds,Operations,Changed tiles,Note\r\n");
@@ -587,6 +640,7 @@ bool WorkTimerService::exportCsv(const QUrl &fileUrl)
 
 bool WorkTimerService::exportJson(const QUrl &fileUrl)
 {
+    if (!requireReady()) return false;
     QJsonArray values;
     for (const QJsonObject &session : m_sessions) values.push_back(sessionView(session));
     QSaveFile file(localPath(fileUrl));
@@ -614,13 +668,13 @@ QString WorkTimerService::taskIconFor(const QString &task) const
 bool WorkTimerService::hasTask(const QString &task) const
 {
     if (active() && taskName() == task) return true;
-    for (const auto &session : m_sessions)
-        if (session.value(QStringLiteral("task")).toString() == task) return true;
-    return false;
+    rebuildTaskTotals();
+    return m_taskTotals.contains(task);
 }
 
 bool WorkTimerService::setTaskIcon(const QString &task, const QString &icon)
 {
+    if (!requireReady()) return false;
     clearError();
     static const QSet<QString> presets{QStringLiteral("mapping"), QStringLiteral("mine"),
         QStringLiteral("town"), QStringLiteral("nature"), QStringLiteral("dungeon"),
@@ -659,6 +713,7 @@ void WorkTimerService::discardUnusedTaskIcon(const QString &icon)
 
 bool WorkTimerService::importTaskIcon(const QString &task, const QUrl &fileUrl)
 {
+    if (!requireReady()) return false;
     clearError();
     const QString normalized = task.trimmed();
     if (!hasTask(normalized)) return fail(QStringLiteral("The task no longer exists."));
@@ -684,4 +739,49 @@ bool WorkTimerService::importTaskIcon(const QString &task, const QUrl &fileUrl)
         return false;
     }
     return true;
+}
+
+WorkTimerHistoryModel::WorkTimerHistoryModel(WorkTimerService *service)
+    : QAbstractListModel(service), m_service(service) {}
+
+int WorkTimerHistoryModel::rowCount(const QModelIndex &parent) const
+{
+    return parent.isValid() ? 0 : m_rows.size();
+}
+QHash<int, QByteArray> WorkTimerHistoryModel::roleNames() const
+{
+    return {{Qt::UserRole + 1, "modelData"}};
+}
+QVariant WorkTimerHistoryModel::data(const QModelIndex &index, int role) const
+{
+    if (!index.isValid() || index.row() < 0 || index.row() >= m_rows.size()
+        || role != Qt::UserRole + 1) return {};
+    return m_service->sessionView(m_rows.at(m_rows.size() - 1 - index.row())).toVariantMap();
+}
+void WorkTimerHistoryModel::reload()
+{
+    beginResetModel();
+    m_rows = m_service->m_sessions; // Implicitly shared JSON; no eager QVariant conversion.
+    endResetModel();
+}
+
+void WorkTimerService::rebuildTaskTotals() const
+{
+    if (m_taskTotalsDirty) {
+    m_taskTotals.clear();
+    auto &timers = m_taskTotals;
+    for (const QJsonObject &session : m_sessions) {
+        const QString name = session.value(QStringLiteral("task")).toString();
+        if (name.isEmpty()) continue;
+        QJsonObject timer = timers.value(name);
+        timer.insert(QStringLiteral("name"), name);
+        timer.insert(QStringLiteral("durationSeconds"),
+                     timer.value(QStringLiteral("durationSeconds")).toInteger()
+                         + session.value(QLatin1String(kDuration)).toInteger() / 1000);
+        timer.insert(QStringLiteral("lastMap"), session.value(QStringLiteral("mapName")));
+        timer.insert(QStringLiteral("lastStartedAt"), session.value(QStringLiteral("startedAt")));
+        timers.insert(name, timer);
+    }
+    m_taskTotalsDirty = false;
+    }
 }

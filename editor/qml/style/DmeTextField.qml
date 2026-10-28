@@ -23,7 +23,7 @@ Item {
     Loader {
         id: controlLoader
         anchors.fill: parent
-        sourceComponent: Backend.uiTheme.style === "fluent-dark" ? fluentTextField : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicTextField : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayTextField : githubTextField)
+        sourceComponent: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui") ? fluentTextField : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicTextField : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayTextField : githubTextField)
     }
     Component {
         id: classicTextField

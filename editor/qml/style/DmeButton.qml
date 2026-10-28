@@ -18,7 +18,7 @@ Item {
     Loader {
         id: controlLoader
         anchors.fill: parent
-        sourceComponent: Backend.uiTheme.style === "fluent-dark" ? fluentButton : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicButton
+        sourceComponent: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui") ? fluentButton : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicButton
                          : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayButton : githubButton)
     }
 

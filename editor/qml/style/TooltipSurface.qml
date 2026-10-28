@@ -4,7 +4,7 @@ import "../themes/fluent/Colors.js" as Colors
 
 Rectangle {
     readonly property color accentColor: Colors.c("accent")
-    readonly property color textColor: Backend.uiTheme.style === "fluent-dark"
+    readonly property color textColor: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
         ? Colors.c("text") : (Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern")
         ? "#F0F0F0" : "#E6EDF3"
     readonly property int contentLeftPadding: 21

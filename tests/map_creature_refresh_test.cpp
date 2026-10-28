@@ -3,6 +3,8 @@
 #include "dmedatadir.h"
 #include "itemsxmlreader.h"
 #include "map_lua_checks.h"
+#include "map_generation_edit_checks.h"
+#include "map_brush_demo_checks.h"
 
 #include <QDebug>
 #include <QElapsedTimer>
@@ -236,30 +238,43 @@ bool atlasBudget(const QTemporaryDir &directory)
 #include "map_legacy_subtype_checks.h"
 #include "map_hangable_checks.h"
 #include "map_selection_delete_checks.h"
+#include "map_pixel_selection_checks.h"
+#include "map_preview_renderer_checks.h"
 #include "map_view_position_checks.h"
 #include "map_item_location_checks.h"
+#include "map_rubber_band_checks.h"
 
 int main(int argc, char **argv)
 {
+    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     QGuiApplication application(argc, argv);
+    if(application.arguments().contains("--raw-style-check"))return testRawStyle(application.arguments())?0:1;
+    if(application.arguments().contains("--midhem-brush-check"))return testMidhemBrush(application.arguments())?0:1;
+    if (application.arguments().contains("--brush-demo")) return testBrushDemo(application.arguments()) ? 0 : 1;
+    if (application.arguments().contains("--preview-reference"))
+        return testPreviewClientReference(application.arguments()) ? 0 : 1;
     QTemporaryDir settingsDirectory;
     if (!require(settingsDirectory.isValid(), "Could not isolate map view settings")) return 1;
     QCoreApplication::setOrganizationName(QStringLiteral("DME-Tests"));
     QCoreApplication::setApplicationName(QStringLiteral("MapView"));
     QSettings::setDefaultFormat(QSettings::IniFormat);
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDirectory.path());
+    if (application.arguments().contains(QStringLiteral("--rubber-band-only")))
+        return testRubberBandRegions() ? 0 : 1;
     if (QCoreApplication::arguments().contains(QStringLiteral("--view-position-only"))) {
         QTemporaryDir directory;
         return require(directory.isValid(), "Could not create map view fixtures")
                    && testMapViewPositions(directory) ? 0 : 1;
     }
-    if (QCoreApplication::arguments().contains(QStringLiteral("--item-locations-only"))) {
+    if (QCoreApplication::arguments().contains(QStringLiteral("--item-locations-only"))
+        || QCoreApplication::arguments().contains(QStringLiteral("--query-benchmark-only"))) {
         QTemporaryDir directory;
         OtbReader items;
         return require(directory.isValid() && writeAssets(directory)
                        && items.loadFile(directory.filePath("test.otb")),
                        "Could not create item search fixtures")
-                   && testItemLocations(items) ? 0 : 1;
+                   && (application.arguments().contains(QStringLiteral("--query-benchmark-only"))
+                           ? benchmarkQuerySnapshot(items) : testItemLocations(items)) ? 0 : 1;
     }
     {
         MapView lightView;
@@ -297,11 +312,16 @@ int main(int argc, char **argv)
                      && spr.loadFile(directory.filePath(QStringLiteral("test.spr"))),
                  "Could not load creature refresh assets")) return 1;
 
+    if(application.arguments().contains("--generation-only"))return testGenerationTransaction(otb,dat,spr,directory.path())?0:1;
     if (!animationDependencies(directory,otb,spr)) return 1;
     if (!testSelectionDelete(otb, dat, spr)) return 1;
+    if (!testPixelSelection(otb, dat, spr)) return 1;
+    if (!testClientPreviewComposition(directory, dat, spr)) return 1;
+    if (!testPreviewWalkAnimation(directory, dat, spr)) return 1;
 
     const QString profile = QFileInfo(profileDirectory.path()).fileName();
     if (!testLuaPatch(otb,dat,spr,directory.path())) return 1;
+    if (!testGenerationTransaction(otb,dat,spr,directory.path())) return 1;
     CreatureStore creatures;
     creatures.loadForDir(profile);
     if (!require(creatures.saveCreature({}, QStringLiteral("Rat"), false, 1, 0, 0, 0, 0, 0)
@@ -325,6 +345,20 @@ int main(int argc, char **argv)
     view.setTileSize(48);
     view.setShowAnimations(true);
     if (!expectOutfits(view, red, red)) return 1;
+    {
+        IngamePreviewScene previewStyle;
+        const auto labels = view.previewMonsterLabels(1, 1, 7, 15, 11);
+        if (!require(labels.size() == 2, "Editor creature labels were not generated")) return 1;
+        for (const auto &entry : labels) {
+            const auto information = entry.toMap();
+            const auto expected = previewStyle.nameBitmap(information.value("name").toString());
+            if (!require(information.value("nameSource") == expected.value("nameSource")
+                         && information.value("nameWidth") == expected.value("nameWidth")
+                         && information.value("nameWidth").toInt() > 0,
+                         "Editor monster/NPC names differ from the in-game preview font")) return 1;
+        }
+    }
+
     const quint64 stationaryContent = view.renderContentVersion();
     if (!require(waitUntil([&] { view.animTick(); return view.renderContentVersion() != stationaryContent; }),
                  "Stationary preview content did not refresh on item animation")) return 1;

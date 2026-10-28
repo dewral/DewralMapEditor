@@ -71,7 +71,7 @@ DmeDialog {
                         Row {
                             x: 14; anchors.verticalCenter: parent.verticalCenter; spacing: 12
                             Text { text: modelData.icon; color: dialog.page === index ? Colors.c("accent") : Colors.c("muted"); font.family: "Segoe Fluent Icons"; font.pixelSize: 19; anchors.verticalCenter: parent.verticalCenter }
-                            Text { text: modelData.name; color: Colors.c("text"); font.family: Colors.fontFamily; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: modelData.name; color: Colors.c("text"); font.family: Colors.family(); font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
                         }
                         MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; onClicked: dialog.page = index }
                     }
@@ -373,8 +373,8 @@ DmeDialog {
             id: pageColumn
             width: prefPage.availableWidth - 12
             spacing: 12
-            Text { text: prefPage.title; color: Colors.c("text"); font { family: Colors.fontFamily; pixelSize: 20; bold: true } }
-            Text { width: parent.width; text: prefPage.description; color: Colors.c("muted"); font.family: Colors.fontFamily; font.pixelSize: 12; wrapMode: Text.WordWrap }
+            Text { text: prefPage.title; color: Colors.c("text"); font { family: Colors.family(); pixelSize: 20; bold: true } }
+            Text { width: parent.width; text: prefPage.description; color: Colors.c("muted"); font.family: Colors.family(); font.pixelSize: 12; wrapMode: Text.WordWrap }
         }
     }
 

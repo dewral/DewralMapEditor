@@ -1,0 +1,12 @@
+api,timing,case,frames,draws_per_render,sprites,mean_ms,p95_ms,p99_ms,image_equal
+d3d11,cpu-submit,merged,120,1,3072,0.0407542,0.1015,0.1887,1
+d3d11,cpu-submit,chunk64,120,48,3072,0.0954692,0.1419,0.2018,1
+d3d11,cpu-submit,per-sprite,120,3072,3072,6.20119,7.7589,9.8391,1
+d3d11,cpu-submit,cache-static,120,1,3072,0.0835842,0.2127,0.8244,1
+d3d11,cpu-submit,merged-upload-every-frame,120,1,3072,0.0978258,0.2114,1.0679,1
+api,timing,case,frames,draws_per_render,sprites,mean_ms,p95_ms,p99_ms,image_equal
+d3d11,serialized-completed,merged,120,1,3072,0.0546483,0.1538,0.279,1
+d3d11,serialized-completed,chunk64,120,48,3072,0.0900483,0.2429,0.3112,1
+d3d11,serialized-completed,per-sprite,120,3072,3072,5.43224,6.6063,7.184,1
+d3d11,serialized-completed,cache-static,120,1,3072,0.0509658,0.194,0.268,1
+d3d11,serialized-completed,merged-upload-every-frame,120,1,3072,0.0413567,0.1269,0.1783,1

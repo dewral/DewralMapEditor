@@ -1,11 +1,12 @@
 import QtQuick
+import "../themes/tibia" as TibiaSkin
 import QtQuick.Controls
 import Tibia 1.0
 import "../themes/fluent/Colors.js" as Colors
 
 Item {
     id: root
-    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
+    readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
 
@@ -44,7 +45,7 @@ Item {
     }
     Rectangle {
         anchors.fill: parent; visible: root.fluentUi
-        radius: 4; color: root.active ? (mouseArea.containsMouse ? Colors.c("selectedHover") : Colors.c("selected")) : mouseArea.containsMouse ? Colors.c("hover") : Colors.c("button")
+        radius: Backend.uiTheme.style === "tibia-ui" ? 0 : 4; color: root.active ? (mouseArea.containsMouse ? Colors.c("selectedHover") : Colors.c("selected")) : mouseArea.containsMouse ? Colors.c("hover") : Colors.c("button")
         border.color: root.active ? Colors.c("selectedBorder") : Colors.c("border")
         border.width: 1
     }
@@ -58,10 +59,11 @@ Item {
         border.color: root.active ? (root.fluentUi ? "#CDD0D3" : root.grayTheme ? "#C79A3B" : "#2EA043") : (root.grayTheme ? "#484848" : "#242D38")
     }
 
+    TibiaSkin.TibiaSkin { anchors.fill: parent; kind: "button"; selected: root.active; hovered: mouseArea.containsMouse; pressed: mouseArea.pressed }
     Rectangle {
         anchors.centerIn: parent
-        width: root.iconSize
-        height: root.iconSize
+        width: Math.min(root.iconSize, root.width - 6)
+        height: Math.min(root.iconSize, root.height - 6)
         radius: root.round ? width / 2 : 0
         color: root.fluentUi ? (root.round ? "transparent" : Colors.c("text")) : root.active ? (root.grayTheme ? "#C79A3B" : "#3FB950") : (root.grayTheme ? "#858585" : "#7D8590")
         border.color: root.fluentUi ? Colors.c("text") : root.active ? (root.grayTheme ? "#F0CD78" : "#7EE787") : (root.grayTheme ? "#B0B0B0" : "#A7B1BC")

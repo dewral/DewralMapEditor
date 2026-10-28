@@ -1,13 +1,16 @@
 import QtQuick
+import "../themes/tibia" as TibiaSkin
 import QtQuick.Window
 import QtQuick.Controls
 import Tibia 1.0
 import "../style"
+import "../dialogs" as Dialogs
 import "PreviewMovement.js" as Movement
 import "../themes/fluent/Colors.js" as Fluent
 
 Item {
     id: previewWindow
+    readonly property bool tibiaUi: Backend.uiTheme.style === "tibia-ui"
     required property var mapView
     required property var settings
     required property bool githubUi
@@ -19,7 +22,7 @@ Item {
     property point dragOrigin: Qt.point(0,0)
     property point windowOrigin: Qt.point(0,0)
     function dock(side) {
-        panel.releaseMovement(); outfitPopup.close();
+        panel.releaseMovement(); outfitPopup.close(); previewWeatherDialog.close();
         settings.ingamePreviewDockSide=side;
         if (side==="window" && settings.showIngamePreviewWindow) floatingWindow.showNormal();
         Qt.callLater(() => panel.forceActiveFocus());
@@ -52,10 +55,10 @@ Item {
         id: floatingWindow
         title: "In-game Preview - Dewral Map Editor"
         visible: previewWindow.settings.showIngamePreviewWindow && !previewWindow.docked
-        flags: Qt.Window
+        flags: previewWindow.tibiaUi ? Qt.FramelessWindowHint | Qt.Window : Qt.Window
         transientParent: null
-        width: Math.max(1000,previewWindow.settings.ingamePreviewWidthTiles*32+26)
-        height: previewWindow.settings.ingamePreviewHeightTiles*32+200
+        width: Math.max(previewWindow.tibiaUi ? 1280 : 1000,previewWindow.settings.ingamePreviewWidthTiles*32+26)
+        height: Math.max(previewWindow.tibiaUi ? 800 : 0,previewWindow.settings.ingamePreviewHeightTiles*32+200)
         minimumWidth: 1000; minimumHeight: 360
         color: Fluent.c("background")
         onClosing: previewWindow.settings.showIngamePreviewWindow=false
@@ -63,7 +66,7 @@ Item {
     Connections {
         target:previewWindow.settings
         function onShowIngamePreviewWindowChanged() {
-            if (!previewWindow.settings.showIngamePreviewWindow) { panel.releaseMovement(); outfitPopup.close(); }
+            if (!previewWindow.settings.showIngamePreviewWindow) { panel.releaseMovement(); outfitPopup.close(); previewWeatherDialog.close(); }
             else { panel.resetToEditorPosition(); Qt.callLater(() => panel.forceActiveFocus()); }
         }
     }
@@ -82,7 +85,12 @@ Item {
     id: panel
     parent: previewWindow.docked ? previewWindow.dockHost : floatingWindow.contentItem
     anchors.fill: parent
-    anchors.margins: previewWindow.docked ? 8 : 12
+    anchors.margins: previewWindow.tibiaUi ? 4 : previewWindow.docked ? 8 : 12
+    readonly property bool tibiaUi: previewWindow.tibiaUi
+    property bool sidebarShown: true
+    readonly property bool sidebarVisible: tibiaUi && sidebarShown && width>=760
+    readonly property int sidebarWidth: sidebarVisible ? 254 : 0
+    readonly property int captionHeight: tibiaUi && !previewWindow.docked ? 28 : 0
     readonly property bool compact: width<900
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
@@ -91,7 +99,7 @@ Item {
     readonly property bool githubUi: previewWindow.githubUi
 
     readonly property int headerHeight: ambientControls.visible ? ambientControls.y + ambientControls.height + 8 : Math.max(playbackControls.y + playbackControls.height, dockActions.y + dockActions.height) + 8
-    readonly property int footerHeight: 42
+    readonly property int footerHeight: tibiaUi ? (screenshotMessage ? 24 : 0) : 42
     readonly property int contentWidth: settings.ingamePreviewWidthTiles * 32
     property bool screenshotBusy: false
     property string screenshotMessage: ""
@@ -120,14 +128,16 @@ Item {
     component PreviewButton: Button {
         id: control
         property string svgIcon:""
-        font.family: Fluent.fontFamily
-        font.pixelSize: Fluent.fontSize
+        font.family: Fluent.family()
+        font.pixelSize: Fluent.size(Fluent.fontSize)
+        font.bold: panel.tibiaUi
         background: Rectangle {
-            radius: 4
+            radius: panel.tibiaUi ? 0 : 4
             color: control.down ? Fluent.c("pressed") : control.hovered ? Fluent.c("hover")
                    : control.checked ? Fluent.c("selected") : Fluent.c("button")
             border.width: 1
             border.color: control.checked ? Fluent.c("accent") : Fluent.c("border")
+            TibiaSkin.TibiaSkin { anchors.fill: parent; kind: "button"; pressed: control.down; hovered: control.hovered; selected: control.checked }
         }
         contentItem: Item {
             Image { anchors.centerIn:parent; width:18; height:18; source:control.svgIcon ? Qt.resolvedUrl("../themes/fluent/icons/"+control.svgIcon+".svg") : "" }
@@ -197,7 +207,7 @@ Item {
         id: explorer
         objectName:"previewExplorer"
         source: panel.mapView
-        speed: 220 + 2 * (Math.max(1, Math.min(1000, panel.settings.ingamePreviewPlayerLevel)) - 1)
+        speed: panel.settings.ingamePreviewSpeed>0 ? panel.settings.ingamePreviewSpeed : 220 + 2 * (Math.max(1, Math.min(1000, panel.settings.ingamePreviewPlayerLevel)) - 1)
         lookType: panel.settings.ingamePreviewLookType
         lookHead: panel.settings.ingamePreviewLookHead
         lookBody: panel.settings.ingamePreviewLookBody
@@ -252,7 +262,7 @@ Item {
     }
 
     // Reparenting between windows must not reset the explorer's position.
-    onVisibleChanged: { if (!visible) releaseMovement(); }
+    onVisibleChanged: { if (!visible) { releaseMovement(); previewWeatherDialog.close(); } }
 
     Component.onCompleted: {
         if (visible) resetToEditorPosition();
@@ -316,9 +326,10 @@ Item {
     Rectangle {
         anchors.fill: parent
         color: Fluent.c("surface")
+        TibiaSkin.TibiaSkin { anchors.fill: parent }
         border.width: 1
         border.color: Fluent.c("border")
-        radius: 6
+        radius: panel.tibiaUi ? 0 : 6
     }
 
 
@@ -328,53 +339,77 @@ Item {
         anchors { left: parent.left; right: parent.right; top: parent.top }
         height: panel.headerHeight
         color: Fluent.c("background")
+        TibiaSkin.TibiaSkin { anchors.fill: parent }
         Row {
+            visible: !panel.tibiaUi
             x: 10; y: 8; spacing: 8
             Text { text: "\uE7FC"; font.family: "Segoe Fluent Icons"; font.pixelSize: 18; color: Fluent.c("accent") }
-            Text { text: "Game Preview"; font.family: Fluent.fontFamily; font.pixelSize: 13; color: Fluent.c("text") }
+            Text { text: "Game Preview"; font.family: Fluent.family(); font.pixelSize: 13; color: Fluent.c("text") }
         }
         MouseArea {
             id: headerDrag
             objectName:"previewDockDrag"
-            x:0; y:0; width:parent.width; height:38
+            x:0; y:0; width:parent.width-(panel.tibiaUi ? 100 : 0); height:panel.tibiaUi ? panel.captionHeight : 38
             cursorShape:pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
             onPressed: mouse => previewWindow.beginDrag(mapToGlobal(mouse.x,mouse.y))
             onPositionChanged: mouse => { if (pressed) previewWindow.moveDrag(mapToGlobal(mouse.x,mouse.y)); }
             onReleased: mouse => previewWindow.finishDrag(mapToGlobal(mouse.x,mouse.y))
             onCanceled:previewWindow.dragging=false
         }
+        Loader {
+            anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+            height: panel.captionHeight; active: panel.tibiaUi && !previewWindow.docked
+            sourceComponent: Item {
+                TibiaSkin.TibiaClassicFrame { anchors.fill: parent; kind: "panel" }
+                Image { x: 6; y: 6; width: 16; height: 16; source: "qrc:/ui/github/app-icon.png" }
+                Text { anchors.fill: parent; anchors.leftMargin: 36; anchors.rightMargin: 96; text: floatingWindow.title; color: "#dfdfdf"; font.family: "Verdana"; font.pixelSize: 12; font.bold: true; verticalAlignment: Text.AlignVCenter }
+            }
+        }
+        Row {
+            z: 6; visible: panel.tibiaUi && !previewWindow.docked
+            anchors.right: parent.right; y: 1
+            GithubWindowButton { height: 26; controlType: "minimize"; onTriggered: floatingWindow.showMinimized() }
+            GithubWindowButton { height: 26; controlType: "maximize"; maximized: floatingWindow.visibility===Window.Maximized; onTriggered: maximized ? floatingWindow.showNormal() : floatingWindow.showMaximized() }
+            GithubWindowButton { height: 26; controlType: "close"; onTriggered: panel.settings.showIngamePreviewWindow=false }
+        }
         Row {
             id:dockActions
             PreviewButton {
                 objectName: "previewScreenshot"
-                width: 28; height: 32; text: "\uE722"; font.family: "Segoe Fluent Icons"
+                width: panel.tibiaUi ? 40 : 28; height: panel.tibiaUi ? 44 : 32; text: "\uE722"; font.family: "Segoe Fluent Icons"
                 enabled: explorer.positioned && !panel.screenshotBusy
                 onClicked: panel.takeScreenshot()
                 ToolTip.visible: hovered; ToolTip.text: "Save screenshot · PNG at native resolution"
                 Accessible.name: "Save preview screenshot"
             }
-            PreviewButton { objectName:"previewFullscreen"; width:28; height:32; text:"\uE740"; font.family:"Segoe Fluent Icons"; onClicked:previewWindow.toggleFullscreen(); ToolTip.visible:hovered; ToolTip.text:"Fullscreen ("+(Backend.hotkeys.bindings.preview_fullscreen || "F11")+")" }
+            PreviewButton { objectName:"previewFullscreen"; width:panel.tibiaUi ? 40 : 28; height:panel.tibiaUi ? 44 : 32; text:"\uE740"; font.family:"Segoe Fluent Icons"; onClicked:previewWindow.toggleFullscreen(); ToolTip.visible:hovered; ToolTip.text:"Fullscreen ("+(Backend.hotkeys.bindings.preview_fullscreen || "F11")+")" }
             anchors.right:parent.right; anchors.rightMargin:6; y:panel.width >= 480 ? playbackControls.y : playbackControls.y + playbackControls.height + 6; spacing:4
-            PreviewButton { objectName:"dockPreviewLeft"; width:28; height:32; svgIcon:"dock-left"; checked:previewWindow.docked && panel.settings.ingamePreviewDockSide==="left"; onClicked:previewWindow.dock("left"); ToolTip.visible:hovered; ToolTip.text:"Dock left" }
-            PreviewButton { objectName:"dockPreviewRight"; width:28; height:32; svgIcon:"dock-right"; checked:previewWindow.docked && panel.settings.ingamePreviewDockSide==="right"; onClicked:previewWindow.dock("right"); ToolTip.visible:hovered; ToolTip.text:"Dock right" }
-            PreviewButton { objectName:"detachPreview"; width:28; height:32; svgIcon:"detach"; onClicked:previewWindow.dock("window"); ToolTip.visible:hovered; ToolTip.text:"Open in separate window" }
-            PreviewButton { width:28; height:32; text:"×"; onClicked:panel.settings.showIngamePreviewWindow=false; ToolTip.visible:hovered; ToolTip.text:"Close preview" }
+            PreviewButton { objectName:"dockPreviewLeft"; width:panel.tibiaUi ? 40 : 28; height:panel.tibiaUi ? 44 : 32; svgIcon:"dock-left"; checked:previewWindow.docked && panel.settings.ingamePreviewDockSide==="left"; onClicked:previewWindow.dock("left"); ToolTip.visible:hovered; ToolTip.text:"Dock left" }
+            PreviewButton { objectName:"dockPreviewRight"; width:panel.tibiaUi ? 40 : 28; height:panel.tibiaUi ? 44 : 32; svgIcon:"dock-right"; checked:previewWindow.docked && panel.settings.ingamePreviewDockSide==="right"; onClicked:previewWindow.dock("right"); ToolTip.visible:hovered; ToolTip.text:"Dock right" }
+            PreviewButton { objectName:"detachPreview"; width:panel.tibiaUi ? 40 : 28; height:panel.tibiaUi ? 44 : 32; svgIcon:"detach"; onClicked:previewWindow.dock("window"); ToolTip.visible:hovered; ToolTip.text:"Open in separate window" }
+            PreviewButton { width:panel.tibiaUi ? 40 : 28; height:panel.tibiaUi ? 44 : 32; text:"×"; onClicked:panel.settings.showIngamePreviewWindow=false; ToolTip.visible:hovered; ToolTip.text:"Close preview" }
         }
-        Rectangle { x: 0; y: 38; width: parent.width; height: 1; color: Fluent.c("separator") }
+        Rectangle { x: 0; y: panel.tibiaUi ? panel.captionHeight : 38; width: parent.width; height: 1; color: Fluent.c("separator") }
         Flow {
             id: playbackControls
             objectName: "previewToolbar"
-            x: 6; y: 46; width: parent.width - 12 - (panel.width >= 480 ? dockActions.width + 12 : 0); spacing: 6
+            x: 6; y: panel.tibiaUi ? panel.captionHeight+6 : 46; width: parent.width - 12 - (panel.width >= 480 ? dockActions.width + 12 : 0); spacing: 6
+            PreviewButton {
+                objectName: "previewSidebarToggle"
+                visible: panel.tibiaUi; width: 40; height: 44; text: "☰"
+                onClicked: panel.sidebarShown=!panel.sidebarShown
+                ToolTip.visible: hovered; ToolTip.text: "Toggle preview sidebar"
+            }
             PreviewButton {
                 objectName: "previewOutfit"
-                width: 30; height: 32; text: "\uE713"; font.family: "Segoe Fluent Icons"
+                width: panel.tibiaUi ? 40 : 30; height: panel.tibiaUi ? 44 : 32; text: "\uE713"; font.family: "Segoe Fluent Icons"
                 checked: previewOptions.opened
-                onClicked: previewOptions.opened ? previewOptions.close() : previewOptions.open()
+                onClicked: panel.sidebarVisible ? tibiaSidebar.openSection("player") : previewOptions.opened ? previewOptions.close() : previewOptions.open()
                 ToolTip.visible: hovered; ToolTip.text: "Player options"
             }
             PreviewButton {
                 objectName: "previewFollow"
-                width: 30; height: 32; svgIcon: "Select"; checkable: true
+                width: panel.tibiaUi ? 40 : 30; height: panel.tibiaUi ? 44 : 32; svgIcon: "Select"; checkable: true
                 checked: panel.settings.ingamePreviewFollowCursor
                 onClicked: {
                     panel.settings.ingamePreviewFollowCursor = checked;
@@ -385,25 +420,33 @@ Item {
             }
             PreviewButton {
                 objectName: "previewLight"
-                width: 30; height: 32; svgIcon: "lighting"; checkable: true
+                width: panel.tibiaUi ? 40 : 30; height: panel.tibiaUi ? 44 : 32; svgIcon: "lighting"; checkable: true
                 checked: panel.settings.ingamePreviewLighting
                 onClicked: { panel.settings.ingamePreviewLighting = checked; panel.forceActiveFocus(); }
                 ToolTip.visible: hovered; ToolTip.text: "Lighting" + (checked ? " · On" : " · Off")
             }
             PreviewButton {
                 objectName: "previewCollision"
-                width: 30; height: 32; svgIcon: "PZ"; checkable: true
+                width: panel.tibiaUi ? 40 : 30; height: panel.tibiaUi ? 44 : 32; svgIcon: "PZ"; checkable: true
                 checked: !explorer.noClip
                 onClicked: { explorer.noClip = !checked; panel.forceActiveFocus(); }
                 ToolTip.visible: hovered; ToolTip.text: "Collision" + (checked ? " · On" : " · Off")
             }
             PreviewButton {
                 objectName: "previewViewSize"
-                width: 86; height: 32
+                width: panel.tibiaUi ? 104 : 86; height: panel.tibiaUi ? 44 : 32
                 text: panel.settings.ingamePreviewWidthTiles + " × " + panel.settings.ingamePreviewHeightTiles + "  ▾"
                 checked: viewportPopup.opened
                 onClicked: viewportPopup.opened ? viewportPopup.close() : viewportPopup.open()
                 ToolTip.visible: hovered; ToolTip.text: "View size in tiles"
+            }
+            PreviewButton {
+                objectName: "previewWeather"
+                width: panel.tibiaUi ? 120 : 80; height: panel.tibiaUi ? 44 : 32; text: panel.tibiaUi ? "☂  Weather ▾" : "Weather"
+                checked: panel.settings.previewWeatherEnabled
+                onClicked: panel.sidebarVisible ? tibiaSidebar.openSection("weather") : previewWeatherDialog.opened ? previewWeatherDialog.close() : previewWeatherDialog.open()
+                ToolTip.visible: hovered; ToolTip.text: "Preview weather · independent of the editor map"
+                Accessible.name: "Preview weather settings"
             }
         }
         Row {
@@ -411,8 +454,8 @@ Item {
             objectName: "previewAmbientControls"
             x: 6; y: Math.max(playbackControls.y + playbackControls.height, dockActions.y + dockActions.height) + 6
             height: 28; spacing: 8
-            visible: panel.settings.ingamePreviewLighting
-            Text { width: 60; height: 28; text: "Brightness"; verticalAlignment: Text.AlignVCenter; color: Fluent.c("muted"); font.family: Fluent.fontFamily; font.pixelSize: 11 }
+            visible: panel.settings.ingamePreviewLighting && !panel.sidebarVisible
+            Text { width: 60; height: 28; text: "Brightness"; verticalAlignment: Text.AlignVCenter; color: Fluent.c("muted"); font.family: Fluent.family(); font.pixelSize: 11 }
             LightingSlider {
                 objectName: "previewBrightnessSlider"
                 width: Math.max(40, Math.min(180, panel.width - 214)); height: 28
@@ -425,7 +468,7 @@ Item {
                 id: previewBrightness
                 objectName: "previewBrightnessValue"
                 width: 42; height: 26; anchors.verticalCenter: parent.verticalCenter
-                padding: 3; font.family: Fluent.fontFamily; font.pixelSize: 11
+                padding: 3; font.family: Fluent.family(); font.pixelSize: 11
                 color: Fluent.c("text"); horizontalAlignment: Text.AlignHCenter; selectByMouse: true
                 validator: IntValidator { bottom: 0; top: 255 }
                 Binding { target: previewBrightness; property: "text"; value: String(panel.mapView.lightAmbient); when: !previewBrightness.activeFocus }
@@ -444,7 +487,7 @@ Item {
                 contentItem: Row {
                     spacing: 6
                     Rectangle { width: 16; height: 16; color: previewPalette.paletteColor(panel.mapView.lightAmbientColor); border.color: Fluent.c("border") }
-                    Text { text: panel.mapView.lightAmbientColor + " ▾"; color: Fluent.c("text"); font.family: Fluent.fontFamily; font.pixelSize: 11 }
+                    Text { text: panel.mapView.lightAmbientColor + " ▾"; color: Fluent.c("text"); font.family: Fluent.family(); font.pixelSize: 11 }
                 }
                 ToolTip.visible: hovered; ToolTip.text: "Light color"
             }
@@ -465,22 +508,33 @@ Item {
             background: Rectangle { color: Fluent.c("popup"); border.color: Fluent.c("border"); radius: 6 }
             Column {
                 spacing: 8
-                Text { text: "View size · tiles"; color: Fluent.c("text"); font.family: Fluent.fontFamily; font.pixelSize: 12 }
+                Text { text: "View size · tiles"; color: Fluent.c("text"); font.family: Fluent.family(); font.pixelSize: 12 }
                 Repeater {
                     model: ["Width", "Height"]
                     delegate: Row {
                         required property int index
                         required property string modelData
                         spacing: 8
-                        Text { width: 70; height: 28; text: modelData; verticalAlignment: Text.AlignVCenter; color: Fluent.c("muted"); font.family: Fluent.fontFamily }
+                        Text { width: 70; height: 28; text: modelData; verticalAlignment: Text.AlignVCenter; color: Fluent.c("muted"); font.family: Fluent.family() }
                         PreviewButton { width: 28; height: 28; text: "−"; enabled: index === 0 ? panel.settings.ingamePreviewWidthTiles > 15 : panel.settings.ingamePreviewHeightTiles > 9; onClicked: index === 0 ? panel.changeViewportWidth(-2) : panel.changeViewportHeight(-2) }
-                        Text { width: 38; height: 28; text: index === 0 ? panel.settings.ingamePreviewWidthTiles : panel.settings.ingamePreviewHeightTiles; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; color: Fluent.c("text"); font.family: Fluent.fontFamily }
+                        Text { width: 38; height: 28; text: index === 0 ? panel.settings.ingamePreviewWidthTiles : panel.settings.ingamePreviewHeightTiles; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; color: Fluent.c("text"); font.family: Fluent.family() }
                         PreviewButton { width: 28; height: 28; text: "+"; enabled: index === 0 ? panel.settings.ingamePreviewWidthTiles < 31 : panel.settings.ingamePreviewHeightTiles < 23; onClicked: index === 0 ? panel.changeViewportWidth(2) : panel.changeViewportHeight(2) }
                     }
                 }
                 PreviewButton { width: 230; height: 28; objectName: "previewStandardViewport"; text: "Standard · 15 × 11"; onClicked: { panel.settings.ingamePreviewWidthTiles = 15; panel.settings.ingamePreviewHeightTiles = 11; panel.forceActiveFocus(); } }
             }
         }
+    }
+
+    Dialogs.WeatherDialog {
+        id: previewWeatherDialog
+        objectName: "previewWeatherDialog"
+        parent: panel.Overlay.overlay
+        movable: false
+        settings: panel.settings
+        settingsPrefix: "previewWeather"
+        onOpened: panel.releaseMovement()
+        onClosed: panel.forceActiveFocus()
     }
 
     Popup {
@@ -492,7 +546,7 @@ Item {
         background: Rectangle { color: Fluent.c("surface"); radius: 6; border.color: Fluent.c("border") }
         contentItem: Column {
             spacing: 10
-            Text { text: "Player options"; color: Fluent.c("text"); font.family: Fluent.fontFamily; font.bold: true }
+            Text { text: "Player options"; color: Fluent.c("text"); font.family: Fluent.family(); font.bold: true }
             Row {
                 width: parent.width; spacing: 10
                 Text { width: parent.width - 110; height: 30; verticalAlignment: Text.AlignVCenter; text: "Player level"; color: Fluent.c("text") }
@@ -503,7 +557,7 @@ Item {
                     onValueModified: panel.settings.ingamePreviewPlayerLevel = value
                 }
             }
-            Text { text: "Speed: " + explorer.speed; color: Fluent.c("muted"); font.family: Fluent.fontFamily }
+            Text { text: "Speed: " + explorer.speed; color: Fluent.c("muted"); font.family: Fluent.family() }
             PreviewButton {
                 objectName: "previewChangeOutfit"
                 width: parent.width; height: 32; text: "Change outfit…"
@@ -543,7 +597,7 @@ Item {
             width: 250
             spacing: 7
 
-            Text { text: "Character preview"; color: Fluent.c("text"); font.family: Fluent.fontFamily; font.pixelSize: 12; font.bold: true }
+            Text { text: "Character preview"; color: Fluent.c("text"); font.family: Fluent.family(); font.pixelSize: 12; font.bold: true }
             Rectangle {
                 width: 250; height: 172; color: Fluent.c("field"); border.color: Fluent.c("border"); radius: 6
                 Image {
@@ -558,14 +612,14 @@ Item {
                     text: panel.settings.ingamePreviewPlayerName
                 }
             }
-            Text { text: "Appearance"; color: Fluent.c("text"); font.family: Fluent.fontFamily; font.pixelSize: 12; font.bold: true }
+            Text { text: "Appearance"; color: Fluent.c("text"); font.family: Fluent.family(); font.pixelSize: 12; font.bold: true }
             Row {
                 width: parent.width
                 height: 26
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "Look type"
-                    font.family: Fluent.fontFamily
+                    font.family: Fluent.family()
                     color: Fluent.c("muted")
                     font.pixelSize: 11
                     font.bold: true
@@ -613,7 +667,7 @@ Item {
                         Text {
                             anchors { right: parent.right; rightMargin: 5; verticalCenter: parent.verticalCenter }
                             text: modelData
-                            font.family: Fluent.fontFamily
+                            font.family: Fluent.family()
                             color: Fluent.c("muted")
                             font.pixelSize: 9
                         }
@@ -649,13 +703,13 @@ Item {
                     }
                 }
             }
-            Text { text: "Player name"; color: Fluent.c("muted"); font.family: Fluent.fontFamily; font.pixelSize: 12 }
+            Text { text: "Player name"; color: Fluent.c("muted"); font.family: Fluent.family(); font.pixelSize: 12 }
             TextField {
                 width: parent.width
                 text: panel.settings.ingamePreviewPlayerName
                 height: 32
                 color: Fluent.c("text")
-                font.family: Fluent.fontFamily
+                font.family: Fluent.family()
                 background: Rectangle { color: Fluent.c("field"); border.color: Fluent.c("border"); radius: 4 }
                 maximumLength: 40
                 placeholderText: "Player name"
@@ -679,7 +733,7 @@ Item {
                 placeholderText: "Find outfit ID…"
                 text: outfitPopup.outfitFilter
                 onTextEdited: outfitPopup.outfitFilter = text
-                color: Fluent.c("text"); placeholderTextColor: Fluent.c("muted"); font.family: Fluent.fontFamily
+                color: Fluent.c("text"); placeholderTextColor: Fluent.c("muted"); font.family: Fluent.family()
                 background: Rectangle { color: Fluent.c("field"); border.color: Fluent.c("border"); radius: 4 }
             }
             ScrollView {
@@ -708,7 +762,7 @@ Item {
                                     panel.settings.ingamePreviewLookBody, panel.settings.ingamePreviewLookLegs,
                                     panel.settings.ingamePreviewLookFeet)
                             }
-                            Text { text: "#" + modelData; anchors.horizontalCenter: parent.horizontalCenter; color: Fluent.c("text"); font.family: Fluent.fontFamily; font.pixelSize: 11 }
+                            Text { text: "#" + modelData; anchors.horizontalCenter: parent.horizontalCenter; color: Fluent.c("text"); font.family: Fluent.family(); font.pixelSize: 11 }
                         }
                     }
                 }
@@ -717,7 +771,7 @@ Item {
                 anchors.centerIn: parent
                 visible: outfitPopup.showSaved && panel.savedOutfits.length === 0
                 text: "No saved outfits yet\nChoose an outfit and save it from the left panel."
-                horizontalAlignment: Text.AlignHCenter; color: Fluent.c("muted"); font.family: Fluent.fontFamily
+                horizontalAlignment: Text.AlignHCenter; color: Fluent.c("muted"); font.family: Fluent.family()
             }
             ScrollView {
                 anchors { left: parent.left; right: parent.right; top: outfitTabs.bottom; topMargin: 12; bottom: parent.bottom }
@@ -732,8 +786,8 @@ Item {
                             x: 8; y: 12; width: 64; height: 64; smooth: false; fillMode: Image.PreserveAspectFit
                             source: panel.outfitSource(modelData.lookType, modelData.head, modelData.body, modelData.legs, modelData.feet)
                         }
-                        Text { x: 86; y: 12; width: parent.width - 100; elide: Text.ElideRight; text: modelData.name || "Unnamed"; color: Fluent.c("text"); font.family: Fluent.fontFamily }
-                        Text { x: 86; y: 32; text: "Outfit #" + modelData.lookType; color: Fluent.c("muted"); font.family: Fluent.fontFamily }
+                        Text { x: 86; y: 12; width: parent.width - 100; elide: Text.ElideRight; text: modelData.name || "Unnamed"; color: Fluent.c("text"); font.family: Fluent.family() }
+                        Text { x: 86; y: 32; text: "Outfit #" + modelData.lookType; color: Fluent.c("muted"); font.family: Fluent.family() }
                         PreviewButton { x: 86; y: 54; width: 76; height: 28; text: "Use"; onClicked: panel.applyOutfit(modelData) }
                         PreviewButton { x: 170; y: 54; width: 76; height: 28; text: "Delete"; onClicked: panel.removeOutfit(index) }
                     }
@@ -745,7 +799,7 @@ Item {
         }
         Text {
             x: 18; y: outfitPopup.height - 33
-            text: "Changes apply to preview immediately"; color: Fluent.c("muted"); font.family: Fluent.fontFamily; font.pixelSize: 11
+            text: "Changes apply to preview immediately"; color: Fluent.c("muted"); font.family: Fluent.family(); font.pixelSize: 11
         }
         PreviewButton {
             x: outfitPopup.width - 114; y: outfitPopup.height - 39; width: 96; height: 28
@@ -753,9 +807,19 @@ Item {
         }
     }
 
+    TibiaSkin.TibiaPreviewSidebar {
+        id: tibiaSidebar; objectName: "tibiaPreviewSidebar"
+        visible: panel.sidebarVisible
+        width: panel.sidebarWidth
+        anchors.right: parent.right; anchors.top: header.bottom; anchors.bottom: parent.bottom
+        settings: panel.settings; mapView: panel.mapView; controller: explorer
+        outfitSource: panel.outfitSource
+        onOutfitRequested: outfitPopup.open()
+        onLightColorRequested: { previewPalette.paletteOpen=true; previewLightPopup.open(); }
+    }
     Rectangle {
         id: viewport
-        anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: footer.top }
+        anchors { left: parent.left; right: parent.right; rightMargin: panel.sidebarWidth+(panel.sidebarVisible ? 4 : 0); top: header.bottom; bottom: footer.top }
         color: "black"
     }
 
@@ -766,16 +830,32 @@ Item {
         height: panel.contentHeight
         scale: Math.min(viewport.width / width, viewport.height / height)
 
-    MapRhiView {
+    IngamePreviewView {
         id: previewRenderer
+        objectName: "clientPreviewRenderer"
         anchors.fill: parent
         source: panel.mapView
-        previewWindow: true
-        previewCenterX: explorer.visualX
-        previewCenterY: explorer.visualY
+        controller: explorer
+        playerName: panel.settings.ingamePreviewPlayerName
+        lighting: panel.settings.ingamePreviewLighting
+        showCreatures: panel.settings.ingamePreviewShowCreatures
+        showItems: panel.settings.ingamePreviewShowItems
+        animateItems: panel.settings.ingamePreviewAnimateItems
+        showBorders: panel.settings.ingamePreviewShowBorders
+        smooth: Math.abs(scaledPreview.scale - Math.round(scaledPreview.scale)) > 0.01
+        maxFps: panel.settings.renderMaxFps > 0 ? panel.settings.renderMaxFps : 60
+    }
+
+    WeatherLayer {
+        anchors.fill: previewRenderer
+        mapView: panel.mapView
+        objectName: "previewWeatherLayer"
+        settings: panel.settings
+        settingsPrefix: "previewWeather"
+        previewCamera: true
+        previewOriginX: explorer.visualX + 0.5 - width / 64
+        previewOriginY: explorer.visualY + 0.5 - height / 64
         previewFloor: explorer.z
-        previewLighting: panel.settings.ingamePreviewLighting
-        maxFps: panel.settings.renderMaxFps > 0 ? Math.min(30, panel.settings.renderMaxFps) : 0
     }
 
     MouseArea {
@@ -799,21 +879,23 @@ Item {
         }
     }
 
-    IngameMonsterOverlay {
-        anchors.fill: previewRenderer
-        z: 2
-        source: panel.mapView
-        controller: explorer
-        viewScale: scaledPreview.scale
-    }
-
-    IngamePlayerOverlay {
+    Item {
         id: playerLayer
         anchors.fill: previewRenderer
         z: 3
-        controller: explorer
-        playerName: panel.settings.ingamePreviewPlayerName
-        viewScale: scaledPreview.scale
+        Repeater {
+            model: previewRenderer.labels
+            delegate: CreatureInformation {
+                required property var modelData
+                anchorX: modelData.x
+                anchorY: modelData.y
+                viewportWidth: playerLayer.width
+                viewportHeight: playerLayer.height
+                viewScale: scaledPreview.scale
+                nameWidth: modelData.nameWidth
+                nameSource: modelData.nameSource
+            }
+        }
     }
 
     }
@@ -826,10 +908,10 @@ Item {
         Rectangle { width: parent.width; height: 1; color: Fluent.c("separator") }
         Row {
             x: 10; y: 7; spacing: 16
-            Text { width: Math.max(70, Math.min(160, panel.width - 165)); text: panel.settings.ingamePreviewPlayerName; elide: Text.ElideRight; color: Fluent.c("text"); font.family: Fluent.fontFamily; font.pixelSize: 11 }
-            Text { text: explorer.x + ", " + explorer.y + " · Floor " + explorer.z; color: Fluent.c("muted"); font.family: Fluent.fontFamily; font.pixelSize: 11 }
+            Text { width: Math.max(70, Math.min(160, panel.width - 165)); text: panel.settings.ingamePreviewPlayerName; elide: Text.ElideRight; color: Fluent.c("text"); font.family: Fluent.family(); font.pixelSize: 11 }
+            Text { text: explorer.x + ", " + explorer.y + " · Floor " + explorer.z; color: Fluent.c("muted"); font.family: Fluent.family(); font.pixelSize: 11 }
         }
-        Text { objectName: "previewScreenshotStatus"; x: 10; y: 23; width: parent.width - 20; elide: Text.ElideMiddle; text: panel.screenshotMessage || "WASD / arrows · Right-click to use"; color: Fluent.c("muted"); font.family: Fluent.fontFamily; font.pixelSize: 10 }
+        Text { objectName: "previewScreenshotStatus"; x: 10; y: 23; width: parent.width - 20; elide: Text.ElideMiddle; text: panel.screenshotMessage || "WASD / arrows · Right-click to use"; color: Fluent.c("muted"); font.family: Fluent.family(); font.pixelSize: 10 }
         GithubToolTip {
             targetItem: playerHover
             targetHovered: panel.visible && playerHover.containsMouse

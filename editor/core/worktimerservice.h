@@ -6,6 +6,10 @@
 #include <functional>
 #include <QJsonObject>
 #include <QObject>
+#include <QAbstractListModel>
+#include <QFutureWatcher>
+#include <QHash>
+#include <QMap>
 #include <QTimer>
 #include <QVariantList>
 #include <QtQml/qqmlregistration.h>
@@ -13,9 +17,28 @@
 class DocumentManager;
 class OtbmReader;
 
+class WorkTimerService;
+struct WorkTimerLoadResult { QJsonObject root; QString error; };
+
+class WorkTimerHistoryModel final : public QAbstractListModel
+{
+public:
+    explicit WorkTimerHistoryModel(WorkTimerService *service);
+    int rowCount(const QModelIndex &parent = {}) const override;
+    QVariant data(const QModelIndex &index, int role) const override;
+    QHash<int, QByteArray> roleNames() const override;
+    void reload();
+private:
+    WorkTimerService *m_service;
+    QList<QJsonObject> m_rows;
+};
+
 class WorkTimerService final : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(bool ready READ ready NOTIFY readyChanged)
+    Q_PROPERTY(bool loading READ loading NOTIFY readyChanged)
+    Q_PROPERTY(QAbstractItemModel *historyModel READ historyModel CONSTANT)
     QML_ANONYMOUS
     Q_PROPERTY(QString state READ state NOTIFY timerChanged)
     Q_PROPERTY(bool active READ active NOTIFY timerChanged)
@@ -54,6 +77,10 @@ public:
                               const QString &storageDirectory = {}, const Clock &clock = {});
     ~WorkTimerService() override;
 
+    Q_INVOKABLE void ensureLoaded();
+    bool ready() const { return m_ready; }
+    bool loading() const { return m_loading; }
+    QAbstractItemModel *historyModel() { return &m_historyModel; }
     QString state() const { return m_state; }
     bool active() const { return m_state != QStringLiteral("stopped"); }
     bool running() const { return m_state == QStringLiteral("running"); }
@@ -106,6 +133,7 @@ public:
     Q_INVOKABLE QString formatDuration(qint64 seconds) const;
 
 signals:
+    void readyChanged();
     void timerChanged();
     void historyChanged();
     void statisticsChanged();
@@ -118,11 +146,14 @@ protected:
 
 private:
     friend class WorkTimerServiceTest;
+    friend class WorkTimerHistoryModel;
     QString storagePath() const;
     bool hasTask(const QString &task) const;
+    void rebuildTaskTotals() const;
     bool storeTaskIcon(const QString &task, const QString &icon);
     void discardUnusedTaskIcon(const QString &icon);
-    void load();
+    void applyLoaded(const QJsonObject &root);
+    bool requireReady();
     bool save();
     void tick();
     void pauseAt(qint64 timestampMs, const QString &reason = {});
@@ -137,6 +168,15 @@ private:
     static QString localPath(const QUrl &url);
     static QString csvCell(QString value);
 
+    WorkTimerHistoryModel m_historyModel{this};
+    QFutureWatcher<WorkTimerLoadResult> m_loadWatcher;
+    bool m_ready = false;
+    bool m_loading = false;
+    mutable bool m_taskTotalsDirty = true;
+    mutable bool m_taskViewDirty = true;
+    mutable QMap<QString, QJsonObject> m_taskTotals;
+    mutable QVariantList m_taskView;
+    mutable QHash<QString, qint64> m_historyStatistics;
     DocumentManager *m_documents = nullptr;
     QTimer m_timer;
     QList<QJsonObject> m_sessions;

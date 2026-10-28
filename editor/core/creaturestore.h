@@ -75,6 +75,8 @@ signals:
     void errorStringChanged();
 
 private:
+    friend class ClientLoadService;
+    friend struct ClientPreparedState;
     bool loadFile(const QString &path);
     bool saveFile();
     QVariantMap storeImported(QVector<CreatureType> imported,

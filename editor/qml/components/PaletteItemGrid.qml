@@ -1,4 +1,5 @@
 import QtQuick
+import "../themes/tibia" as TibiaSkin
 import QtQuick.Controls
 import Tibia 1.0
 import "../themes/fluent/Colors.js" as Colors
@@ -12,7 +13,7 @@ Item {
     required property var mapCtrl
     required property var filterModel
     required property string currentKind
-    readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
+    readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
     required property bool githubUi
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
@@ -54,7 +55,7 @@ Item {
         id: grid
         objectName: "paletteGrid"
 
-        readonly property int fluentColumns: Math.max(1, Math.round(width / root.fluentCellSize))
+        readonly property int fluentColumns: Math.max(1, (Backend.uiTheme.style === "tibia-ui" ? Math.floor(width / root.fluentCellSize) : Math.round(width / root.fluentCellSize)))
         readonly property int githubGridGap: 8
         readonly property int githubPreferredCellWidth: Math.max(72, root.app.iconSizePx + 14)
         readonly property int githubMaxNativeColumns: Math.max(1, Math.floor(width / 76))
@@ -68,7 +69,7 @@ Item {
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        width: parent.width - (root.githubUi ? 4 : 14)
+        width: parent.width - (Backend.uiTheme.style === "tibia-ui" ? 14 : root.githubUi ? 4 : 14)
         clip: true
         reuseItems: true
         cacheBuffer: Math.max(0, grid.height)
@@ -112,6 +113,12 @@ Item {
                              ? (cellMouseArea.containsMouse ? (root.grayUi ? "#595959" : "#3A4655") : (root.grayUi ? "#424242" : "#202A35"))
                              : (root.fluentUi ? Colors.c("cellBorder") : "#3a3a3a"))
             border.width: selected ? 2 : 1
+            Loader {
+                anchors.fill: parent
+                active: Backend.uiTheme.style === "tibia-ui"
+                sourceComponent: TibiaSkin.TibiaSlot { selected: paletteCell.selected; hovered: cellMouseArea.containsMouse }
+            }
+
 
             Image {
                 anchors.verticalCenter: parent.verticalCenter

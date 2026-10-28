@@ -34,6 +34,7 @@ signals:
     void foundChanged();
 
 private:
+    friend class ClientLoadService;
     bool m_found = false;
     bool m_extended = false;
     bool m_transparency = false;

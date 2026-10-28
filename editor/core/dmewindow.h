@@ -13,6 +13,7 @@ class DmeWindow : public QQuickWindow
     QML_NAMED_ELEMENT(DmeWindow)
     Q_PROPERTY(QQuickItem *maximizeButton READ maximizeButton WRITE setMaximizeButton
                NOTIFY maximizeButtonChanged)
+    Q_PROPERTY(bool roundedCorners READ roundedCorners WRITE setRoundedCorners NOTIFY roundedCornersChanged)
     Q_PROPERTY(bool maximizeHovered READ maximizeHovered NOTIFY maximizeInteractionChanged)
     Q_PROPERTY(bool maximizePressed READ maximizePressed NOTIFY maximizeInteractionChanged)
 
@@ -21,10 +22,13 @@ public:
 
     QQuickItem *maximizeButton() const { return m_maximizeButton; }
     void setMaximizeButton(QQuickItem *button);
+    bool roundedCorners() const { return m_roundedCorners; }
+    void setRoundedCorners(bool rounded);
     bool maximizeHovered() const { return m_maximizeHovered; }
     bool maximizePressed() const { return m_maximizePressed; }
 
 signals:
+    void roundedCornersChanged();
     void maximizeButtonChanged();
     void maximizeInteractionChanged();
 
@@ -33,11 +37,13 @@ protected:
     bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override;
 
 private:
+    void applyCornerPreference();
     void cancelMaximizeInteraction();
     void setMaximizeInteraction(bool hovered, bool pressed);
     bool containsMaximizeButton(const QPointF &clientPosition) const;
 
     QPointer<QQuickItem> m_maximizeButton;
+    bool m_roundedCorners = true;
     bool m_maximizeHovered = false;
     bool m_maximizePressed = false;
 };

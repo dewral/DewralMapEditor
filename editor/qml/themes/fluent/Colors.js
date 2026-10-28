@@ -59,7 +59,24 @@ var defaults = {
     cell: cell, cellBorder: cellBorder, scrollTrack: scrollTrack, scrollThumb: scrollThumb,
     lightingOff: "#383838", lightingKnob: "#ffffff"
 };
+var tibiaDefaults = {
+    titleBar: "#363637", toolbar: "#363637", background: "#303031", base: "#242425",
+    surface: "#363637", popup: "#363637", button: "#484849", field: "#232324",
+    hover: "#505051", pressed: "#303031", border: "#858582", separator: "#777773",
+    text: "#dfdfdf", heading: "#eeeeee", buttonText: "#e6e6e6", muted: "#c0c0bf",
+    placeholder: "#a5a5a3", disabled: "#747474", accent: "#35b3e8",
+    selected: "#3b454b", selectedHover: "#46545d", selectedBorder: "#35b3e8",
+    cell: "#29292a", cellBorder: "#777772", scrollTrack: "#252526", scrollThumb: "#a3a39e"
+};
 function c(key) {
+    // A skin has its own defaults; Fluent color customization stays local to Fluent.
+    if (Tibia.Backend.uiTheme.style === "tibia-ui") {
+        if (key === "loading" || key === "lightingOn" || key === "selectedBorder") return tibiaDefaults.accent;
+        if (key === "selectedCell") return tibiaDefaults.selected;
+        if (key === "lightingBorder") return tibiaDefaults.border;
+        if (key === "lightingText") return tibiaDefaults.text;
+        return tibiaDefaults[key] || defaults[key] || "#000000";
+    }
     var overrides = Tibia.Backend.uiTheme.colorOverrides || {};
     if (overrides[key] !== undefined) return overrides[key];
     if (key === "loading") return c("accent");
@@ -69,3 +86,10 @@ function c(key) {
     if (key === "lightingText") return c("text");
     return defaults[key] || "#000000";
 }
+
+function family() { return Tibia.Backend.uiTheme.style === "tibia-ui" ? "Verdana" : fontFamily; }
+
+// Client typography stays local to Tibia-UI; other themes retain their metrics.
+function isTibia() { return Tibia.Backend.uiTheme.style === "tibia-ui"; }
+function size(fluentSize) { return isTibia() ? 11 : fluentSize; }
+function bold() { return isTibia(); }

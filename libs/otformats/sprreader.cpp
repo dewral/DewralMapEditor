@@ -111,11 +111,11 @@ void SprReader::reset()
 {
     beginResetModel();
     if (m_mappedData) {
-        m_file.unmap(m_mappedData);
+        m_file->unmap(m_mappedData);
         m_mappedData = nullptr;
     }
-    if (m_file.isOpen()) m_file.close();
-    m_file.setFileName(QString());
+    if (m_file->isOpen()) m_file->close();
+    m_file->setFileName(QString());
     m_bulkAccessDepth = 0;
     m_fileSize = 0;
     m_offsets.clear();
@@ -158,26 +158,26 @@ bool SprReader::loadFile(const QString &path, quint32 expectedSignature, bool ex
     m_extended = extended;
     m_useAlpha = useAlpha;
 
-    m_file.setFileName(path);
-    if (!m_file.open(QIODevice::ReadOnly)) {
+    m_file->setFileName(path);
+    if (!m_file->open(QIODevice::ReadOnly)) {
         setError(QStringLiteral("Cannot open file: %1").arg(path));
         return false;
     }
-    m_fileSize = m_file.size();
+    m_fileSize = m_file->size();
 
     const int headerCountSize = m_extended ? 4 : 2;
     const qint64 minHeaderSize = 4 + headerCountSize;
 
     if (m_fileSize < minHeaderSize) {
         setError(QStringLiteral("The file is too small to be a valid .spr file"));
-        m_file.close();
+        m_file->close();
         m_fileSize = 0;
         return false;
     }
-    const QByteArray header = m_file.read(minHeaderSize);
+    const QByteArray header = m_file->read(minHeaderSize);
     if (header.size() != minHeaderSize) {
         setError(QStringLiteral("Cannot read the .spr header"));
-        m_file.close();
+        m_file->close();
         m_fileSize = 0;
         return false;
     }
@@ -218,12 +218,12 @@ bool SprReader::loadFile(const QString &path, quint32 expectedSignature, bool ex
         reset();
         return false;
     }
-    if (!m_file.seek(offsetsStart)) {
+    if (!m_file->seek(offsetsStart)) {
         setError(QStringLiteral("Cannot seek to the .spr offset table"));
         reset();
         return false;
     }
-    const QByteArray offsetData = m_file.read(offsetsBytes);
+    const QByteArray offsetData = m_file->read(offsetsBytes);
     if (offsetData.size() != offsetsBytes) {
         setError(QStringLiteral("Cannot read the complete .spr offset table"));
         reset();
@@ -267,8 +267,8 @@ std::shared_ptr<SpriteData> SprReader::loadSpriteUncached(uint32_t spriteId)
 void SprReader::beginBulkAccess()
 {
     ++m_bulkAccessDepth;
-    if (m_bulkAccessDepth == 1 && m_file.isOpen() && m_fileSize > 0)
-        m_mappedData = m_file.map(0, m_fileSize);
+    if (m_bulkAccessDepth == 1 && m_file->isOpen() && m_fileSize > 0)
+        m_mappedData = m_file->map(0, m_fileSize);
 }
 
 void SprReader::endBulkAccess()
@@ -276,7 +276,7 @@ void SprReader::endBulkAccess()
     if (m_bulkAccessDepth <= 0) return;
     --m_bulkAccessDepth;
     if (m_bulkAccessDepth == 0 && m_mappedData) {
-        m_file.unmap(m_mappedData);
+        m_file->unmap(m_mappedData);
         m_mappedData = nullptr;
     }
 }
@@ -322,11 +322,11 @@ std::shared_ptr<SpriteData> SprReader::decodeSprite(uint32_t spriteId)
     if (m_mappedData) {
         raw = m_mappedData + offset;
     } else {
-        if (!m_file.seek(static_cast<qint64>(offset))) {
+        if (!m_file->seek(static_cast<qint64>(offset))) {
             sprite->decode(nullptr, 0, kDefaultSpriteSize, m_useAlpha);
             return sprite;
         }
-        encoded = m_file.read(5);
+        encoded = m_file->read(5);
         if (encoded.size() != 5) {
             sprite->decode(nullptr, 0, kDefaultSpriteSize, m_useAlpha);
             return sprite;
@@ -341,7 +341,7 @@ std::shared_ptr<SpriteData> SprReader::decodeSprite(uint32_t spriteId)
         return sprite;
     }
     if (!m_mappedData) {
-        const QByteArray pixels = m_file.read(compressedSize);
+        const QByteArray pixels = m_file->read(compressedSize);
         if (pixels.size() != compressedSize) {
             sprite->decode(nullptr, 0, kDefaultSpriteSize, m_useAlpha);
             return sprite;
@@ -623,7 +623,7 @@ QImage SprReader::composeItemImage(const QVariantList &spriteIds,
     return composite;
 }
 
-int SprReader::preloadItemImageSources(const DatReader *datReader)
+int SprReader::preloadItemImageSources(const DatReader *datReader, const std::function<bool()> &cancelled)
 {
     if (!m_loaded || !datReader || !datReader->isLoaded()) return 0;
     QElapsedTimer scanClock;
@@ -635,6 +635,7 @@ int SprReader::preloadItemImageSources(const DatReader *datReader)
     state->images.reserve(datReader->itemCount());
     beginBulkAccess();
     for (const ClientItem &item : datReader->items()) {
+        if (cancelled && cancelled()) { endBulkAccess(); return 0; }
         if (item.sprite_ids.empty()) continue;
 
         QVariantList spriteIds;
@@ -780,4 +781,13 @@ QHash<int, QByteArray> SprReader::roleNames() const
     roles[SpriteImageRole] = "spriteImage";
     roles[SpriteImageSourceRole] = "spriteImageSource";
     return roles;
+}
+
+void SprReader::publishItemImages(std::shared_ptr<ItemImageState> images, QSet<int> visible)
+{
+    QWriteLocker lock(&m_preloadedItemLock);
+    if (images) images->revision = m_itemImagesRevision + 1;
+    m_itemImageState = std::move(images);
+    m_visibleItemImages = std::move(visible);
+    ++m_itemImagesRevision;
 }

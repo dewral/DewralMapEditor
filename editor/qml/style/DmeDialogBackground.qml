@@ -1,4 +1,5 @@
 import QtQuick
+import "../themes/tibia" as TibiaSkin
 import "../themes/classic/controls" as Classic
 import "../themes/github/controls" as Github
 import "../themes/gray/controls" as Gray
@@ -11,8 +12,9 @@ Item {
     property url frameSource: Backend.uiTheme.tex + "popupwindow.png"
     Loader {
         anchors.fill: parent
-        sourceComponent: Backend.uiTheme.style === "fluent-dark" ? fluentBackground : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicBackground : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayBackground : githubBackground)
+        sourceComponent: Backend.uiTheme.style === "tibia-ui" ? tibiaBackground : Backend.uiTheme.style === "fluent-dark" ? fluentBackground : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicBackground : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayBackground : githubBackground)
     }
+    Component { id: tibiaBackground; TibiaSkin.TibiaClassicFrame { kind: "window" } }
     Component { id: classicBackground; Classic.ClassicDialogBackground { topBorder: root.topBorder; frameSource: root.frameSource } }
     Component { id: githubBackground; Github.GithubDialogBackground {} }
     Component { id: grayBackground; Gray.GrayDialogBackground {} }

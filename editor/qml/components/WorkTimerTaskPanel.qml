@@ -5,6 +5,7 @@ import "../style"
 
 Column {
     id: root
+    enabled: typeof timerService.ready !== "boolean" || timerService.ready
     component TimerLabel: Text { font.family: "Segoe UI" }
     required property var timerService
     property bool canStart: true

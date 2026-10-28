@@ -72,6 +72,44 @@ QVector<QPoint> rasterLine(const QPoint &from, const QPoint &to)
 
 } // namespace
 
+MapView::SelectionHit MapView::pickSelection(const QPointF &position) const
+{
+    const QPoint clicked = tileAtScreen(position);
+    if (!m_otbm) return {clicked};
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+    if (!pixelPerfectSelection() || m_atlasService.image().isNull()) {
+        const auto *tile = currentFloorTileAt(clicked.x(), clicked.y());
+        return {clicked, -1, tile && (!tile->items.empty()
+            || !tile->creature_name.isEmpty() || tile->spawn_radius > 0)};
+    }
+    const double scale = double(kSprite) / std::max(1, m_navigationController.tileSize());
+    const int px = int(std::floor(m_navigationController.originX() * kSprite + position.x() * scale));
+    const int py = int(std::floor(m_navigationController.originY() * kSprite + position.y() * scale));
+    const auto &atlasSlots = m_atlasService.atlasSlots();
+    const auto &image = m_atlasService.image();
+    // Sprites extend left/up from their storage tile, including displaced items.
+    for (int y = clicked.y() + 8; y >= clicked.y(); --y) {
+        for (int x = clicked.x() + 8; x >= clicked.x(); --x) {
+            if (x < 0 || x > 65535 || y < 0 || y > 65535) continue;
+            const auto *tile = currentFloorTileAt(x, y);
+            if (!tile) continue;
+            std::vector<QuadRef> quads;
+            appendItemQuads(tile, quads);
+            for (auto q = quads.rbegin(); q != quads.rend(); ++q) {
+                const int lx = px - q->worldX, ly = py - q->worldY;
+                if (lx < 0 || lx >= kSprite || ly < 0 || ly >= kSprite) continue;
+                if (q->atlasSlot < 0 || size_t(q->atlasSlot) >= atlasSlots.size()) continue;
+                const QRect &slot = atlasSlots[size_t(q->atlasSlot)];
+                if (qAlpha(image.pixel(slot.x() + lx, slot.y() + ly)) != 0)
+                    return {QPoint(x, y), q->itemIndex, true};
+            }
+            if (QPoint(x, y) == clicked && m_showSpawns && tile->spawn_radius > 0)
+                return {clicked, -3, true};
+        }
+    }
+    return {clicked};
+}
+
 QPoint MapView::tileAtScreen(const QPointF &p) const
 {
     const qreal ts = std::max(1, m_navigationController.tileSize());
@@ -115,23 +153,27 @@ void MapView::clearSelection()
 
 void MapView::applyRubberBand()
 {
+    std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
     m_selectionController.selected() = m_selectionController.rubberBase();
-    const int x0 = std::min(m_selectionController.anchorX(), m_selectionController.rubberX()), x1 = std::max(m_selectionController.anchorX(), m_selectionController.rubberX());
-    const int y0 = std::min(m_selectionController.anchorY(), m_selectionController.rubberY()), y1 = std::max(m_selectionController.anchorY(), m_selectionController.rubberY());
-
+    const int x0 = std::min(m_selectionController.anchorX(), m_selectionController.rubberX());
+    const int x1 = std::max(m_selectionController.anchorX(), m_selectionController.rubberX());
+    const int y0 = std::min(m_selectionController.anchorY(), m_selectionController.rubberY());
+    const int y1 = std::max(m_selectionController.anchorY(), m_selectionController.rubberY());
     int zBottom = m_navigationController.floor();
-    if (m_selectionController.floorMode() == 1)      zBottom = 15;
+    if (m_selectionController.floorMode() == 1) zBottom = 15;
     else if (m_selectionController.floorMode() == 2) zBottom = renderBottomFloor();
 
-    for (int z = m_navigationController.floor(); z <= zBottom; ++z) {
-
-        const int comp = m_selectionController.compensated() ? (z - m_navigationController.floor()) : 0;
-        for (int y = y0; y <= y1; ++y)
-            for (int x = x0; x <= x1; ++x) {
-                const int tx = x - comp, ty = y - comp;
-                if (m_otbm && m_otbm->tileAt(tx, ty, z))
-                    m_selectionController.selected().insert(selKey(tx, ty, z));
-            }
+    if (m_otbm) for (int z = m_navigationController.floor(); z <= zBottom; ++z) {
+        const int comp = m_selectionController.compensated() ? z - m_navigationController.floor() : 0;
+        const qint64 minX = std::max<qint64>(0, qint64(x0) - comp);
+        const qint64 maxX = std::min<qint64>(65535, qint64(x1) - comp);
+        const qint64 minY = std::max<qint64>(0, qint64(y0) - comp);
+        const qint64 maxY = std::min<qint64>(65535, qint64(y1) - comp);
+        if (minX > maxX || minY > maxY) continue;
+        m_otbm->forEachTileInRegion(int(minX), int(minY), int(maxX), int(maxY), z,
+            [&](const OtbmTile &tile) {
+                m_selectionController.selected().insert(selKey(tile.x, tile.y, z));
+            });
     }
     notifySelectionChanged();
 }
@@ -274,6 +316,16 @@ void MapView::mousePressEvent(QMouseEvent *event)
         return;
     }
 
+    if(m_generationPaintMode&&m_generationInputBlocked&&(event->button()==Qt::LeftButton||event->button()==Qt::RightButton)){event->accept();return;}
+    if(m_generationPaintMode==5&&(event->button()==Qt::LeftButton||event->button()==Qt::RightButton)){
+        const QPoint tile=tileAtScreen(event->position());m_generationDrawing=true;
+        emit generationPrefabRequested(tile.x(),tile.y(),floor(),event->button()==Qt::RightButton);event->accept();return;
+    }
+    if (m_generationPaintMode && (event->button()==Qt::LeftButton || event->button()==Qt::RightButton)) {
+        m_generationDrawing=true;m_generationErasing=event->button()==Qt::RightButton;
+        m_generationLast=tileAtScreen(event->position());paintGenerationAt(m_generationLast,m_generationErasing);
+        event->accept();return;
+    }
     if (m_groundClusterStampActive
         && (event->button() == Qt::LeftButton || event->button() == Qt::RightButton)) {
         const QPoint tile = tileAtScreen(event->position());
@@ -363,13 +415,14 @@ void MapView::mousePressEvent(QMouseEvent *event)
     } else if (event->button() == Qt::LeftButton) {
 
         m_itemController.contextTargetsItem() = true;
-        const QPoint t = tileAtScreen(event->position());
+        const SelectionHit picked = pickSelection(event->position());
+        const QPoint t = (event->modifiers() & Qt::ShiftModifier)
+            ? tileAtScreen(event->position()) : picked.tile;
         const int tx = t.x(), ty = t.y();
         const quint64 k = selKey(tx, ty, m_navigationController.floor());
         const OtbmTile *tile = currentFloorTileAt(tx, ty);
 
-        const bool onItem = tile && (!tile->items.empty() || !tile->creature_name.isEmpty()
-                                     || tile->spawn_radius > 0);
+        const bool onItem = picked.hit;
         const bool shift = event->modifiers() & Qt::ShiftModifier;
         const bool ctrl = event->modifiers() & Qt::ControlModifier;
 
@@ -388,7 +441,10 @@ void MapView::mousePressEvent(QMouseEvent *event)
             if (onItem) {
                 m_selectionController.wholeStack() = false;
                 if (m_selectionController.selected().contains(k)) m_selectionController.selected().remove(k);
-                else m_selectionController.selected().insert(k);
+                else {
+                    m_selectionController.selected().insert(k);
+                    if (picked.entity != -1) m_selectionController.entities.insert(k, picked.entity);
+                }
                 notifySelectionChanged();
                 emit contentUpdated(); update();
             }
@@ -401,16 +457,20 @@ void MapView::mousePressEvent(QMouseEvent *event)
             }
         } else {
 
-            if (!m_selectionController.selected().contains(k)) {
+            if (!m_selectionController.selected().contains(k)
+                || (!m_selectionController.wholeStack() && m_selectionController.entity(k) != picked.entity)) {
                 m_selectionController.selected().clear();
+                m_selectionController.entities.clear();
                 m_selectionController.selected().insert(k);
+                if (picked.entity != -1) m_selectionController.entities.insert(k, picked.entity);
                 m_selectionController.wholeStack() = false;
                 notifySelectionChanged();
             }
             m_selectionController.moving() = true;
             m_selectionController.moveChanged() = false;
-            m_selectionController.moveSourceX() = tx;
-            m_selectionController.moveSourceY() = ty;
+            const QPoint anchor = tileAtScreen(event->position());
+            m_selectionController.moveSourceX() = anchor.x();
+            m_selectionController.moveSourceY() = anchor.y();
             m_selectionController.moveSourceZ() = m_navigationController.floor();
 
             m_selectionController.moveServerId() = tile->items.empty() ? 0 : tile->items.back().server_id;
@@ -424,15 +484,17 @@ void MapView::mousePressEvent(QMouseEvent *event)
         setSelectionMode(true);
         m_itemController.menuPending() = true;
 
-        const QPoint t = tileAtScreen(event->position());
+        const auto picked = pickSelection(event->position());
+        const QPoint t = event->modifiers().testFlag(Qt::ShiftModifier)
+            ? tileAtScreen(event->position()) : picked.tile;
         if (m_itemController.contextX() != t.x() || m_itemController.contextY() != t.y())
             m_itemController.contextTargetsItem() = true;
         m_itemController.contextX() = t.x();
         m_itemController.contextY() = t.y();
-        const OtbmTile *contextTile = currentFloorTileAt(t.x(), t.y());
-        m_itemController.contextItemIndex() = contextTile && !contextTile->items.empty()
-                                 ? static_cast<int>(contextTile->items.size()) - 1
-                                 : -1;
+        const OtbmTile *contextTile = picked.hit ? currentFloorTileAt(t.x(), t.y()) : nullptr;
+        m_itemController.contextItemIndex() = picked.entity >= 0 ? picked.entity
+            : (contextTile && !contextTile->items.empty() ? int(contextTile->items.size()) - 1 : -1);
+        if (picked.entity != -1) m_itemController.contextTargetsItem() = picked.entity >= 0;
         const quint64 k = selKey(t.x(), t.y(), m_navigationController.floor());
         if (event->modifiers() & Qt::ShiftModifier) {
             m_itemController.contextTargetsItem() = true;
@@ -446,13 +508,16 @@ void MapView::mousePressEvent(QMouseEvent *event)
             applyRubberBand();
             emit contentUpdated(); update();
         } else if (contextTile) {
-            if (!m_selectionController.selected().contains(k)) {
+            if (!m_selectionController.selected().contains(k)
+                || (!m_selectionController.wholeStack() && m_selectionController.entity(k) != picked.entity)) {
                 m_selectionController.selected().clear();
+                m_selectionController.entities.clear();
                 m_selectionController.selected().insert(k);
+                if (picked.entity != -1) m_selectionController.entities.insert(k, picked.entity);
                 m_selectionController.wholeStack() = false;
-                m_itemController.contextTargetsItem() =
-                    !(m_showSpawns && contextTile->spawn_radius > 0)
-                    && !(m_showCreatures && !contextTile->creature_name.isEmpty());
+                m_itemController.contextTargetsItem() = picked.entity != -1 ? picked.entity >= 0
+                    : !(m_showSpawns && contextTile->spawn_radius > 0)
+                      && !(m_showCreatures && !contextTile->creature_name.isEmpty());
                 notifySelectionChanged();
                 emit contentUpdated(); update();
             }
@@ -488,8 +553,9 @@ void MapView::mouseDoubleClickEvent(QMouseEvent *event)
         return;
     }
 
-    const QPoint position = tileAtScreen(event->position());
-    const OtbmTile *tile = currentFloorTileAt(position.x(), position.y());
+    const auto picked = pickSelection(event->position());
+    const QPoint position = picked.tile;
+    const OtbmTile *tile = picked.hit ? currentFloorTileAt(position.x(), position.y()) : nullptr;
     if (!tile || (tile->items.empty() && tile->creature_name.isEmpty()
                   && tile->spawn_radius <= 0)) {
         event->ignore();
@@ -498,7 +564,9 @@ void MapView::mouseDoubleClickEvent(QMouseEvent *event)
 
     m_itemController.setContext(
         position.x(), position.y(),
-        tile->items.empty() ? -1 : static_cast<int>(tile->items.size()) - 1);
+        picked.entity >= 0 ? picked.entity
+            : (tile->items.empty() ? -1 : static_cast<int>(tile->items.size()) - 1));
+    m_itemController.contextTargetsItem() = picked.entity >= 0 || picked.entity == -1;
     emit propertiesRequested();
     event->accept();
 }
@@ -532,6 +600,11 @@ bool MapView::advancePointerFrame()
 
 void MapView::processPointerMove(const QPointF &pos, bool hoverOnly)
 {
+    if(m_generationPaintMode==5&&m_generationDrawing){m_hoverX=tileAtScreen(pos).x();m_hoverY=tileAtScreen(pos).y();updateHoverText();return;}
+    if (m_generationPaintMode && m_generationDrawing && !hoverOnly) {
+        const QPoint tile=tileAtScreen(pos);paintGenerationAt(tile,m_generationErasing);
+        m_hoverX=tile.x();m_hoverY=tile.y();updateHoverText();return;
+    }
     if (m_pathBuilder.active() && m_pathBuilder.drawing()) {
         m_navigationController.lastMouse() = pos;
         const QPoint tile = tileAtScreen(pos);
@@ -627,6 +700,13 @@ void MapView::processPointerMove(const QPointF &pos, bool hoverOnly)
 
 void MapView::mouseReleaseEvent(QMouseEvent *event)
 {
+    if(m_generationPaintMode&&m_generationInputBlocked&&!m_generationDrawing&&!m_navigationController.panning()
+       &&(event->button()==Qt::LeftButton||event->button()==Qt::RightButton)){event->accept();return;}
+    if(m_generationPaintMode==5&&m_generationDrawing){m_generationDrawing=false;m_pointerMovePending=false;emit generationStrokeFinished();event->accept();return;}
+    if (m_generationDrawing && (event->button()==Qt::LeftButton || event->button()==Qt::RightButton)) {
+        m_pointerMovePending=false;paintGenerationAt(tileAtScreen(event->position()),m_generationErasing);
+        m_generationDrawing=false;emit generationStrokeFinished();event->accept();return;
+    }
     if (event->button() == Qt::RightButton && m_itemController.menuPending()) {
         m_itemController.menuPending() = false;
         m_pointerMovePending = false;
@@ -788,6 +868,8 @@ void MapView::zoomAt(int steps, qreal px, qreal py)
 
 void MapView::keyPressEvent(QKeyEvent *event)
 {
+    if (m_generationPaintMode && event->key()==Qt::Key_Escape) {m_generationPaintMode=0;m_generationDrawing=false;emit generationMaskChanged();emit generationBrushStopped();event->accept();return;}
+
     const auto matches = [this, event](const char *id, const char *defaultShortcut) {
         if (!m_commandHotkeysEnabled) return false;
         const QString binding = m_hotkeyBindings.value(QString::fromLatin1(id),

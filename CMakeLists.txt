@@ -344,9 +344,14 @@ if(BUILD_TESTING)
             tests/tibia_ui_resources.qrc editor/core/uitheme.cpp)
         target_include_directories(tibia_ui_qml_test PRIVATE editor/core)
         target_link_libraries(tibia_ui_qml_test PRIVATE Qt6::QuickTest Qt6::Quick)
-        # Keep synthesized pointer input independent of the CI runner's desktop.
+        # Keep CI input independent of the desktop when the Qt kit provides
+        # offscreen. Minimal Windows/vcpkg kits may only provide native windows.
+        set(_dme_theme_test_platform offscreen)
+        if(WIN32 AND NOT TARGET Qt6::QOffscreenIntegrationPlugin)
+            set(_dme_theme_test_platform windows)
+        endif()
         add_test(NAME tibia_ui_qml COMMAND tibia_ui_qml_test
-            -platform offscreen
+            -platform "${_dme_theme_test_platform}"
             -input "${CMAKE_SOURCE_DIR}/tests/qml/tst_tibia_theme.qml"
             -import "${CMAKE_SOURCE_DIR}/tests/qml/imports"
             -o "${CMAKE_BINARY_DIR}/tibia-ui-test.log,txt")

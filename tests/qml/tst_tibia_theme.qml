@@ -127,7 +127,7 @@ Item {
             mouseClick(cell,8,8);
             compare(map.lightAmbientColor,190);
             wait(40);
-            grabImage(scene.Window.window.contentItem).save("build/classic-timer-color/light-color-classic.png");
+            grabImage(scene.Window.window.contentItem).save("build/light-color-classic.png");
             keyClick(Qt.Key_Escape);
             tryCompare(popup,"visible",false);
         }
@@ -312,7 +312,7 @@ Item {
             compare(background.color,"#00000000");
             const entryBackground=findChild(testOpenEntry,"menuEntryBackground");
             tryCompare(entryBackground,"color","#18ffffff"); compare(entryBackground.border.width,0);
-            grabImage(scene).save("build/DME-client-profiles-verify/classic-menu-states.png");
+            grabImage(scene).save("build/classic-menu-states.png");
             mouseMove(view,view.width/2,view.height/2);
             tryCompare(testViewMenu,"opened",true); tryCompare(testFileMenu,"opened",false);
             keyClick(Qt.Key_Escape); tryCompare(testViewMenu,"opened",false);

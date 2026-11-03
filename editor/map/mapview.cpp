@@ -26,7 +26,7 @@
 #include <cmath>
 #include <cstring>
 #include <vector>
-#include <thread>
+#include <QtConcurrent/QtConcurrentRun>
 
 namespace {
 QString mapViewSettingsKey(const QString &path)
@@ -217,7 +217,8 @@ bool MapView::loadMap(const QString &path)
     };
     auto result = std::make_shared<LoadResult>();
 
-    std::thread([guard, targetGuard, guiThread, generation, path, result, cancel, itemTypes] {
+    // Qt-managed workers also own Qt thread-local state during teardown.
+    (void)QtConcurrent::run([guard, targetGuard, guiThread, generation, path, result, cancel, itemTypes] {
         result->reader = std::make_unique<OtbmReader>();
         result->reader->setItemTypes(itemTypes);
         const auto publishProgress = [guard, targetGuard, generation](int value, const QString &stage) {
@@ -345,7 +346,7 @@ bool MapView::loadMap(const QString &path)
             }
             emit guard->mapLoadFinished(true, path, QString());
         }, Qt::QueuedConnection);
-    }).detach();
+    });
     return true;
 }
 

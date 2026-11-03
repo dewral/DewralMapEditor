@@ -7,7 +7,7 @@
 #include <QMetaObject>
 #include <algorithm>
 #include <exception>
-#include <thread>
+#include <QtConcurrent/QtConcurrentRun>
 
 void MapView::setClientAtlasIdentity(const QString &identity)
 {
@@ -150,7 +150,8 @@ void MapView::startAtlasJob(QSet<uint32_t> spriteIds, bool replaceAtlas)
     };
     auto result = std::make_shared<AtlasResult>();
 
-    std::thread([lifetime, self, dispatcher, generation, sprPath, extended,
+    // Qt-managed workers also own Qt thread-local state during teardown.
+    (void)QtConcurrent::run([lifetime, self, dispatcher, generation, sprPath, extended,
                  useAlpha, replaceAtlas, patchOnly, spriteIds = std::move(spriteIds),
                  base = std::move(base), result]() mutable {
         LoadProfile::Scope timing(QStringLiteral("atlas_decode"));
@@ -259,7 +260,7 @@ void MapView::startAtlasJob(QSet<uint32_t> spriteIds, bool replaceAtlas)
                     self->queueAtlasSprites(pending);
                 }
             }, Qt::QueuedConnection);
-    }).detach();
+    });
 }
 
 int MapView::atlasSlotForSprite(uint32_t spriteId) const

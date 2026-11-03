@@ -37,6 +37,28 @@ DmeWindow {
         if (!tileMapGenLoader.ensureLoaded()) return false;
         return tileMapGenLoader.status === Loader.Ready && tileMapGenLoader.item !== null;
     }
+    function smokeSearchResults() {
+        searchResultsDialog.openSearch("unique", false);
+        let valid = searchResultsVisible && searchResultsLoader.item !== null
+            && searchResultsLoader.item.parent === searchResultsHost
+            && searchResultsLoader.item.width === searchResultsHost.width;
+        const previousWidth = width;
+        const previousPreview = prefs.showIngamePreviewWindow;
+        const previousSide = prefs.ingamePreviewDockSide;
+        for (const viewport of [720, 1600]) {
+            width = viewport;
+            prefs.showIngamePreviewWindow = true;
+            for (const side of ["left", "right"]) {
+                prefs.ingamePreviewDockSide = side;
+                valid = valid && mapLeft + mapRight < width
+                    && (!compactSearchDock || previewDockHost.y >= searchResultsHost.y + searchResultsHost.height);
+            }
+        }
+        prefs.showIngamePreviewWindow = previousPreview;
+        prefs.ingamePreviewDockSide = previousSide;
+        width = previousWidth;
+        return valid;
+    }
     // Both modern themes share one layout. Only their palettes differ.
     readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
     readonly property bool tibiaUi: Backend.uiTheme.style === "tibia-ui"
@@ -517,15 +539,55 @@ DmeWindow {
         NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
     }
     readonly property bool previewDocked: prefs.showIngamePreviewWindow && (prefs.ingamePreviewDockSide==="left" || prefs.ingamePreviewDockSide==="right")
-    readonly property real previewDockWidth: Math.min(Math.max(320,prefs.ingamePreviewDockWidth),Math.max(320,root.width-baseMapLeft-baseMapRight-240))
+    property bool searchResultsVisible: false
+    // On narrow windows, share the preview's side column vertically so neither
+    // dock can push the map to a negative width.
+    readonly property bool compactSearchDock: searchResultsVisible && previewDocked
+        && root.width - baseMapLeft - baseMapRight < 220 + 320 + 240 + 12
+    readonly property real searchResultsExtent: searchResultsVisible && !compactSearchDock ? searchResultsHost.width + 6 : 0
+    readonly property real previewDockWidth: Math.min(Math.max(320,prefs.ingamePreviewDockWidth),Math.max(320,root.width-baseMapLeft-baseMapRight-240-(searchResultsVisible && !compactSearchDock ? 286 : 0)))
     readonly property real mapLeft: baseMapLeft+(previewDocked && prefs.ingamePreviewDockSide==="left" ? previewDockWidth+6 : 0)
-    readonly property real mapRight: baseMapRight+(previewDocked && prefs.ingamePreviewDockSide==="right" ? previewDockWidth+6 : 0)
+    readonly property real mapRight: baseMapRight+searchResultsExtent+(previewDocked && prefs.ingamePreviewDockSide==="right" ? previewDockWidth+6 : 0)
+    Item {
+        id: searchResultsHost
+        objectName: "searchResultsHost"
+        visible: root.searchResultsVisible
+        x: root.compactSearchDock && prefs.ingamePreviewDockSide === "left"
+            ? root.baseMapLeft : root.width - root.baseMapRight - width
+        y: root.paletteTop
+        width: root.compactSearchDock ? root.previewDockWidth : Math.min(Math.max(280, prefs.searchResultsWidth), Math.max(220,
+            root.width - root.baseMapLeft - root.baseMapRight - 240 - (root.previewDocked ? root.previewDockWidth + 6 : 0)))
+        height: Math.max(0, root.height - y - (root.fluentUi ? fluentStatusBar.height + 2 : 6)) * (root.compactSearchDock ? 0.5 : 1)
+        z: 3
+        function close() {
+            root.searchResultsVisible = false;
+            workspace.mapView.forceActiveFocus();
+        }
+    }
+    Rectangle {
+        x: searchResultsHost.x - width; y: searchResultsHost.y
+        width: 6; height: searchResultsHost.height; z: 4
+        visible: root.searchResultsVisible && !root.compactSearchDock
+        color: resizeSearchResults.containsMouse ? FluentColors.c("accent") : "transparent"
+        MouseArea {
+            id: resizeSearchResults
+            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.SizeHorCursor
+            property real startX: 0
+            property real startWidth: 0
+            onPressed: mouse => { startX = mapToGlobal(mouse.x, mouse.y).x; startWidth = searchResultsHost.width; }
+            onPositionChanged: mouse => {
+                if (pressed) prefs.searchResultsWidth = Math.round(Math.max(280, Math.min(
+                    root.width - root.baseMapLeft - root.baseMapRight - 240 - (root.previewDocked ? root.previewDockWidth + 6 : 0),
+                    startWidth + startX - mapToGlobal(mouse.x, mouse.y).x)));
+            }
+        }
+    }
     Item {
         id:previewDockHost
         objectName:"previewDockHost"
         visible:root.previewDocked
-        x:prefs.ingamePreviewDockSide==="left" ? root.baseMapLeft : root.width-root.baseMapRight-width
-        y:root.paletteTop
+        x:prefs.ingamePreviewDockSide==="left" ? root.baseMapLeft : root.width-root.baseMapRight-root.searchResultsExtent-width
+        y:root.compactSearchDock ? searchResultsHost.y + searchResultsHost.height + 6 : root.paletteTop
         width:root.previewDockWidth
         height:Math.max(0,root.height-y-(root.fluentUi ? fluentStatusBar.height + 2 : 6))
         z:3
@@ -540,7 +602,7 @@ DmeWindow {
             onPressed:mouse => { startX=mapToGlobal(mouse.x,mouse.y).x; startWidth=previewDockHost.width; }
             onPositionChanged:mouse => { if (pressed) {
                 const delta=(mapToGlobal(mouse.x,mouse.y).x-startX)*(prefs.ingamePreviewDockSide==="left" ? 1 : -1);
-                prefs.ingamePreviewDockWidth=Math.round(Math.max(320,Math.min(root.width-root.baseMapLeft-root.baseMapRight-240,startWidth+delta)));
+                prefs.ingamePreviewDockWidth=Math.round(Math.max(320,Math.min(root.width-root.baseMapLeft-root.baseMapRight-root.searchResultsExtent-240,startWidth+delta)));
             } }
         }
     }
@@ -1217,22 +1279,17 @@ DmeWindow {
 
     QtObject {
         id: searchResultsDialog
-        property string searchType: "everything"
-        property bool selectionOnly: false
 
         function openSearch(type, selectedOnly) {
-            searchType = type;
-            selectionOnly = selectedOnly;
             if (!searchResultsLoader.ensureLoaded()) return false;
-            searchResultsLoader.item["searchType"] = type;
-            searchResultsLoader.item["selectionOnly"] = selectedOnly;
-            searchResultsLoader.item["open"]();
+            root.searchResultsVisible = true;
+            searchResultsLoader.item["openSearch"](type, selectedOnly);
         }
     }
     LazyToolHost {
         id: searchResultsLoader
-        toolSource: Qt.resolvedUrl("tools/SearchResultsDialogTool.qml")
-        initialProperties: ({environment: toolEnvironment()})
+        toolSource: Qt.resolvedUrl("tools/SearchResultsPanelTool.qml")
+        initialProperties: ({environment: Object.assign(toolEnvironment(), {searchResultsHost: searchResultsHost})})
         onLoadFailed: message => app.showToast(message)
     }
 

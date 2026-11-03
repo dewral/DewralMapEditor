@@ -225,6 +225,11 @@ int main(int argc, char *argv[])
     }
 
     if (app.arguments().contains(QStringLiteral("--smoke-test"))) {
+        if (app.arguments().contains(QStringLiteral("--smoke-search-results"))) {
+            QVariant ready;
+            if (!QMetaObject::invokeMethod(engine.rootObjects().first(), "smokeSearchResults",
+                                          Q_RETURN_ARG(QVariant, ready)) || !ready.toBool()) return 7;
+        }
         if (app.arguments().contains(QStringLiteral("--smoke-map-brush"))) {
             QVariant ready;
             if (!QMetaObject::invokeMethod(engine.rootObjects().first(), "smokeMapBrush",

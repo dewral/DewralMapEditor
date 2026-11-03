@@ -56,4 +56,5 @@ Item {
     function smokeMapBrush() { return prepareEditor(true) && editor.item.smokeMapBrush(); }
     function smokeGenerationLibrary() { return prepareEditor(true) && editor.item.smokeGenerationLibrary(); }
     function smokeTileMapGen() { return prepareEditor(true) && editor.item.smokeTileMapGen(); }
+    function smokeSearchResults() { return prepareEditor(true) && editor.item.smokeSearchResults(); }
 }

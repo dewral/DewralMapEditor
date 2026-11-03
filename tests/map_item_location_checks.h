@@ -94,6 +94,8 @@ static bool testQueryDocumentLifetime(OtbReader &items)
     map.newMap(1024, 1024, 860, 2, 22);
     OtbmMapItem container;
     container.server_id = 5710;
+    container.setActionId(5000);
+    container.setUniqueId(62378);
     OtbmMapItem child;
     child.server_id = 1000;
     container.ensureChildren().push_back(child);
@@ -116,6 +118,20 @@ static bool testQueryDocumentLifetime(OtbReader &items)
                      && result.value("results").toList().first().toMap().value("depth").toInt() == 1,
                      "A background query read mutations made after its start")) return false;
     }
+    map.placeItem(1, 1, 7, container, 0, false, false);
+    QObject::connect(&view, &MapView::itemSearchFinished,
+                     [&](const QVariantMap &value) { result = value; });
+    {
+        QueryPoolBlocker blocker;
+        const bool started = view.startItemSearch("unique", false);
+        map.removeTopItem(1, 1, 7);
+        blocker.release();
+        if (!require(started && waitUntil([&] { return !view.queryBusy(); })
+                     && result.value("total").toInt() == 1
+                     && result.value("results").toList().value(0).toMap()
+                            .value("contents").toList().value(0).toMap().value("serverId").toInt() == 1000,
+                     "Container contents did not use the background search snapshot")) return false;
+    }
     return true;
 }
 
@@ -128,10 +144,13 @@ static bool testItemLocations(OtbReader &items)
     map.addItem(12, 22, 9, 65000); // An unmapped server ID must remain searchable.
     OtbmMapItem container;
     container.server_id = 5710;
+    container.setActionId(5000);
+    container.setUniqueId(62378);
     OtbmMapItem nested;
     nested.server_id = 1004;
     OtbmMapItem child;
     child.server_id = 1000;
+    child.count = 72;
     nested.ensureChildren().push_back(child);
     container.ensureChildren().push_back(nested);
     map.placeItem(13, 23, 10, container, 0, false, false);
@@ -173,7 +192,31 @@ static bool testItemLocations(OtbReader &items)
                      && !view.startItemLocationSearch(invalid, false) && !view.queryBusy(),
                      "Location search accepted an invalid item ID")) return false;
     }
-    if (!require(view.searchItems("container", false).value("total").toInt() == 2,
+    const QVariantMap containers = view.searchItems("container", false);
+    const QVariantList containerResults = containers.value("results").toList();
+    const QVariantMap outer = containerResults.value(0).toMap();
+    const QVariantList outerContents = outer.value("contents").toList();
+    const QVariantMap inner = outerContents.value(0).toMap();
+    const QVariantMap containedItem = inner.value("contents").toList().value(0).toMap();
+    if (!require(containerResults.size() == 2 && outer.value("serverId").toInt() == 5710
+                 && outer.value("isContainer").toBool() && outerContents.size() == 1
+                 && inner.value("serverId").toInt() == 1004
+                 && inner.value("isContainer").toBool()
+                 && containedItem.value("serverId").toInt() == 1000
+                 && containedItem.value("count").toInt() == 72
+                 && containedItem.value("x").toInt() == 13
+                 && containedItem.value("z").toInt() == 10
+                 && containedItem.value("depth").toInt() == 2
+                 && !containedItem.value("isContainer").toBool()
+                 && containerResults[1].toMap() == inner && map.undoCount() == undoCount,
+                 "Container results omitted nested contents or changed traversal order")) return false;
+    const QVariantList uniqueResults = view.searchItems("unique", false).value("results").toList();
+    if (!require(uniqueResults.size() == 1
+                 && uniqueResults[0].toMap().value("actionId").toInt() == 5000
+                 && uniqueResults[0].toMap().value("uniqueId").toInt() == 62378
+                 && uniqueResults[0].toMap().value("contents").toList() == outerContents,
+                 "Unique ID results omitted the container's untagged contents")) return false;
+    if (!require(containers.value("total").toInt() == 2,
                  "ID search changed existing category searches")) return false;
 
     largeMap.newMap(1024, 1024, 860, 2, 22);

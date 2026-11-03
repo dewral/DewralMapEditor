@@ -48,6 +48,10 @@ multi-floor Tibia maps.
   fixed compositions and existing doodads.
 - Supports selection, multi-floor selection, moving items between floors,
   cut/copy/paste, undo/redo, item properties, search, and replacement tools.
+- **Search → Find Unique IDs / Action IDs / Containers / Writable Items / Everything**
+  opens a resizable Search Results sidebar. Filter by name, item ID, AID or UID,
+  expand containers to inspect their items and nested contents, and double-click
+  a result or use **Go To** to navigate while keeping the sidebar open.
 - Select an area, right-click and choose **Create Collection…** to save its
   distinct ground and item IDs in the **Collection Palette**. Review the item
   previews and use **×** to exclude entries before saving. To remove a saved

@@ -5,6 +5,7 @@ Settings {
 
     property int tibiaPaletteWidth: 344
     property int fluentPaletteWidth: 285
+    property int searchResultsWidth: 340
     property string toolsDock: "palette"
     property string brushSizeDock: "palette"
     property string paletteDockSide: "left"

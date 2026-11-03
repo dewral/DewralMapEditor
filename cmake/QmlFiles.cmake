@@ -41,6 +41,7 @@ set(DME_QML_FILES
     editor/qml/components/PaletteSmoothScroll.qml
     editor/qml/components/PreviewMovement.js
     editor/qml/components/ProceduralBrushBar.qml
+    editor/qml/components/SearchResultsPanel.qml
     editor/qml/components/TaskIcon.qml
     editor/qml/components/TaskIconPicker.qml
     editor/qml/components/WeatherLayer.qml
@@ -93,7 +94,6 @@ set(DME_QML_FILES
     editor/qml/dialogs/NewMapDialog.qml
     editor/qml/dialogs/NumberedZonesDialog.qml
     editor/qml/dialogs/PreferencesDialog.qml
-    editor/qml/dialogs/SearchResultsDialog.qml
     editor/qml/dialogs/SelectionItemDialog.qml
     editor/qml/dialogs/TerrainGeneratorDialog.qml
     editor/qml/dialogs/TileMapGenDialog.qml
@@ -198,7 +198,7 @@ set(DME_QML_FILES
     editor/qml/tools/NewMapDialogTool.qml
     editor/qml/tools/NumberedZonesDialogTool.qml
     editor/qml/tools/PreferencesDialogTool.qml
-    editor/qml/tools/SearchResultsDialogTool.qml
+    editor/qml/tools/SearchResultsPanelTool.qml
     editor/qml/tools/SelectionItemDialogTool.qml
     editor/qml/tools/StartupErrorDialog.qml
     editor/qml/tools/StartupFolderDialog.qml

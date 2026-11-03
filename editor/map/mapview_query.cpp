@@ -291,6 +291,7 @@ struct MapView::QuerySnapshot
         int clientId = 0;
         int group = 0;
         int row = -1;
+        bool stackable = false;
     };
     std::vector<OtbmTile> tiles;
     std::vector<ItemInfo> items;
@@ -325,6 +326,9 @@ std::shared_ptr<const MapView::QuerySnapshot> MapView::captureQuerySnapshot(bool
             item.group = m_otb->groupForServerId(id);
             item.row = m_otb->rowForServerId(id);
             item.name = m_otb->nameForServerId(id);
+            const auto *client = m_dat && item.clientId > 0
+                ? m_dat->itemByClientId(static_cast<uint16_t>(item.clientId)) : nullptr;
+            item.stackable = client && client->has(ClientProperty::Stackable);
         }
     }
     return snapshot;
@@ -360,10 +364,13 @@ QVariantMap MapView::queryItems(const QuerySnapshot *snapshot, const QString &ty
 
     int total = 0;
 
-    std::function<void(const OtbmMapItem &, const OtbmTile &, int, const QString &)> visit;
+    // QVariant maps/lists share their storage: a nested container can appear as
+    // both a match and a parent's content without copying its whole subtree.
+    std::function<QVariantMap(const OtbmMapItem &, const OtbmTile &, int,
+                              const QString &, bool)> visit;
     visit = [&](const OtbmMapItem &item, const OtbmTile &tile, int depth,
-                const QString &containerPath) {
-        if (m_queryCancel.load(std::memory_order_relaxed)) return;
+                const QString &containerPath, bool includeContents) -> QVariantMap {
+        if (m_queryCancel.load(std::memory_order_relaxed)) return {};
         QStringList matches;
         const int group = snapshot->groupForServerId(item.server_id);
         const bool hasUnique = item.uniqueId() != 0;
@@ -390,45 +397,51 @@ QVariantMap MapView::queryItems(const QuerySnapshot *snapshot, const QString &ty
             || (byServerId && item.server_id == itemId)
             || (byClientId && snapshot->clientIdForServerId(item.server_id) == itemId);
 
-        if (match) {
-            ++total;
-            if (results.size() < resultLimit) {
-                QVariantMap result;
-                result.insert(QStringLiteral("x"), tile.x);
-                result.insert(QStringLiteral("y"), tile.y);
-                result.insert(QStringLiteral("z"), tile.z);
-                result.insert(QStringLiteral("serverId"), item.server_id);
-                result.insert(QStringLiteral("clientId"),
-                              snapshot->clientIdForServerId(item.server_id));
-                result.insert(QStringLiteral("name"),
-                              snapshot->nameForServerId(item.server_id));
-                result.insert(QStringLiteral("kind"), matches.join(QStringLiteral(", ")));
-                result.insert(QStringLiteral("actionId"), item.actionId());
-                result.insert(QStringLiteral("uniqueId"), item.uniqueId());
-                result.insert(QStringLiteral("text"),
-                              item.extra ? item.extra->text : QString());
-                result.insert(QStringLiteral("depth"), depth);
-                result.insert(QStringLiteral("containerPath"), containerPath);
-                result.insert(QStringLiteral("childCount"),
-                              item.children() ? static_cast<int>(item.children()->size()) : 0);
-                results.append(result);
-            }
+        const int resultIndex = match && results.size() < resultLimit ? results.size() : -1;
+        if (match) ++total;
+        // Reserve the slot before visiting children to preserve map/stack order.
+        if (resultIndex >= 0) results.append(QVariantMap{});
+        const bool describe = includeContents || resultIndex >= 0;
+        QVariantMap result;
+        if (describe) {
+            result.insert(QStringLiteral("x"), tile.x);
+            result.insert(QStringLiteral("y"), tile.y);
+            result.insert(QStringLiteral("z"), tile.z);
+            result.insert(QStringLiteral("serverId"), item.server_id);
+            result.insert(QStringLiteral("clientId"),
+                          snapshot->clientIdForServerId(item.server_id));
+            result.insert(QStringLiteral("name"),
+                          snapshot->nameForServerId(item.server_id));
+            result.insert(QStringLiteral("kind"), matches.join(QStringLiteral(", ")));
+            result.insert(QStringLiteral("actionId"), item.actionId());
+            result.insert(QStringLiteral("uniqueId"), item.uniqueId());
+            result.insert(QStringLiteral("text"),
+                          item.extra ? item.extra->text : QString());
+            result.insert(QStringLiteral("depth"), depth);
+            result.insert(QStringLiteral("containerPath"), containerPath);
+            result.insert(QStringLiteral("childCount"),
+                          item.children() ? static_cast<int>(item.children()->size()) : 0);
+            result.insert(QStringLiteral("isContainer"), isContainer);
+            result.insert(QStringLiteral("count"), item.count);
+            result.insert(QStringLiteral("stackable"), snapshot->items[item.server_id].stackable);
         }
 
-        if (!item.children()) return;
-        const QString name = snapshot->nameForServerId(item.server_id);
-        const QString nextPath = containerPath.isEmpty()
-                                     ? (name.isEmpty()
-                                            ? QStringLiteral("Container %1").arg(item.server_id)
-                                            : name)
-                                     : containerPath + QStringLiteral(" > ")
-                                           + (name.isEmpty()
-                                                  ? QStringLiteral("Container %1").arg(item.server_id)
-                                                  : name);
-        for (const OtbmMapItem &child : *item.children()) {
-            if (m_queryCancel.load(std::memory_order_relaxed)) break;
-            visit(child, tile, depth + 1, nextPath);
+        QVariantList contents;
+        if (item.children()) {
+            const QString name = snapshot->nameForServerId(item.server_id);
+            const QString label = name.isEmpty() ? QStringLiteral("Container %1").arg(item.server_id) : name;
+            const QString nextPath = containerPath.isEmpty()
+                ? label : containerPath + QStringLiteral(" > ") + label;
+            if (describe) contents.reserve(static_cast<qsizetype>(item.children()->size()));
+            for (const OtbmMapItem &child : *item.children()) {
+                if (m_queryCancel.load(std::memory_order_relaxed)) break;
+                const QVariantMap childResult = visit(child, tile, depth + 1, nextPath, describe);
+                if (describe) contents.append(childResult);
+            }
         }
+        if (describe && isContainer) result.insert(QStringLiteral("contents"), contents);
+        if (resultIndex >= 0) results[resultIndex] = result;
+        return result;
     };
 
     const qsizetype searchTileTotal = static_cast<qsizetype>(snapshot->tiles.size());
@@ -448,7 +461,7 @@ QVariantMap MapView::queryItems(const QuerySnapshot *snapshot, const QString &ty
         }
         for (const OtbmMapItem &item : tile.items) {
             if (m_queryCancel.load(std::memory_order_relaxed)) break;
-            visit(item, tile, 0, QString());
+            visit(item, tile, 0, QString(), false);
         }
     }
 

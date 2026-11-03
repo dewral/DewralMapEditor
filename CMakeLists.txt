@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
     "Disable Qt Creator package-manager auto setup" FORCE)
 
-project(DewralMapEditor VERSION 1.1.43 LANGUAGES C CXX)
+project(DewralMapEditor VERSION 1.1.44 LANGUAGES C CXX)
 
 set(DME_RELEASE_REPOSITORY "dewral/DewralMapEditor" CACHE STRING
     "GitHub repository hosting the stable update packages")
@@ -352,7 +352,11 @@ if(BUILD_TESTING)
             -platform "$<IF:$<PLATFORM_ID:Windows>,windows,offscreen>"
             -input "${CMAKE_SOURCE_DIR}/tests/qml/tst_classic_panels.qml"
             -import "${CMAKE_SOURCE_DIR}/tests/qml/imports")
-        set_tests_properties(tibia_ui_qml classic_panels_qml PROPERTIES
+        add_test(NAME search_results_qml COMMAND tibia_ui_qml_test
+            -platform "$<IF:$<PLATFORM_ID:Windows>,windows,offscreen>"
+            -input "${CMAKE_SOURCE_DIR}/tests/qml/tst_search_results.qml"
+            -import "${CMAKE_SOURCE_DIR}/tests/qml/imports")
+        set_tests_properties(tibia_ui_qml classic_panels_qml search_results_qml PROPERTIES
             WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
             ENVIRONMENT "QT_QUICK_CONTROLS_STYLE=Basic;QT_QUICK_BACKEND=software"
             ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
@@ -363,7 +367,8 @@ if(BUILD_TESTING)
     target_link_libraries(ui_colorize_test PRIVATE Qt6::Core Qt6::Gui Qt6::Quick)
     add_test(NAME ui_colorize COMMAND ui_colorize_test)
     add_test(NAME dme_startup COMMAND DewralMapEditor --smoke-test)
-    set_tests_properties(dme_startup PROPERTIES
+    add_test(NAME search_results_sidebar COMMAND DewralMapEditor --smoke-test --smoke-search-results)
+    set_tests_properties(dme_startup search_results_sidebar PROPERTIES
         ENVIRONMENT "QT_QUICK_BACKEND=software;QML_IMPORT_PATH=$<TARGET_FILE_DIR:DewralMapEditor>/qml"
         TIMEOUT 30)
     if(WIN32)

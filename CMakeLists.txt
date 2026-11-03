@@ -344,10 +344,12 @@ if(BUILD_TESTING)
             tests/tibia_ui_resources.qrc editor/core/uitheme.cpp)
         target_include_directories(tibia_ui_qml_test PRIVATE editor/core)
         target_link_libraries(tibia_ui_qml_test PRIVATE Qt6::QuickTest Qt6::Quick)
+        # Keep synthesized pointer input independent of the CI runner's desktop.
         add_test(NAME tibia_ui_qml COMMAND tibia_ui_qml_test
-            -platform "$<IF:$<PLATFORM_ID:Windows>,windows,offscreen>"
+            -platform offscreen
             -input "${CMAKE_SOURCE_DIR}/tests/qml/tst_tibia_theme.qml"
-            -import "${CMAKE_SOURCE_DIR}/tests/qml/imports")
+            -import "${CMAKE_SOURCE_DIR}/tests/qml/imports"
+            -o "${CMAKE_BINARY_DIR}/tibia-ui-test.log,txt")
         add_test(NAME classic_panels_qml COMMAND tibia_ui_qml_test
             -platform "$<IF:$<PLATFORM_ID:Windows>,windows,offscreen>"
             -input "${CMAKE_SOURCE_DIR}/tests/qml/tst_classic_panels.qml"

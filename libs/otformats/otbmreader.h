@@ -10,6 +10,8 @@
 #include <QSet>
 #include <QVariantList>
 #include <QVariantMap>
+#include <QRegion>
+#include <QMap>
 #include <QtQml/qqmlregistration.h>
 #include <cstdint>
 #include <deque>
@@ -426,6 +428,13 @@ public:
     bool moveItemAt(int x, int y, int z, int index, int targetIndex);
 
     bool numberedZonesEnabled() const { return m_numberedZonesEnabled; }
+    Q_INVOKABLE QVariantList zoneIds() const;
+    Q_INVOKABLE QVariantList zoneAreas(int id) const;
+    QRegion zoneGeometry(int id, int floor) const;
+    quint64 zoneRevision() const { return m_zoneRevision; }
+    int nextZoneId() const;
+    void reserveZoneId(int id) { if(id>0 && id<=65535)m_reservedZoneIds.insert(id); }
+    void setReservedZoneIds(const QSet<int> &ids) { m_reservedZoneIds=ids; }
     void setNumberedZonesEnabled(bool enabled);
     bool setTileZoneIds(int x, int y, int z, const TileZoneIds &ids);
     bool editNumberedZone(int x, int y, int z, int id, bool erase = false);
@@ -494,6 +503,7 @@ public:
 
     void beginUndoGroup();
     void endUndoGroup();
+    void cancelUndoGroup();
     Q_INVOKABLE bool undo();
     Q_INVOKABLE bool redo();
 
@@ -508,6 +518,8 @@ public:
     Q_INVOKABLE void setUndoLimit(int n);
 
 signals:
+    void zonesChanged();
+    void zonesImported(const QString &source, const QVariantMap &mapping);
     void loadedChanged();
     void errorChanged();
     void activityOperation(const QString &kind, qint64 tiles);
@@ -618,6 +630,7 @@ private:
     qsizetype m_undoBytes = 0;
     qsizetype m_redoBytes = 0;
     bool m_undoGrouping = false;
+    bool m_groupWasDirty = false;
     UndoAction m_currentGroup;
     QSet<quint64> m_groupRecorded;
     qint64 m_editOperationCount = 0;
@@ -645,6 +658,14 @@ private:
     int m_itemCount = 0;
 
     bool m_numberedZonesEnabled = false;
+    mutable bool m_zoneIndexDirty = true;
+    mutable QMap<int,QMap<int,QRegion>> m_zoneGeometry;
+    mutable QHash<int,QVariantList> m_zoneAreas;
+    QSet<int> m_reservedZoneIds;
+    quint64 m_zoneRevision = 0;
+    void ensureZoneIndex() const;
+    void invalidateZoneIndex();
+    void updateZoneIndex(int x,int y,int z,const TileZoneIds &before,const TileZoneIds &after);
     bool m_loaded = false;
     bool m_loading = false;
     int m_loadingProgress = 0;

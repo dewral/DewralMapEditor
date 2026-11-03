@@ -11,7 +11,9 @@ void WeatherParticles::configure(WeatherOptions options)
 {
     for(auto &level:options.levels) level=finiteClamp(level,0,1);
     options.wind=finiteClamp(options.wind,-160,160);
+    if(options.quality<0)options.levels.fill(0);
     options.quality=std::clamp(options.quality,0,2);
+    options.density=finiteClamp(options.density,1,5);
     m_options=options;
     reconcile();
 }
@@ -44,15 +46,17 @@ void WeatherParticles::respawn(Particle &p,bool prewarm)
 void WeatherParticles::reconcile()
 {
     const double quality[]={0.35,0.65,1.0};
-    const double area=std::clamp(m_size.width()*m_size.height()/800000.0,0.0,2.0);
+    const double area=std::clamp(m_size.width()*m_size.height()/800000.0,0.0,2.0)*m_options.density;
     const int kinds[]={0,2,4,5};
     const int counts[]={550,300,110,95};
     std::vector<Particle> next;
-    next.reserve(particleLimit);
+    const int cap[]={600,1600,3000};
+    const int maximum=cap[m_options.quality]-(m_options.levels[3]>0?192:0);
+    next.reserve(maximum);
     for(int i=0;i<4;++i) {
         const int kind=kinds[i];
         const double level=kind==0?std::max(m_options.levels[0],m_options.levels[1]):m_options.levels[kind];
-        const int count=std::min(particleLimit-int(next.size()),int(counts[i]*area*quality[m_options.quality]*level));
+        const int count=std::min(maximum-int(next.size()),int(counts[i]*area*quality[m_options.quality]*level));
         int kept=0;
         for(const auto &p:m_particles) if(p.kind==kind && kept<count) { next.push_back(p); ++kept; }
         while(kept++<count) {
@@ -65,12 +69,13 @@ void WeatherParticles::reconcile()
 void WeatherParticles::advance(double seconds)
 {
     const double dt=finiteClamp(seconds,0,0.1);
-    m_time+=dt;
+    m_time+=dt;m_phase+=dt/std::clamp(m_options.gustPeriod,2.0,60.0);
+    m_wind=std::clamp(m_options.wind+m_options.variation*WeatherVisuals::gust(m_phase,1),-160.0,160.0);
     for(auto &p:m_particles) {
         p.age+=dt;
         if(p.age>=p.lifetime) respawn(p,false);
-        const double wind=m_options.wind/32.0;
-        if(p.kind==0) { p.x+=wind*dt; p.y+=(18+12*m_options.levels[1])*p.speed*dt; }
+        const double wind=m_wind/32.0;
+        if(p.kind==0) { p.x+=wind*dt; p.y+=(12+4*m_options.levels[1])*p.speed*m_options.rainSpeed*dt; }
         else if(p.kind==2) { p.x+=(wind*0.35+std::sin(m_time+p.phase)*0.5)*dt; p.y+=1.3*p.speed*dt; }
         else if(p.kind==4) { p.x+=(wind*0.7+std::sin(m_time*1.7+p.phase))*dt; p.y+=0.8*p.speed*dt; }
         else { p.x+=std::sin(m_time*0.7+p.phase)*0.5*dt; p.y+=std::cos(m_time+p.phase)*0.3*dt; }
@@ -78,7 +83,7 @@ void WeatherParticles::advance(double seconds)
         p.y=wrap(p.y,m_bounds.top(),m_bounds.height());
     }
 }
-std::vector<WeatherVertex> WeatherParticles::geometry(const std::function<bool(int,int)> &exposed) const
+std::vector<WeatherVertex> WeatherParticles::geometry(const std::function<bool(int,int)> &exposed,const std::function<bool(int,int)> &fliesExposed) const
 {
     std::vector<WeatherVertex> out;
     if(m_size.isEmpty() || m_scale<8) return out;
@@ -90,48 +95,54 @@ std::vector<WeatherVertex> WeatherParticles::geometry(const std::function<bool(i
             static_cast<unsigned char>(color.blue()*a),static_cast<unsigned char>(255*a)};
     };
     double particleOpacity=1;
+    const std::function<bool(int,int)> *particleMask=&exposed;
+    struct ClipVertex{QPointF point;double alpha;};
     auto triangle=[&](QPointF a,QPointF b,QPointF c,QColor color,double aa,double ab,double ac) {
-        if(out.size()+3>vertexLimit) return;
-        out.push_back(vertex(a,color,aa*particleOpacity)); out.push_back(vertex(b,color,ab*particleOpacity)); out.push_back(vertex(c,color,ac*particleOpacity));
+        const double left=std::min({a.x(),b.x(),c.x()}),right=std::max({a.x(),b.x(),c.x()});
+        const double top=std::min({a.y(),b.y(),c.y()}),bottom=std::max({a.y(),b.y(),c.y()});
+        const int x0=std::max(int(std::floor(m_x)),int(std::floor(m_x+left/m_scale)));
+        const int y0=std::max(int(std::floor(m_y)),int(std::floor(m_y+top/m_scale)));
+        const int x1=std::min(int(std::ceil(m_x+m_size.width()/m_scale)),int(std::floor(m_x+right/m_scale)));
+        const int y1=std::min(int(std::ceil(m_y+m_size.height()/m_scale)),int(std::floor(m_y+bottom/m_scale)));
+        for(int y=y0;y<=y1;++y)for(int x=x0;x<=x1;++x){
+            if(!(*particleMask)(x,y))continue;
+            std::vector<ClipVertex> polygon{{a,aa},{b,ab},{c,ac}};
+            for(int side=0;side<4 && !polygon.empty();++side){
+                const double edge=side==0?(x-m_x)*m_scale:side==1?(x+1-m_x)*m_scale:side==2?(y-m_y)*m_scale:(y+1-m_y)*m_scale;
+                auto coordinate=[&](const ClipVertex &p){return side<2?p.point.x():p.point.y();};
+                auto inside=[&](const ClipVertex &p){return side==0 || side==2?coordinate(p)>=edge:coordinate(p)<=edge;};
+                std::vector<ClipVertex> clipped;auto previous=polygon.back();bool wasInside=inside(previous);
+                for(const auto &current:polygon){const bool isInside=inside(current);
+                    if(isInside!=wasInside){const double t=(edge-coordinate(previous))/(coordinate(current)-coordinate(previous));
+                        clipped.push_back({previous.point+(current.point-previous.point)*t,previous.alpha+(current.alpha-previous.alpha)*t});}
+                    if(isInside)clipped.push_back(current);previous=current;wasInside=isInside;
+                }
+                polygon=std::move(clipped);
+            }
+            for(size_t i=1;i+1<polygon.size() && out.size()+3<=vertexLimit;++i){
+                out.push_back(vertex(polygon[0].point,color,polygon[0].alpha*particleOpacity));
+                out.push_back(vertex(polygon[i].point,color,polygon[i].alpha*particleOpacity));
+                out.push_back(vertex(polygon[i+1].point,color,polygon[i+1].alpha*particleOpacity));
+            }
+        }
     };
     auto screen=[&](double x,double y) { return QPointF((x-m_x)*m_scale,(y-m_y)*m_scale); };
-    // Continuous fog is sampled in world space and clipped per exposed tile.
-    // Bound work on overview maps instead of scanning the complete document.
-    const double fog=m_options.levels[3];
-    if(fog>0) {
-        const int x0=int(std::floor(m_x)),y0=int(std::floor(m_y));
-        const int x1=int(std::ceil(m_x+m_size.width()/m_scale)),y1=int(std::ceil(m_y+m_size.height()/m_scale));
-        const double budgets[]={1800,5000,12000};
-        const int stride=std::max(1,int(std::ceil(std::sqrt(double((x1-x0+1)*(y1-y0+1))/budgets[m_options.quality]))));
-        const double drift=m_time*m_options.wind/320.0;
-        auto opacity=[&](int x,int y) { return fog*(0.08+0.18*(0.5+0.5*std::sin(x*0.19-drift+std::sin(y*0.23+m_time*0.06)))); };
-        const int gridX=int(std::floor(double(x0)/stride))*stride;
-        const int gridY=int(std::floor(double(y0)/stride))*stride;
-        for(int y=gridY;y<y1;y+=stride) for(int x=gridX;x<x1;x+=stride) {
-            bool outdoor=true;
-            for(int sy=y;sy<y+stride && outdoor;++sy) for(int sx=x;sx<x+stride;++sx)
-                if(!exposed(sx,sy)) { outdoor=false; break; }
-            if(!outdoor) continue;
-            auto a=screen(x,y),b=screen(x+stride,y),c=screen(x+stride,y+stride),d=screen(x,y+stride);
-            const QColor color("#d5e2e8");
-            triangle(a,b,c,color,opacity(x,y),opacity(x+stride,y),opacity(x+stride,y+stride));
-            triangle(a,c,d,color,opacity(x,y),opacity(x+stride,y+stride),opacity(x,y+stride));
-        }
-    }
     for(const auto &p:m_particles) {
         const QPointF center=screen(p.x,p.y);
         if(center.x()<-32 || center.y()<-32 || center.x()>m_size.width()+32 || center.y()>m_size.height()+32) continue;
-        if(!exposed(int(std::floor(p.x)),int(std::floor(p.y)))) continue;
+        const auto &mask=p.kind==5 && fliesExposed?fliesExposed:exposed;particleMask=&mask;
+        if(!mask(int(std::floor(p.x)),int(std::floor(p.y)))) continue;
         const double fade=std::clamp(std::min(p.age,p.lifetime-p.age)/std::min(0.35,p.lifetime*0.2),0.0,1.0);
         particleOpacity=fade*fade*(3-2*fade);
         if(p.kind==0) {
-            const double length=(0.42+0.4*m_options.levels[1])*m_scale;
-            QPointF direction(m_options.wind/32.0,18+12*m_options.levels[1]);
+            const double length=m_options.rainLength/32*m_scale;
+            QPointF direction(m_wind/32.0,(12+4*m_options.levels[1])*m_options.rainSpeed);
             const double norm=std::hypot(direction.x(),direction.y()); direction/=norm;
             const QPointF start=center-direction*length;
             if(!exposed(int(std::floor(m_x+start.x()/m_scale)),int(std::floor(m_y+start.y()/m_scale)))) continue;
-            const QPointF normal(direction.y()*0.55,-direction.x()*0.55);
-            const QColor color("#b6d9f0");
+            const QPointF normal(direction.y()*0.55*m_options.rainThickness,-direction.x()*0.55*m_options.rainThickness);
+            const QColor color=m_options.rainColor;
+            particleOpacity*=m_options.rainOpacity/70;
             triangle(start-normal,start+normal,center+normal,color,0.02,0.02,0.55);
             triangle(start-normal,center+normal,center-normal,color,0.02,0.55,0.55);
         } else if(p.kind==4) {

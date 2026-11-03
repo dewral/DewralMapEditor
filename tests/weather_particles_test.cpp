@@ -46,7 +46,8 @@ bool tests() {
     for(int kind:{0,1,2,3,4,5}) {
         WeatherOptions one; one.levels[kind]=1;
         scene.setCamera(100,100,32,{1000,800}); scene.configure(one);
-        CHECK(!scene.geometry(open).empty());
+        if(kind==3){WeatherVisuals::Fog bands;WeatherVisuals::FogOptions settings;settings.density=1;bands.configure(settings);bands.view(100,100,31,25,32);bands.advance(0);CHECK(!bands.patches().empty());}
+        else CHECK(!scene.geometry(open).empty());
     }
     options.levels.fill(0); scene.configure(options);
     CHECK(scene.particleCount()==0 && scene.geometry(open).empty());
@@ -70,9 +71,11 @@ bool tests() {
     scene.configure(fog); scene.setCamera(100,100,32,{64,32});
     const auto editCount=map.editOperationCount();
     const auto dirty=map.isDirty();
-    geometry=scene.geometry([&](int x,int y){return weatherTileExposed(map,x,y,7,true);});
-    CHECK(geometry.size()==6); // exactly the uncovered tile; no fog bleeding indoors
-    for(auto vertex:geometry) CHECK(vertex.x>=32 && vertex.x<=64 && vertex.y>=0 && vertex.y<=32);
+    // Fog no longer produces the old six-vertex per-tile haze. Its textured
+    // clipping is covered by weather_preview_render_test on both GPU backends.
+    CHECK(scene.geometry(open).empty());
+    WeatherVisuals::Fog bands;WeatherVisuals::FogOptions settings;settings.density=1;
+    bands.configure(settings);bands.view(100,100,2,1,32);bands.advance(0);CHECK(bands.count()>0);
     CHECK(map.editOperationCount()==editCount && map.isDirty()==dirty);
     return true;
 }

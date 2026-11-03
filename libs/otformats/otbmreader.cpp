@@ -485,6 +485,10 @@ OtbmReader::OtbmReader(QObject *parent)
 {
 
     connect(this, &OtbmReader::mapChanged, this, [this] { setDirty(true); });
+    const auto refreshZones=[this]{if(m_undoGrouping)return;for(const auto &id:zoneIds())zoneAreas(id.toInt());};
+    connect(this,&OtbmReader::mapChanged,this,refreshZones);
+    connect(this,&OtbmReader::loadedChanged,this,refreshZones);
+    connect(this,&OtbmReader::zonesChanged,this,refreshZones);
 }
 
 void OtbmReader::setDirty(bool d)
@@ -498,6 +502,7 @@ OtbmReader::~OtbmReader() = default;
 
 void OtbmReader::reset()
 {
+    invalidateZoneIndex();m_reservedZoneIds.clear();
     m_tiles.clear();
     m_posIndex.clear();
     m_undoStack.clear();
@@ -702,6 +707,7 @@ bool OtbmReader::loadFile(const QString &path)
     reportLoadingProgress(70, QStringLiteral("Loading house data..."));
     loadHousesXml(path);
 
+    invalidateZoneIndex();
     m_loaded = true;
     m_filePath = path;
     LoadProfile::record(QStringLiteral("map_counts"), -1,
@@ -759,6 +765,7 @@ bool OtbmReader::adoptLoadedState(OtbmReader &source)
 
     using std::swap;
     swap(m_tiles, source.m_tiles);
+    invalidateZoneIndex();source.invalidateZoneIndex();
     swap(m_posIndex, source.m_posIndex);
     swap(m_undoStack, source.m_undoStack);
     swap(m_redoStack, source.m_redoStack);
@@ -2574,6 +2581,7 @@ void OtbmReader::setNumberedZonesEnabled(bool enabled)
 {
     if (!m_loaded || m_numberedZonesEnabled == enabled) return;
     m_numberedZonesEnabled = enabled;
+    m_dirty=true;emit dirtyChanged();
     emit mapChanged();
 }
 
@@ -2583,30 +2591,20 @@ bool OtbmReader::setTileZoneIds(int x, int y, int z, const TileZoneIds &ids)
     auto *tile = tileAt(x, y, z);
     if (tile ? tile->zone_ids.values() == ids.values() : ids.empty()) return false;
     recordTile(x, y, z);
+    const TileZoneIds previous=tile?tile->zone_ids:TileZoneIds{};
     getOrCreateTileRaw(x, y, z)->zone_ids = ids;
+    updateZoneIndex(x,y,z,previous,ids);
     if (!m_undoGrouping) emit mapChanged();
     return true;
 }
 
-bool OtbmReader::editNumberedZone(int x, int y, int z, int id, bool erase)
+bool OtbmReader::editNumberedZone(int x,int y,int z,int id,bool erase)
 {
-    if (!m_numberedZonesEnabled || id < 0 || id > 65535) return false;
-    auto it = m_posIndex.find(posKey3d(x, y, z));
-    if (it == m_posIndex.end()) return false;
-    auto &tile = m_tiles[static_cast<size_t>(it.value())];
-    if (id == 0 ? tile.zone_ids.empty()
-                : (erase ? !tile.zone_ids.contains(uint16_t(id))
-                         : tile.zone_ids.contains(uint16_t(id)))) return false;
-    // The view verifies ground through client definitions; erasing is always allowed.
-    if (!erase && id != 0 && tile.items.empty()) return false;
-    recordTile(x, y, z);
-    if (id == 0) tile.zone_ids.clear();
-    else if (erase) tile.zone_ids.remove(uint16_t(id));
-    else tile.zone_ids.add(uint16_t(id));
-    if (!m_undoGrouping) emit mapChanged();
-    return true;
+    if(!m_numberedZonesEnabled || id<0 || id>65535)return false;
+    const auto *tile=tileAt(x,y,z);TileZoneIds ids=tile?tile->zone_ids:TileZoneIds{};
+    if(!id)ids.clear();else if(erase)ids.remove(uint16_t(id));else ids.add(uint16_t(id));
+    return setTileZoneIds(x,y,z,ids);
 }
-
 bool OtbmReader::setTileFlags(int x, int y, int z, uint32_t flags)
 {
     auto it = m_posIndex.find(posKey3d(x, y, z));
@@ -2875,6 +2873,7 @@ OtbmReader::TileSnapshot OtbmReader::currentSnapshot(int x, int y, int z) const
 
 void OtbmReader::beginUndoGroup()
 {
+    m_groupWasDirty=m_dirty;
     m_undoGrouping = true;
     m_currentGroup = UndoAction{};
     m_groupRecorded.clear();
@@ -2890,6 +2889,15 @@ void OtbmReader::endUndoGroup()
     }
     m_currentGroup = UndoAction{};
     if (pushed) emit mapChanged();
+}
+
+void OtbmReader::cancelUndoGroup()
+{
+    if(!m_undoGrouping)return;
+    m_undoGrouping=false;
+    restoreSnapshots(m_currentGroup.tiles);restoreHouseSnapshots(m_currentGroup.houses);
+    m_currentGroup=UndoAction{};m_groupRecorded.clear();invalidateZoneIndex();
+    emit mapChanged();setDirty(m_groupWasDirty);
 }
 
 void OtbmReader::setUndoLimit(int n)
@@ -3000,6 +3008,7 @@ void OtbmReader::restoreSnapshots(const std::vector<TileSnapshot> &snapshots)
 
 bool OtbmReader::undo()
 {
+    invalidateZoneIndex();
     if (m_undoStack.empty()) return false;
     UndoAction action = std::move(m_undoStack.back());
     m_undoStack.pop_back();
@@ -3032,6 +3041,7 @@ bool OtbmReader::undo()
 
 bool OtbmReader::redo()
 {
+    invalidateZoneIndex();
     if (m_redoStack.empty()) return false;
     UndoAction action = std::move(m_redoStack.back());
     m_redoStack.pop_back();
@@ -3215,6 +3225,15 @@ QVariantMap OtbmReader::importFile(const QString &path, int offsetX, int offsetY
             for (OtbmMapItem &child : *item.children()) adjustItem(child);
     };
 
+    QVariantMap zoneMapping;QSet<int> used=m_reservedZoneIds;
+    for(const auto &id:zoneIds())used.insert(id.toInt());
+    for(const auto &id:source.zoneIds()){
+        const int from=id.toInt();int to=from;
+        if(used.contains(to)){to=1;while(to<=65535 && used.contains(to))++to;}
+        if(to>65535){result["error"]="No free ZoneID for map import";return result;}
+        used.insert(to);zoneMapping[QString::number(from)]=to;
+    }
+    invalidateZoneIndex();
     beginUndoGroup();
     int importedTiles = 0;
     int discardedTiles = 0;
@@ -3236,6 +3255,7 @@ QVariantMap OtbmReader::importFile(const QString &path, int offsetX, int offsetY
         }
 
         OtbmTile tile = sourceTile;
+        tile.zone_ids.clear();for(auto id:sourceTile.zone_ids.values())tile.zone_ids.add(uint16_t(zoneMapping.value(QString::number(id)).toInt()));
         tile.x = static_cast<uint16_t>(x);
         tile.y = static_cast<uint16_t>(y);
         tile.z = static_cast<uint8_t>(z);
@@ -3308,6 +3328,8 @@ QVariantMap OtbmReader::importFile(const QString &path, int offsetX, int offsetY
     result.insert(QStringLiteral("importedTiles"), importedTiles);
     result.insert(QStringLiteral("discardedTiles"), discardedTiles);
     result.insert(QStringLiteral("mergedTiles"), mergedTiles);
+    if(!zoneMapping.isEmpty())m_numberedZonesEnabled=true;
+    result["zoneIdMapping"]=zoneMapping;emit zonesImported(path,zoneMapping);
     result.insert(QStringLiteral("towns"), static_cast<int>(townIds.size()));
     result.insert(QStringLiteral("houses"), static_cast<int>(houseIds.size()));
     return result;
@@ -4168,4 +4190,57 @@ QVariantList OtbmReader::tilesOnFloor(int z) const
         result.append(tileMap);
     }
     return result;
+}
+
+void OtbmReader::invalidateZoneIndex()
+{
+    m_zoneIndexDirty=true;m_zoneAreas.clear();++m_zoneRevision;
+}
+void OtbmReader::ensureZoneIndex() const
+{
+    if(!m_zoneIndexDirty)return;
+    m_zoneGeometry.clear();m_zoneAreas.clear();
+    for(const auto &tile:m_tiles)for(auto id:tile.zone_ids.values())m_zoneGeometry[id][tile.z]|=QRect(tile.x,tile.y,1,1);
+    m_zoneIndexDirty=false;
+}
+void OtbmReader::updateZoneIndex(int x,int y,int z,const TileZoneIds &before,const TileZoneIds &after)
+{
+    if(!m_zoneIndexDirty){
+        const QRegion cell(QRect(x,y,1,1));
+        for(auto id:before.values())if(!after.contains(id)){m_zoneGeometry[id][z]-=cell;if(m_zoneGeometry[id][z].isEmpty())m_zoneGeometry[id].remove(z);if(m_zoneGeometry[id].isEmpty())m_zoneGeometry.remove(id);}
+        for(auto id:after.values())if(!before.contains(id))m_zoneGeometry[id][z]|=cell;
+    }
+    for(auto id:before.values())m_zoneAreas.remove(id);for(auto id:after.values())m_zoneAreas.remove(id);
+    ++m_zoneRevision;
+    if(!m_undoGrouping)emit zonesChanged();
+}
+QRegion OtbmReader::zoneGeometry(int id,int floor) const {ensureZoneIndex();return m_zoneGeometry.value(id).value(floor);}
+QVariantList OtbmReader::zoneIds() const
+{
+    ensureZoneIndex();QVariantList ids;for(auto it=m_zoneGeometry.cbegin();it!=m_zoneGeometry.cend();++it)if(!it.value().isEmpty())ids.append(it.key());return ids;
+}
+int OtbmReader::nextZoneId() const
+{
+    ensureZoneIndex();for(int i=1;i<=65535;++i)if(!m_reservedZoneIds.contains(i) && !m_zoneGeometry.contains(i))return i;return 0;
+}
+QVariantList OtbmReader::zoneAreas(int id) const
+{
+    if(m_undoGrouping)return m_zoneAreas.value(id);
+    ensureZoneIndex();if(m_zoneAreas.contains(id))return m_zoneAreas.value(id);
+    QVariantList result;
+    const auto floors=m_zoneGeometry.value(id);
+    for(auto f=floors.cbegin();f!=floors.cend();++f){
+        std::vector<QRect> rects;for(const auto &rect:f.value())rects.push_back(rect);
+        std::vector<int> parent(rects.size());for(size_t i=0;i<parent.size();++i)parent[i]=int(i);
+        auto root=[&](int i){while(parent[size_t(i)]!=i){parent[size_t(i)]=parent[size_t(parent[size_t(i)])];i=parent[size_t(i)];}return i;};
+        for(size_t i=0;i<rects.size();++i)for(size_t j=i+1;j<rects.size() && rects[j].top()<=rects[i].bottom()+1;++j)
+            if(rects[i].adjusted(-1,-1,1,1).intersects(rects[j]))parent[size_t(root(int(j)))]=root(int(i));
+        QMap<int,QVariantMap> groups;
+        for(size_t i=0;i<rects.size();++i){const auto &r=rects[i];auto &g=groups[root(int(i))];
+            if(g.isEmpty())g={{"floor",f.key()},{"x",r.center().x()},{"y",r.center().y()},{"tiles",qint64(0)}};
+            g["tiles"]=g.value("tiles").toLongLong()+qint64(r.width())*r.height();}
+        for(const auto &g:groups)result.append(g);
+    }
+    std::sort(result.begin(),result.end(),[](const QVariant &a,const QVariant &b){const auto x=a.toMap(),y=b.toMap();if(x.value("tiles")!=y.value("tiles"))return x.value("tiles").toLongLong()>y.value("tiles").toLongLong();if(x.value("floor")!=y.value("floor"))return x.value("floor").toInt()<y.value("floor").toInt();if(x.value("y")!=y.value("y"))return x.value("y").toInt()<y.value("y").toInt();return x.value("x").toInt()<y.value("x").toInt();});
+    m_zoneAreas.insert(id,result);return result;
 }

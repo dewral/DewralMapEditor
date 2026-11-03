@@ -54,6 +54,59 @@ Rectangle {
     if(outsideChanges<500 || roofChanges) { qCritical()<<"Weather coverage"<<outsideChanges<<roofChanges; return 4; }
     const auto args=app.arguments();
     if(args.size()>1) image.save(args[1]);
+    const auto original=weather->configuration();
+    auto fogOnly=QVariantMap{{"enabled",true},{"paused",true},{"fog",100},{"fogOpacity",100},{"quality",2},{"respectRoofs",true}};
+    weather->setConfiguration(fogOnly);settle(100);const auto fullFog=window.grabWindow();
+    const int fogCount=weather->particleCount();
+    if(!fogCount || weather->fogFragmentCount()==0)return 14;
+    qInfo()<<"Fog cost: fragments"<<weather->fogFragmentCount()<<"overdraw"<<weather->fogOverdraw();
+    if(args.size()>1)fullFog.save(args[1]+".fog.png");
+    fogOnly["fogOpacity"]=50;weather->setConfiguration(fogOnly);settle(100);const auto halfFog=window.grabWindow();
+    if(weather->particleCount()!=fogCount)return 15;
+    qint64 fullDelta=0,halfDelta=0;
+    for(int y=0;y<fullFog.height();++y)for(int x=0;x<fullFog.width();++x){
+        const auto base=baseline.pixelColor(x,y),a=fullFog.pixelColor(x,y),b=halfFog.pixelColor(x,y);
+        fullDelta+=std::abs(a.red()-base.red())+std::abs(a.green()-base.green())+std::abs(a.blue()-base.blue());
+        halfDelta+=std::abs(b.red()-base.red())+std::abs(b.green()-base.green())+std::abs(b.blue()-base.blue());
+    }
+    if(fullDelta==0 || halfDelta>=fullDelta)return 16;
+    fogOnly["fogOpacity"]=0;weather->setConfiguration(fogOnly);settle(100);if(window.grabWindow()!=baseline)return 17;
+    auto indoorFog=fogOnly;indoorFog["fogOpacity"]=200;indoorFog["fogScale"]=2;indoorFog["indoorFog"]=true;
+    weather->setConfiguration(indoorFog);settle(100);const auto permitted=window.grabWindow();int insideRoof=0;
+    for(int y=int(33*dpr);y<int(127*dpr);++y)for(int x=int(33*dpr);x<int(127*dpr);++x)if(permitted.pixel(x,y)!=baseline.pixel(x,y))++insideRoof;
+    if(!insideRoof)return 18;
+    auto roofRain=indoorFog;roofRain["fog"]=0;roofRain["rain"]=100;
+    weather->setConfiguration(roofRain);settle(100);const auto dryRoof=window.grabWindow();
+    for(int y=int(33*dpr);y<int(127*dpr);++y)for(int x=int(33*dpr);x<int(127*dpr);++x)if(dryRoof.pixel(x,y)!=baseline.pixel(x,y))return 19;
+    weather->setConfiguration(original);settle(100);
+    auto masked=original;
+    masked["regionMask"]=QVariantList{QVariantMap{{"x",100},{"y",100},{"w",5},{"h",13}}};
+    weather->setConfiguration(masked);settle(120);
+    const auto clipped=window.grabWindow();int inside=0,outside=0;
+    for(int y=0;y<clipped.height();++y)for(int x=0;x<clipped.width();++x) {
+        if(clipped.pixel(x,y)==baseline.pixel(x,y))continue;
+        if(x>=160*dpr)++outside;else ++inside;
+    }
+    if(!inside || outside){qCritical()<<"Region preview clipping"<<inside<<outside;return 9;}
+    map.setNumberedZonesEnabled(true);
+    map.beginUndoGroup();
+    for(int y=100;y<113;++y)for(int x=100;x<113;++x)if(x<106 || x>108 || y<106 || y>108)map.editNumberedZone(x,y,7,1);
+    map.endUndoGroup();
+    QVariantList zoneMask;for(const auto &r:map.zoneGeometry(1,7))zoneMask.append(QVariantMap{{"x",r.x()},{"y",r.y()},{"w",r.width()},{"h",r.height()}});
+    masked["regionMask"]=zoneMask;weather->setConfiguration(masked);settle(120);
+    const auto holed=window.grabWindow();int changes=0;
+    for(int y=0;y<holed.height();++y)for(int x=0;x<holed.width();++x){
+        if(holed.pixel(x,y)==baseline.pixel(x,y))continue;
+        if(x>=192*dpr && x<288*dpr && y>=192*dpr && y<288*dpr){qCritical()<<"Weather leaked into zone hole";return 12;}
+        ++changes;
+    }
+    if(!changes)return 13;
+    masked["regionMask"]=QVariantList{};weather->setConfiguration(masked);settle(100);
+    if(window.grabWindow()!=baseline)return 10;
+    weather->setMap(nullptr);
+    weather->setConfiguration({{"enabled",true},{"demo",true},{"rain",100},{"paused",true}});settle(120);
+    if(weather->particleCount()==0 || window.grabWindow()==baseline){qCritical()<<"Demo diagnostic"<<weather->particleCount()<<weather->configuration()<<weather->width()<<weather->height();if(args.size()>1)window.grabWindow().save(args[1]+".demo.png");return 11;}
+    weather->setMap(&map);weather->setConfiguration(original);
     // Repeated camera updates must not restart the timer and starve simulation.
     window.requestActivate(); settle(120);
     if(!window.isActive()) { qCritical()<<"Test window could not activate"; return 6; }

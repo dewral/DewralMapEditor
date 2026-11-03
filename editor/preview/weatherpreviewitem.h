@@ -6,6 +6,7 @@
 #include <QTimer>
 #include <QElapsedTimer>
 #include <QVariantMap>
+#include <QRegion>
 #include <QtQml/qqmlregistration.h>
 
 class WeatherPreviewItem : public QQuickItem {
@@ -28,7 +29,9 @@ public:
     double originY() const { return m_y; }
     double tileSize() const { return m_scale; }
     int floor() const { return m_floor; }
-    int particleCount() const { return m_particles.particleCount(); }
+    int particleCount() const { return m_particles.particleCount()+m_fog.count(); }
+    int fogFragmentCount() const { return m_fogFragments; }
+    double fogOverdraw() const { return m_fogOverdraw; }
     double simulationTime() const { return m_particles.elapsed(); }
     void setOriginX(double value);
     void setOriginY(double value);
@@ -47,10 +50,17 @@ private:
     void updateRunning();
     bool hasWeather() const;
     bool exposed(int x,int y) const;
+    bool fogExposed(int x,int y) const;
+    void configureFog();
     QPointer<OtbmReader> m_map;
     QVariantMap m_configuration;
+    QRegion m_regionMask;
+    bool m_limitToRegion=false;
     WeatherOptions m_options;
     WeatherParticles m_particles;
+    WeatherVisuals::Fog m_fog;
+    QRegion m_fogMask;bool m_fogMaskDirty=true;
+    int m_fogFragments=0;double m_fogOverdraw=0;
     QTimer m_timer;
     QElapsedTimer m_clock;
     double m_x=0,m_y=0,m_scale=32;

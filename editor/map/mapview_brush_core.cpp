@@ -33,11 +33,7 @@ void MapView::paintZoneAt(int cx, int cy)
             if (!brushCovers(dx, dy)) continue;
             const int tx = cx + dx, ty = cy + dy;
             if (m_editController.activeZone() == 64) {
-                const auto *tile = currentFloorTileAt(tx, ty);
-                if (!tile) continue;
-                if (!m_brushController.eraseStroke() && m_numberedZoneId != 0
-                    && std::none_of(tile->items.begin(), tile->items.end(),
-                         [this](const auto &item) { return item.is_ground || itemCategory(item.server_id) == 0; })) continue;
+
                 if (m_otbm->editNumberedZone(tx, ty, m_navigationController.floor(),
                         m_numberedZoneId, m_brushController.eraseStroke())) {
                     onTileEdited(tx, ty, m_navigationController.floor()); any = true;

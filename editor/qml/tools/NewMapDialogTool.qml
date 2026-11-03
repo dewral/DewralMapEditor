@@ -6,5 +6,5 @@ NewMapDialog {
     required property var environment
 
     app: environment.app
-    onClosed: Qt.callLater(() => environment.newMapLoader.active = false)
+    // Reuse the small dialog and keep its context stable across client requests.
 }

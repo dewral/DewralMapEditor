@@ -35,7 +35,7 @@ Item {
         originY: layer.previewCamera ? layer.previewOriginY : layer.viewY
         tileSize: layer.previewCamera ? 32 : layer.mapView.tileSize
         floor: layer.previewCamera ? layer.previewFloor : layer.mapView.floor
-        configuration: ({
+        configuration: { const result={
             enabled: !!layer.settings[layer.settingsPrefix + "Enabled"],
             paused: !!layer.settings[layer.settingsPrefix + "Paused"],
             rain: layer.settings[layer.settingsPrefix + "Rain"] || 0,
@@ -48,6 +48,8 @@ Item {
             quality: layer.settings[layer.settingsPrefix + "Quality"] === undefined ? 1 : layer.settings[layer.settingsPrefix + "Quality"],
             respectRoofs: layer.settings[layer.settingsPrefix + "RespectRoofs"] !== false,
             fps: layer.settings.renderMaxFps > 0 ? Math.min(60, layer.settings.renderMaxFps) : 60
-        })
+        };
+        const defaults={"fogOpacity":100,"rainOpacity":70,"rainSpeed":1,"transition":5,"gustPeriod":12,"fogScale":1,"fogTurbulence":25,"variation":0,"rainThickness":1,"fogSpeed":1,"rainColor":"#B6D9F0","rainLength":12,"fogColor":"#D5E2E8"};for(const key of Object.keys(defaults)){const value=layer.settings[layer.settingsPrefix+key[0].toUpperCase()+key.slice(1)];result[key]=value===undefined?defaults[key]:value;}return result;
+        }
     }
 }

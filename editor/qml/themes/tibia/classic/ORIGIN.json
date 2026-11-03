@@ -1,0 +1,338 @@
+[
+  {
+    "file": "window.png",
+    "source": "Qt client resources/classicui/window.png",
+    "sha256": "19e962b5b7c7cb61844ce2d3446829ce32e9a94c3d85efae32cb18632d862436",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "buttons.png",
+    "source": "Qt client resources/classicui/buttons.png",
+    "sha256": "3602a8d6b34459edc4d2c04e408e5e842cc3ae50308f2a6d6a6f4f3387d9bc41",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "miniwindow_buttons.png",
+    "source": "Qt client resources/classicui/miniwindow_buttons.png",
+    "sha256": "6bdaad7ada3156315b0cd0dafad32dbe88d19a7e6d98dcabd6235308cac54c8d",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "scrollbar.png",
+    "source": "Qt client resources/classicui/scrollbar.png",
+    "sha256": "364bca63088dc7c104312ca4f5a4414d1085f5805310cf1262c15df70c15d1db",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "checkbox.png",
+    "source": "Qt client resources/classicui/checkbox.png",
+    "sha256": "af23890c9d1bbb5dcb7d6b278d815800308e1c3332cda9b11bcdf60963d75c62",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "panel_side.png",
+    "source": "Qt client resources/classicui/panel_side.png",
+    "sha256": "4576aef3fb6a361a78c4cdc0ac8a84f192c15c32a11afe232aaff7eeec74f3c4",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "panel_flat.png",
+    "source": "Qt client resources/classicui/panel_flat.png",
+    "sha256": "3791c01d8bdd0901b90758f78435d4e7177163a59a039588b682ffb287e1725b",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "textedit.png",
+    "source": "Qt client resources/classicui/textedit.png",
+    "sha256": "49ab70d573fa1fbe65c388f8e3f143415b4238fe9f901f3c3a9df8f8ab2dfcb1",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "options.png",
+    "source": "Qt client resources/classicui/options.png",
+    "sha256": "974a17bbc74bdaecfeb87e6f85254c611a3c02f5ad5fb99c3c8b47e2b8fcddf8",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "skills.png",
+    "source": "Qt client resources/classicui/skills.png",
+    "sha256": "5bd6dff778ced979c702ec4a753b870919c09cddf88a515b3e728fe0263b07f2",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "battle.png",
+    "source": "Qt client resources/classicui/battle.png",
+    "sha256": "a188d75d2384ac555619581b60d211747b1614c36ccb0295446627daac3df804",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "vip.png",
+    "source": "Qt client resources/classicui/vip.png",
+    "sha256": "f371deedf5fb7440cbc600ebe38c8a1864a34a64822db50209d136adb7be1349",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "minimap-circle.png",
+    "source": "Qt client resources/classicui/minimap-circle.png",
+    "sha256": "eb9da87114eac790eddbfcea91f5a241812d23b1e31b2ab766b4e6a3635bb419",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "minimap-floor-up.png",
+    "source": "Qt client resources/classicui/minimap-floor-up.png",
+    "sha256": "4843865170ef7f11e52dd3b43542d7e6b61d106f48fda618f876f81d3b8198ff",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "minimap-floor-down.png",
+    "source": "Qt client resources/classicui/minimap-floor-down.png",
+    "sha256": "df479c71c76c7552f20de8e3cb0861cdc2d690591ab4daec76f17b4bb7955336",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "minimap-zoom-in.png",
+    "source": "Qt client resources/classicui/minimap-zoom-in.png",
+    "sha256": "c195b7e9a74b350ef46e56c52b5e702eb26aace9f6c0761a3fbb274a1a8c524f",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "minimap-zoom-out.png",
+    "source": "Qt client resources/classicui/minimap-zoom-out.png",
+    "sha256": "589c9af5c7ffd89faa2c95c16a6ec36e7cb01a309acb1a410f8cb1cc2a59cc72",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "progressbar.png",
+    "source": "Qt client resources/classicui/progressbar.png",
+    "sha256": "332e9865bf922e38d036bdddb8b0ab92bb5af331622a6c6959864e7c88f60fa1",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "condition.png",
+    "source": "Qt client resources/classicui/condition.png",
+    "sha256": "8248ad3d025a76e875e712fa608c1a588eda54d7ba0a0a9be652dbc6913572d9",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "magic_shield.png",
+    "source": "Qt client resources/classicui/magic_shield.png",
+    "sha256": "7bf6cb8d8a7bdf1f217a3c6987af1178e0f5f6c496bafd7e16a485c9587f67a4",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "verdana-11px-antialised_cp1252.png",
+    "source": "Qt client resources/fonts/verdana-11px-antialised_cp1252.png",
+    "sha256": "326805765b08038d85c0e53ba5db89fd14f7addd6a6b1f18ec0f785fdbc3d615",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "verdana-11px-antialised.otfont",
+    "source": "Qt client resources/fonts/verdana-11px-antialised.otfont",
+    "sha256": "1cf558cf25f13888d0462d632cbd6c1adfe7772b8a8c9cb9ef798bbac8750493",
+    "license": "OTCv8 MIT; see LICENSE.txt"
+  },
+  {
+    "file": "native-health.png",
+    "source": "Qt client NativeUi::icon / NativeRangeSlider; Tibia.pic",
+    "source_sha256": "0c9587c12965c6243f7037bf7b72b102b2214d3bbdb4a7ec26a01ab16e6d833d",
+    "picture": 3,
+    "rect": [
+      220,
+      76,
+      12,
+      11
+    ],
+    "rgba_sha256": "bf436aed3d3a18a920c4093197cd2002678eb7c229c8d3e65d421f5d263df4be",
+    "license": "Original user-supplied client artwork; not covered by OTCv8 MIT"
+  },
+  {
+    "file": "native-mana.png",
+    "source": "Qt client NativeUi::icon / NativeRangeSlider; Tibia.pic",
+    "source_sha256": "0c9587c12965c6243f7037bf7b72b102b2214d3bbdb4a7ec26a01ab16e6d833d",
+    "picture": 3,
+    "rect": [
+      220,
+      87,
+      12,
+      11
+    ],
+    "rgba_sha256": "3083707cba49067ef45c1e762e7e9c7d9477831e94cdd5a3a4807a9f0d02001f",
+    "license": "Original user-supplied client artwork; not covered by OTCv8 MIT"
+  },
+  {
+    "file": "native-bar-health.png",
+    "source": "Qt client NativeUi::icon / NativeRangeSlider; Tibia.pic",
+    "source_sha256": "0c9587c12965c6243f7037bf7b72b102b2214d3bbdb4a7ec26a01ab16e6d833d",
+    "picture": 3,
+    "rect": [
+      96,
+      75,
+      90,
+      11
+    ],
+    "rgba_sha256": "66bac0333071a86c46c123d5831449bedac359745b38add8dd5b01fa25526198",
+    "license": "Original user-supplied client artwork; not covered by OTCv8 MIT"
+  },
+  {
+    "file": "native-bar-mana.png",
+    "source": "Qt client NativeUi::icon / NativeRangeSlider; Tibia.pic",
+    "source_sha256": "0c9587c12965c6243f7037bf7b72b102b2214d3bbdb4a7ec26a01ab16e6d833d",
+    "picture": 3,
+    "rect": [
+      96,
+      86,
+      90,
+      11
+    ],
+    "rgba_sha256": "c5306179dc756f1e85a20b3a2d7957e6f7470f3e9857ea61945960dca2044a73",
+    "license": "Original user-supplied client artwork; not covered by OTCv8 MIT"
+  },
+  {
+    "file": "native-bar-empty.png",
+    "source": "Qt client NativeUi::icon / NativeRangeSlider; Tibia.pic",
+    "source_sha256": "0c9587c12965c6243f7037bf7b72b102b2214d3bbdb4a7ec26a01ab16e6d833d",
+    "picture": 3,
+    "rect": [
+      96,
+      64,
+      90,
+      11
+    ],
+    "rgba_sha256": "4cfdcb3fffcb82e4ef71519ecd13e91e619bd66559dd979b9f7d19fdbd4a82c9",
+    "license": "Original user-supplied client artwork; not covered by OTCv8 MIT"
+  },
+  {
+    "file": "native-slider-track.png",
+    "source": "Qt client NativeUi::icon / NativeRangeSlider; Tibia.pic",
+    "source_sha256": "0c9587c12965c6243f7037bf7b72b102b2214d3bbdb4a7ec26a01ab16e6d833d",
+    "picture": 3,
+    "rect": [
+      2,
+      199,
+      96,
+      12
+    ],
+    "rgba_sha256": "dddadf3e029b7f2c90a3a96a030e1702b8bfc6d85cd5e2e99c5ede7649635046",
+    "license": "Original user-supplied client artwork; not covered by OTCv8 MIT"
+  },
+  {
+    "file": "native-slider-thumb.png",
+    "source": "Qt client NativeUi::icon / NativeRangeSlider; Tibia.pic",
+    "source_sha256": "0c9587c12965c6243f7037bf7b72b102b2214d3bbdb4a7ec26a01ab16e6d833d",
+    "picture": 3,
+    "rect": [
+      220,
+      64,
+      12,
+      12
+    ],
+    "rgba_sha256": "a529d0dafce3078bdefc4b0379241612a2dd4a15241528b57eee797ccd94e81f",
+    "license": "Original user-supplied client artwork; not covered by OTCv8 MIT"
+  },
+  {
+    "file": "native-slider-less.png",
+    "source": "Qt client NativeUi::icon / NativeRangeSlider; Tibia.pic",
+    "source_sha256": "0c9587c12965c6243f7037bf7b72b102b2214d3bbdb4a7ec26a01ab16e6d833d",
+    "picture": 3,
+    "rect": [
+      232,
+      76,
+      12,
+      12
+    ],
+    "rgba_sha256": "071be96f28d6236e16577c752c7fcaa336289390477ba06f6d49693b3bd120d5",
+    "license": "Original user-supplied client artwork; not covered by OTCv8 MIT"
+  },
+  {
+    "file": "native-slider-less-down.png",
+    "source": "Qt client NativeUi::icon / NativeRangeSlider; Tibia.pic",
+    "source_sha256": "0c9587c12965c6243f7037bf7b72b102b2214d3bbdb4a7ec26a01ab16e6d833d",
+    "picture": 3,
+    "rect": [
+      234,
+      134,
+      12,
+      12
+    ],
+    "rgba_sha256": "51876eb5599bc9cbf5fc0bb20f9d8b9cc9c17a3dfabbcde6abe8297f42942f2a",
+    "license": "Original user-supplied client artwork; not covered by OTCv8 MIT"
+  },
+  {
+    "file": "native-slider-more.png",
+    "source": "Qt client NativeUi::icon / NativeRangeSlider; Tibia.pic",
+    "source_sha256": "0c9587c12965c6243f7037bf7b72b102b2214d3bbdb4a7ec26a01ab16e6d833d",
+    "picture": 3,
+    "rect": [
+      244,
+      76,
+      12,
+      12
+    ],
+    "rgba_sha256": "de980038038883125a43ace86612eecc35dac0d0a33b88e8c018b163fd14f9be",
+    "license": "Original user-supplied client artwork; not covered by OTCv8 MIT"
+  },
+  {
+    "file": "native-slider-more-down.png",
+    "source": "Qt client NativeUi::icon / NativeRangeSlider; Tibia.pic",
+    "source_sha256": "0c9587c12965c6243f7037bf7b72b102b2214d3bbdb4a7ec26a01ab16e6d833d",
+    "picture": 3,
+    "rect": [
+      246,
+      134,
+      12,
+      12
+    ],
+    "rgba_sha256": "157169edef47a2ed52a5592123d668fa747fcb73509766675960cc11dfa50478",
+    "license": "Original user-supplied client artwork; not covered by OTCv8 MIT"
+  },
+  {
+    "file": "native-checkbox-off.png",
+    "source": "Qt client NativeUi::icon / NativeRangeSlider; Tibia.pic",
+    "source_sha256": "0c9587c12965c6243f7037bf7b72b102b2214d3bbdb4a7ec26a01ab16e6d833d",
+    "picture": 3,
+    "rect": [
+      308,
+      96,
+      12,
+      12
+    ],
+    "rgba_sha256": "87287988a6a6a645a155208f2139664052bc1e5948beabc0df01214673106a2d",
+    "license": "Original user-supplied client artwork; not covered by OTCv8 MIT"
+  },
+  {
+    "file": "native-checkbox-on.png",
+    "source": "Qt client NativeUi::icon / NativeRangeSlider; Tibia.pic",
+    "source_sha256": "0c9587c12965c6243f7037bf7b72b102b2214d3bbdb4a7ec26a01ab16e6d833d",
+    "picture": 3,
+    "rect": [
+      308,
+      108,
+      12,
+      12
+    ],
+    "rgba_sha256": "c49bd26c1dc0c5a8048fa35e87054dd311e32734dfc6c52e153a2ca5a7a79330",
+    "license": "Original user-supplied client artwork; not covered by OTCv8 MIT"
+  },
+  {
+    "file": "native-font-5.png",
+    "source": "Qt client NativeUi::text; Tibia.pic",
+    "source_sha256": "0c9587c12965c6243f7037bf7b72b102b2214d3bbdb4a7ec26a01ab16e6d833d",
+    "picture": 5,
+    "rgba_sha256": "acced4097a4561d1a673f0d1609ea47c0ffc1feaaf75a3de56a674fef84f2213",
+    "license": "Original user-supplied client artwork; not covered by OTCv8 MIT"
+  },
+  {
+    "file": "native-font-7.png",
+    "source": "Qt client NativeUi::text; Tibia.pic",
+    "source_sha256": "0c9587c12965c6243f7037bf7b72b102b2214d3bbdb4a7ec26a01ab16e6d833d",
+    "picture": 7,
+    "rgba_sha256": "96cb4b36194f9e950468e3aa32ab48dc2027543741a75f0dc4eb79292468b1e1",
+    "license": "Original user-supplied client artwork; not covered by OTCv8 MIT"
+  },
+  {
+    "file": "native-input.png",
+    "source": "Qt client resources/ui/input.png; NativeUi::field",
+    "sha256": "62434f9ebf61ed4dd44a99ec10f65f7b5652c354e2b93409d279837a9e322078",
+    "license": "Original user-supplied client UI artwork; not covered by OTCv8 MIT"
+  }
+]

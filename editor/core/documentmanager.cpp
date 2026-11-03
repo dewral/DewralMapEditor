@@ -70,7 +70,8 @@ QVariantList DocumentManager::tabs() const
         const QString path = doc->filePath();
         t.insert(QStringLiteral("title"),
                  path.isEmpty() ? QStringLiteral("(new map)") : QFileInfo(path).fileName());
-        t.insert(QStringLiteral("dirty"), doc->isDirty());
+        const auto *weather=doc->findChild<QObject*>(QStringLiteral("weatherRegions"),Qt::FindDirectChildrenOnly);
+        t.insert(QStringLiteral("dirty"), doc->isDirty() || (weather && weather->property("dirty").toBool()));
         t.insert(QStringLiteral("loaded"), doc->isLoaded());
         out.push_back(t);
     }
@@ -95,6 +96,12 @@ bool DocumentManager::closeDocument(int i)
 
     OtbmReader *cur = m_docs.value(m_current, nullptr);
 
+    auto *weather=m_docs[i]->findChild<QObject*>(QStringLiteral("weatherRegions"),Qt::FindDirectChildrenOnly);
+    if(weather && weather->property("dirty").toBool()) {
+        bool saved=false;
+        QMetaObject::invokeMethod(weather,"save",Qt::DirectConnection,Q_RETURN_ARG(bool,saved));
+        if(!saved){ emit autosaveFailed(QStringLiteral("Weather regions"),weather->property("error").toString());return false; }
+    }
     OtbmReader *doc = m_docs.takeAt(i);
     clearRecovery(doc);
     const QString id = m_documentIds.take(doc);
@@ -503,7 +510,8 @@ void DocumentManager::markCleanShutdown()
 bool DocumentManager::hasDirtyDocuments() const
 {
     for (const OtbmReader *document : m_docs) {
-        if (document && document->isDirty())
+        const auto *weather=document?document->findChild<QObject*>(QStringLiteral("weatherRegions"),Qt::FindDirectChildrenOnly):nullptr;
+        if (document && (document->isDirty() || (weather && weather->property("dirty").toBool())))
             return true;
     }
     return false;

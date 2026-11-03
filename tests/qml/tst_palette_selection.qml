@@ -240,11 +240,25 @@ Item {
             verify(brushFrame.mapToItem(panel,0,0).y>=toolsFrame.mapToItem(panel,0,toolsFrame.height).y);
             compare(image.border.left,4); compare(image.border.top,17);
             verify(String(image.source).indexOf("dialog-frame-borderimage.png")>=0);
-            compare(image.caption,panel.currentKind); compare(image.contentTopMargin,25);
-            image.captionActivated();
+            compare(image.caption,"Palette"); compare(image.contentTopMargin,25);
+            compare(image.captionIconSource,"");
+            const caption=findChild(image,"tibiaWindowCaption");
+            compare(caption.x+caption.width/2,image.width/2);
             const kindPicker=findChild(panel,"paletteKindCombo");
+            verify(kindPicker.visible); compare(kindPicker.height,28);
+            image.captionActivated();
+            compare(kindPicker.open,false);
+            waitForRendering(panel);
+            mouseClick(kindPicker,kindPicker.width-12,kindPicker.height/2);
             tryCompare(kindPicker,"open",true);
             keyClick(Qt.Key_Escape); tryCompare(kindPicker,"open",false);
+            kindPicker.handleActivation(kindPicker.model.indexOf("Terrain Palette"));
+            compare(panel.currentKind,"Terrain Palette");
+            compare(prefs.lastPaletteKind,"Terrain Palette");
+            compare(image.caption,"Palette");
+            const tilesetPicker=findChild(panel,"paletteTilesetCombo");
+            verify(tilesetPicker.mapToItem(panel,0,0).y
+                   >kindPicker.mapToItem(panel,0,kindPicker.height).y);
 
             verify(findChild(image,"tibiaWindowMouseShield")!==null);
             wait(250);
@@ -261,12 +275,12 @@ Item {
                 verify(doors.mapToItem(panel,doors.width,0).x<=panel.width);
             }
             panel.floating=false;
-            tryCompare(background,"active",true); compare(background.item,image);
+            tryCompare(background,"active",true); compare(findChild(background,"tibiaDialogFrame"),image);
             Backend.uiTheme.style="fluent-dark";
             tryCompare(background,"active",false); compare(background.item,null);
         }
         function test_rawTilesetSurvivesRestart_data() {
-            return ["fluent-dark", "gray-dark", "gray-modern", "github", "classic", "windows-classic"]
+            return ["tibia-ui", "fluent-dark", "gray-dark", "gray-modern", "github", "classic", "windows-classic"]
                     .map(theme => ({tag: theme, theme: theme}));
         }
         function test_rawTilesetSurvivesRestart(data) {
@@ -345,11 +359,11 @@ Item {
                     "RAW Others must not build full item details for the hidden Doodad grid");
             compare(findChild(panel, "doodadPaletteGrid").count, 0);
         }
-        function test_selectRawOpensOthers_data() {
-            return ["classic", "windows-classic", "github", "gray-dark", "gray-modern", "fluent-dark"]
+        function test_selectRawOpensMatchingTileset_data() {
+            return ["classic", "windows-classic", "github", "gray-dark", "gray-modern", "fluent-dark", "tibia-ui"]
                     .map(theme => ({tag: theme, theme: theme}));
         }
-        function test_selectRawOpensOthers(data) {
+        function test_selectRawOpensMatchingTileset(data) {
             Backend.uiTheme.style = data.theme;
             tilesets.rawNames = ["Architecture", "Others"];
             tilesets.saved = ({Walls: [], Architecture: [500]});
@@ -371,14 +385,16 @@ Item {
                 panel.selectRaw(serverId);
                 verify(panel.visible, "Select RAW must reveal a hidden palette");
                 compare(panel.currentKind, "RAW Palette");
-                tryCompare(tileset, "currentText", "Others");
-                compare(prefs.lastRawTileset, "Others");
+                const expectedTileset = serverId === 500 ? "Architecture" : "Others";
+                tryCompare(tileset, "currentText", expectedTileset);
+                compare(prefs.lastRawTileset, expectedTileset);
                 compare(grid.filterModel.searchText, "");
                 compare(mockMap.brushServerId, serverId);
                 compare(mockMap.houseBrush, 0);
                 verify(!mockMap.eraseMode && !mockMap.lassoMode);
-                if (serverId === 725)
-                    tryCompare(grid, "currentIndex", grid.filterModel.rowForServerId(serverId));
+                const row = grid.filterModel.rowForServerId(serverId);
+                verify(row >= 0);
+                tryCompare(grid, "currentIndex", row);
             }
         }
         function test_drawReplacesPreviousPaletteSelection_data() {

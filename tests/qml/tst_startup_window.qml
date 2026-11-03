@@ -7,6 +7,7 @@ Item {
     QtObject {
         id: session
         property bool started: false
+        property var editorWindow: null
         property string loadedClientKey: "860"
         property string pendingKey: "860"
         property var clientPaths: ({})
@@ -16,7 +17,8 @@ Item {
         function profileVer(key) { return Number(key); }
         function isCustomKey(key) { return false; }
         function clientFiles(folder) { return {dat:"", spr:"", otb:""}; }
-        function createNewMap(key,w,h) {}
+        property var lastCreated: null
+        function createNewMap(key,w,h) { lastCreated={key:key,width:w,height:h}; }
     }
     Component { id: factory; Editor.StartupWindow { app: session; settings: prefs } }
     TestCase {
@@ -26,6 +28,7 @@ Item {
         function init() {
             Backend.docMgr.recoveryCount = 0; Backend.docMgr.recoveries = [];
             prefs.selectedClientKey = "860"; session.pendingKey = "860";
+            session.clientPaths=({"860":""});
             welcome = factory.createObject(null);
             verify(welcome !== null);
         }
@@ -59,6 +62,11 @@ Item {
             verify(open.ensureLoaded());
             compare(open.item.startupWindow,welcome);
             compare(open.item.nameFilters[0],"OTBM maps (*.otbm)");
+            compare(open.item.parentWindow,welcome);
+            compare(folder.item.parentWindow,welcome);
+            session.editorWindow=welcome;
+            compare(open.item.parentWindow,session.editorWindow);
+            session.editorWindow=null;
             welcome.loadingMap = true;
             folder.item.rejected();
             compare(welcome.loadingMap,false);
@@ -79,6 +87,52 @@ Item {
             tryVerify(()=>recovery.item!==null);
             compare(recovery.item.width,Math.min(welcome.width-40,620));
             compare(recovery.item.height,Math.min(welcome.height-80,330));
+        }
+        function test_createButtonUsesSelectedProfileAndSize() {
+            for(let i=0;i<2;++i) {
+                session.lastCreated=null;
+                welcome.openNewMapDialog();
+                const dialog=findChild(welcome,"startupNewMapHost").item;
+                mouseClick(findChild(dialog.contentItem,"newMapCreateButton"));
+                verify(session.lastCreated!==null);
+                compare(session.lastCreated.key,"860");
+                compare(session.lastCreated.width,2048);
+                compare(session.lastCreated.height,2048);
+                tryCompare(dialog,"visible",false);
+            }
+        }
+        function test_completedEditorLoadReleasesStartupGuard() {
+            session.started=true;
+            Backend.otbmReader.loading=true;
+            welcome.loadingMap=true;
+            Backend.otbmReader.loading=false;
+            compare(welcome.loadingMap,false);
+            session.started=false;
+        }
+        function test_classicLoadingBar() {
+            Backend.uiTheme.style="tibia-ui";
+            welcome.loadingMap=true;
+            const host=findChild(welcome,"startupLoadingHost");
+            tryVerify(()=>host.item!==null);
+            const track=findChild(host.item,"startupProgressTrack");
+            const fill=findChild(host.item,"startupProgressFill");
+            compare(track.height,14); compare(track.radius,7);
+            compare(track.border.width,1); verify(fill.gradient!==null);
+            for(const percent of [0,1,50,99,100]) {
+                Backend.otbmReader.loadingProgress=percent;
+                tryCompare(fill,"width",Math.round(track.width*percent/100),1000);
+                compare(fill.visible,percent>0);
+                verify(fill.radius<=fill.width/2);
+            }
+            welcome.loadingMapPath="teria.otbm";
+            Backend.otbmReader.loadingProgress=80;
+            welcome.show();
+            wait(150);
+            grabImage(welcome.contentItem).save("build/classic-timer-color/dark-green-loading.png");
+            welcome.hide();
+            Backend.uiTheme.style="fluent-dark";
+            compare(track.height,7); compare(track.radius,4); compare(fill.gradient,null);
+            Backend.otbmReader.loadingProgress=0;
         }
         function test_recoveryAndLoadingOnlyWhenNeeded() {
             const recovery = findChild(welcome,"startupRecoveryHost");

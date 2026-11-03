@@ -176,6 +176,26 @@ Item {
             mouseClick(locate("workTimerHistory"));
             compare(locate("workTimerHistory").text,"History");
         }
+        function test_classicTimer() {
+            Backend.uiTheme.style="tibia-ui";
+            wait(80);
+            const popup=locate("workTimerPopup");
+            const frame=locate("workTimerBackground").item;
+            compare(frame.caption,"Work timer");
+            compare(frame.centerCaption,true);
+            compare(locate("workTimerHero").radius,0);
+            compare(locate("workTimerHeroTime").font.family,"Verdana");
+            test_pauseResumeAndDetails();
+            test_visualLayout();
+            mouseClick(locate("workTimerHistory"));
+            compare(frame.caption,"History");
+            mouseClick(locate("workTimerHistory"));
+            test_shortWindowKeepsTimerReachable();
+            wait(40);
+            grabImage(scene.Window.window.contentItem).save("build/classic-timer-color/work-timer-classic.png");
+            frame.closeRequested();
+            tryCompare(popup,"visible",false);
+        }
         function test_visualLayout() {
             wait(30);
             const popup=locate("workTimerPopup");

@@ -91,12 +91,17 @@ DmeDialog {
             spacing: 6
             anchors.horizontalCenter: parent.horizontalCenter
             DmeButton {
+                objectName: "newMapCreateButton"
                 text: "Create"
                 width: 90
                 enabled: verCombo.currentIndex >= 0
                 onClicked: {
+                    const controller = root.app;
+                    const key = root.profileKeys[verCombo.currentIndex];
+                    const width = wField.value;
+                    const height = hField.value;
+                    controller.createNewMap(key, width, height);
                     root.close();
-                    root.app.createNewMap(root.profileKeys[verCombo.currentIndex], wField.value, hField.value);
                 }
             }
             DmeButton {

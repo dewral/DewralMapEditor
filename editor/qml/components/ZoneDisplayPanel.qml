@@ -1,10 +1,13 @@
 import QtQuick
 import QtQuick.Controls
+import Tibia 1.0
+import "../themes/tibia" as TibiaSkin
 import "../style"
 import "../themes/fluent/Colors.js" as Colors
 
 Rectangle {
     id: root
+    readonly property bool tibiaUi: Backend.uiTheme.style === "tibia-ui"
     required property var mapView
     function setZoneColor(index, color) {
         const values = mapView.zoneColors.slice();
@@ -18,13 +21,18 @@ Rectangle {
         onAccepted: root.setZoneColor(zoneIndex, selectedColor)
     }
     color: Colors.c("surface")
-    radius: 6
+    radius: tibiaUi ? 0 : 6
     border.color: Colors.c("border")
     implicitWidth: 236
-    implicitHeight: content.implicitHeight + 24
+    implicitHeight: content.implicitHeight + (tibiaUi ? 33 : 24)
+    Loader {
+        anchors.fill: parent; active: root.tibiaUi
+        sourceComponent: TibiaSkin.TibiaPopupWindow { caption: "Zone display"; showCloseButton: false }
+    }
     Flickable {
         anchors.fill: parent
-        anchors.margins: 12
+        anchors.margins: root.tibiaUi ? 8 : 12
+        anchors.topMargin: root.tibiaUi ? 25 : 12
         contentHeight: content.implicitHeight
         clip: true
         boundsBehavior: Flickable.StopAtBounds
@@ -32,7 +40,7 @@ Rectangle {
         id: content
         width: parent.width
         spacing: 10
-        Text { text: "Zone display"; color: Colors.c("heading"); font { family: Colors.family(); pixelSize: 12; bold: true } }
+        Text { visible: !root.tibiaUi; text: "Zone display"; color: Colors.c("heading"); font { family: Colors.family(); pixelSize: 12; bold: true } }
         Rectangle { width: parent.width; height: 1; color: Colors.c("separator") }
         Repeater {
             model: [ {name:"Protection Zone",bit:1,color:"#399ee8"}, {name:"Non-PvP",bit:4,color:"#48b883"},
@@ -90,6 +98,8 @@ Rectangle {
                     width: parent.width
                     spacing: 8
                     Slider {
+                        id: zoneOpacitySlider
+
                         objectName: "zoneOpacity" + index
                         width: parent.width - 40
                         from: 0; to: 1; stepSize: 0.05
@@ -110,6 +120,7 @@ Rectangle {
                             let values = root.mapView.zoneOpacities.slice(); values[index] = value;
                             root.mapView.zoneOpacities = values;
                         }
+                        TibiaSkin.TibiaSliderSkin { control: zoneOpacitySlider }
                     }
                     Text { text: Math.round((index === 4 ? root.mapView.houseOpacity : root.mapView.zoneOpacities[index]) * 100) + "%"; color: Colors.c("muted"); font { family: Colors.family(); pixelSize: 11 } anchors.verticalCenter: parent.verticalCenter }
                 }
@@ -124,6 +135,8 @@ Rectangle {
                 width: content.width
                 Text { text: modelData.name + "  " + Math.round(root.mapView[modelData.key] * 100) + "%"; color: Colors.c("text"); font { family: Colors.family(); pixelSize: 12 } }
                 Slider {
+                    id: layerOpacitySlider
+
                     width: parent.width
                     from: 0; to: 1; stepSize: 0.05
                     value: root.mapView[modelData.key]
@@ -139,6 +152,7 @@ Rectangle {
                         width: 10; height: 10; radius: 5; color: Colors.c("accent")
                     }
                     onMoved: root.mapView[modelData.key] = value
+                    TibiaSkin.TibiaSliderSkin { control: layerOpacitySlider }
                 }
             }
         }

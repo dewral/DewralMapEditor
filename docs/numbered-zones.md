@@ -5,7 +5,7 @@ zones in this map** only when the target server implements RME-ZONES. The same s
 is available in Map > Properties. New maps and standard maps default to disabled.
 Loading an OTBM carrying the extension automatically enables it to preserve its data.
 
-Choose an ID from 1 to 65535 and click Paint zone. Paint adds that ID to ground tiles;
+Choose an ID from 1 to 65535 and click Paint zone. Paint adds that ID to tiles, including empty tiles;
 several IDs can coexist. Ctrl + paint removes only the chosen ID. ID 0 clears all IDs.
 The existing brush size/shape, grouped strokes and Undo/Redo apply. Whole-tile copy,
 cut, move, rotation and paste preserve zone lists; copying a single item does not.
@@ -47,3 +47,13 @@ overlapping/max IDs, malformed lists, undo/redo, bulk editing, cleanup, backgrou
 adoption, detached recovery and recovery while output is disabled. View tests cover
 painting, Ctrl removal, search, labels and overlay visibility. UI tests cover opt-in,
 brush activation, selection scope and four themes.
+
+## Shared weather geometry
+
+The weather panel uses the same tile IDs and map undo history. Its list includes
+unassigned IDs, tile counts and cached disconnected areas with camera navigation.
+Weather metadata has separate undo. Removing a weather binding never removes IDs.
+Import remaps collisions and the corresponding weather references; different maps'
+identical numbers do not imply the same zone. See [weather-regions.md](weather-regions.md)
+for snapshot migration and atomic server package export. The agreed format remains
+TileFlags `0x40`; OTBM 5 is not supported.

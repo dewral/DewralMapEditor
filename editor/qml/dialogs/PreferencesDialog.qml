@@ -1,5 +1,6 @@
 import Tibia 1.0
 import QtQuick
+import "../themes/tibia" as TibiaSkin
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../style"
@@ -138,6 +139,8 @@ DmeDialog {
                         Row {
                             spacing: 10
                             Slider {
+                                id: selectionOpacitySlider
+
                                 objectName: "selectionOpacitySlider"
                                 width: 160
                                 from: 0; to: 100; stepSize: 1
@@ -157,6 +160,7 @@ DmeDialog {
                                     border.width: 3; border.color: Colors.c("surface")
                                 }
                                 onMoved: dialog.mapView.selectionOpacity = value / 100
+                                TibiaSkin.TibiaSliderSkin { control: selectionOpacitySlider }
                             }
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
@@ -182,6 +186,8 @@ DmeDialog {
                         Row {
                             spacing: 10
                             Slider {
+                                id: tooltipMinimumZoomSlider
+
                                 objectName: "tooltipMinimumZoomSlider"
                                 width: 160
                                 from: 0; to: 100; stepSize: 5
@@ -201,6 +207,7 @@ DmeDialog {
                                     border.width: 3; border.color: Colors.c("surface")
                                 }
                                 onMoved: dialog.settings.tooltipMinimumZoom = Math.round(value)
+                                TibiaSkin.TibiaSliderSkin { control: tooltipMinimumZoomSlider }
                             }
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
@@ -226,6 +233,8 @@ DmeDialog {
                         Row {
                             spacing: 10
                             Slider {
+                                id: creatureNamesMinimumZoomSlider
+
                                 objectName: "creatureNamesMinimumZoomSlider"
                                 width: 160
                                 from: 0; to: 100; stepSize: 5
@@ -245,6 +254,7 @@ DmeDialog {
                                     border.width: 3; border.color: Colors.c("surface")
                                 }
                                 onMoved: dialog.settings.creatureNamesMinimumZoom = Math.round(value)
+                                TibiaSkin.TibiaSliderSkin { control: creatureNamesMinimumZoomSlider }
                             }
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
@@ -270,6 +280,8 @@ DmeDialog {
                         Row {
                             spacing: 10
                             Slider {
+                                id: lightingMinimumZoomSlider
+
                                 objectName: "lightingMinimumZoomSlider"
                                 width: 160
                                 from: 0; to: 100; stepSize: 5
@@ -289,6 +301,7 @@ DmeDialog {
                                     border.width: 3; border.color: Colors.c("surface")
                                 }
                                 onMoved: dialog.settings.lightingMinimumZoom = Math.round(value)
+                                TibiaSkin.TibiaSliderSkin { control: lightingMinimumZoomSlider }
                             }
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter

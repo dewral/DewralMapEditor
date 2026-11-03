@@ -79,7 +79,7 @@ MenuItem {
     background: Rectangle {
         objectName: "menuEntryBackground"
         radius: Backend.uiTheme.style === "tibia-ui" ? 0 : control.fluentTheme ? 4 : control.modernTheme ? 4 : 0
-        color: control.tibiaTheme ? ((control.highlighted || control.hovered) && control.enabled ? "#606060" : "transparent") : control.fluentTheme ? (control.highlighted ? FluentColors.c("hover") : "transparent") : control.highlighted ? (control.windowsClassic ? "#0a64ad" : (control.modernTheme ? (control.grayTheme ? "#303030" : "#1B2632") : "#807a7d82")) : "transparent"
+        color: control.tibiaTheme ? ((control.highlighted || control.hovered) && control.enabled ? "#18ffffff" : "transparent") : control.fluentTheme ? (control.highlighted ? FluentColors.c("hover") : "transparent") : control.highlighted ? (control.windowsClassic ? "#0a64ad" : (control.modernTheme ? (control.grayTheme ? "#303030" : "#1B2632") : "#807a7d82")) : "transparent"
         border.width: !control.tibiaTheme && control.highlighted ? 1 : 0
         border.color: control.fluentTheme ? FluentColors.c("border") : control.windowsClassic ? "#0a64ad" : (control.modernTheme ? (control.grayTheme ? "#555555" : "#3A4655") : "#9a9a9a")
     }

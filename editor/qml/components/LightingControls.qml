@@ -1,10 +1,13 @@
 import QtQuick
 import QtQuick.Controls
+import Tibia 1.0
+import "../themes/tibia" as TibiaSkin
 import "../themes/fluent/Colors.js" as Colors
 
 Column {
     id: root
     required property var mapView
+    readonly property bool tibiaUi: Backend.uiTheme.style === "tibia-ui"
     property bool paletteOpen: false
     property bool paletteOnly: false
     spacing: 12
@@ -36,6 +39,12 @@ Column {
         }
         background: Rectangle { color: Colors.c("button"); border.color: Colors.c("border") }
     }
+    Row {
+        visible: root.tibiaUi && root.paletteOnly
+        spacing: 8
+        Rectangle { width: 18; height: 18; color: root.paletteColor(root.mapView.lightAmbientColor); border.color: "#b4b4ad" }
+        Text { anchors.verticalCenter: parent.verticalCenter; text: "Color " + root.mapView.lightAmbientColor; color: "#d5d5ce"; font.family: "Verdana"; font.pixelSize: 11 }
+    }
     Grid {
         visible: root.paletteOpen
         columns: 18; spacing: 2
@@ -43,11 +52,19 @@ Column {
             model: 216
             delegate: Rectangle {
                 required property int index
-                width: 14; height: 14
+                objectName: "lightColorCell_" + index
+                width: root.tibiaUi ? 16 : 14; height: width
                 color: root.paletteColor(index)
                 border.width: root.mapView.lightAmbientColor === index ? 2 : 1
                 border.color: root.mapView.lightAmbientColor === index ? "white" : Colors.c("border")
-                MouseArea { anchors.fill: parent; onClicked: root.mapView.lightAmbientColor = parent.index }
+                Accessible.name: "Light color " + index
+                Accessible.role: Accessible.Button
+                Accessible.onPressAction: root.mapView.lightAmbientColor = index
+                Rectangle { anchors.fill: parent; anchors.margins: 2; color: "transparent"; border.color: "#202020"; visible: root.tibiaUi && root.mapView.lightAmbientColor === parent.index }
+                MouseArea { id: cellMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.mapView.lightAmbientColor = parent.index }
+                ToolTip.visible: cellMouse.containsMouse
+                ToolTip.delay: 650
+                ToolTip.text: "Color " + index
             }
         }
     }

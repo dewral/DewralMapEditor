@@ -24,6 +24,87 @@ DmeWindow {
     function toolEnvironment() {
         return ({activityLoader: activityLoader, aiMapAssistantLoader: aiMapAssistantLoader, app: app, browseFieldLoader: browseFieldLoader, brushEditorLoader: brushEditorLoader, cleanupLoader: cleanupLoader, colorizeLoader: colorizeLoader, containerDialog: containerDialog, containerLoader: containerLoader, creatureManagerLoader: creatureManagerLoader, customMapGeneratorLoader: customMapGeneratorLoader, dungeonGeneratorLoader: dungeonGeneratorLoader, exportMinimapLoader: exportMinimapLoader, findItemLoader: findItemLoader, gotoPosLoader: gotoPosLoader, groundClusterGeneratorLoader: groundClusterGeneratorLoader, importMapLoader: importMapLoader, luaGeneratorLoader: luaGeneratorLoader, mapPropsLoader: mapPropsLoader, newMapLoader: newMapLoader, numberedZonesLoader: numberedZonesLoader, palette: palette, prefs: prefs, propsDialog: propsDialog, propsDialogLoader: propsDialogLoader, searchResultsLoader: searchResultsLoader, selectionItemLoader: selectionItemLoader, statsLoader: statsLoader, terrainGeneratorLoader: terrainGeneratorLoader, themeLoader: themeLoader, tileMapGenDialog: tileMapGenDialog, tileMapGenLoader: tileMapGenLoader, townsLoader: townsLoader, waypointsLoader: waypointsLoader, weatherLoader: weatherLoader, workspace: workspace});
     }
+    property int smokeDocumentTiles: 0
+    property bool smokeCreateDialog: false
+    property int smokeDocumentVersion: 860
+    function smokeDocumentStep(step, secondPath) {
+        const docs=Backend.docMgr;
+        console.log("DOCUMENT_STEP",step,"count",docs.count);
+        if(step===0) {
+            if(!docs.current.loaded && !docs.current.newMap(512,512,860,2,22))return false;
+            smokeDocumentVersion=docs.current.suggestedClientVersion();
+            smokeDocumentTiles=docs.current.tileCount;
+            app.started=true; workspace.visible=true;
+            root.editorPresented=true;root.opacity=1;root.show();
+        } else if(step===1) {
+            if(secondPath) { startupScreen.beginLoadMap(secondPath,String(smokeDocumentVersion)); }
+            else { docs.newDocument(); if(!docs.current.newMap(512,512,smokeDocumentVersion,2,22))return false; }
+        } else if(step===2) { if(docs.count!==2)return false; docs.currentIndex=0; }
+        else if(step===3) { if(docs.current.tileCount!==smokeDocumentTiles)return false; docs.currentIndex=1; }
+        else if(step===4) {
+            smokeCreateDialog=app.loadedClientKey!=="";
+            if(smokeCreateDialog)newMapDialog.open();
+            else { docs.newDocument(); if(!docs.current.newMap(256,256,smokeDocumentVersion,2,22))return false; }
+        }
+        else if(step===5) {
+            if(!smokeCreateDialog)return true;
+            function findCreate(item) {
+                if(item.objectName==="newMapCreateButton")return item;
+                if(item.children)for(let i=0;i<item.children.length;++i){const found=findCreate(item.children[i]);if(found)return found;}
+                return null;
+            }
+            const button=findCreate(newMapLoader.item.contentItem);
+            if(!button)return false;
+            button.clicked();
+        }
+        else if(step===6) { if(docs.count!==3)return false; docs.currentIndex=0; }
+        else if(step===7) { docs.closeDocument(2); }
+        else if(step===8) { docs.closeDocument(1); if(docs.count!==1 || !docs.current.loaded || docs.current.tileCount!==smokeDocumentTiles)return false; }
+        return true;
+    }
+    property int smokeWeatherUndoCount: 0
+    function smokeWeatherRegions(path) {
+        const map=Backend.docMgr.current;
+        if(!map.newMap(512,512,860,2,22))return false;
+        workspace.mapView.placeItemAt(90,90,100);
+        for(let y=100;y<=110;++y)for(let x=100;x<=115;++x)workspace.mapView.placeItemAt(x,y,100);
+        if(!map.saveFile(path))return false;
+        smokeWeatherUndoCount=map.undoCount;
+        const layer=workspace.weatherRegions,doc=layer.document;
+        workspace.visible=true;
+        if(!doc || !doc.createRegion("smoke_swamp","Swamp weather"))return false;
+        doc.beginStroke();doc.paintRectangle(100,100,115,110,7,false);doc.paint(107,105,7,1,false,true);doc.endStroke();
+        if(doc.visibleRects(107,105,107,105,7).length!==0)return false;
+        doc.undoGeometry();if(doc.visibleRects(100,100,100,100,7).length!==0)return false;
+        doc.redoGeometry();if(doc.visibleRects(100,100,100,100,7).length===0)return false;
+        workspace.mapView.centerOnTile(107,105,7);
+        layer.editing=true;layer.openPanel();
+        if(!layer.smokePreview())return false;
+        root.width=1400;root.height=900;
+        root.visibility=Window.Windowed;root.editorPresented=true;root.opacity=1;
+        if(!map.saveFile(path))return false;smokeWeatherUndoCount=map.undoCount;
+        console.log("WEATHER_REGIONS_UI_OK");
+        return !map.dirty;
+    }
+    function prepareWeatherInput() {
+        const layer=workspace.weatherRegions;
+        layer.closePanel();layer.tool="square";layer.radius=0;layer.editing=true;
+        workspace.mapView.centerOnTile(107,105,7);layer.refresh();
+        const point=layer.mapToItem(null,(107-layer.originX+0.5)*workspace.mapView.tileSize,(105-layer.originY+0.5)*workspace.mapView.tileSize);
+        console.log("WEATHER_INPUT_POSITION",point.x,point.y,"visible",layer.visible,"size",layer.width,layer.height,"floor",workspace.mapView.floor,"loaded",Backend.otbmReader.loaded);
+        return {x:point.x,y:point.y};
+    }
+    function verifyWeatherInput(phase) {
+        const layer=workspace.weatherRegions,doc=layer.document;
+        const filled=doc.visibleRects(107,105,107,105,7).length>0;
+        console.log("WEATHER_INPUT_RESULT",phase,filled,"undo",Backend.docMgr.current.undoCount,smokeWeatherUndoCount);
+        if(Backend.docMgr.current.undoCount!==smokeWeatherUndoCount+(phase===0?1:0))return false;
+        if(phase===0)return filled;
+        if(phase===1)return !filled && doc.preview.rain===55 && doc.visibleRects(100,100,100,100,7).length>0;
+        if(layer.editing)return false;
+        layer.openPanel();layer.startTimedSmoke();console.log("WEATHER_REGIONS_INPUT_OK");return true;
+    }
+    function verifyWeatherTimeout() { const ok=workspace.weatherRegions.verifyTimedSmoke();if(ok)console.log("WEATHER_TEST_TIMEOUT_OK");return ok; }
     function smokeMapBrush() {
         if (!generationLibraryLoader.ensureLoaded()) return false;
         generationLibraryLoader.item.startOnMap();
@@ -45,7 +126,8 @@ DmeWindow {
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
                                    || Backend.uiTheme.style === "gray-modern"
     readonly property bool modernGrayUi: Backend.uiTheme.style === "gray-modern"
-    readonly property int fluentTitleHeight: tibiaUi ? 30 : 34
+    readonly property int fluentTitleHeight: tibiaUi ? 26 : 34
+    readonly property int editorFrameInset: tibiaUi ? 4 : 0
     readonly property int topBarHeight: fluentUi ? fluentTitleHeight + (tibiaUi ? 28 : 32) : (githubUi ? 56 : 45)
     readonly property int minimumPaletteWidth: modernGrayUi ? 330 : (githubUi ? 220 : 160)
     readonly property int maximumPaletteWidth: Math.floor(width * 0.5)
@@ -66,9 +148,18 @@ DmeWindow {
             editorPresented = true;
     }
     // Present the editor maximized when leaving the startup screen.
-    visibility: app.started ? Window.Maximized : Window.Hidden
-    width: 1000
-    height: 680
+    // Optional diagnostic size makes native UI comparisons repeatable without
+    // changing normal window presentation or persisted user settings.
+    readonly property size profileWindowSize: {
+        const args=Qt.application.arguments, index=args.indexOf("--profile-window-size");
+        if (args.indexOf("--load-profile")<0 || index<0 || index+1>=args.length) return Qt.size(0,0);
+        const parts=String(args[index+1]).split("x");
+        const w=Number(parts[0]), h=Number(parts[1]);
+        return parts.length===2 && w>=720 && h>=480 && w<=7680 && h<=4320 ? Qt.size(w,h) : Qt.size(0,0);
+    }
+    visibility: app.started ? (profileWindowSize.width>0 ? Window.Windowed : Window.Maximized) : Window.Hidden
+    width: profileWindowSize.width>0 ? profileWindowSize.width : 1000
+    height: profileWindowSize.height>0 ? profileWindowSize.height : 680
     minimumWidth: 720
     minimumHeight: 480
     title: "Dewral Map Editor  -  " + (Backend.otbmReader.filePath !== "" ? Backend.fileTools.fileName(Backend.otbmReader.filePath) : "(no map)") + (Backend.otbmReader.dirty ? "  *" : "")
@@ -109,7 +200,13 @@ DmeWindow {
         color: FluentColors.c("background")
         Loader {
             anchors.fill: parent; active: root.tibiaUi
-            sourceComponent: TibiaSkin.TibiaMenuBox { }
+            sourceComponent: TibiaSkin.TibiaWindowFrame {
+                objectName: "tibiaMainWindowFrame"
+                headerHeight: root.fluentTitleHeight
+                // MenuBox already supplies the separator below the title.
+                captionDividerHeight: 0
+                showHeader: false; showCloseButton: false; movable: false
+            }
         }
     }
 
@@ -172,17 +269,36 @@ DmeWindow {
             Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 32; color: FluentColors.c("titleBar"); TibiaSkin.TibiaSkin { anchors.fill: parent } }
         }
         Loader {
+            objectName: "mainMenuBox"
             x: 6; y: root.fluentTitleHeight; width: parent.width-12; height: 28
             active: root.tibiaUi
-            sourceComponent: TibiaSkin.TibiaClassicFrame { kind: "panel" }
+            sourceComponent: TibiaSkin.TibiaMenuBox { }
+        }
+        TibiaSkin.TibiaPanelHeader {
+            objectName: "tibiaMainWindowHeader"
+            // The existing native title drag area owns input; this header supplies pixels only.
+            enabled: false
+            visible: root.tibiaUi
+            anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+            height: root.fluentTitleHeight
+            captionHeight: root.fluentTitleHeight
+            caption: root.title
+            captionIconSource: "qrc:/ui/github/app-icon.png"
+            captionIconSize: 20
+            captionFontPixelSize: 14
+            showCloseButton: false
+            reservedButtons: 3
+            reservedButtonWidth: 26
+            movable: false
+            windowActive: root.active
         }
         Image {
-            visible: root.fluentUi
+            visible: root.fluentUi && !root.tibiaUi
             x: 10; y: (root.fluentTitleHeight - height) / 2; width: 16; height: width
             source: "qrc:/ui/github/app-icon.png"
         }
         Text {
-            visible: root.fluentUi
+            visible: root.fluentUi && !root.tibiaUi
             x: root.tibiaUi ? 90 : 38; y: 0; height: root.fluentTitleHeight
             width: Math.max(0, parent.width - (root.tibiaUi ? 180 : 190))
             text: root.title
@@ -257,13 +373,14 @@ DmeWindow {
                 right: parent.right
                 top: parent.top
             }
-            anchors.rightMargin: root.tibiaUi ? 6 : 0
+            anchors.rightMargin: root.tibiaUi ? 4 : 0
             spacing: root.tibiaUi ? 2 : 0
             z: 5
 
             GithubWindowButton {
                 height: parent.height
                 controlType: "minimize"
+                paletteCaption: root.tibiaUi
                 onTriggered: root.showMinimized()
             }
 
@@ -271,6 +388,7 @@ DmeWindow {
                 id: maximizeWindowButton
                 height: parent.height
                 controlType: "maximize"
+                paletteCaption: root.tibiaUi
                 maximized: root.visibility === Window.Maximized
                 nativeHovered: root.maximizeHovered
                 nativePressed: root.maximizePressed
@@ -280,12 +398,14 @@ DmeWindow {
             GithubWindowButton {
                 height: parent.height
                 controlType: "close"
+                paletteCaption: root.tibiaUi
                 onTriggered: app.requestAppClose()
             }
         }
 
         MouseArea {
             id: titleDragArea
+            objectName: "mainWindowDragHandle"
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
@@ -293,9 +413,9 @@ DmeWindow {
             height: root.tibiaUi ? root.fluentTitleHeight : parent.height
             anchors {
                 leftMargin: root.githubUi ? 460 : 0
-                rightMargin: root.githubUi ? 138 : 138
+                rightMargin: root.tibiaUi ? 84 : 138
             }
-            z: 0
+            z: root.tibiaUi ? 1 : 0
             onPressed: root.startSystemMove()
 
             onDoubleClicked: root.visibility === Window.Maximized ? root.showNormal() : root.showMaximized()
@@ -423,8 +543,8 @@ DmeWindow {
 
     Shortcut {
         sequence: Backend.hotkeys.activeBindings.redo_alternative
-        enabled: Backend.otbmReader.redoCount > 0
-        onActivated: workspace.mapView.redo()
+        enabled: workspace.mapView.weatherEditing ? workspace.mapView.weatherDocument.canRedoGeometry : Backend.otbmReader.redoCount > 0
+        onActivated: { if(workspace.mapView.weatherEditing)workspace.mapView.weatherDocument.redoGeometry();else workspace.mapView.redo(); }
     }
 
     Shortcut {
@@ -500,7 +620,7 @@ DmeWindow {
         id: paletteDock
         settings: prefs
         availableWidth: root.contentItem.width - 12
-        availableHeight: Math.max(0, root.contentItem.height - paletteTop - (root.fluentUi ? fluentStatusBar.height + 2 : 28))
+        availableHeight: Math.max(0, root.contentItem.height - paletteTop - (root.fluentUi ? fluentStatusBar.height + 2 + root.editorFrameInset : 28))
         panelWidth: palette.width
     }
     readonly property real paletteTop: root.fluentUi ? fluentFileBar.y + fluentFileBar.height : titleBar.y + titleBar.height
@@ -527,7 +647,7 @@ DmeWindow {
         x:prefs.ingamePreviewDockSide==="left" ? root.baseMapLeft : root.width-root.baseMapRight-width
         y:root.paletteTop
         width:root.previewDockWidth
-        height:Math.max(0,root.height-y-(root.fluentUi ? fluentStatusBar.height + 2 : 6))
+        height:Math.max(0,root.height-y-(root.fluentUi ? fluentStatusBar.height + 2 + root.editorFrameInset : 6))
         z:3
     }
     Rectangle {
@@ -797,7 +917,8 @@ DmeWindow {
         anchors.leftMargin: root.mapLeft
         anchors.right: parent.right
         anchors.rightMargin: root.mapRight
-        height: app.started ? (root.tibiaUi ? 30 : root.fluentUi ? 36 : root.githubUi ? 42 : 22) : 0
+        z: root.tibiaUi ? 1 : 0
+        height: app.started ? (root.tibiaUi ? 28 : root.fluentUi ? 36 : root.githubUi ? 42 : 22) : 0
         visible: app.started
 
         sourceComponent: root.githubUi
@@ -809,6 +930,7 @@ DmeWindow {
         id: classicTabsComponent
         DocumentTabs {
             app: app
+            onNewRequested: newMapDialog.open()
         }
     }
 
@@ -880,13 +1002,13 @@ DmeWindow {
         proceduralBrushSession: generationLibraryLoader.active ? generationLibraryLoader.item : null
         previewDockHost:previewDockHost
         anchors.top: tabBar.bottom
-        anchors.topMargin: 0
+        anchors.topMargin: root.tibiaUi ? -2 : 0
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.leftMargin: root.mapLeft
         anchors.right: parent.right
         anchors.rightMargin: root.mapRight
-        anchors.bottomMargin: root.fluentUi ? fluentStatusBar.height + 2 : root.githubUi ? 1 : 6
+        anchors.bottomMargin: root.fluentUi ? fluentStatusBar.height + 2 + root.editorFrameInset : root.githubUi ? 1 : 6
         visible: app.started
         app: app
         settings: prefs
@@ -898,9 +1020,12 @@ DmeWindow {
     DmeStatusBar {
         workTimerPopupHost: sharedWorkTimerPopup
         id: fluentStatusBar
+        anchors.leftMargin: root.editorFrameInset
+        anchors.rightMargin: root.editorFrameInset
+        anchors.bottomMargin: root.editorFrameInset
         visible: root.fluentUi && app.started
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-        height: root.tibiaUi ? 32 : 44
+        height: implicitHeight
         mapView: workspace.mapView
         loaded: Backend.otbmReader.loaded
         showFps: prefs.showFps
@@ -1142,9 +1267,9 @@ DmeWindow {
 
     QtObject {
         id: weatherDialog
+        function openRegions() { workspace.weatherRegions.openPanel("region"); }
         function open() {
-            if (!weatherLoader.ensureLoaded()) return false;
-            weatherLoader.item.open();
+            workspace.weatherRegions.openPanel("test");
         }
     }
     LazyToolHost {

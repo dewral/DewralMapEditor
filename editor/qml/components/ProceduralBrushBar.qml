@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import "../themes/tibia" as TibiaSkin
 
 import QtQuick.Controls
 
@@ -272,7 +273,11 @@ Control {
 
             Label {text: "Nieregularność: "+(bar.session?bar.session.roughnessValue:35)+"%";color: Colors.c("muted")}
 
-            Slider {Layout.fillWidth: true;from: 0;to: 100;stepSize: 1;value: bar.session?bar.session.roughnessValue:35;onMoved: bar.session.setMapRoughness(Math.round(value))}
+            Slider {
+                id: roughnessSlider
+                Layout.fillWidth: true;from: 0;to: 100;stepSize: 1;value: bar.session?bar.session.roughnessValue:35;onMoved: bar.session.setMapRoughness(Math.round(value))
+                TibiaSkin.TibiaSliderSkin { control: roughnessSlider }
+            }
 
             CheckBox {text: "Zastępuj teren pod pędzlem";checked: !!bar.session&&bar.session.replaceTerrain;palette.windowText: Colors.c("text");onToggled: bar.session.setReplaceTerrain(checked)}
 

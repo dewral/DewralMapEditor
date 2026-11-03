@@ -1,4 +1,6 @@
 import QtQuick
+import Tibia 1.0
+import "../themes/tibia" as TibiaSkin
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../style"
@@ -6,7 +8,8 @@ import "../style"
 Column {
     id: root
     enabled: typeof timerService.ready !== "boolean" || timerService.ready
-    component TimerLabel: Text { font.family: "Segoe UI" }
+    readonly property bool tibiaUi: Backend.uiTheme.style === "tibia-ui"
+    component TimerLabel: Text { font.family: root.tibiaUi ? "Verdana" : "Segoe UI" }
     required property var timerService
     property bool canStart: true
     property string draftIcon: "mapping"
@@ -22,7 +25,7 @@ Column {
     signal iconRequested(string task, string icon)
     signal removeRequested(string task)
     signal detailsRequested()
-    spacing: 14
+    spacing: root.tibiaUi ? 12 : 14
     objectName: "workTimerTaskPanel"
     function chooseDraftIcon(icon) { draftIcon = icon; iconWasChosen = true; }
     function begin() {
@@ -38,19 +41,20 @@ Column {
     Rectangle {
         id: hero
         objectName: "workTimerHero"
-        width: parent.width; height: 214; radius: 7
-        color: root.cardColor; border.color: root.borderColor
+        width: parent.width; height: root.tibiaUi ? 190 : 214; radius: root.tibiaUi ? 0 : 7
+        color: root.tibiaUi ? "transparent" : root.cardColor; border.color: root.tibiaUi ? "transparent" : root.borderColor
+        TibiaSkin.TibiaMenuBox { objectName: "workTimerHeroFrame"; anchors.fill: parent; visible: root.tibiaUi }
         Column {
-            anchors { fill: parent; margins: 16 }
-            spacing: 10
+            anchors { fill: parent; margins: root.tibiaUi ? 12 : 16 }
+            spacing: root.tibiaUi ? 8 : 10
             RowLayout {
-                width: parent.width; height: 48; spacing: 12
+                width: parent.width; height: root.tibiaUi ? 44 : 48; spacing: 12
                 Button {
                     objectName: "activeTaskIcon"
                     Layout.preferredWidth: 44; Layout.preferredHeight: 44
                     enabled: root.timerService.active
                     onClicked: root.iconRequested(root.timerService.taskName, root.timerService.taskIcon || "mapping")
-                    background: Rectangle { radius: 6; color: "transparent"; border.color: parent.hovered ? root.accent : root.borderColor }
+                    background: Rectangle { radius: root.tibiaUi ? 0 : 6; color: "transparent"; border.color: parent.hovered ? root.accent : root.borderColor; TibiaSkin.TibiaSkin { anchors.fill: parent; kind: "button"; hovered: parent.parent.hovered; pressed: parent.parent.down } }
                     contentItem: TaskIcon { icon: root.timerService.taskIcon || "mapping"; anchors.margins: 8 }
                     ToolTip.visible: hovered; ToolTip.text: "Change task icon"
                     Accessible.name: "Change active task icon"
@@ -61,61 +65,64 @@ Column {
                         text: root.timerService.active ? (root.timerService.running ? "●  TRACKING" : "●  PAUSED") : "READY TO MAP"
                         color: root.timerService.running ? "#62bd98" : root.muted; font.pixelSize: 10; font.letterSpacing: 0.7
                     }
-                    TimerLabel { width: parent.width; text: root.timerService.active ? root.timerService.taskName : "Start your next task"; color: root.foreground; font.pixelSize: 19; font.weight: Font.DemiBold; elide: Text.ElideRight }
+                    TimerLabel { width: parent.width; text: root.timerService.active ? root.timerService.taskName : "Start your next task"; color: root.foreground; font.pixelSize: root.tibiaUi ? 15 : 19; font.weight: Font.DemiBold; elide: Text.ElideRight }
                     TimerLabel { width: parent.width; text: root.timerService.mapName || "Open a map to begin"; color: root.muted; font.pixelSize: 11; elide: Text.ElideMiddle }
                 }
             }
-            TimerLabel { objectName: "workTimerHeroTime"; width: parent.width; horizontalAlignment: Text.AlignHCenter; text: root.timerService.taskElapsedText; color: root.foreground; font.family: "Consolas"; font.pixelSize: 40; font.weight: Font.DemiBold }
+            TimerLabel { objectName: "workTimerHeroTime"; width: parent.width; horizontalAlignment: Text.AlignHCenter; text: root.timerService.taskElapsedText; color: root.foreground; font.family: root.tibiaUi ? "Verdana" : "Consolas"; font.pixelSize: root.tibiaUi ? 28 : 40; font.weight: Font.DemiBold }
             TimerLabel { width: parent.width; horizontalAlignment: Text.AlignHCenter; text: "Tracked time"; color: root.muted; font.pixelSize: 11 }
             Rectangle { width: parent.width; height: 1; color: root.borderColor }
             RowLayout {
                 width: parent.width; spacing: 8
                 DmeButton {
                     objectName: "workTimerResumePause"
-                    Layout.fillWidth: true; Layout.preferredHeight: 34
+                    Layout.fillWidth: true; Layout.preferredHeight: root.tibiaUi ? 30 : 34
                     enabled: root.timerService.active
                     text: root.timerService.running ? "Ⅱ  Pause" : "▶  Resume"; variant: "primary"
                     onClicked: root.timerService.running ? root.timerService.pauseSession() : root.timerService.resumeSession()
                 }
-                DmeButton { objectName: "workTimerFinish"; Layout.preferredWidth: 110; Layout.preferredHeight: 34; enabled: root.timerService.active; text: "■  Finish task"; onClicked: root.timerService.finishSession(root.note) }
-                DmeButton { objectName: "workTimerDetails"; Layout.preferredWidth: 76; Layout.preferredHeight: 34; text: root.detailsExpanded ? "Less" : "Details"; onClicked: root.detailsRequested() }
+                DmeButton { objectName: "workTimerFinish"; Layout.preferredWidth: 110; Layout.preferredHeight: root.tibiaUi ? 30 : 34; enabled: root.timerService.active; text: "■  Finish task"; onClicked: root.timerService.finishSession(root.note) }
+                DmeButton { objectName: "workTimerDetails"; Layout.preferredWidth: 76; Layout.preferredHeight: root.tibiaUi ? 30 : 34; text: root.detailsExpanded ? "Less" : "Details"; onClicked: root.detailsRequested() }
             }
         }
     }
     RowLayout {
         width: parent.width; height: 22
-        TimerLabel { text: "Task timers"; color: root.foreground; font.pixelSize: 14; font.weight: Font.DemiBold }
+        TimerLabel { text: "Task timers"; color: root.foreground; font.pixelSize: root.tibiaUi ? 12 : 14; font.weight: Font.DemiBold }
         Rectangle {
-            Layout.preferredWidth: 26; Layout.preferredHeight: 21; radius: 10; color: root.cardColor
+            Layout.preferredWidth: 26; Layout.preferredHeight: 21; radius: root.tibiaUi ? 0 : 10; color: root.cardColor
             TimerLabel { anchors.centerIn: parent; text: root.timerService.taskTimers.length; color: root.muted; font.pixelSize: 11 }
         }
         Item { Layout.fillWidth: true }
     }
     Item {
-        width: parent.width; height: root.timerService.taskTimers.length ? Math.min(3, root.timerService.taskTimers.length) * 62 : 62
+        width: parent.width; height: (root.timerService.taskTimers.length ? Math.min(3, root.timerService.taskTimers.length) : 1) * (root.tibiaUi ? 50 : 62) + (root.tibiaUi ? 8 : 0)
+        TibiaSkin.TibiaMenuBox { anchors.fill: parent; visible: root.tibiaUi }
         ListView {
             id: tasks
             objectName: "workTimerTaskList"
             anchors.fill: parent
-            clip: true; spacing: 6
+            anchors.margins: root.tibiaUi ? 4 : 0
+            anchors.rightMargin: root.tibiaUi ? 16 : 0
+            clip: true; spacing: root.tibiaUi ? 2 : 6
             model: root.timerService.taskTimers
-            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            ScrollBar.vertical: ScrollBar { policy: root.tibiaUi ? ScrollBar.AlwaysOff : ScrollBar.AsNeeded }
             delegate: Rectangle {
                 id: row
                 required property var modelData
                 objectName: "workTimerTask_" + modelData.name
-                width: tasks.width - 10; height: 56; radius: 6
+                width: tasks.width - (root.tibiaUi ? 0 : 10); height: root.tibiaUi ? 48 : 56; radius: root.tibiaUi ? 0 : 6
                 color: modelData.active || rowHover.containsMouse ? root.cardColor : root.panelColor
                 border.color: modelData.active ? root.accent : root.borderColor
-                Rectangle { width: 3; height: parent.height - 12; y: 6; radius: 1; color: root.accent; visible: row.modelData.active }
+                Rectangle { width: 3; height: parent.height - 12; y: 6; radius: 1; color: root.accent; visible: row.modelData.active && !root.tibiaUi }
                 MouseArea { id: rowHover; anchors.fill: parent; hoverEnabled: true; onClicked: root.timerService.switchTask(row.modelData.name) }
                 RowLayout {
                     anchors { fill: parent; leftMargin: 12; rightMargin: 8 }
                     spacing: 10
                     Button {
                         objectName: "taskIcon_" + row.modelData.name
-                        Layout.preferredWidth: 34; Layout.preferredHeight: 34
-                        background: Rectangle { radius: 4; color: "transparent"; border.color: parent.hovered ? root.accent : root.borderColor }
+                        Layout.preferredWidth: 34; Layout.preferredHeight: root.tibiaUi ? 30 : 34
+                        background: Rectangle { radius: root.tibiaUi ? 0 : 4; color: "transparent"; border.color: parent.hovered ? root.accent : root.borderColor; TibiaSkin.TibiaSkin { anchors.fill: parent; kind: "button"; hovered: parent.parent.hovered; pressed: parent.parent.down } }
                         contentItem: TaskIcon { icon: row.modelData.icon || "mapping" }
                         onClicked: root.iconRequested(row.modelData.name, row.modelData.icon || "mapping")
                         ToolTip.visible: hovered; ToolTip.text: "Change task icon"
@@ -124,7 +131,7 @@ Column {
                     TimerLabel { Layout.fillWidth: true; text: row.modelData.name; color: root.foreground; font.pixelSize: 12; font.weight: row.modelData.active ? Font.DemiBold : Font.Normal; elide: Text.ElideRight }
                     Column {
                         Layout.preferredWidth: 82; spacing: 3
-                        TimerLabel { width: parent.width; horizontalAlignment: Text.AlignRight; text: row.modelData.durationText; color: root.foreground; font.family: "Consolas"; font.pixelSize: 12 }
+                        TimerLabel { width: parent.width; horizontalAlignment: Text.AlignRight; text: row.modelData.durationText; color: root.foreground; font.family: root.tibiaUi ? "Verdana" : "Consolas"; font.pixelSize: root.tibiaUi ? 11 : 12 }
                         TimerLabel { width: parent.width; horizontalAlignment: Text.AlignRight; text: row.modelData.running ? "Tracking" : row.modelData.active ? "Paused" : "Idle"; color: root.muted; font.pixelSize: 10 }
                     }
                     DmeButton {
@@ -135,6 +142,7 @@ Column {
                 }
             }
         }
+        DmeScrollBar { anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom; anchors.margins: 4; visible: root.tibiaUi && tasks.contentHeight>tasks.height; flickable: tasks }
         TimerLabel { anchors.centerIn: parent; visible: !root.timerService.taskTimers.length; text: "Add your first task below"; color: root.muted; font.pixelSize: 12 }
     }
     Rectangle { width: parent.width; height: 1; color: root.borderColor }
@@ -145,15 +153,15 @@ Column {
             width: parent.width; spacing: 8
             Button {
                 objectName: "newTaskIcon"
-                Layout.preferredWidth: 34; Layout.preferredHeight: 34
+                Layout.preferredWidth: 34; Layout.preferredHeight: root.tibiaUi ? 30 : 34
                 contentItem: TaskIcon { icon: root.draftIcon }
-                background: Rectangle { color: "transparent"; radius: 4; border.color: parent.hovered ? root.accent : root.borderColor }
+                background: Rectangle { color: "transparent"; radius: root.tibiaUi ? 0 : 4; border.color: parent.hovered ? root.accent : root.borderColor; TibiaSkin.TibiaSkin { anchors.fill: parent; kind: "button"; hovered: parent.parent.hovered; pressed: parent.parent.down } }
                 onClicked: root.iconRequested("", root.draftIcon)
                 ToolTip.visible: hovered; ToolTip.text: "Choose icon for new task"
                 Accessible.name: "Choose icon for new task"
             }
-            DmeTextField { id: taskField; objectName: "workTimerNewTaskName"; Layout.fillWidth: true; Layout.preferredHeight: 34; placeholderText: "New task name…"; onAccepted: root.begin() }
-            DmeButton { objectName: "workTimerAddTask"; Layout.preferredWidth: 100; Layout.preferredHeight: 34; text: "+ Add task"; variant: "primary"; enabled: taskField.text.trim().length > 0 && root.canStart; onClicked: root.begin() }
+            DmeTextField { id: taskField; objectName: "workTimerNewTaskName"; Layout.fillWidth: true; Layout.preferredHeight: root.tibiaUi ? 30 : 34; placeholderText: "New task name…"; onAccepted: root.begin() }
+            DmeButton { objectName: "workTimerAddTask"; Layout.preferredWidth: 100; Layout.preferredHeight: root.tibiaUi ? 30 : 34; text: "+ Add task"; variant: "primary"; enabled: taskField.text.trim().length > 0 && root.canStart; onClicked: root.begin() }
         }
     }
     TimerLabel { width: parent.width; text: root.timerService.errorString || ""; visible: text.length > 0; wrapMode: Text.WordWrap; color: "#e68a8a"; font.pixelSize: 11 }

@@ -89,6 +89,10 @@ Item {
             editorController.recoverPreviousSession();
         }
     }
+    function removeRecent(path) {
+        if(editorController)editorController.removeRecent(path);
+        else {startupRecent=startupRecent.filter(p=>p!==path);settings.recentMapsJson=JSON.stringify(startupRecent);}
+    }
     function loadEverything(path, key) { return request({kind:"open",path:path,key:key}); }
     function createNewMap(key, width, height) { return request({kind:"new",key:key,width:width,height:height}); }
     function recoverPreviousSession() { return request({kind:"recover"}); }

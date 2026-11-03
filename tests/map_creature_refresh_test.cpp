@@ -279,6 +279,19 @@ int main(int argc, char **argv)
                    && (application.arguments().contains(QStringLiteral("--query-benchmark-only"))
                            ? benchmarkQuerySnapshot(items) : testItemLocations(items)) ? 0 : 1;
     }
+    if (application.arguments().contains("--preview-motion-only")
+        || application.arguments().contains("--preview-motion-gpu")) {
+        QTemporaryDir fixtures;
+        DatReader dat;
+        dat.setClientVersion(860);
+        SprReader spr;
+        return require(fixtures.isValid() && writeAssets(fixtures)
+                       && dat.loadFile(fixtures.filePath("test.dat"))
+                       && spr.loadFile(fixtures.filePath("test.spr")),
+                       "Could not load preview motion fixtures")
+                   && testClientPreviewComposition(fixtures, dat, spr,
+                       application.arguments().contains("--preview-motion-gpu")) ? 0 : 1;
+    }
     {
         MapView lightView;
         std::vector<uint32_t> pixels;

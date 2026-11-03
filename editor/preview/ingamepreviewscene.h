@@ -30,6 +30,7 @@ struct IngamePreviewFrame
     };
     QVector<Draw> draws;
     QImage light;
+    QPointF lightOrigin{-1, -1}; // Tile units relative to the rendered viewport.
     QVariantList labels;
     QSize size;
     QImage referenceImage() const;

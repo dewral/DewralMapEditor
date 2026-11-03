@@ -1,6 +1,18 @@
 pragma Singleton
 import QtQuick
 QtObject {
+    property QtObject clientLoader: QtObject {
+        property int sequence:0
+        property bool busy:false
+        property int progress:0
+        property string stage:""
+        signal finished(int id,string key,string fingerprint,bool success,string error)
+        signal validationFinished(int id,var result)
+        function newProfileId(){return "profile-"+(++sequence);}
+        function resolveProfile(p){return {success:!!p.folder,paths:{dat:p.folder+"/Tibia.dat",spr:p.folder+"/Tibia.spr",otb:p.folder+"/items.otb"},errors:{},fingerprint:JSON.stringify(p.files)+p.folder,flags:{}};}
+        function validateProfile(p){const id=++sequence;const result=resolveProfile(p);Qt.callLater(()=>validationFinished(id,result));return id;}
+        function requestProfile(p){const id=++sequence;Qt.callLater(()=>finished(id,p.id,resolveProfile(p).fingerprint,true,""));return id;}
+    }
     property QtObject workTimer: QtObject {
         property bool ready: true
         property bool loading: false
@@ -145,7 +157,8 @@ QtObject {
     }
     property QtObject docMgr: QtObject {
         property string currentProfileKey: "test"
-        signal currentChanged()
+        property QtObject current:QtObject {}
+        function setCurrentProfileKey(key){currentProfileKey=key;}
         signal autosaveFailed(string title, string error)
         property int recoveryCount: 0
         property var recoveries: []
@@ -154,6 +167,8 @@ QtObject {
     property QtObject updateService: QtObject {
         property string currentVersion: "test"
         property string state: "upToDate"
+        property string errorString:""
+        property string latestVersion:""
         property bool updateAvailable: false
         function checkForUpdates() {}
     }
@@ -173,6 +188,8 @@ QtObject {
     }
     property QtObject fileTools: QtObject {
         property string text: ""
+        function findByExt(folder,ext,preferred){return folder+"/"+preferred;}
+        function exists(path){return !!path && path.indexOf("missing")<0;}
         function fileName(path) { return path.split(/[\\/]/).pop(); }
         function toLocalFile(url) { return String(url); }
         function clipboardText() { return text }

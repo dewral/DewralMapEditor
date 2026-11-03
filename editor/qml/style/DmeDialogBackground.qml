@@ -14,7 +14,7 @@ Item {
         anchors.fill: parent
         sourceComponent: Backend.uiTheme.style === "tibia-ui" ? tibiaBackground : Backend.uiTheme.style === "fluent-dark" ? fluentBackground : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicBackground : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayBackground : githubBackground)
     }
-    Component { id: tibiaBackground; TibiaSkin.TibiaClassicFrame { kind: "window" } }
+    Component { id: tibiaBackground; TibiaSkin.TibiaWindowFrame { showHeader: false; showCloseButton: false; movable: false } }
     Component { id: classicBackground; Classic.ClassicDialogBackground { topBorder: root.topBorder; frameSource: root.frameSource } }
     Component { id: githubBackground; Github.GithubDialogBackground {} }
     Component { id: grayBackground; Gray.GrayDialogBackground {} }

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" shape-rendering="crispEdges">
+<defs>
+ <linearGradient id="steel" x2="0.7" y2="1"><stop stop-color="#f0eee0"/><stop offset=".45" stop-color="#acb4b5"/><stop offset="1" stop-color="#626e76"/></linearGradient>
+ <linearGradient id="gold" x2="0.4" y2="1"><stop stop-color="#e5d395"/><stop offset=".5" stop-color="#b69a57"/><stop offset="1" stop-color="#71542c"/></linearGradient>
+ <linearGradient id="wood" x2="1" y2="0.4"><stop stop-color="#b69766"/><stop offset=".5" stop-color="#896039"/><stop offset="1" stop-color="#503722"/></linearGradient>
+</defs>
+<g transform="translate(24 0) scale(-1 1)"><path fill="#202326" d="M2 1h5l11 13v3l-2 1L3 7z"/>
+<path fill="url(#steel)" d="M3 2h3l11 13v1l-2 1L4 6z"/>
+<path fill="#edeadd" d="M3 2h2l11 13-1 1L4 5z"/>
+<path fill="#302a20" d="m13 16 4-4 3 3-4 4z"/>
+<path fill="url(#gold)" d="m14 16 3-3 2 2-3 3z"/>
+<path fill="#28211b" d="m17 17 2-2 5 6-3 3z"/><path fill="url(#wood)" d="m18 17 1-1 4 5-2 2z"/>
+<path fill="#d1ba72" d="m21 20 2 1v1l-1 1-2-2z"/></g><path fill="#202326" d="M2 1h5l11 13v3l-2 1L3 7z"/>
+<path fill="url(#steel)" d="M3 2h3l11 13v1l-2 1L4 6z"/>
+<path fill="#edeadd" d="M3 2h2l11 13-1 1L4 5z"/>
+<path fill="#302a20" d="m13 16 4-4 3 3-4 4z"/>
+<path fill="url(#gold)" d="m14 16 3-3 2 2-3 3z"/>
+<path fill="#28211b" d="m17 17 2-2 5 6-3 3z"/><path fill="url(#wood)" d="m18 17 1-1 4 5-2 2z"/>
+<path fill="#d1ba72" d="m21 20 2 1v1l-1 1-2-2z"/>
+</svg>

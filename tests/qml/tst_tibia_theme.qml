@@ -11,6 +11,7 @@ import "../../editor/qml/themes/fluent/Colors.js" as Colors
 Item {
     id: scene
     width: 1200; height: 760
+    property int newTabRequests: 0
     property int backgroundClicks: 0
     property bool menuFpsVisible: false
     property int menuActionCalls: 0
@@ -87,7 +88,7 @@ Item {
         property var tabs: [{title:"city.otbm",dirty:true},{title:"cave.otbm",dirty:false}]
     }
     QtObject { id: tabApp; property int closedTab: -1; function closeTab(index) { closedTab=index; } }
-    Components.DocumentTabs { id: documentTabs; x:340; y:116; width:500; height:30; visible:false; app:tabApp; documents:tabDocuments }
+    Components.DocumentTabs { id: documentTabs; onNewRequested: scene.newTabRequests++; x:340; y:116; width:500; height:30; visible:false; app:tabApp; documents:tabDocuments }
     Skin.TibiaClassicFrame { id: applicationFrame; visible: false; kind: "application"; width: 240; height: 100 }
     Item {
         id: navigation
@@ -110,7 +111,26 @@ Item {
     SignalSpy { id: captionSpy; target: captionButton; signalName: "triggered" }
     TestCase {
         name: "TibiaTheme"; when: windowShown
-        function init() { scene.menuFpsVisible=false; scene.menuActionCalls=0; testFileMenu.close(); testViewMenu.close(); testToolsMenu.close(); Backend.uiTheme.style="tibia-ui"; Backend.otbmReader.loaded=true; scene.Window.window.width=1200; scene.Window.window.height=760; wait(60); }
+        function init() { captionButton.paletteCaption=false; scene.menuFpsVisible=false; scene.menuActionCalls=0; testFileMenu.close(); testViewMenu.close(); testToolsMenu.close(); Backend.uiTheme.style="tibia-ui"; Backend.otbmReader.loaded=true; scene.Window.window.width=1200; scene.Window.window.height=760; wait(60); }
+        function test_classicLightColorPopup() {
+            Backend.uiTheme.style="tibia-ui";
+            toolbar.width=1200;
+            const button=findChild(toolbar,"brightnessColorButton");
+            mouseClick(button);
+            const popup=findChild(toolbar,"lightingColorPopup");
+            tryCompare(popup,"visible",true);
+            compare(popup.width,346);
+            const cell=findChild(popup.contentItem,"lightColorCell_190");
+            verify(cell);
+            compare(cell.width,16);
+            wait(200);
+            mouseClick(cell,8,8);
+            compare(map.lightAmbientColor,190);
+            wait(40);
+            grabImage(scene.Window.window.contentItem).save("build/classic-timer-color/light-color-classic.png");
+            keyClick(Qt.Key_Escape);
+            tryCompare(popup,"visible",false);
+        }
         function test_captionButtonAssetsAndActions() {
             const icon=findChild(captionButton,"tibiaCaptionButton");
             verify(icon!==null); compare(icon.width,18); compare(icon.height,18);
@@ -131,44 +151,212 @@ Item {
             Backend.uiTheme.style="fluent-dark";
             tryCompare(icon,"visible",false);
         }
+        function test_mainCaptionUsesStandardWindowActions() {
+            captionButton.paletteCaption=true;
+            const icon=findChild(captionButton,"tibiaCaptionButton");
+            tryCompare(captionButton,"implicitWidth",24); compare(captionButton.implicitHeight,26);
+            tryCompare(icon,"width",12); compare(icon.height,12); compare(icon.y,8);
+            for (const name of ["minimize","maximize","close"]) {
+                captionButton.controlType=name;
+                tryVerify(()=>icon.source.toString().endsWith(name+".svg"));
+                captionSpy.clear(); mousePress(captionButton,12,13);
+                tryVerify(()=>captionButton.pressed); compare(icon.y,9);
+                mouseRelease(captionButton,12,13); compare(captionSpy.count,1);
+            }
+            captionButton.controlType="maximize"; captionButton.maximized=true;
+            tryVerify(()=>icon.source.toString().endsWith("restore.svg"));
+            captionButton.maximized=false; captionButton.paletteCaption=false;
+            tryCompare(icon,"width",18);
+        }
+        function test_toolbarBoxAndTransparentTabs() {
+            const host=Qt.createQmlObject('import QtQuick; Rectangle {width:1200;height:200;color:"#4c3159";z:100}',scene);
+            const toolbarParent=toolbar.parent, tabsParent=documentTabs.parent;
+            const toolbarY=toolbar.y, tabsX=documentTabs.x, tabsY=documentTabs.y;
+            try {
+                toolbar.parent=host; toolbar.y=0; waitForRendering(toolbar);
+                // The toolbar owns a MenuBox; empty document-tab space shares the shell.
+                verify(!Qt.colorEqual(grabImage(toolbar).pixel(2,8),"#4c3159"));
+                toolbar.visible=false;
+                documentTabs.parent=host; documentTabs.x=0; documentTabs.y=0; documentTabs.visible=true;
+                waitForRendering(documentTabs);
+                verify(!Qt.colorEqual(grabImage(documentTabs).pixel(documentTabs.width-3,8),"#4c3159"));
+                Backend.uiTheme.style="fluent-dark"; toolbar.visible=true; waitForRendering(toolbar);
+                verify(!Qt.colorEqual(grabImage(toolbar).pixel(2,8),"#4c3159"));
+            } finally {
+                toolbar.parent=toolbarParent; toolbar.y=toolbarY; toolbar.visible=true;
+                documentTabs.parent=tabsParent; documentTabs.x=tabsX; documentTabs.y=tabsY; documentTabs.visible=false;
+                host.destroy();
+            }
+        }
+        function test_nativeSliderArrowsDragAndThemeRestore() {
+            const slider=findChild(toolbar,"topbarBrightnessSlider");
+            const skin=findChild(slider,"tibiaSliderSkin");
+            const less=findChild(slider,"nativeSliderDecrease");
+            const more=findChild(slider,"nativeSliderIncrease");
+            map.lightAmbient=100; waitForRendering(slider);
+            mouseClick(more,6,6); compare(map.lightAmbient,101);
+            mouseClick(less,6,6); compare(map.lightAmbient,100);
+            map.lightAmbient=0;
+            mouseClick(less,6,6); compare(map.lightAmbient,0);
+            map.lightAmbient=255;
+            mouseClick(more,6,6); compare(map.lightAmbient,255);
+            map.lightAmbient=100;
+            mousePress(slider,slider.handle.x+slider.handle.width/2,slider.height/2);
+            mouseMove(slider,slider.width-22,slider.height/2,30);
+            mouseRelease(slider,slider.width-22,slider.height/2);
+            verify(map.lightAmbient>100);
+            slider.forceActiveFocus();
+            const before=map.lightAmbient; keyClick(Qt.Key_Left);
+            compare(map.lightAmbient,before-1);
+            Backend.otbmReader.loaded=false;
+            mouseClick(more,6,6); compare(map.lightAmbient,before-1);
+            Backend.otbmReader.loaded=true;
+            Backend.uiTheme.style="fluent-dark"; waitForRendering(slider);
+            compare(skin.visible,false); compare(slider.background.opacity,1);
+            compare(slider.handle.opacity,1); compare(slider.handle.width,16);
+            compare(slider.handle.height,16);
+            map.lightAmbient=143;
+        }
         function test_topbarLayoutAtWindowSizes() {
             const controls=findChild(toolbar,"topbarLightingControls");
             const slider=findChild(toolbar,"topbarBrightnessSlider");
             const fill=findChild(slider,"brightnessValueFill");
             for(const w of [800,1024,1200]) {
                 toolbar.width=w; wait(220);
-                verify(controls.x+controls.width<=toolbar.width);
-                verify(controls.y+controls.height<=toolbar.implicitHeight);
-                verify(slider.classicValueFill); verify(fill.visible);
+                verify(controls.x+controls.width<=toolbar.width,"lighting x="+controls.x+" width="+controls.width+" toolbar="+toolbar.width);
+                verify(controls.y+controls.height<=toolbar.implicitHeight,"lighting y="+controls.y+" height="+controls.height+" toolbar="+toolbar.implicitHeight);
+                verify(slider.classicValueFill);
+                compare(slider.background.opacity,0);
+                compare(slider.handle.height,12);
+                verify(findChild(slider,"nativeSliderTrack").visible);
             }
             toolbar.width=scene.width; wait(220);
             grabImage(toolbar).save("build/tibia-topbar-toolbar.png");
             const first=findChild(toolbar,"topbarCommand_new");
             verify(first!==null); compare(first.width,toolbar.commandWidth);
+            compare(toolbar.commandWidth,32); compare(toolbar.commandHeight,32);
+            compare(toolbar.implicitHeight,50);
+            compare(findChild(toolbar,"lightingButtonIcon").width,22);
             Backend.uiTheme.style="fluent-dark";
             tryCompare(slider,"classicValueFill",false);
+        }
+        function test_nativeToolbarGroupsAndDockedPanels() {
+            const actions=findChild(toolbar,"topbarActionsPanel");
+            const lighting=findChild(toolbar,"topbarLightingGroup");
+            const dock=findChild(toolbar,"topbarDockedPanels");
+            try {
+                for(const docks of [["palette","palette"],["topbar","palette"],["palette","topbar"],["topbar","topbar"]]) {
+                    prefs.brushSizeDock=docks[0];prefs.toolsDock=docks[1];
+                    for(const width of [720,800,1040,1200,1600,1920]) {
+                        toolbar.width=width;wait(240);
+                        verify(actions.visible && lighting.active);
+                        compare(actions.x,8);compare(actions.height,36);
+                        verify(actions.active);
+                        compare(actions.item.kind,lighting.item.kind);
+                        compare(actions.item.source,lighting.item.source);
+                        const icons=["new","open","save","saveAs","undo","redo","cut","copy","paste"].map(op=>findChild(toolbar,"topbarCommand_"+op));
+                        icons.push(findChild(toolbar,"fluentIngamePreviewButton"));
+                        icons.push(findChild(toolbar,"fluentAnimationButton"));
+                        for(let i=1;i<icons.length;++i) {
+                            const previousRight=icons[i-1].mapToItem(toolbar,icons[i-1].width,0).x;
+                            compare(icons[i].mapToItem(toolbar,0,0).x-previousRight,8);
+                        }
+                        compare(findChild(toolbar,"topbarFilesGroup"),null);
+                        compare(findChild(toolbar,"topbarEditGroup"),null);
+                        compare(findChild(toolbar,"topbarPreviewGroup"),null);
+                        compare(lighting.x+lighting.width,toolbar.width-8);
+                        verify(lighting.y+lighting.height<=toolbar.implicitHeight);
+                        if(toolbar.compactLighting)verify(lighting.y>=actions.y+actions.height);
+                        else verify(lighting.x>=actions.x+actions.width);
+                        if(toolbar.hasDockedPanels) {
+                            verify(dock.width>0);verify(dock.clip);
+                            verify(dock.y+dock.height<=toolbar.implicitHeight);
+                            if(toolbar.secondRow)verify(dock.y>=lighting.y+lighting.height);
+                            else {
+                                verify(dock.x>=actions.x+actions.width);
+                                verify(dock.x+dock.width<=lighting.x);
+                                verify(dock.width>=toolbar.dockedWidth);
+                            }
+                        }
+                    }
+                }
+                Backend.uiTheme.style="fluent-dark";
+                tryCompare(lighting,"active",false);
+                Backend.uiTheme.style="tibia-ui";toolbar.width=1200;wait(240);
+                compare(lighting.x+lighting.width,toolbar.width-8);
+                grabImage(toolbar).save("build/tibia-toolbar-icon-groups.png");
+            } finally {
+                prefs.brushSizeDock="palette";prefs.toolsDock="palette";
+                toolbar.width=scene.width;wait(240);
+            }
         }
         function test_clientMenuHighlightAndSwitching() {
             const file=findChild(testMenuBar,"menuHeading_File");
             const view=findChild(testMenuBar,"menuHeading_View");
             verify(file!==null); verify(view!==null);
+            compare(testMenuBar.topPadding,3);compare(testMenuBar.bottomPadding,3);
+            compare(file.mapToItem(testMenuBar,0,0).y,3);compare(file.height,testMenuBar.height-6);
             const background=findChild(file,"menuHeadingBackground");
             const pressed=findChild(file,"menuHeadingPressedFrame");
             mouseMove(scene,500,700); wait(30);
             mouseMove(file,file.width/2,file.height/2,40);
-            tryCompare(background,"color","#606060");
+            tryCompare(background,"color","#10ffffff");
             mouseClick(file);
             tryCompare(testFileMenu,"opened",true); tryCompare(pressed,"active",true);
             verify(pressed.item.pressed);
+            compare(background.color,"#00000000");
             compare(testFileMenu.padding,6); compare(testFileMenu.spacing,0);
             mouseMove(testOpenEntry,testOpenEntry.width/2,8);
+            tryCompare(pressed,"active",false);
+            compare(testFileMenu.opened,true);
+            compare(background.color,"#00000000");
             const entryBackground=findChild(testOpenEntry,"menuEntryBackground");
-            tryCompare(entryBackground,"color","#606060"); compare(entryBackground.border.width,0);
+            tryCompare(entryBackground,"color","#18ffffff"); compare(entryBackground.border.width,0);
+            grabImage(scene).save("build/DME-client-profiles-verify/classic-menu-states.png");
             mouseMove(view,view.width/2,view.height/2);
             tryCompare(testViewMenu,"opened",true); tryCompare(testFileMenu,"opened",false);
             keyClick(Qt.Key_Escape); tryCompare(testViewMenu,"opened",false);
             tryCompare(pressed,"active",false);
             mouseMove(scene,600,700);
+        }
+        function test_menuHeadingsReleaseAfterPointerAndFocusChanges() {
+            const headings=["File","View","Tools"].map(name=>findChild(testMenuBar,"menuHeading_"+name));
+            const menus=[testFileMenu,testViewMenu,testToolsMenu];
+            const frames=headings.map(h=>findChild(h,"menuHeadingPressedFrame"));
+            mouseClick(headings[0]);tryCompare(menus[0],"opened",true);
+            for(let i=0;i<headings.length;++i) {
+                mouseMove(headings[i],headings[i].width/2,headings[i].height/2,30);
+                tryCompare(menus[i],"opened",true);
+                for(let j=0;j<frames.length;++j)tryCompare(frames[j],"active",j===i);
+            }
+            keyClick(Qt.Key_Escape);mouseMove(scene,600,700);wait(50);
+            for(let i=0;i<headings.length;++i) {
+                compare(frames[i].active,false);
+                compare(findChild(headings[i],"menuHeadingBackground").color,"#00000000");
+            }
+            for(const heading of headings) {
+                mouseMove(heading,heading.width/2,heading.height/2,30);
+                for(const frame of frames)compare(frame.active,false);
+                mouseMove(scene,600,700);wait(20);
+                compare(findChild(heading,"menuHeadingBackground").color,"#00000000");
+            }
+        }
+        function test_menuClosesAfterLeavingSubmenu() {
+            const heading = findChild(testMenuBar, "menuHeading_View");
+            mouseClick(heading);
+            tryCompare(testViewMenu, "opened", true);
+            const entry = testViewMenu.itemAt(3);
+            mouseMove(entry, entry.width / 2, entry.height / 2);
+            const submenu = entry.subMenu;
+            tryCompare(submenu, "opened", true);
+            const child = submenu.itemAt(0);
+            mouseMove(child, child.width / 2, child.height / 2);
+            wait(250);
+            compare(submenu.opened, true);
+            compare(testViewMenu.opened, true);
+            mouseMove(scene, 600, 700);
+            tryCompare(testViewMenu, "opened", false);
+            tryCompare(submenu, "opened", false);
         }
         function test_menuHeadingHitAreaMatchesItsText() {
             const file=findChild(testMenuBar,"menuHeading_File");
@@ -284,7 +472,7 @@ Item {
             }
             brush.width=256;
             mouseClick(findChild(brush,"brushRadius11")); compare(map.brushSize,11);
-            mouseClick(findChild(brush,"fluentBrushsquare")); compare(map.brushShape,"circle");
+            mouseClick(findChild(brush,"fluentBrushcircle")); compare(map.brushShape,"circle");
             map.brushSize=0; map.brushShape="square";
             brush.sectionFrame=false; brush.width=296;
         }
@@ -313,15 +501,55 @@ Item {
             compare(tools.collapsed,true); compare(tools.implicitHeight,17);
             tools.collapsed=false; tools.sectionFrame=false;
         }
+        function test_brushSummaryTracksSizeAndShape() {
+            brush.sectionFrame=true;brush.width=340;wait(20);
+            const frame=findChild(brush,"brushSectionFrame").item;
+            map.brushSize=0;map.brushShape="square";
+            compare(brush.brushSummary,"1 × 1 · Square");
+            compare(frame.caption,"Brush size");
+            compare(findChild(brush,"brushSizeReadout"),null);
+            mouseClick(findChild(brush,"brushRadius2"));
+            compare(brush.brushSummary,"5 × 5 · Square");
+            mouseClick(findChild(brush,"fluentBrushcircle"));
+            compare(brush.brushSummary,"5 × 5 · Circle");
+            compare(frame.caption,"Brush size");
+            const square=findChild(brush,"fluentBrushsquare"), circle=findChild(brush,"fluentBrushcircle");
+            verify(circle.active && !square.active);
+            mouseClick(circle);compare(map.brushShape,"circle");
+            mouseClick(square);compare(map.brushShape,"square");
+            verify(square.active && !circle.active);
+            mouseClick(circle);
+            brush.compact=true;map.brushSize=6;
+            compare(brush.brushSummary,"13 × 13 · Circle");
+            brush.compact=false;brush.sectionFrame=false;brush.width=296;
+            map.brushSize=0;map.brushShape="square";
+        }
+        function test_newDocumentTabButton() {
+            documentTabs.visible=true;
+            const count=scene.newTabRequests;
+            const button=findChild(documentTabs,"newDocumentTabButton");
+            verify(button); compare(button.height,24);
+            mouseClick(button); compare(scene.newTabRequests,count+1);
+            documentTabs.visible=false;
+        }
         function test_nativeDocumentTabsKeepNavigationAndClose() {
             documentTabs.visible=true; tabDocuments.currentIndex=0; tabApp.closedTab=-1; wait(20);
             const first=findChild(documentTabs,"documentTab0");
             const second=findChild(documentTabs,"documentTab1");
             compare(first.height,24); compare(second.height,24);
-            mouseClick(second,12,12); compare(tabDocuments.currentIndex,1);
+            const firstSkin=findChild(first,"tibiaDocumentTabBackground0");
+            const secondSkin=findChild(second,"tibiaDocumentTabBackground1");
+            verify(String(firstSkin.source).endsWith("console-tab-active.png"));
+            verify(String(secondSkin.source).endsWith("console-tab-passive.png"));
+            mouseClick(second,12,9); compare(tabDocuments.currentIndex,1);
+            verify(String(firstSkin.source).endsWith("console-tab-passive.png"));
+            verify(String(secondSkin.source).endsWith("console-tab-active.png"));
             const close=findChild(documentTabs,"tibiaDocumentClose1");
             compare(close.width,12); compare(close.height,12);
-            mouseClick(close,6,6); compare(tabApp.closedTab,1);
+            const closeTarget=findChild(documentTabs,"tibiaDocumentCloseHitArea1");
+            compare(closeTarget.width,22);compare(closeTarget.height,24);
+            mouseClick(closeTarget,1,1); compare(tabApp.closedTab,1);
+            compare(tabDocuments.currentIndex,1);
             Backend.uiTheme.style="fluent-dark";
             tryCompare(close,"visible",false); compare(second.height,28);
             documentTabs.visible=false;
@@ -330,6 +558,28 @@ Item {
             tryCompare(applicationFrame,"status",Image.Ready);
             verify(String(applicationFrame.source).indexOf("menubox.png")>=0);
             compare(applicationFrame.border.top,3); compare(applicationFrame.border.left,3);
+        }
+        function test_toolsUseNativeSvgWithoutLabels() {
+            const names=["Lasso","Border","PZ","NP","NL","PvP","Auto","Doors"];
+            for(const compact of [false,true]) {
+                tools.compact=compact;tools.width=compact ? 297 : 296;wait(30);
+                for(const name of names) {
+                    const button=findChild(tools,"fluentTool"+name);
+                    const icon=findChild(button,"toolIcon"+name);
+                    tryCompare(icon,"status",Image.Ready);
+                    verify(String(icon.source).endsWith("tool-"+name.toLowerCase()+".svg"));
+                    verify(!findChild(button,"toolLabel"+name).visible);
+                    compare(icon.width,compact ? 22 : 24);
+                    verify(button.Accessible.name.length>0);
+                    compare(button.ToolTip.text,button.Accessible.name);
+                }
+            }
+            tools.compact=false;tools.sectionFrame=true;tools.width=360;waitForRendering(tools);
+            compare(findChild(tools,"toolIconPZ").width,24);
+            tools.sectionFrame=false;
+            Backend.uiTheme.style="fluent-dark";wait(30);
+            verify(findChild(tools,"toolLabelPZ").visible);
+            tools.compact=false;tools.width=296;
         }
         function test_toolsMatchFluentDark() {
             const names=["Lasso", "Border", "PZ", "NP", "NL", "PvP", "Auto", "Doors"];

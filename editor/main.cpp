@@ -1,3 +1,6 @@
+#include <QMouseEvent>
+#include <QKeyEvent>
+#include <QImage>
 #include <QFileInfo>
 #include <QTemporaryDir>
 #include <QStandardPaths>
@@ -225,6 +228,12 @@ int main(int argc, char *argv[])
     }
 
     if (app.arguments().contains(QStringLiteral("--smoke-test"))) {
+        const bool weatherSmoke=app.arguments().contains(QStringLiteral("--smoke-weather-regions"));
+        if(weatherSmoke) {
+            QVariant ready;
+            if(!QMetaObject::invokeMethod(engine.rootObjects().first(),"smokeWeatherRegions",
+                Q_RETURN_ARG(QVariant,ready),Q_ARG(QVariant,smokeState->filePath(QStringLiteral("weather-map.otbm")))) || !ready.toBool()) return 7;
+        }
         if (app.arguments().contains(QStringLiteral("--smoke-map-brush"))) {
             QVariant ready;
             if (!QMetaObject::invokeMethod(engine.rootObjects().first(), "smokeMapBrush",
@@ -241,11 +250,94 @@ int main(int argc, char *argv[])
                                           Q_RETURN_ARG(QVariant, ready)) || !ready.toBool())
                 return 2;
         }
+        const bool profilesSmoke=app.arguments().contains(QStringLiteral("--smoke-client-profiles"));
+        if(profilesSmoke) {
+            const int option=app.arguments().indexOf(QStringLiteral("--document-client"));
+            const QString folder=option>=0 && option+1<app.arguments().size() ? app.arguments()[option+1] : QString();
+            auto *root=engine.rootObjects().first();
+            QMetaObject::invokeMethod(root,"smokeClientProfiles",Q_ARG(QVariant,QVariant(folder)),Q_ARG(QVariant,QVariant(false)));
+            QTimer::singleShot(500,&app,[root,&app]{
+                for(auto *w:QGuiApplication::allWindows())if(auto *q=qobject_cast<QQuickWindow*>(w))if(q->isVisible())q->grabWindow().save(QCoreApplication::applicationDirPath()+"/startup-native.png");
+                QMetaObject::invokeMethod(root,"smokeClientProfiles",Q_ARG(QVariant,QVariant(QString())),Q_ARG(QVariant,QVariant(true)));
+                QTimer::singleShot(500,&app,[&app]{
+                    bool found=false;
+                    for(auto *w:QGuiApplication::allWindows())if(auto *q=qobject_cast<QQuickWindow*>(w))if(q->title()=="Client profiles" && q->isVisible()){found=q->grabWindow().save(QCoreApplication::applicationDirPath()+"/profiles-native.png");}
+                    app.exit(found ? 0 : 10);
+                });
+            });
+        }
+        const bool documentSmoke=app.arguments().contains(QStringLiteral("--smoke-documents"));
+        if(documentSmoke) {
+            const auto smokeOption=[&app](const QString &name) {
+                const int index=app.arguments().indexOf(name);
+                return index>=0 && index+1<app.arguments().size() ? app.arguments()[index+1] : QString();
+            };
+            const QString mapPath=smokeOption(QStringLiteral("--document-map"));
+            if(!mapPath.isEmpty()) QMetaObject::invokeMethod(engine.rootObjects().first(),"profileOpen",
+                Q_ARG(QVariant,QVariant(mapPath)),Q_ARG(QVariant,QVariant(smokeOption(QStringLiteral("--document-client")))) ,
+                Q_ARG(QVariant,QVariant(smokeOption(QStringLiteral("--document-version")))));
+            const QString secondPath=mapPath.isEmpty() ? QString() : smokeState->filePath(QStringLiteral("second.otbm"));
+            const QString secondSource=smokeOption(QStringLiteral("--document-second"));
+            if(!mapPath.isEmpty() && !QFile::copy(secondSource.isEmpty() ? mapPath : secondSource,secondPath))return 9;
+            auto *timer=new QTimer(&app);
+            auto step=std::make_shared<int>(0);
+            QObject::connect(timer,&QTimer::timeout,&app,[&engine,&app,&backend,step,mapPath,secondPath] {
+                if(backend.otbmReader()->isLoading() || backend.clientLoader()->busy()
+                    || (!mapPath.isEmpty() && *step==0 && !backend.otbmReader()->isLoaded()))return;
+                std::fprintf(stderr,"DOCUMENT_STEP=%d\n",*step);
+                std::fflush(stderr);
+                QVariant ok;
+                if(!QMetaObject::invokeMethod(engine.rootObjects().first(),"smokeDocumentStep",
+                    Q_RETURN_ARG(QVariant,ok),Q_ARG(QVariant,QVariant(*step)),Q_ARG(QVariant,QVariant(secondPath))) || !ok.toBool()) {
+                    app.exit(9);return;
+                }
+                if((*step)++==8) app.exit(0);
+            });
+            timer->start(300);
+        }
         for (auto *window : QGuiApplication::allWindows())
-            if (auto *quick = qobject_cast<QQuickWindow*>(window))
-                QObject::connect(quick, &QQuickWindow::frameSwapped, &app,
-                    &QCoreApplication::quit, Qt::QueuedConnection);
-        QTimer::singleShot(10000, &app, [] { QCoreApplication::exit(5); });
+            if (auto *quick = qobject_cast<QQuickWindow*>(window)) {
+                if(weatherSmoke) {
+                    if(!quick->property("editorPresented").isValid())continue;
+                    auto *root=engine.rootObjects().first();
+                    auto captured=std::make_shared<bool>(false);
+                    QObject::connect(quick,&QQuickWindow::frameSwapped,&app,[quick,captured,root,&app] {
+                        if(*captured)return;*captured=true;
+                        QTimer::singleShot(250,&app,[quick,root,&app]{
+                            QVariant position;
+                            if(!QMetaObject::invokeMethod(root,"prepareWeatherInput",Q_RETURN_ARG(QVariant,position))){app.exit(8);return;}
+                            // Let popup closing and the map's camera update reach the scene graph.
+                            QTimer::singleShot(250,&app,[quick,root,&app]{
+                            QVariant position;
+                            if(!QMetaObject::invokeMethod(root,"prepareWeatherInput",Q_RETURN_ARG(QVariant,position))){app.exit(8);return;}
+                            const auto coordinates=position.toMap();
+                            const QPointF point(coordinates.value("x").toDouble(),coordinates.value("y").toDouble());
+                            const QPointF global=quick->mapToGlobal(point.toPoint());
+                            QMouseEvent press(QEvent::MouseButtonPress,point,global,Qt::LeftButton,Qt::LeftButton,Qt::NoModifier);
+                            QCoreApplication::sendEvent(quick,&press);
+                            QMouseEvent release(QEvent::MouseButtonRelease,point,global,Qt::LeftButton,Qt::NoButton,Qt::NoModifier);
+                            QCoreApplication::sendEvent(quick,&release);
+                            auto verify=[root](int phase){QVariant valid;return QMetaObject::invokeMethod(root,"verifyWeatherInput",Q_RETURN_ARG(QVariant,valid),Q_ARG(QVariant,phase)) && valid.toBool();};
+                            if(!verify(0)){const int option=app.arguments().indexOf(QStringLiteral("--weather-screenshot"));if(option>=0 && option+1<app.arguments().size())quick->grabWindow().save(app.arguments()[option+1]);std::fprintf(stderr,"Weather brush input failed\n");app.exit(8);return;}
+                            QKeyEvent undo(QEvent::KeyPress,Qt::Key_Z,Qt::ControlModifier);QCoreApplication::sendEvent(quick,&undo);
+                            if(!verify(1)){std::fprintf(stderr,"Weather undo input failed\n");app.exit(8);return;}
+                            QKeyEvent escape(QEvent::KeyPress,Qt::Key_Escape,Qt::NoModifier);QCoreApplication::sendEvent(quick,&escape);
+                            if(!verify(2)){std::fprintf(stderr,"Weather Escape input failed\n");app.exit(8);return;}
+                            QTimer::singleShot(1400,&app,[quick,root,&app]{
+                            QVariant timeoutValid;
+                            if(!QMetaObject::invokeMethod(root,"verifyWeatherTimeout",Q_RETURN_ARG(QVariant,timeoutValid)) || !timeoutValid.toBool()){std::fprintf(stderr,"Weather test timeout failed\n");app.exit(8);return;}
+                            const int option=app.arguments().indexOf(QStringLiteral("--weather-screenshot"));
+                            if(option>=0 && option+1<app.arguments().size())quick->grabWindow().save(app.arguments()[option+1]);
+                            // The normal editor close handler may open a confirmation dialog.
+                            // This test owns only a temporary map and must terminate directly.
+                            app.exit(0);
+                            });
+                            });
+                        });
+                    },Qt::QueuedConnection);
+                } else if(!documentSmoke && !profilesSmoke) QObject::connect(quick,&QQuickWindow::frameSwapped,&app,&QCoreApplication::quit,Qt::QueuedConnection);
+            }
+        QTimer::singleShot(documentSmoke ? 60000 : 10000, &app, [] { QCoreApplication::exit(5); });
     }
 
     return app.exec();

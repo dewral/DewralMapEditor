@@ -27,6 +27,7 @@ Item {
     property Item previewDockHost: null
     property alias mapView: mapView
     property alias mapRenderer: mapRenderer
+    property alias weatherRegions: weatherRegionLayer
     property alias context: mapArea.ctx
 
     MapViewSettings {
@@ -71,7 +72,19 @@ Item {
         }
     }
 
-    TibiaSkin.TibiaSkin { anchors.fill: parent; kind: "window"; frameOnly: true; z: 10 }
+    Loader {
+        objectName: "mapChatBackground"
+        anchors.fill: parent
+        active: workspace.tibiaUi
+        sourceComponent: BorderImage {
+            source: Qt.resolvedUrl("../themes/tibia/images/2pixel-up-frame-borderimage-upside-down.png")
+            border { left: 2; top: 2; right: 2; bottom: 2 }
+            horizontalTileMode: BorderImage.Repeat
+            verticalTileMode: BorderImage.Repeat
+            rotation: 180
+            smooth: false
+        }
+    }
     TibiaSkin.TibiaMapScrollBar {
         objectName: "tibiaMapVerticalScroll"
         visible: workspace.tibiaUi && Backend.otbmReader.loaded
@@ -183,6 +196,8 @@ Item {
 
         MapView {
             id: mapView
+            readonly property bool weatherEditing: weatherRegionLayer.editing
+            readonly property var weatherDocument: weatherRegionLayer.document
             hotkeyBindings: Backend.hotkeys.activeBindings
             commandHotkeysEnabled: !Backend.hotkeys.capturing
             modernZones: workspace.fluentUi
@@ -223,9 +238,18 @@ Item {
             }
         }
 
+        WeatherRegionLayer {
+            id: weatherRegionLayer
+            anchors.fill: parent
+            mapView: workspace.mapView
+            mapSettings: workspace.settings
+            z: 6
+        }
+
         GenerationMaskOverlay { anchors.fill: parent; mapView: workspace.mapView; session: workspace.proceduralBrushSession; z: 4 }
 
         WeatherLayer {
+            visible: weatherRegionLayer.testingMap || !weatherRegionLayer.previewEnabled
             anchors.fill: parent
             z: 0.5
             mapView: workspace.mapView

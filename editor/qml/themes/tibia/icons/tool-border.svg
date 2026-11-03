@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" shape-rendering="crispEdges">
+<defs>
+ <linearGradient id="steel" x2="0.7" y2="1"><stop stop-color="#f0eee0"/><stop offset=".45" stop-color="#acb4b5"/><stop offset="1" stop-color="#626e76"/></linearGradient>
+ <linearGradient id="gold" x2="0.4" y2="1"><stop stop-color="#e5d395"/><stop offset=".5" stop-color="#b69a57"/><stop offset="1" stop-color="#71542c"/></linearGradient>
+ <linearGradient id="wood" x2="1" y2="0.4"><stop stop-color="#b69766"/><stop offset=".5" stop-color="#896039"/><stop offset="1" stop-color="#503722"/></linearGradient>
+</defs>
+<path fill="#222321" d="M2 2h7v3H5v4H2zm13 0h7v7h-3V5h-4zM2 15h3v4h4v3H2zm17 0h3v7h-7v-3h4z"/>
+<path fill="url(#steel)" d="M3 3h5v1H4v4H3zm13 0h5v5h-1V4h-4zM3 16h1v4h4v1H3zm17 0h1v5h-5v-1h4z"/>
+<path fill="#232420" d="M7 7h10v10H7z"/><path fill="#797a6a" d="M8 8h8v8H8z"/>
+<path fill="#b6b3a0" d="M8 8h4v3H8zm5 4h3v4h-3z"/><path fill="#53594e" d="M8 12h4v4H8zm5-4h3v3h-3z"/>
+<path fill="#c6b477" d="M10 3h4v1h-4zM20 10h1v4h-1zM10 20h4v1h-4zM3 10h1v4H3z"/>
+</svg>

@@ -1,4 +1,5 @@
 import QtQuick
+import "../themes/tibia" as TibiaSkin
 import QtQuick.Controls
 import QtQuick.Dialogs
 import QtQuick.Window
@@ -10,7 +11,8 @@ import "../dialogs"
 Item {
     id: root
     objectName: "workTimerContent"
-    component TimerLabel: Text { font.family: Backend.uiTheme.style === "tibia-ui" ? "Verdana" : "Segoe UI"; font.bold: Backend.uiTheme.style === "tibia-ui" }
+    component TimerLabel: Text { font.family: root.tibiaUi ? "Verdana" : "Segoe UI" }
+    readonly property bool tibiaUi: Backend.uiTheme.style === "tibia-ui"
     property var timerService: Backend.workTimer
     property var activityService: Backend.activity
     property bool statusBarMode: false
@@ -24,13 +26,13 @@ Item {
     readonly property bool fluentTheme: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
     readonly property bool grayTheme: fluentTheme || Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
-    readonly property color panelColor: grayTheme ? "#202122" : "#0F141B"
-    readonly property color cardColor: grayTheme ? "#292b2d" : "#151B23"
-    readonly property color inputColor: grayTheme ? "#202020" : "#0D1117"
-    readonly property color hoverColor: grayTheme ? "#303030" : "#1B2632"
-    readonly property color borderColor: grayTheme ? "#414447" : "#2D3743"
-    readonly property color strongText: grayTheme ? "#F0F0F0" : "#F0F3F6"
-    readonly property color mutedText: grayTheme ? "#9A9A9A" : "#8B949E"
+    readonly property color panelColor: tibiaUi ? "#3b3b3b" : grayTheme ? "#202122" : "#0F141B"
+    readonly property color cardColor: tibiaUi ? "#414141" : grayTheme ? "#292b2d" : "#151B23"
+    readonly property color inputColor: tibiaUi ? "#363636" : grayTheme ? "#202020" : "#0D1117"
+    readonly property color hoverColor: tibiaUi ? "#505050" : grayTheme ? "#303030" : "#1B2632"
+    readonly property color borderColor: tibiaUi ? "#666666" : grayTheme ? "#414447" : "#2D3743"
+    readonly property color strongText: tibiaUi ? "#d5d5ce" : grayTheme ? "#F0F0F0" : "#F0F3F6"
+    readonly property color mutedText: tibiaUi ? "#a7a7a0" : grayTheme ? "#9A9A9A" : "#8B949E"
     readonly property color subtleText: grayTheme ? "#777777" : "#6E7681"
     readonly property color activeFill: fluentTheme ? "#414447" : grayTheme ? "#4A3A1F" : "#163B2C"
 
@@ -59,7 +61,7 @@ Item {
         objectName: "workTimerPopup"
         width: Math.min(560, (root.popupWindow ? root.popupWindow.width : 584) - 24)
         height: Math.min(root.showTimerDetails || stack.currentIndex !== 0 ? 700
-            : 454 + Math.min(3, Math.max(1, root.timerService.taskTimers.length)) * 62,
+            : (root.tibiaUi ? 402 : 454) + Math.min(3, Math.max(1, root.timerService.taskTimers.length)) * (root.tibiaUi ? 50 : 62),
             (root.popupWindow ? root.popupWindow.height : 724) - 24)
         margins: 12
         x: root.anchorItem ? Math.max(12, Math.min(root.anchorItem.mapToItem(panel.parent, 0, 0).x + root.anchorItem.width - width,
@@ -68,29 +70,39 @@ Item {
         padding: 0
         modal: false
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle {
-            color: root.panelColor
-            border.color: root.borderColor
-            border.width: 1
-            radius: 8
+        background: Loader {
+            objectName: "workTimerBackground"
+            sourceComponent: root.tibiaUi ? classicFrame : modernFrame
+            Component {
+                id: classicFrame
+                TibiaSkin.TibiaWindowFrame {
+                    caption: stack.currentIndex===0 ? "Work timer" : stack.currentIndex===1 ? "History" : "My activity"
+                    centerCaption: true; movable: false
+                    onCloseRequested: panel.close()
+                }
+            }
+            Component { id: modernFrame; Rectangle { color: root.panelColor; border.color: root.borderColor; border.width: 1; radius: 8 } }
         }
 
         Column {
             anchors.fill: parent
-            anchors.margins: 20
-            spacing: 14
+            anchors.margins: root.tibiaUi ? 12 : 20
+            anchors.topMargin: root.tibiaUi ? 25 : 20
+            spacing: root.tibiaUi ? 10 : 14
 
             RowLayout {
-                width: parent.width; height: 34; spacing: 8
-                TimerLabel { text: "\uE916"; font.family: "Segoe Fluent Icons"; font.pixelSize: 22; color: root.accent }
+                width: parent.width; height: root.tibiaUi ? 28 : 34; spacing: 8
+                TimerLabel { visible: !root.tibiaUi; text: "\uE916"; font.family: "Segoe Fluent Icons"; font.pixelSize: 22; color: root.accent }
                 TimerLabel {
+                    visible: !root.tibiaUi
                     Layout.fillWidth: true
                     text: stack.currentIndex === 0 ? "Work timer" : stack.currentIndex === 1 ? "History" : "My activity"
                     color: root.strongText; font.pixelSize: 20; font.weight: Font.DemiBold; elide: Text.ElideRight
                 }
                 DmeButton { id: activityButton; objectName: "workTimerActivity"; Layout.preferredWidth: 96; Layout.preferredHeight: 30; text: stack.currentIndex === 2 ? "Timer" : "My activity"; onClicked: stack.currentIndex = stack.currentIndex === 2 ? 0 : 2 }
                 DmeButton { id: historyButton; objectName: "workTimerHistory"; Layout.preferredWidth: 76; Layout.preferredHeight: 30; text: stack.currentIndex === 1 ? "Back" : "History"; onClicked: stack.currentIndex = stack.currentIndex === 1 ? 0 : 1 }
-                DmeButton { objectName: "workTimerClose"; Layout.preferredWidth: 28; Layout.preferredHeight: 30; text: "×"; onClicked: panel.close() }
+                Item { visible: root.tibiaUi; Layout.fillWidth: true }
+                DmeButton { visible: !root.tibiaUi; objectName: "workTimerClose"; Layout.preferredWidth: 28; Layout.preferredHeight: 30; text: "×"; onClicked: panel.close() }
             }
 
             TimerLabel {
@@ -109,7 +121,7 @@ Item {
             StackLayout {
                 id: stack
                 width: parent.width
-                height: parent.height - 48
+                height: parent.height - (root.tibiaUi ? 38 : 48)
                 currentIndex: 0
                 onCurrentIndexChanged: {
                     if (currentIndex === 1) root.historyPrepared = true;
@@ -207,7 +219,7 @@ Item {
                             required property int index
                             width: historyList.width
                             height: 58
-                            radius: root.fluentTheme ? 0 : 4
+                            radius: root.tibiaUi || root.fluentTheme ? 0 : 4
                             color: historyMouse.containsMouse ? root.hoverColor : (index % 2 ? root.panelColor : root.cardColor)
                             border.width: 1
                             border.color: root.borderColor

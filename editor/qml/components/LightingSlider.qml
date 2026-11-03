@@ -32,4 +32,5 @@ Slider {
         }
     }
     ColorHighlight { targetItem: control; colorKeys: ["border", "accent", "surface"] }
+    TibiaSkin.TibiaSliderSkin { control: control }
 }

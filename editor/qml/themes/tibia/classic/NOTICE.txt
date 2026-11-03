@@ -1,0 +1,7 @@
+Classic preview resources follow the user-provided Qt/QML 7.72 client.
+Unchanged OTCv8 reference PNGs and the antialiased UI font retain LICENSE.txt.
+The native-* sprite/font PNGs are lossless exports from the original user-supplied Tibia.pic.
+The unchanged native-input.png is the Qt client's extracted original empty input skin.
+They remain original-client artwork and are not relicensed under OTCv8 MIT.
+Source digests and exact atlas rectangles are recorded in ORIGIN.json.
+No original DAT, SPR, OTB or PIC file is included.

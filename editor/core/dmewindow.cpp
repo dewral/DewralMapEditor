@@ -57,8 +57,12 @@ void DmeWindow::applyCornerPreference()
     if (handle()) {
         // DWMWCP_DONOTROUND for the square Tibia skin; DWMWCP_ROUND otherwise.
         const int preference = m_roundedCorners ? 2 : 1;
-        DwmSetWindowAttribute(reinterpret_cast<HWND>(winId()), 33,
-                             &preference, sizeof(preference));
+        const auto hwnd = reinterpret_cast<HWND>(winId());
+        DwmSetWindowAttribute(hwnd, 33, &preference, sizeof(preference));
+        // The square Tibia popup already paints its complete border. Suppress
+        // DWM's extra one-pixel outline; other themes keep the system default.
+        const COLORREF borderColor = m_roundedCorners ? 0xffffffff : 0xfffffffe;
+        DwmSetWindowAttribute(hwnd, 34, &borderColor, sizeof(borderColor));
     }
 #endif
 }
@@ -143,8 +147,6 @@ bool DmeWindow::event(QEvent *event)
         const BOOL darkFrame = TRUE;
         DwmSetWindowAttribute(hwnd, 20, &darkFrame, sizeof(darkFrame));
         applyCornerPreference();
-        const COLORREF systemBorder = 0xffffffff; // DWMWA_COLOR_DEFAULT
-        DwmSetWindowAttribute(hwnd, 34, &systemBorder, sizeof(systemBorder));
         const MARGINS frameMargins{1, 1, 1, 1};
         DwmExtendFrameIntoClientArea(hwnd, &frameMargins);
     }

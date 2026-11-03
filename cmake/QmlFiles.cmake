@@ -4,6 +4,8 @@ set(DME_QML_FILES
     editor/qml/Main.qml
     editor/qml/PalettePanel.qml
     editor/qml/StartupWindow.qml
+    editor/qml/components/ClientProfilesWindow.qml
+    editor/qml/components/StartupDashboard.qml
     editor/qml/components/ColorHighlight.qml
     editor/qml/components/ComboBoxTypeAhead.qml
     editor/qml/components/CreatureInformation.qml
@@ -42,6 +44,9 @@ set(DME_QML_FILES
     editor/qml/components/TaskIcon.qml
     editor/qml/components/TaskIconPicker.qml
     editor/qml/components/WeatherLayer.qml
+    editor/qml/components/WeatherRegionLayer.qml
+    editor/qml/dialogs/WeatherRegionsDialog.qml
+    editor/qml/dialogs/WeatherControls.qml
     editor/qml/components/WindowResizeHandles.qml
     editor/qml/components/WorkActivityPanel.qml
     editor/qml/components/WorkTimerExportDialog.qml
@@ -158,10 +163,18 @@ set(DME_QML_FILES
     editor/qml/themes/tibia/TibiaClientFrame.qml
     editor/qml/themes/tibia/TibiaMapScrollBar.qml
     editor/qml/themes/tibia/TibiaMenuBox.qml
+    editor/qml/themes/tibia/TibiaPreviewFrame.qml
+    editor/qml/themes/tibia/TibiaPreviewLabel.qml
+    editor/qml/themes/tibia/TibiaPreviewScrollBar.qml
     editor/qml/themes/tibia/TibiaPreviewSidebar.qml
     editor/qml/themes/tibia/TibiaSkin.qml
+    editor/qml/themes/tibia/TibiaSliderSkin.qml
     editor/qml/themes/tibia/TibiaSlot.qml
     editor/qml/themes/tibia/TibiaSurface.qml
+    editor/qml/themes/tibia/TibiaCaptionButton.qml
+    editor/qml/themes/tibia/TibiaPanelHeader.qml
+    editor/qml/themes/tibia/TibiaPopupWindow.qml
+    editor/qml/themes/tibia/TibiaSeparator.qml
     editor/qml/themes/tibia/TibiaWindowFrame.qml
     editor/qml/tools/ActivityDialogTool.qml
     editor/qml/tools/AiMapAssistantDialogTool.qml

@@ -100,7 +100,8 @@ Rectangle {
         mapCtrl.houseBrush = 0;
         mapCtrl.eraseMode = false;
         mapCtrl.lassoMode = false;
-        showItemLocation("raw", "Others", serverId);
+        const tileset = Backend.tilesetStore.tilesetForItem("raw", serverId);
+        showItemLocation("raw", tileset || "Others", serverId);
         mapCtrl.brushServerId = serverId;
     }
 
@@ -264,10 +265,12 @@ Rectangle {
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         height: Math.max(60, paletteCol.y + paletteContents.y + paletteContents.height + 4)
         active: paletteRoot.tibiaUi
-        sourceComponent: TibiaSkin.TibiaWindowFrame {
-            caption: paletteCol.currentKind
-            captionIconSource: "image://tibiaui/fluent-icon/"+({"Terrain Palette":"palette-terrain","RAW Palette":"palette-raw","Creature Palette":"palette-creature","Doodad Palette":"palette-doodad"}[paletteCol.currentKind] || "palette-raw")+"/dfdfdf"
-            onCaptionActivated: kindCombo.openPopup()
+        sourceComponent: TibiaSkin.TibiaPopupWindow {
+            movable: true
+            floating: paletteRoot.floating
+            closeToolTip: "Close palette (Ctrl+B)"
+            caption: "Palette"
+            centerCaption: true
             showLockButton: true
             locked: paletteRoot.positionLocked
             onCloseRequested: paletteRoot.collapseRequested()
@@ -820,8 +823,7 @@ Rectangle {
                 objectName: "paletteKindCombo"
                 paletteCategories: true
                 width: parent.width
-                height: paletteRoot.tibiaUi ? 0 : paletteRoot.fluentUi ? 29 : 23
-                visible: !paletteRoot.tibiaUi
+                height: paletteRoot.tibiaUi ? 28 : paletteRoot.fluentUi ? 29 : 23
                 model: paletteCol.kinds
                 currentIndex: paletteCol.initialKindIndex()
                 onActivated: index => paletteCol.selectKind(paletteCol.kinds[index])

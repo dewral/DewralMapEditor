@@ -116,6 +116,7 @@ Item {
         }
     }
 
+    function removeRecent(path) { recentMaps=recentMaps.filter(p=>p!==path);settings.recentMapsJson=JSON.stringify(recentMaps); }
     function addRecent(path) {
         var list = recentMaps.slice();
         var index = list.indexOf(path);
@@ -139,17 +140,17 @@ Item {
         profiles.prepareClientVersion(key, function(success, error) {
             if (generation !== newMapGeneration) return;
             if (!success) {
-                pendingNewMap = {key:key, w:width, h:height};
-                pendingKey = String(key);
-                showToast(error || "Choose a client folder.");
-                startupWindow.loadingMap = false;
-                if (started) versionFolderDialog.open();
-                else startupWindow.openVersionFolderDialog();
+                showToast(error || "Repair the client profile.");
+                startupWindow.loadingMap=false;
+                startupWindow.chooseClientProfile(profiles.profileVer(key),error || "Choose a configured client profile.",function(replacement){
+                    if(replacement)controller.createNewMap(replacement,width,height);
+                });
                 return;
             }
             if (Backend.otbmReader.loaded || Backend.otbmReader.filePath !== "") Backend.docMgr.newDocument();
             Backend.otbmReader.newMap(width, height, profiles.profileVer(key), Backend.otbReader.majorVersion, Backend.otbReader.minorVersion);
             Backend.docMgr.setCurrentProfileKey(String(key));
+            profiles.bindCurrentDocument(String(key));
             mapView.centerOnTile(Math.floor(width / 2), Math.floor(height / 2), 7);
             started = true;
         });
@@ -171,10 +172,17 @@ Item {
                 return completeLoadedMap(mapPath, preferredProfileKey);
         }
 
-        if (Backend.otbmReader.loaded && Backend.otbmReader.filePath !== mapPath)
-            Backend.docMgr.newDocument();
         const header = Backend.otbmReader.inspectFileHeader(mapPath);
         if (!header.success) { showToast(header.error || "Could not inspect map header."); return false; }
+        const remembered=profiles.mapProfiles[mapPath] || "";
+        const choices=profiles.configuredProfileKeys().filter(k=>profiles.profileMatchesVersion(k,header.clientVersion));
+        if((remembered && !profiles.profileEntries[remembered] && !profiles.clientPaths[remembered])
+            || (!remembered && !preferredProfileKey && choices.length!==1)) {
+            startupWindow.chooseClientProfile(header.clientVersion,"Choose a client profile for this map.",function(key){
+                if(key){profiles.rememberMapProfile(mapPath,key);controller.loadEverything(mapPath,key);}
+            });
+            return true;
+        }
         activeLoadPath = mapPath;
         activePreferredProfileKey = preferredProfileKey === undefined || preferredProfileKey === null ? "" : String(preferredProfileKey);
         profiles.prepareClientForMap(header.clientVersion, mapPath, preferredProfileKey, function(success, error) {
@@ -182,9 +190,12 @@ Item {
             if (!success) {
                 activeLoadPath = ""; activePreferredProfileKey = "";
                 showToast(error || "Client loading failed.");
-                requestClientFolder(mapPath, preferredProfileKey, header.clientVersion);
+                startupWindow.chooseClientProfile(header.clientVersion,error || "Repair or choose a client profile.",function(key){
+                    if(key){profiles.rememberMapProfile(mapPath,key);controller.loadEverything(mapPath,key);}
+                });
                 return;
             }
+            if (Backend.otbmReader.loaded && Backend.otbmReader.filePath !== mapPath) Backend.docMgr.newDocument();
             if (!mapView.loadMap(mapPath)) {
                 activeLoadPath = ""; activePreferredProfileKey = "";
                 startupWindow.loadingMap = false;

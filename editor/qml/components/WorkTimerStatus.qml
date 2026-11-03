@@ -1,4 +1,5 @@
 import QtQuick
+import "../themes/tibia" as TibiaSkin
 import QtQuick.Controls
 import QtQuick.Dialogs
 import QtQuick.Window
@@ -15,6 +16,7 @@ Item {
     property var popupHost
     function openPanel() { if (popupHost) popupHost.openFor(root); }
     property bool statusBarMode: false
+    readonly property bool tibiaStatus: statusBarMode && Backend.uiTheme.style === "tibia-ui"
     implicitWidth: statusBarMode ? 344 : 245
     implicitHeight: 30
     property color foreground: "#C9D1D9"
@@ -51,8 +53,8 @@ Item {
     RowLayout {
         z: 1
         anchors.fill: parent
-        anchors.leftMargin: root.statusBarMode ? 8 : 4
-        anchors.rightMargin: root.statusBarMode ? 4 : 4
+        anchors.leftMargin: root.tibiaStatus ? 0 : root.statusBarMode ? 8 : 4
+        anchors.rightMargin: root.tibiaStatus ? 0 : 4
         spacing: root.width < 180 ? 5 : 8
         Rectangle {
             visible: root.statusBarMode
@@ -61,7 +63,7 @@ Item {
         }
         Canvas {
             id: clockGlyph
-            visible: (!root.statusBarMode || root.width >= 175) && !root.timerService.active
+            visible: !root.tibiaStatus && (!root.statusBarMode || root.width >= 175) && !root.timerService.active
             Layout.alignment: Qt.AlignVCenter
             width: 16
             height: 16
@@ -88,7 +90,7 @@ Item {
             }
         }
         TaskIcon {
-            visible: root.timerService.active && (!root.statusBarMode || root.width >= 175)
+            visible: !root.tibiaStatus && root.timerService.active && (!root.statusBarMode || root.width >= 175)
             Layout.preferredWidth: 18; Layout.preferredHeight: 18
             icon: root.timerService.taskIcon || "mapping"
         }
@@ -98,13 +100,13 @@ Item {
             Layout.fillWidth: true
             Layout.minimumWidth: 0
             text: root.timerService.active ? root.timerService.taskName : "Work timer"
-            color: root.foreground; font.pixelSize: 12
+            color: root.foreground; font.pixelSize: root.tibiaStatus ? 11 : 12
             elide: Text.ElideRight
             verticalAlignment: Text.AlignVCenter
         }
         TextMetrics {
             id: durationMetrics
-            font.family: "Consolas"; font.pixelSize: root.statusBarMode ? 14 : 12; font.weight: Font.DemiBold
+            font.family: root.tibiaStatus ? "Verdana" : "Consolas"; font.pixelSize: root.tibiaStatus ? 11 : root.statusBarMode ? 14 : 12; font.weight: Font.DemiBold
             text: root.timerService.taskElapsedText
         }
         TimerLabel {
@@ -115,22 +117,26 @@ Item {
             height: 28
             text: root.timerService.taskElapsedText
             color: root.foreground
-            font.pixelSize: root.statusBarMode ? 14 : 12
-            font.family: "Consolas"; font.weight: Font.DemiBold
+            font.pixelSize: root.tibiaStatus ? 11 : root.statusBarMode ? 14 : 12
+            font.family: root.tibiaStatus ? "Verdana" : "Consolas"; font.weight: Font.DemiBold
             horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
         }
         Item {
             id: statusToggle
             objectName: "workTimerToggle"
-            Layout.preferredWidth: root.statusBarMode ? 28 : 24
-            Layout.preferredHeight: root.statusBarMode ? 28 : 24
+            Layout.preferredWidth: root.tibiaStatus ? 24 : root.statusBarMode ? 28 : 24
+            Layout.preferredHeight: root.tibiaStatus ? 24 : root.statusBarMode ? 28 : 24
 
             Rectangle {
                 anchors.fill: parent
                 radius: Backend.uiTheme.style === "tibia-ui" ? 0 : root.statusBarMode ? 4 : root.fluentTheme ? 0 : 4
                 color: statusToggleMouse.containsMouse ? root.activeFill : "transparent"
-                border.width: root.statusBarMode || root.timerService.active ? 1 : 0
+                border.width: root.tibiaStatus ? 0 : root.statusBarMode || root.timerService.active ? 1 : 0
                 border.color: root.accent
+            }
+            Loader {
+                anchors.fill: parent; active: root.tibiaStatus
+                sourceComponent: TibiaSkin.TibiaClassicFrame { kind: "button"; pressed: statusToggleMouse.pressed }
             }
             Canvas {
                 id: statusGlyph

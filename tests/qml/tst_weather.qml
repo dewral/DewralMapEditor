@@ -10,6 +10,19 @@ Item {
         id: prefs
         property bool weatherEnabled: false
         property bool weatherPaused: false
+        property real weatherFogOpacity:100
+        property real weatherFogScale:1
+        property real weatherFogSpeed:1
+        property real weatherFogTurbulence:25
+        property real weatherGustPeriod:12
+        property real weatherVariation:0
+        property real weatherRainSpeed:1
+        property real weatherRainOpacity:70
+        property real weatherTransition:5
+        property real weatherRainLength:12
+        property real weatherRainThickness:1
+        property string weatherFogColor:"#D5E2E8"
+        property string weatherRainColor:"#B6D9F0"
         property int weatherRain: 45
         property int weatherStorm: 0
         property int weatherSnow: 0
@@ -90,7 +103,12 @@ Item {
         function test_liveControls() {
             const rain=locate("weatherRain"); rain.value=78; rain.moved(); compare(prefs.weatherRain,78);
             const wind=locate("weatherWind"); wind.value=-60; wind.moved(); compare(prefs.weatherWind,-60);
-            locate("weatherQuality").activated(2); compare(prefs.weatherQuality,2);
+            locate("weatherQuality").activated(3); compare(prefs.weatherQuality,2);
+        }
+        function test_visualParameters() {
+            dialog.preset(7);compare(prefs.weatherFog,35);compare(prefs.weatherFogOpacity,75);
+            const scale=locate("weatherFogScale");scale.value=1.75;scale.moved();compare(prefs.weatherFogScale,1.75);
+            locate("weatherQuality").activated(0);compare(prefs.weatherQuality,-1);
         }
         function test_worldCamera() {
             map.x=110; map.contentUpdated(); compare(layer.viewX,110);

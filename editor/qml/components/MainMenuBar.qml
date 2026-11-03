@@ -161,16 +161,16 @@ DmeMenuBar {
             id: hotkeyAction_undo
             text: "Undo"
             shortcut: menuBar.commandShortcut("undo")
-            enabled: Backend.otbmReader.undoCount > 0
-            onTriggered: menuBar.mapView.undo()
+            enabled: menuBar.mapView.weatherEditing ? menuBar.mapView.weatherDocument.canUndoGeometry : Backend.otbmReader.undoCount > 0
+            onTriggered: { if(menuBar.mapView.weatherEditing)menuBar.mapView.weatherDocument.undoGeometry();else menuBar.mapView.undo(); }
         }
         Action {
             id: hotkeyAction_redo
 
             text: "Redo"
             shortcut: menuBar.commandShortcut("redo")
-            enabled: Backend.otbmReader.redoCount > 0
-            onTriggered: menuBar.mapView.redo()
+            enabled: menuBar.mapView.weatherEditing ? menuBar.mapView.weatherDocument.canRedoGeometry : Backend.otbmReader.redoCount > 0
+            onTriggered: { if(menuBar.mapView.weatherEditing)menuBar.mapView.weatherDocument.redoGeometry();else menuBar.mapView.redo(); }
         }
         MenuSeparator {}
 
@@ -366,6 +366,8 @@ DmeMenuBar {
         DmeMenu {
             id: mapProfileMenu
             title: "Client profile"
+            DmeMenuItem {text:"Manage clients…";onTriggered:menuBar.appController.startupWindow.openClientProfiles()}
+            MenuSeparator {}
             Instantiator {
                 model: menuBar.appController.configuredProfileKeys()
                 delegate: DmeMenuItem {
@@ -599,6 +601,11 @@ DmeMenuBar {
             text: "Weather settings..."
             enabled: !!menuBar.weatherDialog
             onTriggered: menuBar.weatherDialog.open()
+        }
+        Action {
+            text: "Weather regions..."
+            enabled: Backend.otbmReader.loaded && !!menuBar.weatherDialog
+            onTriggered: menuBar.weatherDialog.openRegions()
         }
         Action { text: "DME Activity…"; onTriggered: menuBar.activityRequested() }
         Action {

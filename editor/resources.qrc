@@ -1,5 +1,47 @@
 <RCC>
     <qresource prefix="/">
+        <file>qml/themes/tibia/classic/battle.png</file>
+        <file>qml/themes/tibia/classic/progressbar.png</file>
+        <file>qml/themes/tibia/classic/buttons.png</file>
+        <file>qml/themes/tibia/classic/checkbox.png</file>
+        <file>qml/themes/tibia/classic/condition.png</file>
+        <file>qml/themes/tibia/classic/LICENSE.txt</file>
+        <file>qml/themes/tibia/classic/magic_shield.png</file>
+        <file>qml/themes/tibia/classic/minimap-circle.png</file>
+        <file>qml/themes/tibia/classic/minimap-floor-down.png</file>
+        <file>qml/themes/tibia/classic/minimap-floor-up.png</file>
+        <file>qml/themes/tibia/classic/minimap-zoom-in.png</file>
+        <file>qml/themes/tibia/classic/minimap-zoom-out.png</file>
+        <file>qml/themes/tibia/classic/miniwindow_buttons.png</file>
+        <file>qml/themes/tibia/classic/native-bar-empty.png</file>
+        <file>qml/themes/tibia/classic/native-bar-health.png</file>
+        <file>qml/themes/tibia/classic/native-bar-mana.png</file>
+        <file>qml/themes/tibia/classic/native-checkbox-off.png</file>
+        <file>qml/themes/tibia/classic/native-checkbox-on.png</file>
+        <file>qml/themes/tibia/classic/native-font-5.png</file>
+        <file>qml/themes/tibia/classic/native-font-7.png</file>
+        <file>qml/themes/tibia/classic/native-input.png</file>
+        <file>qml/themes/tibia/classic/native-health.png</file>
+        <file>qml/themes/tibia/classic/native-mana.png</file>
+        <file>qml/themes/tibia/classic/native-slider-less-down.png</file>
+        <file>qml/themes/tibia/classic/native-slider-less.png</file>
+        <file>qml/themes/tibia/classic/native-slider-more-down.png</file>
+        <file>qml/themes/tibia/classic/native-slider-more.png</file>
+        <file>qml/themes/tibia/classic/native-slider-thumb.png</file>
+        <file>qml/themes/tibia/classic/native-slider-track.png</file>
+        <file>qml/themes/tibia/classic/NOTICE.txt</file>
+        <file>qml/themes/tibia/classic/options.png</file>
+        <file>qml/themes/tibia/classic/ORIGIN.json</file>
+        <file>qml/themes/tibia/classic/panel_flat.png</file>
+        <file>qml/themes/tibia/classic/panel_side.png</file>
+        <file>qml/themes/tibia/classic/progressbar.png</file>
+        <file>qml/themes/tibia/classic/scrollbar.png</file>
+        <file>qml/themes/tibia/classic/skills.png</file>
+        <file>qml/themes/tibia/classic/textedit.png</file>
+        <file>qml/themes/tibia/classic/verdana-11px-antialised.otfont</file>
+        <file>qml/themes/tibia/classic/verdana-11px-antialised_cp1252.png</file>
+        <file>qml/themes/tibia/classic/vip.png</file>
+        <file>qml/themes/tibia/classic/window.png</file>
         <file>qml/themes/tibia/icons/new.svg</file>
         <file>qml/themes/tibia/icons/open.svg</file>
         <file>qml/themes/tibia/icons/save.svg</file>
@@ -13,6 +55,16 @@
         <file>qml/themes/tibia/icons/animation-play.svg</file>
         <file>qml/themes/tibia/icons/animation-pause.svg</file>
         <file>qml/themes/tibia/icons/lighting.svg</file>
+        <file>qml/themes/tibia/icons/tool-lasso.svg</file>
+        <file>qml/themes/tibia/icons/tool-border.svg</file>
+        <file>qml/themes/tibia/icons/tool-pz.svg</file>
+        <file>qml/themes/tibia/icons/tool-np.svg</file>
+        <file>qml/themes/tibia/icons/tool-nl.svg</file>
+        <file>qml/themes/tibia/icons/tool-pvp.svg</file>
+        <file>qml/themes/tibia/icons/tool-auto.svg</file>
+        <file>qml/themes/tibia/icons/tool-doors.svg</file>
+        <file>qml/themes/tibia/icons/TOOLS-NOTICE.md</file>
+        <file>qml/themes/fluent/icons/LUCIDE-LICENSE.txt</file>
         <file>qml/themes/tibia/icons/minimize.svg</file>
         <file>qml/themes/tibia/icons/maximize.svg</file>
         <file>qml/themes/tibia/icons/restore.svg</file>
@@ -274,5 +326,9 @@
         <file alias="qml/themes/tibia/images/checkbox-checked-disabled.png">qml/themes/tibia/images/checkbox-checked-disabled.png</file>
         <file alias="qml/themes/tibia/images/checkbox-unchecked.png">qml/themes/tibia/images/checkbox-unchecked.png</file>
         <file alias="qml/themes/tibia/images/menubox.png">qml/themes/tibia/images/menubox.png</file>
+        <file alias="qml/themes/tibia/images/console-tab-active.png">qml/themes/tibia/images/console-tab-active.png</file>
+        <file alias="qml/themes/tibia/images/console-tab-passive.png">qml/themes/tibia/images/console-tab-passive.png</file>
+        <file alias="qml/themes/tibia/images/2pixel-up-frame-borderimage-upside-down.png">qml/themes/tibia/images/2pixel-up-frame-borderimage-upside-down.png</file>
+
     </qresource>
 </RCC>

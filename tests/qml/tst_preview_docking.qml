@@ -61,8 +61,67 @@ Item {
             const renderer=findChild(host,"clientPreviewRenderer"); compare(renderer.showCreatures,false); compare(renderer.showItems,false);
             settings.ingamePreviewShowCreatures=true; settings.ingamePreviewShowItems=true;
             grabImage(host).save("build/tibia-preview-sidebar.png");
+            grabImage(sidebar).save("build/classic-preview-sidebar.png");
             mouseClick(findChild(host,"previewSidebarToggle")); compare(sidebar.visible,false);
             mouseClick(findChild(host,"previewSidebarToggle")); compare(sidebar.visible,true);
+            host.x=740; host.width=440; host.height=700; settings.ingamePreviewSpeed=0;
+            Backend.uiTheme.style="fluent-dark";
+        }
+        function test_tibiaSidebarNavigationAndGroups() {
+            Backend.uiTheme.style="tibia-ui"; host.x=0; host.width=1100; host.height=760;
+            wait(40);
+            const sidebar=findChild(host,"tibiaPreviewSidebar");
+            const explorer=findChild(preview,"previewExplorer");
+            const minimap=findChild(sidebar,"previewSidebarMinimap");
+            minimap.pxPerTile=1;
+            mouseClick(findChild(sidebar,"sidebarMinimapZoomIn")); compare(minimap.pxPerTile,2);
+            mouseClick(findChild(sidebar,"sidebarMinimapZoomOut")); compare(minimap.pxPerTile,1);
+            verify(!findChild(sidebar,"sidebarMinimapZoomOut").enabled);
+            explorer.setPosition(123,234,7);
+            mouseClick(findChild(sidebar,"sidebarMinimapFloorUp")); compare(minimap.focusFloor,6); compare(explorer.z,7);
+            mouseClick(findChild(sidebar,"sidebarMinimapFloorDown")); compare(minimap.focusFloor,7); compare(explorer.z,7);
+            mouseClick(findChild(sidebar,"sidebarMinimapCentre")); compare(explorer.x,123); compare(explorer.y,234); compare(minimap.pxPerTile,2);
+            const group=findChild(sidebar,"sidebarSettingsSection");
+            const heading=findChild(sidebar,"sidebarSettingsSectionHeader");
+            mouseClick(heading); compare(group.expanded,false);
+            heading.forceActiveFocus(); keyClick(Qt.Key_Space); compare(group.expanded,true);
+            const visibility=findChild(sidebar,"sidebarVisibilitySection");
+            visibility.expanded=true;
+            const showItems=findChild(sidebar,"sidebarShowItems");
+            settings.ingamePreviewShowItems=true; showItems.clicked();
+            compare(settings.ingamePreviewShowItems,false);
+            compare(findChild(host,"clientPreviewRenderer").showItems,false);
+            showItems.clicked(); compare(settings.ingamePreviewShowItems,true);
+            visibility.expanded=false;
+            const light=findChild(sidebar,"sidebarLightingSection"); light.expanded=true;
+            const ambient=findChild(sidebar,"sidebarAmbient"); ambient.value=127; ambient.moved(); compare(map.lightAmbient,127);
+            light.expanded=false; map.lightAmbient=40;
+            const scroll=findChild(sidebar,"previewSidebarScroll");
+            host.height=480; wait(20); verify(scroll.contentHeight>scroll.height);
+            host.height=860; wait(20); verify(scroll.contentHeight<=scroll.height);
+            host.x=740; host.width=440; host.height=700; Backend.uiTheme.style="fluent-dark";
+        }
+        function test_classicSidebarEditingAndNativeAssets() {
+            Backend.uiTheme.style="tibia-ui"; host.x=0; host.width=1100; host.height=800; wait(30);
+            const sidebar=findChild(host,"tibiaPreviewSidebar");
+            const name=findChild(sidebar,"sidebarPlayerName");
+            mouseClick(name); keyClick(Qt.Key_A,Qt.ControlModifier); keyClick(Qt.Key_M);
+            compare(settings.ingamePreviewPlayerName,"m");
+            const glyphs=findChild(name,"classicPreviewGlyphs"); tryCompare(glyphs,"status",Image.Ready);
+            settings.ingamePreviewPlayerName="Dewral";
+            const speed=findChild(sidebar,"sidebarPlayerSpeed");
+            const input=findChild(speed,"classicSpinInput"); settings.ingamePreviewSpeed=220;
+            mouseClick(input); keyClick(Qt.Key_Up); compare(settings.ingamePreviewSpeed,221);
+            settings.ingamePreviewSpeed=315; compare(input.text,"315");
+            const rain=findChild(sidebar,"sidebarWeatherRain"); settings.previewWeatherRain=50;
+            mouseClick(findChild(rain,"classicSlider-more")); compare(settings.previewWeatherRain,51);
+            settings.previewWeatherRain=67; compare(rain.value,67);
+            const quality=findChild(sidebar,"sidebarWeatherQuality");
+            mouseClick(quality); keyClick(Qt.Key_End); keyClick(Qt.Key_Return); compare(settings.previewWeatherQuality,2);
+            const scroll=findChild(sidebar,"previewClassicScrollbar"); compare(scroll.visible,false);
+            host.height=400; wait(20); compare(scroll.visible,true);
+            const before=findChild(sidebar,"previewSidebarScroll").contentY;
+            mouseClick(scroll,6,scroll.height-6); verify(findChild(sidebar,"previewSidebarScroll").contentY>before);
             host.x=740; host.width=440; host.height=700; settings.ingamePreviewSpeed=0;
             Backend.uiTheme.style="fluent-dark";
         }
@@ -122,7 +181,7 @@ Item {
             mouseClick(camera);
             verify(camera.enabled);
         }
-        function cleanup() { settings.showIngamePreviewWindow=false; }
+        function cleanup() { settings.showIngamePreviewWindow=false; settings.ingamePreviewSpeed=0; host.x=740; host.width=440; host.height=700; Backend.uiTheme.style="fluent-dark"; }
         function test_switchSidesAndDetach() {
             verify(preview.docked);
             const left=findChild(host,"dockPreviewLeft");

@@ -197,6 +197,8 @@ add_executable(DewralMapEditor
     editor/map/maprhiview.h
     editor/map/minimapview.cpp
     editor/map/minimapview.h
+    editor/core/weatherregions.cpp
+    editor/core/weatherregions.h
     editor/preview/weatherparticles.cpp
     editor/preview/weatherparticles.h
     editor/preview/weatherpreviewitem.cpp
@@ -346,7 +348,11 @@ if(BUILD_TESTING)
             -platform "$<IF:$<PLATFORM_ID:Windows>,windows,offscreen>"
             -input "${CMAKE_SOURCE_DIR}/tests/qml/tst_tibia_theme.qml"
             -import "${CMAKE_SOURCE_DIR}/tests/qml/imports")
-        set_tests_properties(tibia_ui_qml PROPERTIES
+        add_test(NAME classic_panels_qml COMMAND tibia_ui_qml_test
+            -platform "$<IF:$<PLATFORM_ID:Windows>,windows,offscreen>"
+            -input "${CMAKE_SOURCE_DIR}/tests/qml/tst_classic_panels.qml"
+            -import "${CMAKE_SOURCE_DIR}/tests/qml/imports")
+        set_tests_properties(tibia_ui_qml classic_panels_qml PROPERTIES
             WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
             ENVIRONMENT "QT_QUICK_CONTROLS_STYLE=Basic;QT_QUICK_BACKEND=software"
             ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
@@ -467,6 +473,13 @@ if(BUILD_TESTING)
     target_include_directories(otbm_compact_storage_test PRIVATE libs/otformats)
     target_link_libraries(otbm_compact_storage_test PRIVATE OTFormats Qt6::Core)
     add_test(NAME otbm_compact_storage COMMAND otbm_compact_storage_test)
+    add_executable(weather_regions_test EXCLUDE_FROM_ALL
+        tests/weather_regions_test.cpp editor/core/weatherregions.cpp editor/core/weatherregions.h)
+    target_include_directories(weather_regions_test PRIVATE editor/core)
+    target_link_libraries(weather_regions_test PRIVATE OTFormats Qt6::Quick Qt6::Concurrent)
+    add_test(NAME weather_regions COMMAND weather_regions_test)
+    set_tests_properties(weather_regions PROPERTIES ENVIRONMENT_MODIFICATION
+        "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
     add_executable(weather_preview_render_test EXCLUDE_FROM_ALL
         tests/weather_preview_render_test.cpp editor/preview/weatherparticles.cpp
         editor/preview/weatherpreviewitem.cpp editor/preview/weatherpreviewitem.h)
@@ -717,6 +730,7 @@ if(BUILD_TESTING)
     target_include_directories(document_session_test PRIVATE libs/otformats editor/core)
     target_link_libraries(document_session_test PRIVATE OTFormats Qt6::Core Qt6::Concurrent)
     add_test(NAME document_session COMMAND document_session_test)
+    add_test(NAME document_tabs_smoke COMMAND DewralMapEditor --smoke-test --smoke-documents)
     set_tests_properties(document_session PROPERTIES TIMEOUT 45)
     if(WIN32)
         set_tests_properties(document_session PROPERTIES

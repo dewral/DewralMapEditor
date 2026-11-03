@@ -228,8 +228,12 @@ IngamePreviewFrame IngamePreviewScene::build(MapView *source, const IngamePrevie
     };
     const int first = source->previewFirstVisibleFloor(s.x, s.y, s.z),
               last = s.z <= 7 ? 7 : std::min(15, s.z + 2);
-    const double left = s.visualX + 0.5 - s.size.width() / 64.0,
-                 top = s.visualY + 0.5 - s.size.height() / 64.0;
+    // Shift the complete scene in logical pixels, rather than rasterizing each
+    // sprite at a changing subpixel phase before the final viewport scaling.
+    const double left = std::round((s.visualX + 0.5) * 32 - s.size.width() / 2.0) / 32,
+                 top = std::round((s.visualY + 0.5) * 32 - s.size.height() / 2.0) / 32;
+    const double visualX = left - 0.5 + s.size.width() / 64.0,
+                 visualY = top - 0.5 + s.size.height() / 64.0;
     const auto typeOf = [&](const OtbmMapItem &item)
     {
         const int id = source->m_otb->clientIdForServerId(item.server_id);
@@ -264,7 +268,10 @@ IngamePreviewFrame IngamePreviewScene::build(MapView *source, const IngamePrevie
             }
         return height;
     };
-    const int lightW = (s.size.width() + 31) / 32 + 2, lightH = (s.size.height() + 31) / 32 + 2;
+    // Keep light samples on world tile centers. Only the texture sampling origin
+    // moves with the camera; fixed lights no longer change interpolation phase.
+    frame.lightOrigin = QPointF(std::floor(left) - left - 1, std::floor(top) - top - 1);
+    const int lightW = (s.size.width() + 31) / 32 + 3, lightH = (s.size.height() + 31) / 32 + 3;
     frame.light = QImage(lightW, lightH, QImage::Format_RGB32);
     const auto global = color8(s.ambientColor);
     const int intensity = s.z <= 7 ? qBound(0, s.ambient, 255) : 0;
@@ -282,7 +289,8 @@ IngamePreviewFrame IngamePreviewScene::build(MapView *source, const IngamePrevie
             {
                 const double influence = qBound(
                     0.0,
-                    (radius - std::hypot((x - 0.5) * 32 - point.x(), (y - 0.5) * 32 - point.y()) / 32) * 0.2,
+                    (radius - std::hypot((x + 0.5 + frame.lightOrigin.x()) * 32 - point.x(),
+                                        (y + 0.5 + frame.lightOrigin.y()) * 32 - point.y()) / 32) * 0.2,
                     1.0);
                 if (influence <= 0)
                     continue;
@@ -361,7 +369,7 @@ IngamePreviewFrame IngamePreviewScene::build(MapView *source, const IngamePrevie
                                           {ct->lookHead, ct->lookBody, ct->lookLegs, ct->lookFeet}, ct->name,
                                           false);
                         if (local)
-                            drawActor(s.visualX, s.visualY, s.lookType, 0, s.direction, s.phase, s.colors,
+                            drawActor(visualX, visualY, s.lookType, 0, s.direction, s.phase, s.colors,
                                       s.name, true);
                         continue;
                     }
@@ -400,7 +408,7 @@ QImage IngamePreviewFrame::referenceImage() const
     if (!light.isNull())
     {
         p.setCompositionMode(QPainter::CompositionMode_Multiply);
-        p.drawImage(QPoint(-32, -32),
+        p.drawImage(lightOrigin * 32,
                     light.scaled(light.size() * 32, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
     }
     return image;

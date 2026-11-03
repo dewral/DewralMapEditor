@@ -22,7 +22,13 @@ Item {
         objectName: "toolsSectionFrame"
         active: root.framed
         anchors.fill: parent
-        sourceComponent: TibiaSkin.TibiaWindowFrame { caption: "Tools"; movable: false; showCloseButton: true; showLockButton: true; onCloseRequested: root.collapsed=true; onLockRequested: root.collapsed=!root.collapsed }
+        sourceComponent: TibiaSkin.TibiaPopupWindow {
+            caption: "Tools"; movable: false
+            showCloseButton: true; showCollapseButton: true
+            collapsed: root.collapsed
+            onCloseRequested: root.collapsed=true
+            onCollapseRequested: root.collapsed=!root.collapsed
+        }
     }
     signal dockDragStarted()
     signal dockDragMoved(real sceneX, real sceneY)
@@ -33,7 +39,7 @@ Item {
         objectName: "brushDockHandle"
         z: 5
         x: 0; y: 0
-        width: root.compact ? 18 : root.framed ? Math.max(0,root.width-38) : root.width
+        width: root.compact ? 18 : root.framed ? Math.max(0,root.width-42) : root.width
         height: root.compact ? root.height : root.framed ? 17 : 25
         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
         property bool moving: false
@@ -64,8 +70,9 @@ Item {
     Text { id: toolsHeading; visible: !root.compact && !root.framed; text: "Tools"; color: Colors.c("heading"); font.family: Colors.family(); font.pixelSize: Colors.size(12); font.bold: Colors.bold(); renderType: Text.NativeRendering }
     Grid {
         id: toolsGrid
-        readonly property real buttonWidth: root.compact ? 56 : root.framed ? Math.max(1,(toolsContent.width - (columns-1)*spacing)/columns) : 62
-        columns: root.compact ? 8 : root.framed ? Math.min(4,Math.max(1,Math.floor(toolsContent.width/48))) : Math.max(1, Math.floor((toolsContent.width + spacing) / (buttonWidth + spacing)))
+        readonly property int standaloneButtonWidth: root.tibiaUi ? 44 : 62
+        readonly property real buttonWidth: root.compact ? (root.tibiaUi ? 32 : 56) : root.framed ? Math.max(1,(toolsContent.width - (columns-1)*spacing)/columns) : standaloneButtonWidth
+        columns: root.compact ? 8 : root.framed ? Math.min(4,Math.max(1,Math.floor(toolsContent.width/48))) : Math.max(1, Math.floor((toolsContent.width + spacing) / (standaloneButtonWidth + spacing)))
         spacing: 3; width: toolsContent.width
         Repeater {
             model: ["Lasso", "Border", "PZ", "NP", "NL", "PvP", "Auto", "Doors"]
@@ -74,26 +81,33 @@ Item {
                 required property string modelData
                 objectName: "fluentTool" + modelData
                 width: toolsGrid.buttonWidth
-                height: root.compact ? 30 : root.framed ? 52 : 44
+                height: root.compact ? 30 : root.tibiaUi ? 40 : root.framed ? 52 : 44
                 text: modelData
+                readonly property string description: ({Lasso:"Lasso selection",Border:"Optional borders",PZ:"Protection zone",NP:"No-PvP zone",NL:"No-logout zone",PvP:"PvP zone",Auto:"Automatic borders",Doors:"Doors"})[modelData]
+                Accessible.name: description
+                ToolTip.visible: hovered
+                ToolTip.delay: 500
+                ToolTip.text: description
                 padding: 3
                 contentItem: Item {
                   Grid {
                     anchors.centerIn: parent
-                    columns: root.compact ? 2 : 1
+                    columns: root.compact && !root.tibiaUi ? 2 : 1
                     horizontalItemAlignment: Grid.AlignHCenter
                     verticalItemAlignment: Grid.AlignVCenter
                     spacing: 2
                     Image {
-                        width: root.compact ? 18 : 20; height: width
+                        objectName: "toolIcon"+toolButton.modelData
+                        width: root.tibiaUi ? (root.compact ? 22 : 24) : root.compact ? 18 : 20; height: width
+                        smooth: false
                         sourceSize: Qt.size(width, height)
-                        source: "image://tibiaui/fluent-icon/" + toolButton.modelData + "/" + String(Colors.c(Backend.uiTheme.style === "tibia-ui" ? "buttonText" : "muted")).replace("#", "")
+                        source: root.tibiaUi ? Qt.resolvedUrl("../themes/tibia/icons/tool-"+toolButton.modelData.toLowerCase()+".svg") : "image://tibiaui/fluent-icon/" + toolButton.modelData + "/" + String(Colors.c(Backend.uiTheme.style === "tibia-ui" ? "buttonText" : "muted")).replace("#", "")
                     }
-                    Text { text: toolButton.modelData; color: Colors.c("buttonText"); font.family: Colors.family(); font.pixelSize: 11; font.bold: Colors.bold(); renderType: Text.NativeRendering }
+                    Text { objectName: "toolLabel"+toolButton.modelData; visible: !root.tibiaUi; text: toolButton.modelData; color: Colors.c("buttonText"); font.family: Colors.family(); font.pixelSize: 11; font.bold: Colors.bold(); renderType: Text.NativeRendering }
                 }
                 }
                 background: Rectangle {
-                    radius: 4
+                    radius: root.tibiaUi ? 0 : 4
                     color: toolButton.checked ? (toolButton.hovered ? Colors.c("selectedHover") : Colors.c("selected")) : toolButton.down ? Colors.c("pressed") : toolButton.hovered ? Colors.c("hover") : Colors.c("button")
                     border.color: toolButton.checked ? Colors.c("selectedBorder") : Colors.c("border")
                     TibiaSkin.TibiaSkin { anchors.fill: parent; kind: "button"; pressed: toolButton.down; hovered: toolButton.hovered; selected: toolButton.checked }

@@ -12,6 +12,18 @@ Menu {
                                       || Backend.uiTheme.style === "gray-modern"
     readonly property bool classicLayout: Backend.uiTheme.style === "classic"
                                           || Backend.uiTheme.style === "windows-classic"
+    readonly property bool pointerInMenuTree: {
+        if (!visible)
+            return false;
+        if (menuPointer.hovered)
+            return true;
+        for (let index = 0; index < count; ++index) {
+            const entry = itemAt(index);
+            if (entry && entry.subMenu && entry.subMenu.pointerInMenuTree)
+                return true;
+        }
+        return false;
+    }
     readonly property real widestEntry: {
         if (!tibiaTheme) return 0;
         let widest = 0;
@@ -29,6 +41,12 @@ Menu {
     palette.mid: root.fluentTheme ? FluentColors.c("separator") : "#808080"
     overlap: 0
     background: Loader {
+        id: menuBackground
+        HoverHandler {
+            id: menuPointer
+            parent: menuBackground.parent || menuBackground
+            enabled: root.tibiaTheme && root.visible
+        }
         sourceComponent: root.tibiaTheme ? tibiaMenuBackground : root.classicLayout ? classicMenuBackground : githubMenuBackground
     }
     Component {
@@ -39,6 +57,10 @@ Menu {
             horizontalTileMode: BorderImage.Repeat
             verticalTileMode: BorderImage.Repeat
             smooth: false
+            Rectangle {
+                anchors.fill:parent;anchors.margins:3
+                color:"#18000000"
+            }
         }
     }
     Component {

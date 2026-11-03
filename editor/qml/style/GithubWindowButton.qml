@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls as Controls
 import Tibia 1.0
 import "../themes/tibia" as TibiaSkin
 
@@ -12,6 +13,7 @@ Item {
     property string controlType: "minimize"
     property bool maximized: false
     property bool compact: false
+    property bool paletteCaption: false
     property bool nativeHovered: false
     property bool nativePressed: false
     readonly property bool hovered: controlMouse.containsMouse || nativeHovered
@@ -36,17 +38,20 @@ Item {
     }
 
     Loader {
-        anchors.centerIn: parent; width: 22; height: 22; active: root.tibiaTheme
-        sourceComponent: TibiaSkin.TibiaClassicFrame { kind: "button"; pressed: root.pressed }
+        anchors.centerIn: parent; anchors.verticalCenterOffset: root.paletteCaption ? 1 : 0
+        width: 22; height: root.paletteCaption ? 18 : 22; active: root.tibiaTheme
+        sourceComponent: TibiaSkin.TibiaCaptionButton { showGlyph: false; pressed: root.pressed; hovered: root.hovered }
     }
     Image {
         objectName: "tibiaCaptionButton"
         visible: root.tibiaTheme
-        anchors.centerIn: parent
-        anchors.verticalCenterOffset: root.pressed ? 1 : 0
+        anchors.verticalCenterOffset: (root.paletteCaption ? 1 : 0)+(root.pressed ? 1 : 0)
         anchors.horizontalCenterOffset: root.pressed ? 1 : 0
-        width: 18; height: 18
-        sourceSize: Qt.size(18,18)
+        x: Math.round((parent.width-width)/2)+anchors.horizontalCenterOffset
+        y: Math.round((parent.height-height)/2)+anchors.verticalCenterOffset
+        width: root.paletteCaption ? 12 : 18; height: width
+        smooth: false
+        sourceSize: Qt.size(width,height)
         source: Qt.resolvedUrl("../themes/tibia/icons/" + (root.controlType === "maximize" && root.maximized ? "restore" : root.controlType) + ".svg")
     }
     Item {
@@ -122,6 +127,8 @@ Item {
         }
     }
 
+    Controls.ToolTip.visible: root.tibiaTheme && root.paletteCaption && root.hovered
+    Controls.ToolTip.text: root.controlType === "close" ? "Close" : root.controlType === "minimize" ? "Minimize" : root.maximized ? "Restore" : "Maximize"
     MouseArea {
         id: controlMouse
         anchors.fill: parent

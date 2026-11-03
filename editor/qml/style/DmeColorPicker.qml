@@ -1,4 +1,5 @@
 import QtQuick
+import "../themes/tibia" as TibiaSkin
 import QtQuick.Controls
 import "../themes/fluent/Colors.js" as Colors
 
@@ -52,9 +53,11 @@ DmeDialog {
             }
         }
         Slider {
+            id: hueSlider
+
             objectName: "colorHueSlider"
             width: parent.width
-            from: 0; to: 1
+            from: 0; to: 1; stepSize: 0.01
             value: root.hue
             background: Rectangle {
                 x: parent.leftPadding; y: parent.topPadding + parent.availableHeight / 2 - height / 2
@@ -80,6 +83,7 @@ DmeDialog {
                 root.hue = value;
                 root.choose(Qt.hsva(value, root.selectedColor.hsvSaturation, root.selectedColor.hsvValue, 1));
             }
+            TibiaSkin.TibiaSliderSkin { control: hueSlider }
         }
         Flow {
             width: parent.width; spacing: 6

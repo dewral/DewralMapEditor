@@ -141,6 +141,7 @@ int main(int argc, char **argv)
         DmeWindow nativeWindow;
         nativeWindow.setScreen(screen);
         nativeWindow.setGeometry(normalGeometry);
+        nativeWindow.setRoundedCorners(false);
         nativeWindow.show();
         app.processEvents();
         const auto cornerHwnd = reinterpret_cast<HWND>(nativeWindow.winId());
@@ -148,12 +149,19 @@ int main(int argc, char **argv)
         const HRESULT cornerQuery = DwmGetWindowAttribute(cornerHwnd, 33,
                                                           &cornerPreference, sizeof(cornerPreference));
         if (SUCCEEDED(cornerQuery)) {
-            nativeWindow.setRoundedCorners(false);
-            DwmGetWindowAttribute(cornerHwnd, 33, &cornerPreference, sizeof(cornerPreference));
-            expect(cornerPreference == 1, "Tibia-UI must disable native rounded corners");
+            expect(cornerPreference == 1, "Tibia-UI must start with square native corners");
+            const auto expectBorder = [&](bool hidden, const char *message) {
+                COLORREF borderColor = 0;
+                if (SUCCEEDED(DwmGetWindowAttribute(cornerHwnd, 34, &borderColor, sizeof(borderColor))))
+                    expect((borderColor == 0xfffffffe) == hidden, message);
+            };
+            expectBorder(true, "Tibia-UI must not add a DWM outline outside its QML frame");
             nativeWindow.setRoundedCorners(true);
             DwmGetWindowAttribute(cornerHwnd, 33, &cornerPreference, sizeof(cornerPreference));
             expect(cornerPreference == 2, "switching themes must restore native rounded corners");
+            expectBorder(false, "other themes must restore the system border");
+            nativeWindow.setRoundedCorners(false);
+            expectBorder(true, "switching back to Tibia-UI must remove the extra outline");
         }
         ShowWindow(reinterpret_cast<HWND>(nativeWindow.winId()), SW_MAXIMIZE);
         app.processEvents();

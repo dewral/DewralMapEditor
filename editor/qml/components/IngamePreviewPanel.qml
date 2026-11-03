@@ -89,7 +89,7 @@ Item {
     readonly property bool tibiaUi: previewWindow.tibiaUi
     property bool sidebarShown: true
     readonly property bool sidebarVisible: tibiaUi && sidebarShown && width>=760
-    readonly property int sidebarWidth: sidebarVisible ? 254 : 0
+    readonly property int sidebarWidth: sidebarVisible ? Math.max(254, Math.min(320, Math.round(width * 0.21))) : 0
     readonly property int captionHeight: tibiaUi && !previewWindow.docked ? 28 : 0
     readonly property bool compact: width<900
     readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
@@ -814,6 +814,7 @@ Item {
         anchors.right: parent.right; anchors.top: header.bottom; anchors.bottom: parent.bottom
         settings: panel.settings; mapView: panel.mapView; controller: explorer
         outfitSource: panel.outfitSource
+        onNavigationRequested: panel.forceActiveFocus()
         onOutfitRequested: outfitPopup.open()
         onLightColorRequested: { previewPalette.paletteOpen=true; previewLightPopup.open(); }
     }
@@ -900,10 +901,13 @@ Item {
 
     }
 
+    TibiaSkin.TibiaPreviewFrame { anchors.fill: viewport; kind: "flat"; frameOnly: true; visible: panel.tibiaUi; z: 5 }
+
     Rectangle {
         id: footer
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
         height: panel.footerHeight
+        visible: height > 0
         color: Fluent.c("background")
         Rectangle { width: parent.width; height: 1; color: Fluent.c("separator") }
         Row {

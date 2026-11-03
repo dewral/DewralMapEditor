@@ -744,6 +744,18 @@ QVariantList MapView::visibleZoneLabels() const
     auto addLabel = [&](double x, double y, const QString &name, const QString &color, uint32_t flags = 0, const QString &zoneIds = QString()) {
         if (labels.size() < 64) labels.append(QVariantMap{{"x", (x + .5 - ox) * ts}, {"y", (y + .5 - oy) * ts}, {"name",name}, {"color",color}, {"flags",flags}, {"worldX",x + .5}, {"worldY",y + .5}, {"zoneIds",zoneIds}});
     };
+    // Numbered areas share the document's cached geometry, independent of flags.
+    if (showIds) for (const auto &value : m_otbm->zoneIds()) {
+        const int id=value.toInt();
+        for (const auto &entry : m_otbm->zoneAreas(id)) {
+            const auto area=entry.toMap();
+            if (area.value("floor").toInt()!=m_navigationController.floor()) continue;
+            const int x=area.value("x").toInt(), y=area.value("y").toInt();
+            if (x<x0 || x>x1 || y<y0 || y>y1) continue;
+            addLabel(x,y,QStringLiteral("Zone %1").arg(id),numberedZoneColor(id).name(),0,QString::number(id));
+        }
+    }
+    if (!showFlags) return labels;
     // Deterministic iteration prevents label flicker when chunk hash order changes.
     auto keys = visible.keys();
     std::sort(keys.begin(), keys.end());
@@ -762,7 +774,7 @@ QVariantList MapView::visibleZoneLabels() const
         }
         const uint32_t flags = flagsFor(tile);
         const uint32_t house = showHouses ? tile->house_id : 0;
-        const auto &zones = showIds ? tile->zone_ids.values() : noIds;
+        const auto &zones = noIds;
         if (!flags && !house && zones.empty()) continue;
         QVector<quint64> queue {start};
         visited.insert(start);
@@ -776,7 +788,7 @@ QVariantList MapView::visibleZoneLabels() const
                 const auto *neighbor = m_otbm->tileAt(current->x + dx[side], current->y + dy[side], m_navigationController.floor());
                 if (!neighbor || visited.contains(candidate) || flagsFor(neighbor) != flags
                     || (showHouses ? neighbor->house_id : 0) != house
-                    || (showIds ? neighbor->zone_ids.values() : noIds) != zones) continue;
+                    || noIds != zones) continue;
                 visited.insert(candidate); queue.append(candidate);
             }
         }

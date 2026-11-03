@@ -42,7 +42,19 @@ Item {
         return editor.status === Loader.Ready;
     }
     // Diagnostic callers explicitly request the editor before attaching probes.
+    function smokeClientProfiles(folder,showManager) {
+        if(showManager){welcome.openClientProfiles();return true;}
+        session.profiles.setVersionFolder("772",folder);
+        preferences.selectedClientKey="772";
+        session.startupRecent=["C:/maps/temple.otbm","C:/maps/underground.otbm"];
+        welcome.width=1000;welcome.height=660;
+        return true;
+    }
     function prepareProfileEditor() { return prepareEditor(true); }
+    function smokeWeatherRegions(path) { return prepareEditor(true) && editor.item.smokeWeatherRegions(path); }
+    function prepareWeatherInput() { return editor.item.prepareWeatherInput(); }
+    function verifyWeatherInput(phase) { return editor.item.verifyWeatherInput(phase); }
+    function verifyWeatherTimeout() { return editor.item.verifyWeatherTimeout(); }
     function profileOpen(path, folder, version) {
         const paths = Object.assign({}, session.profiles.clientPaths);
         paths[String(version)] = folder;
@@ -53,6 +65,7 @@ Item {
         if (editor.item) editor.item.profileReload(path, folder, version);
     }
     function profilePalettePage(index) { if (editor.item) editor.item.profilePalettePage(index); }
+    function smokeDocumentStep(step, secondPath) { return prepareEditor(true) && editor.item.smokeDocumentStep(step,secondPath); }
     function smokeMapBrush() { return prepareEditor(true) && editor.item.smokeMapBrush(); }
     function smokeGenerationLibrary() { return prepareEditor(true) && editor.item.smokeGenerationLibrary(); }
     function smokeTileMapGen() { return prepareEditor(true) && editor.item.smokeTileMapGen(); }

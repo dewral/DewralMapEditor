@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import Tibia 1.0
 import "../../editor/qml/controllers" as Controllers
 
 TestCase {
@@ -7,6 +8,8 @@ TestCase {
 
     QtObject {
         id: prefs
+        property string clientProfilesJson:""
+        property string clientFolder:""
         property string selectedClientKey: ""
         property string clientPathsJson: "{}"
         property string customProfilesJson: "[]"
@@ -43,13 +46,14 @@ TestCase {
         profiles.clientPaths = {"1098": "C:/client", "Midhem": "C:/client"};
         profiles.customProfiles = [{name: "Midhem", base: 1098}];
         profiles.mapProfiles = {"C:/maps/template.otbm": "1098"};
+        profiles.profileEntries=({});
         profiles.requestedKey = "";
         profiles.clientLoadSucceeds = true;
     }
 
-    function test_selectedCustomProfileOverridesRememberedBaseVersion() {
+    function test_rememberedProfileWinsOverStartupSelection() {
         verify(profiles.ensureClientLoaded(reader, "Midhem"));
-        compare(profiles.requestedKey, "Midhem");
+        compare(profiles.requestedKey, "1098");
     }
 
     function test_rememberedCustomProfileLoadsWithoutExplicitSelection() {
@@ -72,12 +76,14 @@ TestCase {
     }
 
     function test_legacyHeaderRespects760Selection() {
+        profiles.mapProfiles=({});
         profiles.clientPaths = {"760": "C:/client76", "772": "C:/client772"};
         verify(profiles.ensureClientForMap(772, reader.filePath, "760"));
         compare(profiles.requestedKey, "760");
     }
 
     function test_legacyHeaderRespectsCustom760Selection() {
+        profiles.mapProfiles=({});
         profiles.customProfiles = [{name: "Custom76", base: 760}];
         verify(profiles.ensureClientForMap(772, reader.filePath, "Custom76"));
         compare(profiles.requestedKey, "Custom76");
@@ -111,5 +117,21 @@ TestCase {
         verify(!profiles.knownVersions.includes(1525));
         compare(profiles.versionLabel(10100),"10.100");
         compare(profiles.versionLabel(1330),"13.30");
+    }
+    function test_migrationAndStableRename() {
+        prefs.clientProfilesJson="";prefs.clientPathsJson=JSON.stringify({Midhem:"C:/client"});
+        prefs.customProfilesJson=JSON.stringify([{name:"Midhem",base:1098}]);
+        prefs.mapProfilesJson=JSON.stringify({"map.otbm":"Midhem"});profiles.load();
+        compare(profiles.profile("Midhem").resourceKey,"Midhem");
+        const entry=profiles.profile("Midhem");entry.name="Renamed client";
+        compare(profiles.saveProfile(entry),"");compare(profiles.mapProfiles["map.otbm"],"Midhem");
+        compare(profiles.profile("Midhem").resourceKey,"Midhem");
+        profiles.deleteProfile("Midhem");compare(profiles.mapProfiles["map.otbm"],"Midhem");
+    }
+    function test_activeDocumentKeepsSavedConfiguration() {
+        const entry={id:"stable",name:"Client",version:772,folder:"C:/old",files:{},flags:{}};
+        compare(profiles.saveProfile(entry),"");profiles.bindCurrentDocument("stable");
+        entry.folder="C:/changed";compare(profiles.saveProfile(entry),"");
+        compare(profiles.documentConfigurations.get(Backend.docMgr.current).folder,"C:/old");
     }
 }

@@ -6,6 +6,7 @@ import Tibia 1.0
 Dialog {
     id: root
     property bool movable: true
+    property bool showCaptionCloseButton: (closePolicy & Popup.CloseOnEscape) !== 0
     property bool floatingPositionInitialized: false
     readonly property bool tibiaTheme: Backend.uiTheme.style === "tibia-ui"
     readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
@@ -17,7 +18,7 @@ Dialog {
     dim: modernTheme
     anchors.centerIn: root.movable ? null : Overlay.overlay
     closePolicy: Popup.CloseOnEscape
-    padding: modernTheme ? 16 : 12
+    padding: tibiaTheme ? 8 : modernTheme ? 16 : 12
     background: DmeDialogBackground {}
 
     onOpened: {
@@ -38,7 +39,25 @@ Dialog {
             height: 1; color: root.grayTheme ? "#3A3A3A" : "#30363D"
         }
         TibiaSkin.TibiaSkin { anchors.fill: parent; visible: !root.tibiaTheme }
+        TibiaSkin.TibiaPanelHeader {
+            visible: root.tibiaTheme
+            anchors.fill: parent
+            caption: root.title
+            movable: root.movable
+            showCloseButton: root.showCaptionCloseButton
+            onCloseRequested: root.reject()
+            property point pressPosition
+            property point dialogPosition
+            onDragStarted: (x,y) => {
+                pressPosition=Qt.point(x,y); dialogPosition=Qt.point(root.x,root.y);
+            }
+            onDragMoved: (x,y) => {
+                root.x=Math.max(0,Math.min(Math.max(0,Overlay.overlay.width-root.width),dialogPosition.x+x-pressPosition.x));
+                root.y=Math.max(0,Math.min(Math.max(0,Overlay.overlay.height-root.height),dialogPosition.y+y-pressPosition.y));
+            }
+        }
         Text {
+            visible: !root.tibiaTheme
             anchors.verticalCenter: parent.verticalCenter
             x: root.tibiaTheme ? (parent.width-width)/2 : root.modernTheme ? 16 : (parent.width-width)/2
             text: root.title
@@ -51,7 +70,7 @@ Dialog {
         MouseArea {
             id: headerDrag
             anchors.fill: parent
-            enabled: root.movable
+            enabled: root.movable && !root.tibiaTheme
             cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
             property point pressPosition: Qt.point(0, 0)
             property point dialogPosition: Qt.point(0, 0)

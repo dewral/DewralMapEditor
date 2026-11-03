@@ -13,7 +13,10 @@ MenuBar {
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
                                       || Backend.uiTheme.style === "gray-modern"
     implicitHeight: tibiaTheme ? 28 : fluentTheme ? 32 : modernTheme ? 40 : 26
-    leftPadding: 0
+    // Keep heading backgrounds inside the MenuBox 3px border.
+    topPadding: tibiaTheme ? 3 : 0
+    bottomPadding: tibiaTheme ? 3 : 0
+    leftPadding: tibiaTheme ? 1 : 0
     rightPadding: 0
     spacing: 0
     background: Item {}
@@ -21,6 +24,30 @@ MenuBar {
         id: menuItem
         objectName: "menuHeading_" + text
         readonly property bool expanded: menu !== null && menu.opened
+        readonly property bool pointerInMenu: expanded && (hovered || menu.pointerInMenuTree === true)
+        property bool pointerVisited: false
+
+        onClicked: {
+            if (hovered)
+                pointerVisited = true;
+        }
+        onExpandedChanged: {
+            if (!expanded)
+                pointerVisited = false;
+            else if (hovered)
+                pointerVisited = true;
+        }
+        onPointerInMenuChanged: {
+            if (pointerInMenu)
+                pointerVisited = true;
+        }
+
+        Timer {
+            interval: 200
+            running: root.tibiaTheme && menuItem.expanded
+                     && menuItem.pointerVisited && !menuItem.pointerInMenu
+            onTriggered: menuItem.menu.close()
+        }
         focusPolicy: Qt.NoFocus
         hoverEnabled: true
         leftPadding: 12
@@ -33,7 +60,7 @@ MenuBar {
         contentItem: Text {
             id: label
             text: menuItem.text
-            color: root.tibiaTheme ? (menuItem.hovered || menuItem.expanded ? "#ffffff" : "#dfdfdf") : root.fluentTheme ? FluentColors.c("buttonText") : root.windowsClassic ? "#202020" : (root.modernTheme ? (menuItem.highlighted ? "#FFFFFF" : (root.grayTheme ? "#E0E0E0" : "#C9D1D9")) : "#dcdcdc")
+            color: root.tibiaTheme ? (menuItem.hovered ? "#ffffff" : "#dfdfdf") : root.fluentTheme ? FluentColors.c("buttonText") : root.windowsClassic ? "#202020" : (root.modernTheme ? (menuItem.highlighted ? "#FFFFFF" : (root.grayTheme ? "#E0E0E0" : "#C9D1D9")) : "#dcdcdc")
             font.family: root.fluentTheme ? FluentColors.family() : Qt.application.font.family
             font.bold: false
             font.pixelSize: root.tibiaTheme ? 11 : root.fluentTheme ? 13 : root.modernTheme ? 13 : 12
@@ -44,13 +71,13 @@ MenuBar {
         background: Rectangle {
             objectName: "menuHeadingBackground"
             radius: root.tibiaTheme ? 0 : root.fluentTheme ? 4 : root.modernTheme ? 4 : 0
-            color: root.tibiaTheme ? (menuItem.hovered || menuItem.highlighted ? "#606060" : "transparent") : root.fluentTheme ? (menuItem.highlighted ? FluentColors.c("selected") : "transparent") : menuItem.highlighted ? (root.windowsClassic ? "#cce8ff" : (root.modernTheme ? (root.grayTheme ? "#292929" : "#161B22") : "#1fffffff")) : "transparent"
+            color: root.tibiaTheme ? (!menuItem.expanded && menuItem.hovered ? "#10ffffff" : "transparent") : root.fluentTheme ? (menuItem.highlighted ? FluentColors.c("selected") : "transparent") : menuItem.highlighted ? (root.windowsClassic ? "#cce8ff" : (root.modernTheme ? (root.grayTheme ? "#292929" : "#161B22") : "#1fffffff")) : "transparent"
             border.width: root.windowsClassic && menuItem.highlighted ? 1 : 0
             border.color: "#99c9ef"
             Loader {
                 objectName: "menuHeadingPressedFrame"
                 anchors.fill: parent
-                active: root.tibiaTheme && (menuItem.expanded || menuItem.down)
+                active: root.tibiaTheme && menuItem.expanded && menuItem.hovered
                 sourceComponent: TibiaSkin.TibiaClassicFrame { kind: "button"; pressed: true }
             }
         }

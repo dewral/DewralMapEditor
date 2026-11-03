@@ -6,6 +6,7 @@ BorderImage {
     id: frame
     objectName: "tibiaDialogFrame"
     property string caption: ""
+    property bool centerCaption: false
     property bool movable: true
     property bool locked: false
     property bool showLockButton: false
@@ -13,9 +14,11 @@ BorderImage {
     property string captionIconSource: ""
     signal captionActivated()
     property color captionColor: "#c0c0c0"
-    readonly property int captionHeight: 17
+    property int headerHeight: 17
+    property int captionDividerHeight: 2
+    readonly property int captionHeight: Math.max(17,headerHeight)
     readonly property int contentMargin: 8
-    readonly property int contentTopMargin: 25
+    readonly property int contentTopMargin: captionHeight + contentMargin
     signal closeRequested()
     signal lockRequested()
     signal dragStarted(real sceneX, real sceneY)
@@ -28,64 +31,79 @@ BorderImage {
     verticalTileMode: BorderImage.Repeat
     smooth: false
 
-    Image { x: 7; y: 2; width: 12; height: 12; source: frame.captionIconSource; visible: source.toString().length>0; smooth: false }
-    // Match TibiaDialog's personalMouseShield: blank window areas also consume
-    // clicks/wheel, so editing the map underneath a floating palette is impossible.
+    // Keep the original border slices. A taller main caption repeats only the
+    // native header texture, then moves its bottom divider down; icons stay unscaled.
+    Loader {
+        anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+        height: frame.captionHeight
+        active: frame.captionHeight>17
+        sourceComponent: Item {
+            // Continue the caption side slices down to the taller title's bottom.
+            // The unextended nine-slice switches to the body edge at row 17.
+            Image {
+                x: 0; y: 2; width: 4; height: Math.max(0,parent.height-2)
+                source: frame.source; sourceClipRect: Qt.rect(0,2,4,13)
+                fillMode: Image.Tile; smooth: false
+            }
+            Image {
+                x: parent.width-4; y: 2; width: 4; height: Math.max(0,parent.height-2)
+                source: frame.source; sourceClipRect: Qt.rect(100,2,4,13)
+                fillMode: Image.Tile; smooth: false
+            }
+            Image {
+                x: 4; y: 2; width: Math.max(0,parent.width-8); height: Math.max(0,parent.height-2-frame.captionDividerHeight)
+                source: frame.source; sourceClipRect: Qt.rect(4,2,96,13)
+                fillMode: Image.Tile; smooth: false
+            }
+            Image {
+                x: 4; y: parent.height-frame.captionDividerHeight
+                width: Math.max(0,parent.width-8); height: frame.captionDividerHeight
+                visible: height>0
+                source: frame.source; sourceClipRect: Qt.rect(4,15,96,2)
+                fillMode: Image.Tile; smooth: false
+            }
+        }
+    }
+
+    property bool showHeader: true
+    property bool showCollapseButton: false
+    property bool collapsed: false
+    property bool windowActive: true
+    property string closeToolTip: "Close"
+    property string lockToolTip: locked ? "Unlock panel position" : "Lock panel position"
+    signal collapseRequested()
+    // Consume blank areas so a floating panel cannot paint the map underneath.
     MouseArea {
         objectName: "tibiaWindowMouseShield"
         anchors.fill: parent
         acceptedButtons: Qt.AllButtons
         onWheel: wheel => wheel.accepted=true
     }
-    Text {
-        objectName: "tibiaWindowCaption"
-        x: frame.captionIconSource ? 23 : 8; y: 0; width: parent.width-x-(frame.showLockButton ? 38 : frame.showCloseButton ? 22 : 8); height: frame.captionHeight
-        text: frame.caption
-        font.family: "Verdana"; font.pixelSize: 11; font.bold: true
-        color: frame.captionColor
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideRight
-    }
-    MouseArea {
-        objectName: "tibiaWindowDragHandle"
-        x: 4; y: 0; width: Math.max(0,parent.width-8-(frame.showCloseButton ? 14 : 0)-(frame.showLockButton ? 14 : 0)); height: frame.captionHeight
-        property bool dragged: false
-        property point pressPoint
-        acceptedButtons: Qt.LeftButton
-        cursorShape: frame.movable && !frame.locked ? (pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor) : Qt.ArrowCursor
-        onPressed: mouse => {
-            dragged=false; pressPoint=Qt.point(mouse.x,mouse.y);
-            if(!frame.movable || frame.locked) return;
-            const p=mapToItem(null,mouse.x,mouse.y); frame.dragStarted(p.x,p.y);
-        }
-        onPositionChanged: mouse => {
-            if(!pressed || !frame.movable || frame.locked) return;
-            if (Math.abs(mouse.x-pressPoint.x)+Math.abs(mouse.y-pressPoint.y)>6) dragged=true;
-            const p=mapToItem(null,mouse.x,mouse.y); frame.dragMoved(p.x,p.y);
-        }
-        onReleased: { frame.dragFinished(); if(!dragged) frame.captionActivated(); }
-        onCanceled: frame.dragCanceled()
-        onDoubleClicked: if(frame.showLockButton) frame.lockRequested()
-    }
-    Item {
-        visible: frame.showLockButton
-        width: 14; height: 14; x: frame.width-32; y: 1
-        Image {
-            anchors.centerIn: parent; width: 12; height: 12; smooth: false
-            source: Qt.resolvedUrl("images/"+(frame.locked ? "max" : "min")+"-button-small-"+(lockMouse.pressed ? "down" : "up")+".png")
-        }
-        MouseArea { id: lockMouse; anchors.fill: parent; hoverEnabled: true; onClicked: frame.lockRequested() }
-        Controls.ToolTip.visible: lockMouse.containsMouse
-        Controls.ToolTip.text: frame.locked ? "Unlock palette position" : "Lock palette position"
-    }
-    Image {
-        objectName: "tibiaWindowCloseButton"
-        visible: frame.showCloseButton
-        x: frame.width-17; y: 2; width: 12; height: 12; smooth: false
-        source: Qt.resolvedUrl("images/"+(closeMouse.pressed ? "exit-button-small-down.png" : "exit-button-small-up.png"))
-        MouseArea { id: closeMouse; anchors.fill: parent; hoverEnabled: true; onClicked: frame.closeRequested() }
-        Controls.ToolTip.visible: closeMouse.containsMouse
-        Controls.ToolTip.text: "Close palette (Ctrl+B)"
+    TibiaPanelHeader {
+        anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+        height: frame.captionHeight
+        captionHeight: frame.captionHeight
+        visible: frame.showHeader
+        caption: frame.caption
+        centerCaption: frame.centerCaption
+        captionIconSource: frame.captionIconSource
+        captionColor: frame.captionColor
+        movable: frame.movable
+        locked: frame.locked
+        showLockButton: frame.showLockButton
+        showCloseButton: frame.showCloseButton
+        showCollapseButton: frame.showCollapseButton
+        collapsed: frame.collapsed
+        windowActive: frame.windowActive
+        closeToolTip: frame.closeToolTip
+        lockToolTip: frame.lockToolTip
+        onCaptionActivated: frame.captionActivated()
+        onCloseRequested: frame.closeRequested()
+        onLockRequested: frame.lockRequested()
+        onCollapseRequested: frame.collapseRequested()
+        onDragStarted: (x,y) => frame.dragStarted(x,y)
+        onDragMoved: (x,y) => frame.dragMoved(x,y)
+        onDragFinished: frame.dragFinished()
+        onDragCanceled: frame.dragCanceled()
     }
 }

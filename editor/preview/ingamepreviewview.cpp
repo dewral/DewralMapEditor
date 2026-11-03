@@ -10,6 +10,7 @@ class PreviewRenderer : public QQuickRhiItemRenderer
     std::unique_ptr<MapRhiBackend> backend;
     MapRenderBuffer sprites;
     QImage atlas, light;
+    QPointF lightOrigin;
     QSizeF size;
     int count = 0;
     quint64 revision = std::numeric_limits<quint64>::max();
@@ -36,6 +37,7 @@ public:
             atlasDirty = true;
         }
         light = view->frame().light;
+        lightOrigin = view->frame().lightOrigin;
         count = view->instances().size() / 6;
         sprites.assign(view->instances().constData(), int(view->instances().size() * sizeof(float)));
     }
@@ -54,8 +56,8 @@ public:
         u.atlasAndOffset[0] = qMax(1, atlas.width());
         u.atlasAndOffset[1] = qMax(1, atlas.height());
         u.options[0] = !light.isNull();
-        u.lightRect[0] = -1;
-        u.lightRect[1] = -1;
+        u.lightRect[0] = float(lightOrigin.x());
+        u.lightRect[1] = float(lightOrigin.y());
         u.lightRect[2] = qMax(1, light.width());
         u.lightRect[3] = qMax(1, light.height());
         auto black = MapRhiBackend::uniforms(QMatrix4x4(), {0, 0, 0, 1});

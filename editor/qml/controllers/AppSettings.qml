@@ -16,6 +16,7 @@ Settings {
     property bool showFps: true
     property string clientFolder: ""
     property string selectedClientKey: ""
+    property string clientProfilesJson: ""
     property string clientPathsJson: "{}"
     property string customProfilesJson: "[]"
     property string mapProfilesJson: "{}"
@@ -63,6 +64,19 @@ Settings {
     property bool compensatedSelect: true
     property int selectionFloors: 0
     property bool pixelPerfectSelection: false
+    property string weatherFogColor: "#D5E2E8"
+    property real weatherFogOpacity: 100
+    property real weatherFogScale: 1
+    property real weatherFogSpeed: 1
+    property real weatherFogTurbulence: 25
+    property real weatherGustPeriod: 12
+    property string weatherRainColor: "#B6D9F0"
+    property real weatherRainLength: 12
+    property real weatherRainOpacity: 70
+    property real weatherRainSpeed: 1
+    property real weatherRainThickness: 1
+    property real weatherTransition: 5
+    property real weatherVariation: 0
     property bool weatherEnabled: false
     property bool weatherPaused: false
     property int weatherRain: 45
@@ -74,6 +88,19 @@ Settings {
     property int weatherWind: 20
     property int weatherQuality: 1
     property bool weatherRespectRoofs: true
+    property string previewWeatherFogColor: "#D5E2E8"
+    property real previewWeatherFogOpacity: 100
+    property real previewWeatherFogScale: 1
+    property real previewWeatherFogSpeed: 1
+    property real previewWeatherFogTurbulence: 25
+    property real previewWeatherGustPeriod: 12
+    property string previewWeatherRainColor: "#B6D9F0"
+    property real previewWeatherRainLength: 12
+    property real previewWeatherRainOpacity: 70
+    property real previewWeatherRainSpeed: 1
+    property real previewWeatherRainThickness: 1
+    property real previewWeatherTransition: 5
+    property real previewWeatherVariation: 0
     property bool previewWeatherEnabled: false
     property bool previewWeatherPaused: false
     property int previewWeatherRain: 45

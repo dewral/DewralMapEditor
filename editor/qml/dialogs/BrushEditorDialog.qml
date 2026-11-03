@@ -1,4 +1,5 @@
 import QtQuick
+import "../themes/tibia" as TibiaSkin
 import QtQuick.Controls
 import QtQuick.Dialogs as FileDialogs
 import QtCore
@@ -1078,6 +1079,7 @@ DmeDialog {
                         border.width: 2
                         border.color: root.accentColor
                     }
+                    TibiaSkin.TibiaSliderSkin { control: pickerScaleSlider }
                 }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter

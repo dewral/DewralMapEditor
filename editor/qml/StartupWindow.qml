@@ -14,6 +14,7 @@ Window {
                                         && Backend.uiTheme.style !== "windows-classic"
     readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
 
+    readonly property bool nativeDashboard: Backend.uiTheme.style === "tibia-ui" && typeof app.profiles!=="undefined"
     required property var app
 
     required property var settings
@@ -55,7 +56,46 @@ Window {
             loadingMap = false;
     }
 
-    readonly property string selectedProfileKey: verCombo.selKey
+    readonly property string selectedProfileKey: dashboard.item ? dashboard.item.selectedKey : verCombo.selKey
+    function openClientProfiles() {
+        if(!profileHost.ensureLoaded())return;
+        profileHost.item.transientParent=app.editorWindow || startupScreen;
+        profileHost.item.openFor(selectedProfileKey || "772");
+    }
+    LazyToolHost {
+        id:profileHost;objectName:"clientProfilesHost"
+        toolSource:Qt.resolvedUrl("components/ClientProfilesWindow.qml")
+        initialProperties:({profiles:typeof startupScreen.app.profiles!=="undefined" ? startupScreen.app.profiles : null})
+    }
+    function chooseClientProfile(version, reason, callback) {
+        loadingMap=false;
+        clientChoice.version=version;clientChoice.reason=reason;clientChoice.callback=callback;
+        clientChoice.parent=(app.editorWindow || startupScreen).contentItem;
+        clientChoice.open();
+    }
+    DmeDialog {
+        id:clientChoice;title:"Choose client profile";width:480
+        property int version:772
+        property string reason:""
+        property var callback:null
+        readonly property var keys:typeof app.profiles!=="undefined" ? app.profiles.configuredProfileKeys().filter(k=>app.profiles.profileMatchesVersion(k,version)) : []
+        onRejected:{const done=callback;callback=null;if(done)done("");}
+        contentItem:Column {
+            spacing:12
+            Text {width:450;wrapMode:Text.WordWrap;color:"#d5d5ce";text:clientChoice.reason}
+            DmeComboBox {id:choiceCombo;width:450;model:clientChoice.keys.map(k=>app.profileLabel(k));currentIndex:0}
+            Row {spacing:8
+                DmeButton {text:"Manage clients…";onClicked:startupScreen.openClientProfiles()}
+                DmeButton {text:"Cancel";onClicked:clientChoice.reject()}
+                DmeButton {text:"Use profile";enabled:clientChoice.keys.length>0;onClicked:{const done=clientChoice.callback;clientChoice.callback=null;const key=clientChoice.keys[choiceCombo.currentIndex];clientChoice.close();if(done)done(key);}}
+            }
+        }
+    }
+    Loader {
+        id:dashboard;anchors.fill:parent
+        active:startupScreen.nativeDashboard && !startupScreen.loadingMap && Backend.docMgr.recoveryCount===0
+        sourceComponent:StartupDashboard {startup:startupScreen}
+    }
     function openMapDialog() {
         if (openMapHost.ensureLoaded()) openMapHost.item.open();
     }
@@ -73,12 +113,12 @@ Window {
 
     transientParent: null
     visible: !editorReady
-    width: loadingMap ? 460 : 800
-    height: loadingMap ? 190 : fluentTheme ? 600 : 520
-    minimumWidth: loadingMap ? 460 : 800
-    maximumWidth: loadingMap ? 460 : 800
-    minimumHeight: loadingMap ? 190 : fluentTheme ? 600 : 520
-    maximumHeight: loadingMap ? 190 : fluentTheme ? 600 : 520
+    width: loadingMap ? 460 : nativeDashboard ? 1000 : 800
+    height: loadingMap ? 190 : nativeDashboard ? 660 : fluentTheme ? 600 : 520
+    minimumWidth: loadingMap ? 460 : nativeDashboard ? 900 : 800
+    maximumWidth: loadingMap ? 460 : nativeDashboard ? 16777215 : 800
+    minimumHeight: loadingMap ? 190 : nativeDashboard ? 600 : fluentTheme ? 600 : 520
+    maximumHeight: loadingMap ? 190 : nativeDashboard ? 16777215 : fluentTheme ? 600 : 520
     x: Screen.width / 2 - width / 2
     y: Screen.height / 2 - height / 2
     title: "Dewral Map Editor"
@@ -89,14 +129,14 @@ Window {
     Connections {
         target: Backend.otbmReader
         function onLoadingChanged() {
-            if (!Backend.otbmReader.loading && !startupScreen.app.started)
+            if (!Backend.otbmReader.loading)
                 startupScreen.loadingMap = false;
         }
     }
 
     DmeDialogBackground {
         id: card
-        visible: !startupScreen.loadingMap && Backend.docMgr.recoveryCount === 0
+        visible: !startupScreen.nativeDashboard && !startupScreen.loadingMap && Backend.docMgr.recoveryCount === 0
         anchors.centerIn: parent
         width: Math.min(parent.width - 40, 760)
         height: Math.min(parent.height - 80, startupScreen.fluentTheme ? 520 : 440)
@@ -639,23 +679,47 @@ Window {
 
                 Rectangle {
                     id: progressTrack
+                    objectName: "startupProgressTrack"
+                    readonly property bool classicBar: Backend.uiTheme.style === "tibia-ui"
                     width: parent.width
-                    height: 7
-                    radius: 4
-                    color: startupScreen.fluentTheme ? Colors.c("scrollTrack") : startupScreen.grayTheme ? "#353535" : "#21262D"
-                    clip: true
+                    height: classicBar ? 14 : 7
+                    radius: classicBar ? height / 2 : 4
+                    color: classicBar ? "#202020" : startupScreen.fluentTheme ? Colors.c("scrollTrack") : startupScreen.grayTheme ? "#353535" : "#21262D"
+                    border.width: classicBar ? 1 : 0
+                    border.color: "#101210"
+                    gradient: classicBar ? emptyBarGradient : null
+                    Gradient {
+                        id: emptyBarGradient
+                        GradientStop { position: 0; color: "#101210" }
+                        GradientStop { position: 0.5; color: "#30322f" }
+                        GradientStop { position: 1; color: "#151715" }
+                    }
 
                     Rectangle {
                         id: progressChunk
-                        width: progressTrack.width * Backend.otbmReader.loadingProgress / 100
+                        objectName: "startupProgressFill"
+                        width: Math.round(progressTrack.width * Math.max(0, Math.min(100, Backend.otbmReader.loadingProgress)) / 100)
+                        visible: width > 0
                         height: parent.height
-                        radius: 4
-                        color: startupScreen.fluentTheme ? Colors.c("loading") : startupScreen.grayTheme ? "#C79A3B" : "#2EA043"
+                        radius: progressTrack.classicBar ? Math.min(height / 2, width / 2) : 4
+                        border.width: progressTrack.classicBar ? 1 : 0
+                        border.color: "#102e18"
+                        gradient: progressTrack.classicBar ? filledBarGradient : null
+                        Gradient {
+                            id: filledBarGradient
+                            GradientStop { position: 0; color: "#143d20" }
+                            GradientStop { position: 0.25; color: "#286e38" }
+                            GradientStop { position: 0.48; color: "#55945e" }
+                            GradientStop { position: 0.62; color: "#327c42" }
+                            GradientStop { position: 1; color: "#103c20" }
+                        }
+                        color: progressTrack.classicBar ? "#237437" : startupScreen.fluentTheme ? Colors.c("loading") : startupScreen.grayTheme ? "#C79A3B" : "#2EA043"
 
                         Behavior on width {
                             NumberAnimation { duration: 25; easing.type: Easing.OutCubic }
                         }
                     }
+
                 }
 
                 Text {

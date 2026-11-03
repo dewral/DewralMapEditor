@@ -11,9 +11,9 @@ Selected UI slices are copied from the user-provided folder:
 Upstream reference: https://github.com/omarcopires/project-zero/tree/main/things/images
 No client runtime or client controllers are required by DME.
 
-The application shell uses MenuBox textures. Palette and Tools use the original
+The application shell, Palette and Tools use the original
 client popup frame with 4/17/4/4 slices and a centered Verdana caption, without
-a blue title bar. Brush size is a compact headless footer. Docking preserves
+a blue title bar. Brush size shares the same compact, collapsible caption. Docking preserves
 the sidebar appearance; floating windows shield the map from clicks.
 
 Buttons use the client's grey up/down images; slots use its inventory image;
@@ -34,12 +34,12 @@ Smoke-test without changing the saved selection:
 
 Client polish: controls use native-rendered Verdana 11, flat inset field fills,
 a single original container-slot border, neutral pressed document tabs, and a
-single responsive brush-size row. The enlarged application caption uses repeating
-native-size frame slices without scaling the texture. Windows corners remain
+single responsive brush-size row. The 26px application caption repeats the original caption texture between the
+fixed top edge and bottom divider. Small panel captions remain 17px. Windows corners remain
 square for this theme and follow the normal preference in other themes.
 
 The screenshot layout places the category picker in the left-aligned Palette
-caption, integrates Brush size as a horizontal footer, frames the status groups,
+caption, integrates Brush size as a collapsible section, separates the status fields,
 and adds functional map scrollbars. Click the Palette caption to change category;
 the first footer button toggles square/circle brushes.
 
@@ -83,3 +83,52 @@ caption. Their caption is 17px, with 8px inner spacing and native close/lock
 buttons. Sidebar content, caption hit areas and dock handles share these metrics.
 Map tabs are 24px high and use native close buttons; the status strip is 32px.
 These sizes apply only to Tibia-UI. Other editor themes keep their geometry.
+
+
+## Shared embedded windows
+
+`TibiaPanelHeader` owns the 17px caption, icon, close/collapse/lock actions and
+native drag signals. `TibiaWindowFrame` retains the original 4/17/4/4 texture
+slices and blank-area input shield. `TibiaPopupWindow` adds a padded content
+host, intrinsic sizing and optional scrolling through the existing `DmeScrollBar`.
+Docked and floating panels use this same frame; their existing controller still
+owns position, locking and persistence. `collapsed` is controlled by the owner:
+handle `collapseRequested` to update it. For fill-anchored content, set
+`contentHeight` explicitly; intrinsic Columns can use the default children bounds.
+
+Palette, Tools, Brush size and Zone display share these components. `DmeDialog`
+uses the same caption and frame only for Tibia-UI; its modal policy and remembered
+position are unchanged. Other themes retain their existing controls.
+
+`TibiaSurface.kind: "strip"` provides a two-pixel bevel using the existing dark
+texture for embedded menu/toolbar/tab/status containers. With `frameOnly: true`
+its center stays transparent over the map. `TibiaSeparator` provides the matching
+two-pixel inset between tool groups and status fields. Toolbar/status/tab heights,
+map anchors, renderer, palette width and compact topbar controls are unchanged.
+The Brush size caption adds a small amount of height within the palette; the
+item grid yields that space, not the map viewport. No new graphics are required.
+
+
+Main window: one outer `TibiaWindowFrame` supplies the shared textured body.
+The menu and toolbar each use the existing three-pixel `TibiaMenuBox` frame.
+The document-tab row and status bar expose the shared body background, with thin
+separators and their existing controls. The main caption
+is 26px high with vertically centered native buttons and text. `headerHeight`
+extends the original 17px caption by tiling its interior and moving the divider,
+without changing the 4/17/4/4 source slices or scaling native icons. Ordinary
+palette/dialog captions keep their 17px size. Existing native window actions,
+Snap button integration and unsaved-map confirmation remain in their owners.
+
+
+Caption actions use `TibiaCaptionButton`: existing grey up/down button slices
+and the existing standard SVG window glyphs. Main-window hit targets are 24x26
+with 22x20 faces; 17px panel captions retain compact 16x14 faces. Close, collapse,
+lock/unlock and native maximize/restore keep their original state owners. The
+palette lock now uses the actual lock/unlock icon rather than plus/minus. Caption
+text and dock drag handles reserve the complete button width, preventing overlap.
+
+All numeric sliders use TibiaSliderSkin in tibia-ui: the same native scrollbar
+track, 28x12 thumb and 12px repeating arrow buttons. It decorates the existing
+Slider, which keeps values, dragging, keyboard input and moved handlers.
+Conditional bindings restore the original geometry and visuals on theme change.
+The preview scrollbar uses the same vertical assets in tibia-ui.

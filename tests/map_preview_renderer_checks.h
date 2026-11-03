@@ -30,7 +30,7 @@ static bool previewItems(const QTemporaryDir &directory, OtbReader &otb, const Q
     return writeFile(directory.filePath("preview.otb"), bytes) &&
            otb.loadFile(directory.filePath("preview.otb"));
 }
-static bool testClientPreviewComposition(const QTemporaryDir &directory, DatReader &dat, SprReader &spr)
+static bool testClientPreviewComposition(const QTemporaryDir &directory, DatReader &dat, SprReader &spr, bool gpu = false)
 {
     auto *ground = const_cast<ClientItem *>(dat.itemByClientId(100));
     auto *common = const_cast<ClientItem *>(dat.itemByClientId(101));
@@ -105,10 +105,69 @@ static bool testClientPreviewComposition(const QTemporaryDir &directory, DatRead
     state.ambient = 0;
     scene.reset();
     frame = scene.build(&view, state);
-    if (!require(frame.light.size() == QSize(17, 13) && frame.light.pixelColor(8, 6).red() > 0 &&
+    if (!require(frame.light.size() == QSize(18, 14) && frame.light.pixelColor(8, 6).red() > 0 &&
                      frame.light.pixelColor(8, 6).green() == 0,
                  "Client light-map colour or lattice coordinates differ"))
         return false;
+    // A stationary world's sample grid must survive pixel steps and tile crossings.
+    const auto stationaryLight = frame.light;
+    for (const QPointF offset : {QPointF(0.25, 0.125), QPointF(0.26, 0.17),
+                                 QPointF(1.03125, 0.5), QPointF(-0.03125, -0.25)}) {
+        state.visualX = 100 + offset.x(); state.visualY = 100 + offset.y();
+        const auto movingFrame = scene.build(&view, state);
+        const int dx = int(std::floor(std::round(offset.x() * 32) / 32));
+        const int dy = int(std::floor(std::round(offset.y() * 32) / 32));
+        for (int y = 2; y < stationaryLight.height() - 2; ++y)
+            for (int x = 2; x < stationaryLight.width() - 2; ++x)
+                if (!require(movingFrame.light.pixel(x, y) == stationaryLight.pixel(x + dx, y + dy),
+                             "Preview camera motion resamples stationary world lights")) return false;
+        for (const auto &draw : movingFrame.draws)
+            if (!require(qAbs(draw.position.x() - qRound(draw.position.x())) < 0.0001
+                         && qAbs(draw.position.y() - qRound(draw.position.y())) < 0.0001,
+                         "Preview walking sprites are not aligned to logical pixels")) return false;
+        const double left = std::round((state.visualX + 0.5) * 32 - state.size.width() / 2.0) / 32;
+        if (!require(qAbs(movingFrame.lightOrigin.x() - (std::floor(left) - left - 1)) < 0.0001,
+                     "Preview light UV origin does not track the rendered camera")) return false;
+    }
+    state.visualX = state.visualY = 100;
+    if (gpu) {
+        view.setLightAmbient(0);
+        QQuickWindow window;
+        window.resize(480, 352);
+        IngamePreviewController controller;
+        controller.setSource(&view); controller.setNoClip(true); controller.setLookType(1);
+        controller.setPosition(100, 100, 7);
+        IngamePreviewView renderer(window.contentItem());
+        renderer.setSize({480, 352}); renderer.setSource(&view); renderer.setController(&controller);
+        window.show();
+        if (!require(waitUntil([&] { return window.isExposed(); }),
+                     "Preview motion GPU window was not exposed")) return false;
+        int captures = 0;
+        for (const QPoint direction : {QPoint(1, 0), QPoint(0, 1), QPoint(-1, 0)}) {
+            controller.walk(direction.x(), direction.y());
+            QElapsedTimer motion; motion.start();
+            do {
+                QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+                renderer.refresh();
+                const auto actual = window.grabWindow();
+                const auto expected = renderer.frame().referenceImage();
+                if (!require(!actual.isNull() && actual.size() == expected.size(),
+                             "Preview motion GPU capture dimensions differ")) return false;
+                int errors = 0;
+                for (int y = 100; y < 240; y += 3)
+                    for (int x = 160; x < 300; x += 3) {
+                        const auto a = actual.pixelColor(x, y), b = expected.pixelColor(x, y);
+                        errors += qAbs(a.red() - b.red()) > 3 || qAbs(a.green() - b.green()) > 3
+                               || qAbs(a.blue() - b.blue()) > 3;
+                    }
+                if (!require(errors == 0, "Moving QRhi light UVs differ from the CPU reference")) return false;
+                ++captures;
+                QThread::msleep(20);
+            } while (controller.walking() && motion.elapsed() < 2000);
+            controller.stop();
+        }
+        qInfo() << "Preview motion GPU/reference captures:" << captures;
+    }
     // Entering a house raises the first visible floor, revealing the local player.
     map.placeItem(101, 101, 6, 1000, 0, false, true);
     frame = scene.build(&view, state);

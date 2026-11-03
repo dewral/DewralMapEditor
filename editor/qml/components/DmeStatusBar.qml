@@ -16,8 +16,8 @@ Rectangle {
     property bool showWorkTimer: true
     property int fps: 0
     readonly property bool tibiaUi: Backend.uiTheme.style === "tibia-ui"
-    readonly property bool compact: width < 1280
-    readonly property bool narrow: width < 900
+    readonly property bool compact: width < (tibiaUi ? 1500 : 1280)
+    readonly property bool narrow: width < (tibiaUi ? 1100 : 900)
     property var itemReader: Backend.otbReader
     property int selectionRevision: 0
     readonly property int itemServerId: {
@@ -50,32 +50,40 @@ Rectangle {
         }
     }
     objectName: "dmeStatusBar"
-    implicitHeight: tibiaUi ? 32 : 44
-    color: Colors.c("cell")
-    TibiaSkin.TibiaSkin { anchors.fill: parent }
-    Rectangle { width: parent.width; height: 1; color: Colors.c("border") }
+    implicitHeight: tibiaUi ? 36 : 44
+    color: tibiaUi ? "transparent" : Colors.c("cell")
+    Rectangle { visible: !bar.tibiaUi; width: parent.width; height: 1; color: Colors.c("border") }
+    Loader {
+        objectName: "mainStatusMenuBox"
+        anchors.fill: parent
+        active: bar.tibiaUi
+        sourceComponent: TibiaSkin.TibiaMenuBox { }
+    }
 
     component Section: Item {
-        Loader { anchors.fill: parent; anchors.margins: 1; active: bar.tibiaUi; sourceComponent: TibiaSkin.TibiaClassicFrame { kind: "panel" } }
-        Rectangle {
-            width: 1; height: 26; anchors.verticalCenter: parent.verticalCenter
-            color: Colors.c("separator")
-            Rectangle { x: 1; width: 1; height: parent.height; color: "#171718"; visible: Backend.uiTheme.style === "tibia-ui" }
+        DmeSeparator {
+            orientation: Qt.Vertical
+            objectName: "statusSectionSeparator"
+            width: bar.tibiaUi ? 2 : 1; height: bar.tibiaUi ? 20 : 26
+            anchors.verticalCenter: parent.verticalCenter
         }
     }
     component Glyph: Canvas {
         property string kind: "position"
         property color ink: bar.tibiaUi ? "#c0c0c0" : Colors.c("accent")
-        implicitWidth: 20; implicitHeight: 20
+        implicitWidth: bar.tibiaUi ? 16 : 20; implicitHeight: implicitWidth
         onInkChanged: requestPaint()
         onKindChanged: requestPaint()
         onPaint: {
             const c = getContext("2d"); c.clearRect(0,0,width,height);
+            c.scale(width/20,height/20);
             c.strokeStyle = ink; c.lineWidth = 1.5; c.beginPath();
             if (kind === "selection") {
                 for (const x of [3,17]) for (const y of [3,17]) {
                     c.moveTo(x,y+(y===3?5:-5)); c.lineTo(x,y); c.lineTo(x+(x===3?5:-5),y);
                 }
+            } else if (kind === "item") {
+                c.rect(3,7,10,10); c.rect(7,3,10,10);
             } else {
                 c.arc(10,10,6,0,Math.PI*2);
                 c.moveTo(10,0); c.lineTo(10,6); c.moveTo(10,14); c.lineTo(10,20);
@@ -86,21 +94,25 @@ Rectangle {
     }
     GridLayout {
         rows: 1; columns: 8; columnSpacing: 0; rowSpacing: 0
-        anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 10
+        anchors.fill: parent; anchors.leftMargin: bar.tibiaUi ? 3 : 12; anchors.rightMargin: bar.tibiaUi ? 3 : 10
         Item {
             objectName: "statusReady"
             Layout.row: 0; Layout.column: 0
-            Layout.preferredWidth: bar.compact ? 26 : bar.tibiaUi ? bar.width*0.15 : 96; Layout.fillHeight: true
+            Layout.preferredWidth: bar.compact ? 26 : bar.tibiaUi ? 104 : 96; Layout.fillHeight: true
+            Layout.minimumWidth: bar.tibiaUi ? Layout.preferredWidth : 0
+            Layout.maximumWidth: bar.tibiaUi ? Layout.preferredWidth : Infinity
             Row {
-                anchors.verticalCenter: parent.verticalCenter; spacing: 10
-                Rectangle { width: 8; height: 8; radius: 4; anchors.verticalCenter: parent.verticalCenter; color: bar.loaded ? "#58BD87" : Colors.c("placeholder") }
+                anchors.verticalCenter: parent.verticalCenter; x: bar.tibiaUi ? 10 : 0; spacing: 10
+                Rectangle { width: bar.tibiaUi ? 6 : 8; height: width; radius: width/2; anchors.verticalCenter: parent.verticalCenter; color: bar.loaded ? "#58BD87" : Colors.c("placeholder") }
                 Text { visible: !bar.compact; text: bar.loaded ? "Ready" : "No map"; color: Colors.c("text"); font.family: Colors.family(); font.pixelSize: Colors.size(13); font.bold: Colors.bold() }
             }
         }
         Section {
             objectName: "statusSelection"
             Layout.row: 0; Layout.column: 1
-            Layout.preferredWidth: bar.compact ? 76 : bar.tibiaUi ? bar.width*0.11 : 142; Layout.fillHeight: true
+            Layout.preferredWidth: bar.tibiaUi ? (bar.narrow ? 76 : bar.compact ? 88 : 152) : bar.compact ? 76 : 142; Layout.fillHeight: true
+            Layout.minimumWidth: bar.tibiaUi ? Layout.preferredWidth : 0
+            Layout.maximumWidth: bar.tibiaUi ? Layout.preferredWidth : Infinity
             Row {
                 anchors.centerIn: parent; spacing: 8
                 Glyph { kind: "selection"; anchors.verticalCenter: parent.verticalCenter }
@@ -117,12 +129,33 @@ Rectangle {
                 Image {
                     objectName: "statusItemThumbnail"
                     Layout.preferredWidth: bar.tibiaUi ? 24 : 32; Layout.preferredHeight: bar.tibiaUi ? 24 : 32
+                    id: itemThumbnail
                     visible: bar.itemClientId > 0 && parent.width > 64
                     source: visible ? "image://paletteitem/" + bar.itemClientId + "/" + Backend.sprReader.itemImagesRevision : ""
                     fillMode: Image.PreserveAspectFit
                     smooth: false; asynchronous: true
                 }
+                Glyph { visible: bar.tibiaUi && !itemThumbnail.visible; kind: "item"; Layout.alignment: Qt.AlignVCenter }
                 Text {
+                    objectName: "statusItemSummary"
+                    visible: bar.tibiaUi
+                    Layout.fillWidth: !itemName.visible
+                    Layout.minimumWidth: 0
+                    text: bar.itemServerId>0 ? "1 item · ID "+bar.itemServerId : bar.itemText || "No item"
+                    elide: Text.ElideRight
+                    color: bar.itemText ? Colors.c("text") : Colors.c("placeholder")
+                    font.family: Colors.family(); font.pixelSize: 11; font.bold: true
+                }
+                Text {
+                    id: itemName
+                    objectName: "statusItemName"
+                    visible: bar.tibiaUi && !bar.compact && bar.itemServerId>0
+                    Layout.fillWidth: true; Layout.minimumWidth: 0
+                    text: bar.itemText; elide: Text.ElideRight
+                    color: Colors.c("muted"); font.family: Colors.family(); font.pixelSize: 11
+                }
+                Text {
+                    visible: !bar.tibiaUi
                     Layout.fillWidth: true
                     text: bar.tibiaUi && bar.itemServerId>0 ? "Item #"+bar.itemServerId : bar.itemText || (bar.compact ? "" : "No item"); elide: Text.ElideRight
                     color: bar.itemText ? Colors.c("text") : Colors.c("placeholder"); font.family: Colors.family(); font.pixelSize: Colors.size(13); font.bold: Colors.bold()
@@ -136,7 +169,9 @@ Rectangle {
         Section {
             objectName: "statusPosition"
             Layout.row: 0; Layout.column: bar.tibiaUi ? 3 : 2
-            Layout.preferredWidth: bar.narrow ? 176 : bar.compact ? 212 : bar.tibiaUi ? bar.width*0.19 : 252; Layout.fillHeight: true
+            Layout.preferredWidth: bar.tibiaUi ? (bar.narrow ? 208 : bar.compact ? 252 : 310) : bar.narrow ? 176 : bar.compact ? 212 : 252; Layout.fillHeight: true
+            Layout.minimumWidth: bar.tibiaUi ? Layout.preferredWidth : 0
+            Layout.maximumWidth: bar.tibiaUi ? Layout.preferredWidth : Infinity
             Row {
                 anchors.centerIn: parent; spacing: bar.narrow ? 6 : 12
                 Glyph { visible: !bar.narrow; anchors.verticalCenter: parent.verticalCenter }
@@ -150,14 +185,16 @@ Rectangle {
         Section {
             objectName: "statusFloor"
             Layout.row: 0; Layout.column: 4
-            Layout.preferredWidth: bar.narrow ? 64 : bar.compact ? 98 : 118; Layout.fillHeight: true
+            Layout.preferredWidth: bar.tibiaUi ? (bar.narrow ? 64 : bar.compact ? 84 : 104) : bar.narrow ? 64 : bar.compact ? 98 : 118; Layout.fillHeight: true
+            Layout.minimumWidth: bar.tibiaUi ? Layout.preferredWidth : 0
+            Layout.maximumWidth: bar.tibiaUi ? Layout.preferredWidth : Infinity
             Row {
                 anchors.centerIn: parent; spacing: 6
                 Text { visible: !bar.narrow; text: "Floor"; color: Colors.c("muted"); font.family: Colors.family(); font.pixelSize: Colors.size(12); font.bold: Colors.bold(); anchors.verticalCenter: parent.verticalCenter }
                 DmeSpinBox {
                     id: floorInput
                     objectName: "statusFloorControl"
-                    width: 54; height: 28; from: 0; to: 15
+                    width: bar.tibiaUi ? 36 : 54; height: bar.tibiaUi ? 24 : 28; from: 0; to: 15
                     onValueModified: bar.mapView.floor = value
                 }
                 Binding { target: floorInput; property: "value"; value: bar.mapView.floor }
@@ -166,12 +203,14 @@ Rectangle {
         Section {
             objectName: "statusZoom"
             Layout.row: 0; Layout.column: 5
-            Layout.preferredWidth: bar.compact ? 112 : 146; Layout.fillHeight: true
+            Layout.preferredWidth: bar.tibiaUi ? (bar.narrow ? 104 : bar.compact ? 126 : 146) : bar.compact ? 112 : 146; Layout.fillHeight: true
+            Layout.minimumWidth: bar.tibiaUi ? Layout.preferredWidth : 0
+            Layout.maximumWidth: bar.tibiaUi ? Layout.preferredWidth : Infinity
             Row {
                 anchors.centerIn: parent; spacing: 4
-                DmeButton { objectName: "statusZoomOut"; width: 28; height: 28; text: "−"; onClicked: bar.mapView.zoomSteps(-1) }
-                Text { width: 42; height: 28; text: Math.round(bar.mapView.tileSize / 32 * 100) + "%"; color: Colors.c("text"); font.family: Colors.family(); font.pixelSize: Colors.size(13); font.weight: Colors.bold() ? Font.Bold : Font.DemiBold; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                DmeButton { objectName: "statusZoomIn"; width: 28; height: 28; text: "+"; onClicked: bar.mapView.zoomSteps(1) }
+                DmeButton { objectName: "statusZoomOut"; width: bar.tibiaUi ? 24 : 28; height: bar.tibiaUi ? 24 : 28; text: "−"; onClicked: bar.mapView.zoomSteps(-1) }
+                Text { width: 42; height: bar.tibiaUi ? 24 : 28; text: Math.round(bar.mapView.tileSize / 32 * 100) + "%"; color: Colors.c("text"); font.family: Colors.family(); font.pixelSize: Colors.size(13); font.weight: Colors.bold() ? Font.Bold : Font.DemiBold; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                DmeButton { objectName: "statusZoomIn"; width: bar.tibiaUi ? 24 : 28; height: bar.tibiaUi ? 24 : 28; text: "+"; onClicked: bar.mapView.zoomSteps(1) }
             }
             MouseArea {
                 anchors.fill: parent; acceptedButtons: Qt.NoButton
@@ -182,15 +221,15 @@ Rectangle {
             objectName: "statusTimerSection"
             Layout.row: 0; Layout.column: 6
             visible: bar.showWorkTimer
-            Layout.preferredWidth: bar.narrow ? 144 : bar.compact ? 178 : 344
+            Layout.preferredWidth: bar.tibiaUi ? (bar.narrow ? 178 : bar.compact ? 304 : 458) : bar.narrow ? 144 : bar.compact ? 178 : 344
             Layout.fillHeight: true
-            Loader { anchors.fill: parent; anchors.leftMargin: 8; sourceComponent: bar.timerComponent }
+            Loader { anchors.fill: parent; anchors.leftMargin: bar.tibiaUi ? 12 : 8; anchors.rightMargin: bar.tibiaUi ? 12 : 0; sourceComponent: bar.timerComponent }
         }
         Section {
             objectName: "statusFps"
             Layout.row: 0; Layout.column: 7
-            visible: bar.showFps && !bar.narrow
-            Layout.preferredWidth: bar.compact ? 72 : 82; Layout.fillHeight: true
+            visible: bar.showFps && (bar.tibiaUi ? bar.width >= 900 : !bar.narrow)
+            Layout.preferredWidth: bar.tibiaUi ? (bar.compact ? 72 : 102) : bar.compact ? 72 : 82; Layout.fillHeight: true
             Text { anchors.centerIn: parent; text: bar.fps > 0 ? bar.fps + " FPS" : "FPS idle"; color: Colors.c("muted"); font.family: Colors.family(); font.pixelSize: Colors.size(12); font.bold: Colors.bold() }
         }
     }

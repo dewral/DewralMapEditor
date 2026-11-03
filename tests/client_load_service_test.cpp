@@ -14,6 +14,14 @@
 #include <QElapsedTimer>
 
 using namespace DmeClientFixture;
+// The shared atlas fixture deliberately contains sprite 999 outside its SPR.
+// Client validation needs a matching pair; preserve that negative fixture elsewhere.
+QByteArray matchingDatFile(int extra=0) {
+    auto bytes=datFile(extra);
+    QByteArray invalid;appendU16(invalid,999);QByteArray valid;appendU16(valid,5);
+    const int at=bytes.indexOf(invalid,12);if(at>=0)bytes.replace(at,2,valid);
+    return bytes;
+}
 int main(int argc, char **argv)
 {
     QGuiApplication app(argc, argv);
@@ -24,7 +32,7 @@ int main(int argc, char **argv)
         || app.arguments()[1] == "--write-versioned-fixture")) {
         const QString output = app.arguments()[2];
         if (QFileInfo::exists(output) || !QDir().mkpath(output)) return 2;
-        if (!writeFile(output + "/Tibia.dat", datFile()) || !writeFile(output + "/Tibia.spr", spriteFile())
+        if (!writeFile(output + "/Tibia.dat", matchingDatFile()) || !writeFile(output + "/Tibia.spr", spriteFile())
             || !writeFile(output + "/items.otb", otbFile(1000, 9, app.arguments()[1] == "--write-versioned-fixture"))
             || !writeFile(output + "/client.otfi", "DatSpr\n  extended: false\n  transparency: true\n")) return 2;
         const auto node = [](int type, QByteArray bytes, const QByteArray &children) {
@@ -46,7 +54,7 @@ int main(int argc, char **argv)
     QSettings::setDefaultFormat(QSettings::IniFormat);
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, fixture.path());
     qputenv("DME_RECOVERY_DIR", fixture.filePath("recovery").toUtf8());
-    if (!writeFile(fixture.filePath("Tibia.dat"), datFile(20000))
+    if (!writeFile(fixture.filePath("Tibia.dat"), matchingDatFile(20000))
         || !writeFile(fixture.filePath("Tibia.spr"), spriteFile())
         || !writeFile(fixture.filePath("items.otb"), otbFile())
         || !writeFile(fixture.filePath("client.otfi"), "DatSpr\n  extended: false\n  transparency: true\n")) return 1;
@@ -58,7 +66,7 @@ int main(int argc, char **argv)
         auto *originalOtb = backend.otbReader();
         QHash<quint64, bool> results;
         QObject::connect(service, &ClientLoadService::finished, &app,
-            [&](quint64 id, const QString &, const QString &, bool success, const QString &) { results.insert(id, success); });
+            [&](quint64 id, const QString &, const QString &, bool success, const QString &error) { if(!success)qInfo()<<error;results.insert(id, success); });
         int heartbeats = 0;
         QTimer heartbeat; heartbeat.setInterval(1);
         QObject::connect(&heartbeat, &QTimer::timeout, &app, [&] { ++heartbeats; }); heartbeat.start();
@@ -85,11 +93,39 @@ int main(int argc, char **argv)
         if (!require(wait(cancelled) && !results.value(cancelled), "Cancellation did not finish the request")) return 1;
         const auto replacement = service->request("860", 860, fixture.path(), false);
         if (!require(wait(replacement) && results.value(replacement), "Cancelled generation replaced a newer result")) return 1;
+        QHash<quint64,QVariantMap> validations;
+        QObject::connect(service,&ClientLoadService::validationFinished,&app,[&](quint64 request,const QVariantMap &report){validations.insert(request,report);});
+        const auto validate=[&](const QVariantMap &profile) {
+            const auto request=service->validateProfile(profile);QElapsedTimer elapsed;elapsed.start();
+            while(!validations.contains(request) && elapsed.elapsed()<15000){app.processEvents();QThread::msleep(1);}
+            return validations.value(request);
+        };
+        QVariantMap profile{{"id","explicit"},{"version",860},{"files",QVariantMap{
+            {"dat",fixture.filePath("Tibia.dat")},{"spr",fixture.filePath("Tibia.spr")},
+            {"otb",fixture.filePath("items.otb")},{"otfi",fixture.filePath("client.otfi")},{"xml","-"}}}};
+        const auto valid=validate(profile);
+        if(!require(valid.value("success").toBool() && originalSpr->itemImagesRevision()==revision
+            && originalDat->itemCount()==20009,"Validation mutated active models or rejected explicit paths"))return 1;
+        auto files=profile.value("files").toMap();
+        if(!writeFile(fixture.filePath("invalid.xml"),"<items><item>"))return 1;
+        files["xml"]=fixture.filePath("invalid.xml");profile["files"]=files;
+        if(!require(!validate(profile).value("success").toBool(),"Malformed optional XML was accepted"))return 1;
+        files["xml"]="-";profile["files"]=files;
+        if(!require(validate(profile).value("success").toBool(),"Disabling optional XML did not recover validation"))return 1;
+        if(!writeFile(fixture.filePath("invalid.otfi"),"unrecognized text"))return 1;
+        files["otfi"]=fixture.filePath("invalid.otfi");profile["files"]=files;
+        if(!require(!validate(profile).value("success").toBool(),"Malformed OTFI was accepted"))return 1;
+        QFile::remove(fixture.filePath("invalid.otfi"));
+        QFile::remove(fixture.filePath("invalid.xml"));
+        QTemporaryDir ambiguous;
+        if(!writeFile(ambiguous.filePath("first.dat"),matchingDatFile()) || !writeFile(ambiguous.filePath("second.dat"),matchingDatFile()))return 1;
+        const auto report=service->resolveProfile({{"version",860},{"folder",ambiguous.path()}});
+        if(!require(report.value("errors").toMap().value("dat").toString().contains("Several"),"Ambiguous DAT was silently chosen"))return 1;
         if (!writeFile(fixture.filePath("Tibia.dat"), "invalid")) return 1;
         const auto bad = service->request("bad", 860, fixture.path(), false);
         if (!require(wait(bad) && !results.value(bad) && originalDat->itemCount() == 20009
             && originalSpr->itemImagesRevision() == revision, "Failure damaged the previous client")) return 1;
-        if (!writeFile(fixture.filePath("Tibia.dat"), datFile(20000))) return 1;
+        if (!writeFile(fixture.filePath("Tibia.dat"), matchingDatFile(20000))) return 1;
         const auto changing = service->request("changing", 860, fixture.path(), false);
         bool changed = false;
         QElapsedTimer changeDeadline; changeDeadline.start();

@@ -11,6 +11,13 @@ OtfiReader::OtfiReader(QObject *parent)
 
 bool OtfiReader::loadFromFolder(const QString &folder)
 {
+    const QDir dir(folder);
+    const auto matches = dir.entryList({QStringLiteral("*.otfi")}, QDir::Files, QDir::Name);
+    return loadFile(matches.isEmpty() ? QString() : dir.absoluteFilePath(matches.first()));
+}
+
+bool OtfiReader::loadFile(const QString &path)
+{
     const bool wasFound = m_found;
     m_found = false;
     m_extended = false;
@@ -20,21 +27,15 @@ bool OtfiReader::loadFromFolder(const QString &folder)
     m_metadataFile.clear();
     m_spritesFile.clear();
 
-    QDir dir(folder);
-    const QStringList matches = dir.entryList({QStringLiteral("*.otfi")}, QDir::Files, QDir::Name);
-    if (matches.isEmpty()) {
-        if (wasFound) emit foundChanged();
-        return false;
-    }
-
-    QFile f(dir.absoluteFilePath(matches.first()));
+    if(path.isEmpty()) { if(wasFound)emit foundChanged(); return false; }
+    QFile f(path);
     if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
         if (wasFound) emit foundChanged();
         return false;
     }
 
     QTextStream in(&f);
-    bool inDatSpr = false;
+    bool inDatSpr = false, sectionFound = false;
     while (!in.atEnd()) {
         const QString rawLine = in.readLine();
         const QString trimmed = rawLine.trimmed();
@@ -44,6 +45,7 @@ bool OtfiReader::loadFromFolder(const QString &folder)
         if (!indented) {
 
             inDatSpr = (trimmed.compare(QLatin1String("DatSpr"), Qt::CaseInsensitive) == 0);
+            sectionFound = sectionFound || inDatSpr;
             continue;
         }
         if (!inDatSpr) continue;
@@ -63,6 +65,7 @@ bool OtfiReader::loadFromFolder(const QString &folder)
 
     }
 
+    if(!sectionFound) { if(wasFound)emit foundChanged(); return false; }
     if (m_metadataFile.isEmpty()) m_metadataFile = QStringLiteral("Tibia.dat");
     if (m_spritesFile.isEmpty()) m_spritesFile = QStringLiteral("Tibia.spr");
 

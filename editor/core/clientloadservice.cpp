@@ -1,7 +1,9 @@
 #include "clientloadservice.h"
 #include "backend.h"
+#include "dmedatadir.h"
 #include "mapview.h"
 #include <QDir>
+#include <QUuid>
 #include <QFileInfo>
 #include <QFutureWatcher>
 #include <QtConcurrent/QtConcurrentRun>
@@ -16,6 +18,7 @@ struct ClientPreparedState {
     int version = 0;
     bool extended = false, alpha = false, durations = false, groups = false;
     bool cached = false;
+    QVariantMap report, configuration;
     struct DatReaderState {
         decltype(std::declval<DatReader>().m_items) m_items;
         decltype(std::declval<DatReader>().m_effects) m_effects;
@@ -130,8 +133,96 @@ void ClientLoadService::cancel()
     m_progressTimer.stop(); emit progressChanged();
     emit finished(id, QString(), QString(), false, QStringLiteral("Client loading cancelled."));
 }
+namespace {
+QString fileStamp(const QString &path) {
+    if(path.isEmpty())return {};
+    const QFileInfo info(path);
+    return info.absoluteFilePath()+":"+QString::number(info.size())+":"+QString::number(info.lastModified().toMSecsSinceEpoch());
+}
+QVariantMap resolveClient(const QVariantMap &profile) {
+    const QString folder=profile.value("folder").toString();
+    const int version=profile.value("version").toInt();
+    const QDir directory(folder);
+    const QVariantMap overrides=profile.value("files").toMap();
+    QVariantMap paths, errors;
+    const auto find=[&](const QString &key,const QString &preferred,bool required) {
+        const QString choice=overrides.value(key).toString();
+        if(choice=="-") { if(required)errors[key]="Required file disabled"; return QString(); }
+        if(!choice.isEmpty())return QFileInfo(choice).absoluteFilePath();
+        if(folder.isEmpty()) { if(required)errors[key]="Choose a file or client folder";return QString(); }
+        if(directory.exists(preferred))return directory.absoluteFilePath(preferred);
+        const auto matches=directory.entryList({"*."+key},QDir::Files,QDir::Name);
+        if(matches.size()==1)return directory.absoluteFilePath(matches.first());
+        if(matches.size()>1)errors[key]="Several files found; choose one explicitly";
+        else if(required)errors[key]="File not found";
+        return QString();
+    };
+    paths["otfi"]=find("otfi","Tibia.otfi",false);
+    OtfiReader otfi;
+    bool hasOtfi=false;
+    if(!paths.value("otfi").toString().isEmpty()) {
+        hasOtfi=otfi.loadFile(paths.value("otfi").toString());
+        if(!hasOtfi)errors["otfi"]="Cannot read OTFI";
+    }
+    const QDir otfiDir(QFileInfo(paths.value("otfi").toString()).absolutePath());
+    for(const QString &key:{QString("dat"),QString("spr")}) {
+        if(overrides.value(key).toString().isEmpty() && hasOtfi)
+            paths[key]=otfiDir.filePath(key=="dat" ? otfi.metadataFile() : otfi.spritesFile());
+        else paths[key]=find(key,key=="dat" ? "Tibia.dat" : "Tibia.spr",true);
+    }
+    paths["otb"]=find("otb","items.otb",true);
+    paths["xml"]=find("xml","items.xml",false);
+    if(paths.value("xml").toString().isEmpty() && overrides.value("xml").toString().isEmpty() && !errors.contains("xml")) {
+        const auto resource=profile.value("resourceKey").toString();
+        const QString customXml=QDir(dmeDataDir()).filePath(resource+"/items.xml");
+        const QString baseXml=QDir(dmeDataDir()).filePath(QString::number(version)+"/items.xml");
+        if(!resource.isEmpty() && QFileInfo::exists(customXml))paths["xml"]=customXml;
+        else if(QFileInfo::exists(baseXml))paths["xml"]=baseXml;
+    }
+    for(auto it=paths.cbegin();it!=paths.cend();++it) {
+        const QString path=it.value().toString();
+        if(!path.isEmpty() && (!QFileInfo(path).isFile() || !QFileInfo(path).isReadable()))errors[it.key()]="File missing or unreadable";
+    }
+    if(version<=0)errors["version"]="Choose a client version";
+    QVariantMap flags{{"extended",hasOtfi ? otfi.extended() : version>=960},
+        {"alpha",hasOtfi && otfi.transparency()},{"durations",hasOtfi && otfi.frameDurations()},
+        {"groups",hasOtfi && otfi.frameGroups()}};
+    const auto manualFlags=profile.value("flags").toMap();
+    for(auto it=manualFlags.cbegin();it!=manualFlags.cend();++it)if(!it.value().isNull())flags[it.key()]=it.value().toBool();
+    QString fingerprint=QString::number(version)+":"+profile.value("resourceKey").toString();
+    for(auto it=paths.cbegin();it!=paths.cend();++it)fingerprint+="|"+fileStamp(it.value().toString());
+    for(auto it=flags.cbegin();it!=flags.cend();++it)fingerprint+="|"+it.key()+":"+it.value().toString();
+    return {{"success",errors.isEmpty()},{"paths",paths},{"errors",errors},{"flags",flags},
+        {"hasOtfi",hasOtfi},{"fingerprint",fingerprint},{"validated",false}};
+}
+}
+QString ClientLoadService::newProfileId() const { return QUuid::createUuid().toString(QUuid::WithoutBraces); }
+QVariantMap ClientLoadService::resolveProfile(const QVariantMap &profile) const { return resolveClient(profile); }
+quint64 ClientLoadService::validateProfile(const QVariantMap &profile) {
+    const quint64 id=++m_validationGeneration;
+    auto *watcher=new QFutureWatcher<std::shared_ptr<ClientPreparedState>>(this);
+    connect(watcher,&QFutureWatcher<std::shared_ptr<ClientPreparedState>>::finished,this,[this,watcher,id] {
+        const auto state=watcher->result();watcher->deleteLater();
+        auto report=state->report;
+        report["success"]=state->error.isEmpty();report["validated"]=true;report["error"]=state->error;
+        emit validationFinished(id,report);
+    });
+    QVariantMap config=profile; config["validateOnly"]=true;
+    watcher->setFuture(QtConcurrent::run([config] {
+        return prepare(config.value("id").toString(),config.value("version").toInt(),config.value("folder").toString(),
+            !config.value("resourceKey").toString().isEmpty(),{},{},std::make_shared<Job>(),config);
+    }));
+    return id;
+}
 quint64 ClientLoadService::request(const QString &key, int version, const QString &folder, bool custom)
 {
+    return requestProfile({{"id",key},{"version",version},{"folder",folder},{"resourceKey",custom ? key : QString()}});
+}
+quint64 ClientLoadService::requestProfile(const QVariantMap &profile)
+{
+    const QString key=profile.value("id").toString(),folder=profile.value("folder").toString();
+    const int version=profile.value("version").toInt();
+    const bool custom=!profile.value("resourceKey").toString().isEmpty();
     cancel();
     const quint64 id = ++m_generation;
     m_job = std::make_shared<Job>();
@@ -145,38 +236,31 @@ quint64 ClientLoadService::request(const QString &key, int version, const QStrin
         if (!state->error.isEmpty()) complete(id, state, state->error);
         else publish(id, state);
     });
-    watcher->setFuture(QtConcurrent::run([key, version, folder, custom, cachedKey, cachedFingerprint, job] {
-        return prepare(key, version, folder, custom, cachedKey, cachedFingerprint, job);
+    watcher->setFuture(QtConcurrent::run([key, version, folder, custom, cachedKey, cachedFingerprint, job, profile] {
+        return prepare(key, version, folder, custom, cachedKey, cachedFingerprint, job, profile);
     }));
     return id;
 }
 std::shared_ptr<ClientPreparedState> ClientLoadService::prepare(const QString &key, int version,
     const QString &folder, bool custom, const QString &cachedKey, const QString &cachedFingerprint,
-    const std::shared_ptr<Job> &job)
+    const std::shared_ptr<Job> &job, const QVariantMap &profile)
 {
     auto state = std::make_shared<ClientPreparedState>();
-    state->key = key; state->version = version;
+    state->key = key; state->version = version; state->configuration=profile;
     try {
-        const QDir directory(folder);
-        const auto find = [&](const QString &extension, const QString &preferred) {
-            if (directory.exists(preferred)) return directory.absoluteFilePath(preferred);
-            const auto files = directory.entryList({QStringLiteral("*.") + extension}, QDir::Files, QDir::Name);
-            return files.isEmpty() ? QString() : directory.absoluteFilePath(files.first());
-        };
-        if (folder.isEmpty() || version <= 0) throw std::runtime_error("Choose a valid client folder and version.");
-        OtfiReader otfi;
-        const bool hasOtfi = otfi.loadFromFolder(folder);
-        state->otfiFound = hasOtfi;
-        state->metadataName = otfi.metadataFile(); state->spritesName = otfi.spritesFile();
-        state->datPath = hasOtfi ? directory.filePath(otfi.metadataFile()) : find("dat", "Tibia.dat");
-        state->sprPath = hasOtfi ? directory.filePath(otfi.spritesFile()) : find("spr", "Tibia.spr");
-        state->otbPath = find("otb", "items.otb");
-        state->extended = hasOtfi ? otfi.extended() : version >= 960;
-        state->alpha = hasOtfi && otfi.transparency();
-        state->durations = hasOtfi && otfi.frameDurations();
-        state->groups = hasOtfi && otfi.frameGroups();
-        state->fingerprint = fingerprint(state->datPath, state->sprPath, state->otbPath, version,
-            state->extended, state->alpha, state->durations, state->groups);
+        state->report=resolveClient(profile);
+        if(!state->report.value("success").toBool()) {
+            const auto errors=state->report.value("errors").toMap();
+            QStringList messages;for(auto it=errors.cbegin();it!=errors.cend();++it)messages<<it.key()+": "+it.value().toString();
+            throw std::runtime_error(messages.join("\n").toStdString());
+        }
+        const auto paths=state->report.value("paths").toMap(),flags=state->report.value("flags").toMap();
+        state->datPath=paths.value("dat").toString();state->sprPath=paths.value("spr").toString();state->otbPath=paths.value("otb").toString();
+        state->otfiFound=state->report.value("hasOtfi").toBool() || !profile.value("flags").toMap().isEmpty();
+        state->metadataName=QFileInfo(state->datPath).fileName();state->spritesName=QFileInfo(state->sprPath).fileName();
+        state->extended=flags.value("extended").toBool();state->alpha=flags.value("alpha").toBool();
+        state->durations=flags.value("durations").toBool();state->groups=flags.value("groups").toBool();
+        state->fingerprint=state->report.value("fingerprint").toString();
         const auto check = [&] { if (job->cancelled.load()) throw std::runtime_error("Client loading cancelled."); };
         check();
         if (cachedKey == key && cachedFingerprint == state->fingerprint) { state->cached = true; return state; }
@@ -184,28 +268,40 @@ std::shared_ptr<ClientPreparedState> ClientLoadService::prepare(const QString &k
         TilesetStore tiles; BrushStore brushes; CreatureStore creatures;
         otb.setDatReader(&dat); otb.setItemsXml(&xml); tiles.setItemSource(&otb);
         dat.setClientVersion(version);
-        dat.setOtfiOverrides(hasOtfi, otfi.extended(), otfi.frameDurations(), otfi.frameGroups());
+        dat.setOtfiOverrides(state->otfiFound,state->extended,state->durations,state->groups);
         job->stage.store(1); job->progress.store(10);
         if (!dat.loadFile(state->datPath, 0)) throw std::runtime_error(dat.errorString().toStdString());
         check(); job->stage.store(2); job->progress.store(25);
         if (!spr.loadFile(state->sprPath, 0, state->extended, state->alpha)) throw std::runtime_error(spr.errorString().toStdString());
         check(); job->stage.store(3); job->progress.store(35);
         if (!otb.loadFile(state->otbPath)) throw std::runtime_error(otb.errorString().toStdString());
+        const auto checkSprites=[&](const auto &definitions) {
+            for(const auto &item:definitions)for(const auto sprite:item.sprite_ids)
+                if(sprite>static_cast<uint32_t>(spr.spriteCount()))throw std::runtime_error("DAT references sprites outside this SPR. Choose matching DAT and SPR files.");
+        };
+        checkSprites(dat.items());
+        checkSprites(dat.m_effects); checkSprites(dat.m_outfits);
+        if(!paths.value("xml").toString().isEmpty() && !xml.loadFile(paths.value("xml").toString()))
+            throw std::runtime_error("Cannot parse items.xml");
+        if(profile.value("validateOnly").toBool()) {
+            state->report["itemCount"]=dat.itemCount();state->report["spriteCount"]=spr.spriteCount();return state;
+        }
         check(); job->stage.store(4); job->progress.store(45);
         spr.preloadItemImageSources(&dat, [&] { return job->cancelled.load(); });
         check(); job->stage.store(5); job->progress.store(80);
         if (!custom) {
             tiles.loadForVersion(version); brushes.loadForVersion(version);
-            creatures.loadForVersion(version); xml.loadForVersion(version);
+            creatures.loadForVersion(version);
         } else {
-            tiles.loadForDir(key);
-            if (!brushes.loadForDir(key)) brushes.loadForVersion(version);
-            if (!creatures.loadForDir(key)) creatures.loadForVersion(version);
-            if (!xml.loadForDir(key)) xml.loadForVersion(version);
+            tiles.loadForDir(profile.value("resourceKey").toString());
+            if (!brushes.loadForDir(profile.value("resourceKey").toString())) brushes.loadForVersion(version);
+            if (!creatures.loadForDir(profile.value("resourceKey").toString())) creatures.loadForVersion(version);
+
         }
         check();
-        if (state->fingerprint != fingerprint(state->datPath, state->sprPath, state->otbPath, version,
-            state->extended, state->alpha, state->durations, state->groups))
+        if(!paths.value("xml").toString().isEmpty() && !xml.loadFile(paths.value("xml").toString()))
+            throw std::runtime_error("Cannot parse items.xml");
+        if(state->fingerprint!=resolveClient(profile).value("fingerprint").toString())
             throw std::runtime_error("Client files changed while loading. Retry the operation.");
         state->dat.m_items = std::move(dat.m_items);
         state->dat.m_effects = std::move(dat.m_effects);
@@ -301,8 +397,7 @@ void ClientLoadService::publish(quint64 id, const std::shared_ptr<ClientPrepared
             return;
         }
     }
-    if (state->fingerprint != fingerprint(state->datPath, state->sprPath, state->otbPath, state->version,
-        state->extended, state->alpha, state->durations, state->groups)) {
+    if (state->fingerprint != resolveClient(state->configuration).value("fingerprint").toString()) {
         complete(id, state, QStringLiteral("Client files changed before publication.")); return;
     }
     // Staging preserves the old file and model state if opening the new source fails.

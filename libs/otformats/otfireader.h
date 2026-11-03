@@ -22,6 +22,8 @@ public:
 
     Q_INVOKABLE bool loadFromFolder(const QString &folder);
 
+    bool loadFile(const QString &path);
+
     bool found() const { return m_found; }
     bool extended() const { return m_extended; }
     bool transparency() const { return m_transparency; }

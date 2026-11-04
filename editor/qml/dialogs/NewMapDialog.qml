@@ -9,6 +9,7 @@ DmeDialog {
     property string preferredProfileKey: app.loadedClientKey
 
     title: "New Map"
+    readonly property color labelColor: windowsClassic ? "#202020" : tibiaTheme ? "#e0e0e0" : "#999"
 
     property var profileKeys: []
     onAboutToShow: {
@@ -42,14 +43,14 @@ DmeDialog {
             spacing: 6
             Text {
                 text: "Client version"
-                color: "#999"
+                color: root.labelColor
                 font.pixelSize: 11
                 width: 90
                 anchors.verticalCenter: parent.verticalCenter
             }
             DmeComboBox {
                 id: verCombo
-                width: 160
+                width: wField.width + hField.width + sizeSeparator.implicitWidth + 2 * sizeRow.spacing
                 model: root.profileKeys.map(function (k) {
                     return root.app.profileLabel(k);
                 })
@@ -57,10 +58,11 @@ DmeDialog {
         }
 
         Row {
+            id: sizeRow
             spacing: 6
             Text {
                 text: "Size"
-                color: "#999"
+                color: root.labelColor
                 font.pixelSize: 11
                 width: 90
                 anchors.verticalCenter: parent.verticalCenter
@@ -73,8 +75,9 @@ DmeDialog {
                 value: 2048
             }
             Text {
-                text: "x"
-                color: "#999"
+                id: sizeSeparator
+                text: "×"
+                color: root.labelColor
                 font.pixelSize: 11
                 anchors.verticalCenter: parent.verticalCenter
             }

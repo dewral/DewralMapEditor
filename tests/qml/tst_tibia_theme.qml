@@ -300,14 +300,14 @@ Item {
             const pressed=findChild(file,"menuHeadingPressedFrame");
             mouseMove(scene,500,700); wait(30);
             mouseMove(file,file.width/2,file.height/2,40);
-            tryCompare(background,"color","#10ffffff");
+            tryCompare(pressed,"active",true);
             mouseClick(file);
             tryCompare(testFileMenu,"opened",true); tryCompare(pressed,"active",true);
             verify(pressed.item.pressed);
             compare(background.color,"#00000000");
             compare(testFileMenu.padding,6); compare(testFileMenu.spacing,0);
             mouseMove(testOpenEntry,testOpenEntry.width/2,8);
-            tryCompare(pressed,"active",false);
+            tryCompare(pressed,"active",true);
             compare(testFileMenu.opened,true);
             compare(background.color,"#00000000");
             const entryBackground=findChild(testOpenEntry,"menuEntryBackground");
@@ -336,7 +336,7 @@ Item {
             }
             for(const heading of headings) {
                 mouseMove(heading,heading.width/2,heading.height/2,30);
-                for(const frame of frames)compare(frame.active,false);
+                for(let i=0;i<frames.length;++i)compare(frames[i].active,headings[i]===heading);
                 mouseMove(scene,600,700);wait(20);
                 compare(findChild(heading,"menuHeadingBackground").color,"#00000000");
             }

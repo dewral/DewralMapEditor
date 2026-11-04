@@ -20,6 +20,21 @@ DmeDialog {
     property int page: 0
     readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
 
+    readonly property color descriptionColor: tibiaTheme ? "#d0d0d0" : "#8B949E"
+
+    background: DmeDialogBackground {
+        Image {
+            anchors.fill: parent
+            anchors.margins: 4
+            anchors.topMargin: 17
+            visible: dialog.tibiaTheme
+            source: Qt.resolvedUrl("../themes/tibia/images/dialog-frame-borderimage.png")
+            sourceClipRect: Qt.rect(4, 17, 96, 96)
+            fillMode: Image.Tile
+            smooth: false
+        }
+    }
+
     function styleIndex() {
         for (let i = 0; i < Backend.uiTheme.styles.length; ++i)
             if (Backend.uiTheme.styles[i].id === Backend.uiTheme.style)
@@ -61,12 +76,17 @@ DmeDialog {
                         objectName: "preferencesTab" + modelData.name.replace(/ /g, "")
                         width: parent.width
                         height: Math.min(44, (parent.height - 5 * parent.spacing) / 6)
-                        radius: 5
-                        color: dialog.page === index ? Colors.c("selected") : navMouse.containsMouse ? Colors.c("hover") : "transparent"
+                        radius: dialog.tibiaTheme ? 0 : 5
+                        color: dialog.tibiaTheme ? "transparent" : dialog.page === index ? Colors.c("selected") : navMouse.containsMouse ? Colors.c("hover") : "transparent"
+                        Loader {
+                            anchors.fill: parent
+                            active: dialog.tibiaTheme && (dialog.page === index || navMouse.containsMouse)
+                            sourceComponent: TibiaSkin.TibiaClassicFrame { kind: "button"; pressed: true }
+                        }
                         Rectangle {
                             x: 0; anchors.verticalCenter: parent.verticalCenter
                             width: 3; height: 22; radius: 2
-                            visible: dialog.page === index
+                            visible: !dialog.tibiaTheme && dialog.page === index
                             color: Colors.c("accent")
                         }
                         Row {
@@ -96,7 +116,7 @@ DmeDialog {
                     Text {
                         width: parent.width
                         text: "DME checks for updates whenever the start window opens. Update status and installation are available there."
-                        color: "#8B949E"
+                        color: dialog.descriptionColor
                         font.pixelSize: 11
                         wrapMode: Text.WordWrap
                     }
@@ -120,7 +140,7 @@ DmeDialog {
                 }
                 PrefCard {
                     title: "UI Colorize"
-                    Text { width: parent.width; text: "Edit Fluent Dark colors, preview changes and locate UI elements."; color: "#8B949E"; font.pixelSize: 11; wrapMode: Text.WordWrap }
+                    Text { width: parent.width; text: "Edit Fluent Dark colors, preview changes and locate UI elements."; color: dialog.descriptionColor; font.pixelSize: 11; wrapMode: Text.WordWrap }
                     DmeButton { text: "Open UI Colorize…"; width: 180; enabled: dialog.fluentUi; onClicked: { dialog.colorizeRequested(); dialog.close(); } }
                 }
                 PrefCard {
@@ -174,7 +194,7 @@ DmeDialog {
                     Text {
                         width: parent.width
                         text: "Choose the color and fill opacity of selected items and the selection rectangle."
-                        color: "#8B949E"
+                        color: dialog.descriptionColor
                         font.pixelSize: 11
                         wrapMode: Text.WordWrap
                     }
@@ -221,7 +241,7 @@ DmeDialog {
                     Text {
                         width: parent.width
                         text: "Hide map tooltips below this zoom level. Set 0% to show them at every zoom."
-                        color: "#8B949E"
+                        color: dialog.descriptionColor
                         font.pixelSize: 11
                         wrapMode: Text.WordWrap
                     }
@@ -268,7 +288,7 @@ DmeDialog {
                     Text {
                         width: parent.width
                         text: "Hide creature names and health bars below this zoom level. Set 0% to show them at every zoom."
-                        color: "#8B949E"
+                        color: dialog.descriptionColor
                         font.pixelSize: 11
                         wrapMode: Text.WordWrap
                     }
@@ -315,7 +335,7 @@ DmeDialog {
                     Text {
                         width: parent.width
                         text: "Disable map lighting below this zoom level. Set 0% for lighting at every zoom."
-                        color: "#8B949E"
+                        color: dialog.descriptionColor
                         font.pixelSize: 11
                         wrapMode: Text.WordWrap
                     }
@@ -403,7 +423,7 @@ DmeDialog {
     }
 
     footer: Item {
-        implicitHeight: 52
+        implicitHeight: dialog.tibiaTheme ? 44 : 52
         Rectangle {
             anchors { left: parent.left; right: parent.right; top: parent.top }
             height: 1
@@ -430,8 +450,8 @@ DmeDialog {
             id: pageColumn
             width: prefPage.availableWidth - 12
             spacing: 12
-            Text { text: prefPage.title; color: Colors.c("text"); font { family: Colors.family(); pixelSize: 20; bold: true } }
-            Text { width: parent.width; text: prefPage.description; color: Colors.c("muted"); font.family: Colors.family(); font.pixelSize: 12; wrapMode: Text.WordWrap }
+            Text { text: prefPage.title; color: Colors.c("text"); font { family: Colors.family(); pixelSize: dialog.tibiaTheme ? 16 : 20; bold: true } }
+            Text { width: parent.width; text: prefPage.description; color: dialog.tibiaTheme ? dialog.descriptionColor : Colors.c("muted"); font.family: Colors.family(); font.pixelSize: 12; wrapMode: Text.WordWrap }
         }
     }
 

@@ -60,7 +60,7 @@ MenuBar {
         contentItem: Text {
             id: label
             text: menuItem.text
-            color: root.tibiaTheme ? (menuItem.hovered ? "#ffffff" : "#dfdfdf") : root.fluentTheme ? FluentColors.c("buttonText") : root.windowsClassic ? "#202020" : (root.modernTheme ? (menuItem.highlighted ? "#FFFFFF" : (root.grayTheme ? "#E0E0E0" : "#C9D1D9")) : "#dcdcdc")
+            color: root.tibiaTheme ? (menuItem.hovered || menuItem.expanded ? "#ffffff" : "#dfdfdf") : root.fluentTheme ? FluentColors.c("buttonText") : root.windowsClassic ? "#202020" : (root.modernTheme ? (menuItem.highlighted ? "#FFFFFF" : (root.grayTheme ? "#E0E0E0" : "#C9D1D9")) : "#dcdcdc")
             font.family: root.fluentTheme ? FluentColors.family() : Qt.application.font.family
             font.bold: false
             font.pixelSize: root.tibiaTheme ? 11 : root.fluentTheme ? 13 : root.modernTheme ? 13 : 12
@@ -71,13 +71,13 @@ MenuBar {
         background: Rectangle {
             objectName: "menuHeadingBackground"
             radius: root.tibiaTheme ? 0 : root.fluentTheme ? 4 : root.modernTheme ? 4 : 0
-            color: root.tibiaTheme ? (!menuItem.expanded && menuItem.hovered ? "#10ffffff" : "transparent") : root.fluentTheme ? (menuItem.highlighted ? FluentColors.c("selected") : "transparent") : menuItem.highlighted ? (root.windowsClassic ? "#cce8ff" : (root.modernTheme ? (root.grayTheme ? "#292929" : "#161B22") : "#1fffffff")) : "transparent"
+            color: root.tibiaTheme ? "transparent" : root.fluentTheme ? (menuItem.highlighted ? FluentColors.c("selected") : "transparent") : menuItem.highlighted ? (root.windowsClassic ? "#cce8ff" : (root.modernTheme ? (root.grayTheme ? "#292929" : "#161B22") : "#1fffffff")) : "transparent"
             border.width: root.windowsClassic && menuItem.highlighted ? 1 : 0
             border.color: "#99c9ef"
             Loader {
                 objectName: "menuHeadingPressedFrame"
                 anchors.fill: parent
-                active: root.tibiaTheme && menuItem.expanded && menuItem.hovered
+                active: root.tibiaTheme && (menuItem.hovered || menuItem.expanded)
                 sourceComponent: TibiaSkin.TibiaClassicFrame { kind: "button"; pressed: true }
             }
         }

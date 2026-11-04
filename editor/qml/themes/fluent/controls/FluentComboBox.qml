@@ -10,6 +10,7 @@ Item {
     property var model: []
     property int currentIndex: -1
     property bool paletteCategories: false
+    readonly property bool showCategoryIcons: paletteCategories && !Colors.isTibia()
     readonly property string currentText: currentIndex >= 0 && currentIndex < model.length ? model[currentIndex] : ""
     readonly property bool open: popup.visible
     signal activated(int index)
@@ -40,14 +41,14 @@ Item {
     }
     TibiaSkin.TibiaSkin { anchors.fill: parent; kind: "field"; pressed: root.open; hovered: mouse.containsMouse }
     Image {
-        visible: root.paletteCategories
+        visible: root.showCategoryIcons
         x: 10; width: 18; height: 18
         anchors.verticalCenter: parent.verticalCenter
         source: visible ? root.iconSource(root.currentText, true) : ""
         sourceSize: Qt.size(18, 18)
     }
     Text {
-        anchors.left: parent.left; anchors.leftMargin: root.paletteCategories ? 36 : 6
+        anchors.left: parent.left; anchors.leftMargin: root.showCategoryIcons ? 36 : root.paletteCategories ? 10 : 6
         anchors.right: arrow.left; anchors.rightMargin: 6
         anchors.verticalCenter: parent.verticalCenter
         text: root.currentText; color: Colors.c("text")
@@ -133,13 +134,13 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter; color: Colors.c("accent")
                     }
                     Image {
-                        visible: root.paletteCategories
+                        visible: root.showCategoryIcons
                         x: 10; width: 18; height: 18; anchors.verticalCenter: parent.verticalCenter
                         source: visible ? root.iconSource(row.modelData, row.selected) : ""
                         sourceSize: Qt.size(18, 18)
                     }
                     Text {
-                        anchors.left: parent.left; anchors.leftMargin: root.paletteCategories ? 38 : 6
+                        anchors.left: parent.left; anchors.leftMargin: root.showCategoryIcons ? 38 : root.paletteCategories ? 10 : 6
                         anchors.right: parent.right; anchors.rightMargin: root.paletteCategories ? 30 : 6
                         anchors.verticalCenter: parent.verticalCenter
                         text: row.modelData; color: Colors.c("text"); elide: Text.ElideRight

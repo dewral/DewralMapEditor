@@ -174,10 +174,7 @@ Item {
 
         const header = Backend.otbmReader.inspectFileHeader(mapPath);
         if (!header.success) { showToast(header.error || "Could not inspect map header."); return false; }
-        const remembered=profiles.mapProfiles[mapPath] || "";
-        const choices=profiles.configuredProfileKeys().filter(k=>profiles.profileMatchesVersion(k,header.clientVersion));
-        if((remembered && !profiles.profileEntries[remembered] && !profiles.clientPaths[remembered])
-            || (!remembered && !preferredProfileKey && choices.length!==1)) {
+        if (profiles.needsProfileChoice(header.clientVersion, mapPath, preferredProfileKey)) {
             startupWindow.chooseClientProfile(header.clientVersion,"Choose a client profile for this map.",function(key){
                 if(key){profiles.rememberMapProfile(mapPath,key);controller.loadEverything(mapPath,key);}
             });

@@ -167,13 +167,41 @@ QtObject {
         };
     }
 
+    function mapPathKey(path) {
+        return Qt.platform.os === "windows" ? path.replace(/\\/g, "/").toLowerCase() : path;
+    }
+
+    function rememberedMapProfile(path) {
+        if (!path) return "";
+        if (mapProfiles[path]) return mapProfiles[path];
+        if (Qt.platform.os === "windows") {
+            const normalized = mapPathKey(path);
+            const savedPath = Object.keys(mapProfiles).find(key => mapPathKey(key) === normalized);
+            if (savedPath !== undefined) return mapProfiles[savedPath];
+        }
+        return "";
+    }
+
     function rememberMapProfile(mapPath, key) {
-        if (mapPath === "" || key === "" || mapProfiles[mapPath] === key)
+        if (!mapPath || !key || rememberedMapProfile(mapPath) === key)
             return;
-        var copy = JSON.parse(JSON.stringify(mapProfiles));
-        copy[mapPath] = key;
-        mapProfiles = copy;
+        const entries = copy(mapProfiles);
+        const normalized = mapPathKey(mapPath);
+        for (const path of Object.keys(entries))
+            if (mapPathKey(path) === normalized) delete entries[path];
+        entries[mapPath] = key;
+        mapProfiles = entries;
         settings.mapProfilesJson = JSON.stringify(mapProfiles);
+    }
+
+    function needsProfileChoice(version, path, preferredKey) {
+        const configured = configuredProfileKeys();
+        const preferred = preferredKey == null ? "" : String(preferredKey);
+        if (configured.includes(preferred) && profileMatchesVersion(preferred, version))
+            return false;
+        const remembered = rememberedMapProfile(path);
+        if (remembered) return !configured.includes(remembered);
+        return configured.filter(key => profileMatchesVersion(key, version)).length !== 1;
     }
 
     function switchMapProfile(key) {
@@ -241,9 +269,9 @@ QtObject {
     function keyForMap(version, path, preferredProfileKey) {
         if (version <= 0) version = 772;
         const preferred = preferredProfileKey === undefined || preferredProfileKey === null ? "" : String(preferredProfileKey);
-        const remembered = path !== "" ? (mapProfiles[path] || "") : "";
-        return remembered !== "" ? remembered
-            : preferred !== "" && profileMatchesVersion(preferred, version) ? preferred : resolveKeyForVersion(version);
+        if (configuredProfileKeys().includes(preferred) && profileMatchesVersion(preferred, version))
+            return preferred;
+        return rememberedMapProfile(path) || resolveKeyForVersion(version);
     }
     function prepareClientForMap(version, path, preferredKey, callback) {
         return prepareClientVersion(keyForMap(version, path, preferredKey), callback);

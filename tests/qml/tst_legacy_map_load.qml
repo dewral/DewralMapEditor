@@ -7,17 +7,18 @@ TestCase {
     id: testCase
     name: "LegacyMapLoad"
     property var calls: []
-    property int folderRequests: 0
+    property var chooseProfile: null
 
     QtObject { id: stub }
     QtObject {
         id: prefs
         property string clientPathsJson: "{}"
+        property string mapProfilesJson: "{}"
     }
     QtObject {
         id: startup
         property bool loadingMap: false
-        function openVersionFolderDialog() { testCase.folderRequests++; }
+        function chooseClientProfile(version, reason, callback) { testCase.chooseProfile = callback; }
     }
     QtObject {
         id: map
@@ -60,12 +61,12 @@ TestCase {
 
     function init() {
         calls = [];
-        folderRequests = 0;
+        chooseProfile = null;
         Backend.otbmReader.loaded = false;
         Backend.otbmReader.filePath = "";
         Backend.otbmReader.fileHeader = {success: true, otbmVersion: 0, clientVersion: 772};
         profiles.clientLoadSucceeds = true;
-        profiles.clientPaths = {};
+        profiles.clientPaths = {"760": "C:/client76", "1098": "C:/client"};
         profiles.mapProfiles = {};
         documents.pendingMapPath = "";
         documents.pendingKey = "";
@@ -92,20 +93,41 @@ TestCase {
         compare(documents.activePreferredProfileKey, "760");
     }
 
-    function test_missingDefinitionsWaitForFolderAndRetryBeforeDecode() {
+    function test_missingDefinitionsWaitForProfileAndRetryBeforeDecode() {
         profiles.clientLoadSucceeds = false;
         verify(documents.loadEverything("legacy.otbm", "760"));
+        tryVerify(() => chooseProfile !== null);
         compare(calls, ["profile:760"]);
-        tryCompare(testCase, "folderRequests", 1);
-        compare(documents.pendingKey, "760");
         compare(documents.activeLoadPath, "");
 
         profiles.clientLoadSucceeds = true;
-        documents.onVersionFolderPicked("C:/client76");
-        compare(profiles.clientPaths["760"], "C:/client76");
+        chooseProfile("760");
         tryVerify(() => calls.length === 3);
         compare(calls, ["profile:760", "profile:760", "load:legacy.otbm"]);
-        compare(documents.pendingMapPath, "");
+    }
+
+    function test_ambiguousMapWaitsForExplicitProfile() {
+        Backend.otbmReader.fileHeader = {success: true, otbmVersion: 2, clientVersion: 1098};
+        profiles.clientPaths = {"772": "C:/legacy", "1098": "C:/client", "Midhem": "C:/client"};
+        profiles.customProfiles = [{name: "Midhem", base: 1098}];
+
+        verify(documents.loadEverything("modern.otbm", "772"));
+        verify(chooseProfile !== null);
+        compare(calls.length, 0);
+        chooseProfile("Midhem");
+        tryVerify(() => calls.length === 2);
+        compare(calls, ["profile:Midhem", "load:modern.otbm"]);
+    }
+
+    function test_selectedMidhemOverridesRememberedVanillaProfile() {
+        Backend.otbmReader.fileHeader = {success: true, otbmVersion: 2, clientVersion: 1098};
+        profiles.clientPaths = {"1098": "C:/client", "Midhem": "C:/client"};
+        profiles.customProfiles = [{name: "Midhem", base: 1098}];
+        profiles.mapProfiles = {"modern.otbm": "1098"};
+
+        verify(documents.loadEverything("modern.otbm", "Midhem"));
+        tryVerify(() => calls.length === 2);
+        compare(calls, ["profile:Midhem", "load:modern.otbm"]);
     }
 
     function test_modernMapAlsoLoadsSubtypeDefinitionsBeforeDecode() {

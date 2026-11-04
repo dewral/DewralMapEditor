@@ -43,7 +43,8 @@ Item {
             let key = operation.key;
             if (operation.kind === "open") {
                 const header = Backend.otbmReader.inspectFileHeader(operation.path);
-                if (header.success) key = catalog.keyForMap(header.clientVersion, operation.path, operation.key);
+                key = header.success && !catalog.needsProfileChoice(header.clientVersion, operation.path, operation.key)
+                    ? catalog.keyForMap(header.clientVersion, operation.path, operation.key) : "";
             }
             if (key && (catalog.clientPaths[key] || "") !== "") {
                 operation.preparingClient = true;

@@ -51,15 +51,39 @@ TestCase {
         profiles.clientLoadSucceeds = true;
     }
 
-    function test_rememberedProfileWinsOverStartupSelection() {
+    function test_startupSelectionWinsOverRememberedProfile() {
         verify(profiles.ensureClientLoaded(reader, "Midhem"));
-        compare(profiles.requestedKey, "1098");
+        compare(profiles.requestedKey, "Midhem");
+        compare(profiles.profile(profiles.requestedKey).resourceKey, "Midhem");
+        profiles.mapProfiles = {[reader.filePath]: "Removed profile"};
+        verify(!profiles.needsProfileChoice(1098, reader.filePath, "Midhem"));
     }
 
     function test_rememberedCustomProfileLoadsWithoutExplicitSelection() {
         profiles.mapProfiles = {"C:/maps/template.otbm": "Midhem"};
         verify(profiles.ensureClientLoaded(reader));
         compare(profiles.requestedKey, "Midhem");
+    }
+
+    function test_incompatibleStartupSelectionRequiresChoiceForAmbiguousVersion() {
+        profiles.mapProfiles = {};
+        profiles.clientPaths = {"772": "C:/legacy", "1098": "C:/client", "Midhem": "C:/client"};
+        verify(profiles.needsProfileChoice(1098, reader.filePath, "772"));
+        verify(!profiles.needsProfileChoice(1098, reader.filePath, "Midhem"));
+        profiles.clientPaths = {"772": "C:/legacy", "Midhem": "C:/client"};
+        verify(!profiles.needsProfileChoice(1098, reader.filePath, "1098"));
+        compare(profiles.keyForMap(1098, reader.filePath, "1098"), "Midhem");
+    }
+
+    function test_windowsPathVariantsKeepTheSameProfile() {
+        if (Qt.platform.os !== "windows") skip("Windows path semantics");
+        const variant = "c:\\Maps\\Template.otbm";
+        profiles.mapProfiles = {"C:/maps/template.otbm": "Midhem"};
+        compare(profiles.keyForMap(1098, variant, ""), "Midhem");
+        verify(!profiles.needsProfileChoice(1098, variant, "772"));
+        profiles.rememberMapProfile(variant, "1098");
+        compare(profiles.rememberedMapProfile(reader.filePath), "1098");
+        compare(Object.keys(profiles.mapProfiles).length, 1);
     }
 
     function test_incompatibleSelectionUsesDetectedVersion() {
@@ -85,6 +109,7 @@ TestCase {
     function test_legacyHeaderRespectsCustom760Selection() {
         profiles.mapProfiles=({});
         profiles.customProfiles = [{name: "Custom76", base: 760}];
+        profiles.clientPaths = {"Custom76": "C:/client76"};
         verify(profiles.ensureClientForMap(772, reader.filePath, "Custom76"));
         compare(profiles.requestedKey, "Custom76");
         verify(!profiles.profileMatchesVersion("Custom76", 1098));

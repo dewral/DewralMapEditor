@@ -36,6 +36,12 @@ QtObject {
         return wallExportError;
     }
     function previewScreenshotPath() { return screenshotPath; }
+    property var spriteExportCalls: []
+    function spriteExportUrl(serverId) { return Qt.resolvedUrl("../../../../build/tmp/sprite-" + serverId + ".png"); }
+    function exportSprite(serverId, destination, doodad) {
+        spriteExportCalls = spriteExportCalls.concat([{serverId: serverId, destination: String(destination), doodad: doodad}]);
+        return "";
+    }
     property var obdExportCalls: []
     function obdExportUrl(serverId) { return Qt.resolvedUrl("../../../../build/tmp/item-" + serverId + ".obd"); }
     function exportObd(serverId, destination) {
@@ -219,6 +225,7 @@ QtObject {
         property int revision: 1
         property string errorString: ""
         function namesFor(kind) { return kind === "doodad" ? ["Structures"] : [] }
+        function isCustomOnly(kind, name) { return false }
         function itemsFor(kind, name) { return [] }
         function newTileset(kind, name) { return true }
         function deleteTileset(kind, name) { return true }

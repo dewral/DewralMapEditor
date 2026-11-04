@@ -3,6 +3,7 @@
 #include "wallbrushexport.h"
 #include "brushpngexport.h"
 #include "obdexport.h"
+#include "doodadimage.h"
 
 #include <QDir>
 #include <QImageWriter>
@@ -49,13 +50,25 @@ QUrl Backend::spriteExportUrl(int serverId) const
     return QUrl::fromLocalFile(downloads.filePath(QStringLiteral("sprite-%1.png").arg(serverId)));
 }
 
-QString Backend::exportSprite(int serverId, const QUrl &destination) const
+QString Backend::exportSprite(int serverId, const QUrl &destination, bool doodad)
 {
     if (!destination.isLocalFile() || destination.toLocalFile().isEmpty())
         return tr("Choose a local PNG file to export the sprite.");
 
     const int clientId = m_otbReader.clientIdForServerId(serverId);
-    const QImage image = m_sprReader.preloadedItemImage(clientId);
+    QImage image = m_sprReader.preloadedItemImage(clientId);
+    const QString name = doodad ? m_brushStore.doodadBrushForServerId(serverId) : QString();
+    if (!name.isEmpty()) {
+        const auto result = DoodadImage::compose(m_brushStore.doodadPreviewTiles(name),
+            [this](int id) {
+                return m_datReader.itemByClientId(m_otbReader.clientIdForServerId(id));
+            }, [this](quint32 id) {
+                const auto sprite = m_sprReader.loadSprite(id);
+                return sprite ? sprite->image : QImage();
+            });
+        if (!result.error.isEmpty()) return result.error;
+        image = result.image;
+    }
     if (image.isNull())
         return tr("No sprite image is available for item %1.").arg(serverId);
 

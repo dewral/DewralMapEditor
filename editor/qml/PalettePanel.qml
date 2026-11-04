@@ -996,6 +996,7 @@ Rectangle {
                 githubUi: paletteRoot.githubUi
                 onContextMenuRequested: serverId => {
                     palItemMenu.sid = serverId;
+                    palItemMenu.doodad = false;
                     palItemMenu.serverIds = grid.selectedServerIds.slice();
                     palItemMenu.popup();
                 }
@@ -1036,6 +1037,7 @@ Rectangle {
                 githubUi: paletteRoot.githubUi
                 onContextMenuRequested: serverId => {
                     palItemMenu.sid = serverId;
+                    palItemMenu.doodad = true;
                     palItemMenu.serverIds = doodadGrid.selectedServerIds.slice();
                     palItemMenu.popup();
                 }
@@ -1088,13 +1090,21 @@ Rectangle {
 
     Dialogs.FileDialog {
         id: spriteExportDialog
+        objectName: "spriteExportDialog"
         property int serverId: 0
+        property bool doodad: false
+        function prepare(serverId, doodad) {
+            spriteExportDialog.serverId = serverId;
+            spriteExportDialog.doodad = doodad;
+            currentFolder = StandardPaths.writableLocation(StandardPaths.DownloadLocation);
+            selectedFile = Backend.spriteExportUrl(serverId);
+        }
         title: "Export sprite as PNG"
         fileMode: Dialogs.FileDialog.SaveFile
         nameFilters: ["PNG images (*.png)"]
         defaultSuffix: "png"
         onAccepted: {
-            const error = Backend.exportSprite(serverId, selectedFile);
+            const error = Backend.exportSprite(serverId, selectedFile, doodad);
             if (error !== "") {
                 spriteExportError.text = error;
                 spriteExportError.open();
@@ -1135,6 +1145,7 @@ Rectangle {
         id: palItemMenu
         objectName: "paletteItemMenu"
         property int sid: 0
+        property bool doodad: false
         property var serverIds: []
 
         DmeMenuItem {
@@ -1153,9 +1164,7 @@ Rectangle {
             text: "Export sprite..."
             enabled: palItemMenu.sid > 0
             onTriggered: {
-                spriteExportDialog.serverId = palItemMenu.sid;
-                spriteExportDialog.currentFolder = StandardPaths.writableLocation(StandardPaths.DownloadLocation);
-                spriteExportDialog.selectedFile = Backend.spriteExportUrl(palItemMenu.sid);
+                spriteExportDialog.prepare(palItemMenu.sid, palItemMenu.doodad);
                 spriteExportDialog.open();
             }
         }

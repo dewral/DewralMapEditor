@@ -2,8 +2,8 @@
 #include "mapview.h"
 #include "mapview_p.h"
 #include "loadprofile.h"
+#include "doodadimage.h"
 
-#include <QPainter>
 #include <QBuffer>
 #include <QMouseEvent>
 #include <QHoverEvent>
@@ -566,73 +566,20 @@ QString MapView::doodadPreviewSourceForName(const QString &name) const
     const QVector<BrushStore::DoodadTile> tiles = m_brushController.store()->doodadPreviewTiles(name);
     if (tiles.isEmpty()) return QString();
 
-    auto clientItemFor = [&](int sid) -> const ClientItem * {
-        const int cid = m_otb->clientIdForServerId(static_cast<uint16_t>(sid));
-        return cid > 0 ? m_dat->itemByClientId(static_cast<uint16_t>(cid)) : nullptr;
-    };
-
-    auto effX = [](const BrushStore::DoodadTile &t) { return t.dx + t.dz; };
-    auto effY = [](const BrushStore::DoodadTile &t) { return t.dy + t.dz; };
-
-    QVector<BrushStore::DoodadTile> ordered = tiles;
-    std::stable_sort(ordered.begin(), ordered.end(),
-                     [](const BrushStore::DoodadTile &a, const BrushStore::DoodadTile &b) {
-                         return a.dz > b.dz;
-                     });
-
-    struct Draw { QImage img; int px, py; };
-    QVector<Draw> draws;
-    for (const BrushStore::DoodadTile &t : ordered) {
-        int elevation = 0;
-        for (int id : t.items) {
-            const ClientItem *ci = clientItemFor(id);
-            if (!ci || ci->sprite_ids.empty()) continue;
-            const int w = std::max<int>(1, ci->width);
-            const int h = std::max<int>(1, ci->height);
-            const int layers = std::max<int>(1, ci->layers);
-
-            const int ox = ci->has(ClientProperty::Offset) ? ci->offset_x : 0;
-            const int oy = ci->has(ClientProperty::Offset) ? ci->offset_y : 0;
-            const int elev = elevation;
-            if (ci->has(ClientProperty::Elevation)) elevation += ci->elevation;
-            for (int l = 0; l < layers; ++l)
-                for (int hh = 0; hh < h; ++hh)
-                    for (int ww = 0; ww < w; ++ww) {
-                        const int idx = ((l * h) + hh) * w + ww;
-                        if (idx < 0 || idx >= static_cast<int>(ci->sprite_ids.size())) continue;
-                        const uint32_t sp = ci->sprite_ids[static_cast<size_t>(idx)];
-                        if (sp == 0) continue;
-                        auto sprite = m_spr->loadSprite(sp);
-                        if (!sprite || sprite->image.isNull()) continue;
-                        draws.push_back({ sprite->image,
-                                          (effX(t) - ww) * kSprite - ox - elev,
-                                          (effY(t) - hh) * kSprite - oy - elev });
-                    }
-        }
-    }
-    if (draws.isEmpty()) return QString();
-
-    int minPx = draws[0].px, minPy = draws[0].py;
-    int maxPx = minPx, maxPy = minPy;
-    for (const Draw &d : draws) {
-        minPx = std::min(minPx, d.px);              maxPx = std::max(maxPx, d.px + d.img.width());
-        minPy = std::min(minPy, d.py);              maxPy = std::max(maxPy, d.py + d.img.height());
-    }
-    const int wpx = maxPx - minPx, hpx = maxPy - minPy;
-    if (wpx <= 0 || hpx <= 0 || wpx > 64 * kSprite || hpx > 64 * kSprite) return QString();
-
-    QImage img(wpx, hpx, QImage::Format_RGBA8888);
-    img.fill(Qt::transparent);
-    QPainter p(&img);
-    p.setCompositionMode(QPainter::CompositionMode_SourceOver);
-    for (const Draw &d : draws)
-        p.drawImage(d.px - minPx, d.py - minPy, d.img);
-    p.end();
+    const auto result = DoodadImage::compose(tiles,
+        [this](int id) -> const ClientItem * {
+            const int clientId = m_otb->clientIdForServerId(static_cast<uint16_t>(id));
+            return clientId > 0 ? m_dat->itemByClientId(static_cast<uint16_t>(clientId)) : nullptr;
+        }, [this](quint32 id) {
+            const auto sprite = m_spr->loadSprite(id);
+            return sprite ? sprite->image : QImage();
+        });
+    if (result.image.isNull()) return QString();
 
     QByteArray bytes;
     QBuffer buf(&bytes);
     buf.open(QIODevice::WriteOnly);
-    img.save(&buf, "PNG");
+    result.image.save(&buf, "PNG");
     buf.close();
     return QStringLiteral("data:image/png;base64,") + QString::fromLatin1(bytes.toBase64());
 }

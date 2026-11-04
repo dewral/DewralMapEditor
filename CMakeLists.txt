@@ -100,6 +100,8 @@ add_executable(DewralMapEditor
     editor/map/mapproceduralbrush.h
     editor/core/backend.cpp
     editor/core/backend.h
+    editor/core/doodadimage.cpp
+    editor/core/doodadimage.h
     editor/core/tilemapgenprocess.cpp
     editor/core/tilemapgenprocess.h
     editor/core/tilemapgenprofiles.cpp
@@ -295,6 +297,13 @@ target_link_libraries(DewralMapEditor
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(doodad_image_test EXCLUDE_FROM_ALL
+        tests/doodad_image_test.cpp editor/core/doodadimage.cpp editor/core/brushstore.cpp)
+    target_include_directories(doodad_image_test PRIVATE editor/core)
+    target_link_libraries(doodad_image_test PRIVATE OTFormats Qt6::Gui)
+    add_test(NAME doodad_image COMMAND doodad_image_test "${CMAKE_SOURCE_DIR}/data/1098")
+    set_tests_properties(doodad_image PROPERTIES
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
     add_executable(dat_legacy_740_test EXCLUDE_FROM_ALL tests/dat_legacy_740_test.cpp)
     target_include_directories(dat_legacy_740_test PRIVATE editor/map)
     target_link_libraries(dat_legacy_740_test PRIVATE OTFormats)
@@ -673,6 +682,7 @@ if(BUILD_TESTING)
         editor/map/maprhiview.h
         editor/core/brushstore.cpp
         editor/core/creaturestore.cpp
+        editor/core/doodadimage.cpp
         ${_dme_creature_refresh_sources})
     target_include_directories(map_creature_refresh_test PRIVATE
         libs/otformats editor/map editor/core)

@@ -105,7 +105,7 @@ Item {
         property var collectionNames: []
         property var rawOnlyNames: []
         function namesFor(category) {
-            return category === "raw" ? rawNames : category === "terrain"
+            return category === "raw" ? rawNames : (category === "terrain" || category === "doodad")
                 ? Object.keys(saved).filter(name => rawOnlyNames.indexOf(name) < 0)
                 : category === "collection" ? collectionNames : [];
         }
@@ -724,6 +724,37 @@ Item {
             palettes.addItemsToPalette("Test", [500, 503, 500, 0, -1]);
             compare(palettes.customPalettes.Test, [500, 503]);
             compare(JSON.parse(prefs.customPalettesJson).Test, [500, 503]);
+        }
+        function test_spriteExportKeepsDoodadContext_data() {
+            const rows = [];
+            for (const theme of ["gray-dark", "tibia-ui"])
+                for (const doodad of [false, true])
+                    rows.push({tag: theme + "-" + doodad, theme: theme, doodad: doodad});
+            return rows;
+        }
+        function test_spriteExportKeepsDoodadContext(data) {
+            Backend.uiTheme.style = data.theme;
+            tilesets.saved = ({Walls: [500, 503, 506]});
+            const panel = createTemporaryObject(panelComponent, testRoot);
+            verify(panel);
+            panel.selectKind(data.doodad ? "Doodad Palette" : "RAW Palette");
+            const grid = findChild(panel, data.doodad ? "doodadPaletteGrid" : "paletteItemGrid");
+            tryVerify(() => grid.count >= 3);
+            clickRow(grid, 2, Qt.NoModifier, Qt.RightButton);
+            const menu = findChild(panel, "paletteItemMenu");
+            compare(menu.sid, 506);
+            compare(menu.doodad, data.doodad);
+            const dialog = findChild(panel, "spriteExportDialog");
+            dialog.prepare(menu.sid, menu.doodad);
+            menu.close();
+            // Changing palettes while choosing a file must not change the export.
+            panel.selectKind(data.doodad ? "RAW Palette" : "Doodad Palette");
+            Backend.spriteExportCalls = [];
+            dialog.accepted();
+            compare(Backend.spriteExportCalls.length, 1);
+            compare(Backend.spriteExportCalls[0].serverId, 506);
+            compare(Backend.spriteExportCalls[0].doodad, data.doodad);
+            compare(Backend.spriteExportCalls[0].destination, String(dialog.selectedFile));
         }
         function test_obdExportUsesContextItem() {
             const panel = createTemporaryObject(panelComponent, testRoot);

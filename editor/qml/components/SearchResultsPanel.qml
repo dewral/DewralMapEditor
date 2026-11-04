@@ -12,8 +12,9 @@ FocusScope {
     property string searchType: "everything"
     property bool selectionOnly: false
     property var results: []
-    property var rows: []
     property var expanded: ({})
+    readonly property int visibleRowCount: rowModel.count
+    readonly property bool hasContents: results.some(item => item.contents && item.contents.length > 0)
     property int total: 0
     property bool truncated: false
     property bool loading: false
@@ -26,9 +27,9 @@ FocusScope {
     readonly property color accent: windowsClassic ? "#0067c0" : fluent ? FluentColors.c("accent") : "#4a9ec7"
     readonly property color surface: windowsClassic ? "#f4f4f4" : fluent ? FluentColors.c("surface") : "#242424"
     readonly property color line: windowsClassic ? "#ababab" : fluent ? FluentColors.c("border") : "#414141"
-    readonly property var selectedRow: resultList.currentIndex >= 0 && resultList.currentIndex < rows.length
-                                        ? rows[resultList.currentIndex] : null
+    readonly property var selectedRow: rowAt(resultList.currentIndex)
     signal closed()
+    ListModel { id: rowModel }
 
     function typeLabel() {
         switch (searchType) {
@@ -48,6 +49,7 @@ FocusScope {
         resultList.forceActiveFocus();
     }
     function clearResults() {
+        rowModel.clear();
         results = [];
         total = 0;
         truncated = false;
@@ -74,6 +76,7 @@ FocusScope {
             return;
         }
         if (response.cancelled === true) { status = "Search cancelled."; return; }
+        rowModel.clear();
         results = response.results || [];
         total = response.total || 0;
         truncated = response.truncated === true;
@@ -97,11 +100,29 @@ FocusScope {
         clearResults();
         status = "Map or client changed. Refresh to search again.";
     }
-    function rebuildRows() {
+    function itemForKey(key) {
+        const path = key.split("/");
+        let item = results[Number(path[0])];
+        for (let i = 1; item && i < path.length; ++i)
+            item = item.contents ? item.contents[Number(path[i])] : null;
+        // Removed delegates can outlive a model reset until the next frame.
+        return item || ({});
+    }
+    function rowAt(index) {
+        if (index < 0 || index >= rowModel.count) return null;
+        const row = rowModel.get(index);
+        return {key: row.key, level: row.level, item: itemForKey(row.key)};
+    }
+    function rowIndex(key) {
+        for (let i = 0; i < rowModel.count; ++i)
+            if (rowModel.get(i).key === key) return i;
+        return -1;
+    }
+    function buildRows() {
         const next = [];
         const query = filter.text.trim().toLowerCase();
         function append(item, key, level) {
-            next.push({item: item, key: key, level: level});
+            next.push({key: key, level: level});
             if (expanded[key] && item.contents) {
                 for (let i = 0; i < item.contents.length; ++i)
                     append(item.contents[i], key + "/" + i, level + 1);
@@ -112,15 +133,82 @@ FocusScope {
             const text = [item.name, item.serverId, item.actionId || "", item.uniqueId || "", item.containerPath].join(" ").toLowerCase();
             if (!query || text.indexOf(query) >= 0) append(item, String(i), 0);
         }
-        rows = next;
+        return next;
+    }
+    function rebuildRows() {
+        rowModel.clear();
+        const next = buildRows();
+        if (next.length) rowModel.append(next);
         resultList.currentIndex = -1;
+    }
+    function viewportAnchor(preferredKey) {
+        let index = preferredKey === undefined ? -1 : rowIndex(preferredKey);
+        // indexAt uses content coordinates; also check beyond the row spacing.
+        for (let offset = 0; index < 0 && offset <= resultList.spacing + 1; ++offset)
+            index = resultList.indexAt(1, resultList.contentY + offset);
+        const item = resultList.itemAtIndex(index);
+        return item ? {key: rowModel.get(index).key, y: item.mapToItem(resultList, 0, 0).y} : null;
+    }
+    function restoreViewport(anchor) {
+        if (!anchor) return;
+        let index = rowIndex(anchor.key);
+        while (index < 0 && anchor.key.indexOf("/") >= 0) {
+            anchor.key = anchor.key.slice(0, anchor.key.lastIndexOf("/"));
+            index = rowIndex(anchor.key);
+        }
+        if (index < 0) return;
+        resultList.forceLayout();
+        if (!resultList.itemAtIndex(index)) {
+            resultList.positionViewAtIndex(index, ListView.Beginning);
+            resultList.forceLayout();
+        }
+        const item = resultList.itemAtIndex(index);
+        if (item) {
+            const target = resultList.contentY + item.mapToItem(resultList, 0, 0).y - anchor.y;
+            resultList.contentY = Math.max(resultList.originY, Math.min(
+                resultList.originY + Math.max(0, resultList.contentHeight - resultList.height), target));
+        }
+    }
+    function updateExpandedRows(preferredKey) {
+        resultList.cancelFlick();
+        const anchor = viewportAnchor(preferredKey);
+        let selectedKey = preferredKey === undefined ? (selectedRow ? selectedRow.key : "") : preferredKey;
+        const next = buildRows();
+        const keys = new Set(next.map(row => row.key));
+        // Keep surviving delegates instead of resetting the view's model.
+        for (let i = rowModel.count - 1; i >= 0; --i)
+            if (!keys.has(rowModel.get(i).key)) rowModel.remove(i);
+        for (let i = 0; i < next.length; ++i)
+            if (i >= rowModel.count || rowModel.get(i).key !== next[i].key)
+                rowModel.insert(i, next[i]);
+        while (selectedKey && !keys.has(selectedKey))
+            selectedKey = selectedKey.slice(0, Math.max(0, selectedKey.lastIndexOf("/")));
+        resultList.currentIndex = selectedKey ? rowIndex(selectedKey) : -1;
+        restoreViewport(anchor);
     }
     function toggle(row) {
         const next = Object.assign({}, expanded);
         next[row.key] = !next[row.key];
         expanded = next;
-        rebuildRows();
-        resultList.currentIndex = rows.findIndex(entry => entry.key === row.key);
+        updateExpandedRows(row.key);
+    }
+    function setAllExpanded(open) {
+        const next = ({});
+        function visit(item, key) {
+            if (!item.contents || !item.contents.length) return;
+            next[key] = true;
+            for (let i = 0; i < item.contents.length; ++i)
+                visit(item.contents[i], key + "/" + i);
+        }
+        if (open)
+            for (let i = 0; i < results.length; ++i) visit(results[i], String(i));
+        expanded = next;
+        updateExpandedRows();
+    }
+    function navigate(index) {
+        if (!rowModel.count) return;
+        resultList.currentIndex = Math.max(0, Math.min(rowModel.count - 1, index));
+        resultList.positionViewAtIndex(resultList.currentIndex, ListView.Contain);
     }
     function goToSelected() {
         if (!selectedRow) return;
@@ -177,31 +265,58 @@ FocusScope {
             width: parent.width; placeholderText: "Filter name, item ID, AID or UID…"
             onTextChanged: panel.rebuildRows()
         }
-        Text {
-            objectName: "searchResultsSummary"
-            width: parent.width; wrapMode: Text.Wrap
-            text: panel.pendingSearch ? "Waiting for current map query…"
-                : panel.loading ? "Searching… " + panel.mapCtrl.queryProgress + "%"
-                : panel.status || (panel.truncated ? "Showing " + panel.results.length + " of " + panel.total + " matches"
-                                                  : panel.total + " match(es)")
-            color: panel.secondary; font.pixelSize: 11
+        Row {
+            id: summaryRow
+            width: parent.width; spacing: 6
+            readonly property real buttonWidth: Math.min(85, (width - 55 - 12) / 2)
+            Text {
+                objectName: "searchResultsSummary"
+                width: parent.width - 2 * summaryRow.buttonWidth - 12; wrapMode: Text.Wrap
+                anchors.verticalCenter: parent.verticalCenter
+                text: panel.pendingSearch ? "Waiting for current map query…"
+                    : panel.loading ? "Searching… " + panel.mapCtrl.queryProgress + "%"
+                    : panel.status || (panel.truncated ? "Showing " + panel.results.length + " of " + panel.total + " matches"
+                                                      : panel.total + " match(es)")
+                color: panel.secondary; font.pixelSize: 11
+            }
+            DmeButton {
+                objectName: "searchResultsExpandAll"
+                width: summaryRow.buttonWidth; text: "Expand All"; enabled: panel.hasContents
+                onClicked: panel.setAllExpanded(true)
+            }
+            DmeButton {
+                objectName: "searchResultsCollapseAll"
+                width: summaryRow.buttonWidth; text: "Collapse All"; enabled: panel.hasContents
+                onClicked: panel.setAllExpanded(false)
+            }
         }
     }
     ListView {
         id: resultList; objectName: "searchResultsList"
         anchors { left: parent.left; right: parent.right; top: heading.bottom; bottom: footer.top; margins: 6; rightMargin: 16 }
-        clip: true; model: panel.rows; spacing: 3
+        clip: true; model: rowModel; spacing: 3
         highlightMoveDuration: 0
+        // Expansion must not scroll a selected row into view. Keyboard
+        // navigation explicitly reveals its destination instead.
+        highlightFollowsCurrentItem: false
+        Keys.onUpPressed: panel.navigate(currentIndex - 1)
+        Keys.onDownPressed: panel.navigate(currentIndex + 1)
+        Keys.onPressed: event => {
+            if (event.key === Qt.Key_Home) panel.navigate(0);
+            else if (event.key === Qt.Key_End) panel.navigate(count - 1);
+            else event.accepted = false;
+        }
         Keys.onReturnPressed: panel.goToSelected()
         Keys.onEnterPressed: panel.goToSelected()
         Keys.onRightPressed: { if (panel.selectedRow && panel.selectedRow.item.isContainer && !panel.expanded[panel.selectedRow.key]) panel.toggle(panel.selectedRow); }
         Keys.onLeftPressed: { if (panel.selectedRow && panel.expanded[panel.selectedRow.key]) panel.toggle(panel.selectedRow); }
         delegate: Rectangle {
             id: row
-            required property var modelData
+            required property string key
+            required property int level
             required property int index
-            readonly property var item: modelData.item
-            objectName: "searchResultRow_" + modelData.key
+            readonly property var item: panel.itemForKey(key)
+            objectName: "searchResultRow_" + key
             width: resultList.width
             height: details.implicitHeight + 12
             color: resultList.currentIndex === index ? Qt.tint(panel.surface, Qt.rgba(panel.accent.r, panel.accent.g, panel.accent.b, 0.22))
@@ -214,7 +329,7 @@ FocusScope {
             }
             Image {
                 id: icon
-                x: 6 + Math.min(row.modelData.level, 4) * 12; y: 8; width: 28; height: 28
+                x: 6 + Math.min(row.level, 4) * 12; y: 8; width: 28; height: 28
                 fillMode: Image.PreserveAspectFit; smooth: false
                 source: row.item.clientId > 0 ? "image://paletteitem/" + row.item.clientId + "/" + Backend.sprReader.itemImagesRevision : ""
             }
@@ -245,12 +360,12 @@ FocusScope {
                     color: panel.secondary; font.pixelSize: 10
                 }
                 DmeButton {
-                    objectName: "searchResultContents_" + row.modelData.key
+                    objectName: "searchResultContents_" + row.key
                     visible: !!row.item.isContainer
                     width: parent.width
-                    text: row.item.childCount ? (panel.expanded[row.modelData.key] ? "▾ " : "▸ ") + "Contents (" + row.item.childCount + ")" : "Empty container"
+                    text: row.item.childCount ? (panel.expanded[row.key] ? "▾ " : "▸ ") + "Contents (" + row.item.childCount + ")" : "Empty container"
                     enabled: row.item.childCount > 0
-                    onClicked: panel.toggle(row.modelData)
+                    onClicked: panel.toggle(panel.rowAt(row.index))
                 }
             }
         }

@@ -68,9 +68,22 @@ Item {
             const bookcase = item(12698, "bookcase", [bag, item(2376, "sword")]);
             controller.finish({results: [bookcase, item(1988, "backpack", [])], total: 2});
         }
+        function showManyContainers() {
+            const results = [];
+            for (let i = 0; i < 250; ++i) {
+                const coins = item(2148, "gold coin"); coins.count = 72; coins.stackable = true;
+                const bag = item(1987, "bag", [coins]);
+                bag.containerPath = "Container " + i;
+                const root = item(1000 + i, "Container " + i, [bag, item(2376, "sword")]);
+                if (i % 3 === 0) root.name += " with a longer name that wraps onto another line";
+                results.push(root);
+            }
+            controller.finish({results: results, total: results.length});
+        }
         function initTestCase() { scene.Window.window.width = 1000; scene.Window.window.height = 780; }
         function init() {
             controller.queryBusy = false; controller.searches = []; controller.destination = []; controller.cancellations = 0;
+            scene.height = 780;
             panel.visible = true; panel.width = 340; Backend.uiTheme.style = "gray-dark";
             panel.openSearch("unique", false);
         }
@@ -85,12 +98,12 @@ Item {
             showResults();
             tryVerify(() => locate("searchResultRow_0") !== null);
             mouseClick(locate("searchResultContents_0"));
-            compare(panel.rows.length, 4);
+            compare(panel.visibleRowCount, 4);
             tryVerify(() => locate("searchResultContents_0/0") !== null);
             mouseClick(locate("searchResultContents_0/0"));
-            compare(panel.rows.length, 5);
-            compare(panel.rows[2].item.serverId, 2148);
-            compare(panel.rows[2].item.count, 72);
+            compare(panel.visibleRowCount, 5);
+            compare(panel.rowAt(2).item.serverId, 2148);
+            compare(panel.rowAt(2).item.count, 72);
             tryVerify(() => locate("searchResultRow_0/0/0") !== null);
             mouseDoubleClickSequence(locate("searchResultRow_0/0/0"), 10, 10);
             compare(controller.destination, [867, 889, 6]);
@@ -101,24 +114,24 @@ Item {
             compare(mapSurface.color, "#282828");
             verify(!locate("searchResultContents_1").enabled);
             mouseClick(locate("searchResultContents_0"));
-            compare(panel.rows.length, 2);
+            compare(panel.visibleRowCount, 2);
         }
         function test_filterKeyboardAndResize() {
             showResults();
             const field = locate("searchResultsFilter");
             field.text = "12698";
-            compare(panel.rows.length, 1);
-            compare(panel.rows[0].item.serverId, 12698);
-            field.text = "5000"; compare(panel.rows.length, 2);
-            field.text = "62378"; compare(panel.rows.length, 2);
-            field.text = "backpack"; compare(panel.rows.length, 1);
-            field.text = "missing"; compare(panel.rows.length, 0);
+            compare(panel.visibleRowCount, 1);
+            compare(panel.rowAt(0).item.serverId, 12698);
+            field.text = "5000"; compare(panel.visibleRowCount, 2);
+            field.text = "62378"; compare(panel.visibleRowCount, 2);
+            field.text = "backpack"; compare(panel.visibleRowCount, 1);
+            field.text = "missing"; compare(panel.visibleRowCount, 0);
             verify(!locate("searchResultsGoTo").enabled);
             field.text = "";
             const list = locate("searchResultsList");
             list.forceActiveFocus(); keyClick(Qt.Key_Down); keyClick(Qt.Key_Right);
-            compare(panel.rows.length, 4);
-            keyClick(Qt.Key_Left); compare(panel.rows.length, 2);
+            compare(panel.visibleRowCount, 4);
+            keyClick(Qt.Key_Left); compare(panel.visibleRowCount, 2);
             keyClick(Qt.Key_Return); compare(controller.destination, [867, 889, 6]);
             panel.width = 220; wait(50);
             const go = locate("searchResultsGoTo"), refresh = locate("searchResultsRefresh");
@@ -168,6 +181,100 @@ Item {
             lazyDock.width = 260;
             compare(lazyTool.item.width, 260);
             lazyTool.active = false;
+        }
+        function test_expansionKeepsViewport_data() {
+            return ["classic", "windows-classic", "github", "gray-dark", "gray-modern", "fluent-dark", "tibia-ui"]
+                .map(theme => ({tag: theme, theme: theme}));
+        }
+        function test_expansionKeepsViewport(data) {
+            Backend.uiTheme.style = data.theme;
+            showManyContainers();
+            const list = locate("searchResultsList");
+            list.positionViewAtIndex(0, ListView.Beginning);
+            tryVerify(() => locate("searchResultRow_0") !== null);
+            mouseClick(locate("searchResultRow_0"), 10, 10);
+            for (const key of ["150", "249"]) {
+                list.positionViewAtIndex(Number(key), key === "150" ? ListView.Center : ListView.End);
+                wait(80);
+                const before = locate("searchResultRow_" + key).mapToItem(list, 0, 0).y;
+                mouseClick(locate("searchResultContents_" + key));
+                wait(100);
+                const expanded = locate("searchResultRow_" + key);
+                verify(expanded !== null, "Expanding scrolled the clicked container out of view");
+                verify(Math.abs(expanded.mapToItem(list, 0, 0).y - before) < 1,
+                       "Expanding moved the clicked container in the viewport");
+                mouseClick(locate("searchResultContents_" + key));
+                wait(100);
+                const collapsed = locate("searchResultRow_" + key);
+                verify(collapsed !== null);
+                verify(Math.abs(collapsed.mapToItem(list, 0, 0).y - before) < 1,
+                       "Collapsing moved the clicked container in the viewport");
+                compare(panel.selectedRow.item.serverId, 1000 + Number(key));
+            }
+        }
+        function test_expandAllNestedContentsAndCollapseAll() {
+            verify(!locate("searchResultsExpandAll").enabled);
+            showManyContainers();
+            const list = locate("searchResultsList");
+            list.positionViewAtIndex(150, ListView.Beginning);
+            wait(80);
+            const before = locate("searchResultRow_150").mapToItem(list, 0, 0).y;
+            mouseClick(locate("searchResultsExpandAll"));
+            compare(panel.visibleRowCount, 1000);
+            verify(panel.expanded["0/0"] && panel.expanded["249/0"]);
+            wait(100);
+            verify(Math.abs(locate("searchResultRow_150").mapToItem(list, 0, 0).y - before) < 1);
+            const coins = panel.rowAt(panel.rowIndex("150/0/0")).item;
+            compare(coins.serverId, 2148); compare(coins.count, 72);
+            mouseClick(locate("searchResultsCollapseAll"));
+            compare(panel.visibleRowCount, 250);
+            wait(100);
+            verify(Math.abs(locate("searchResultRow_150").mapToItem(list, 0, 0).y - before) < 1);
+            const field = locate("searchResultsFilter");
+            field.text = "Container 150";
+            compare(panel.visibleRowCount, 1);
+            mouseClick(locate("searchResultsExpandAll"));
+            compare(panel.visibleRowCount, 4);
+            mouseClick(locate("searchResultsCollapseAll"));
+            compare(panel.visibleRowCount, 1);
+        }
+        function test_nestedCollapsePreservesSelectionAndPosition() {
+            showManyContainers();
+            const list = locate("searchResultsList");
+            list.positionViewAtIndex(150, ListView.Center);
+            wait(50);
+            mouseClick(locate("searchResultContents_150"));
+            list.positionViewAtIndex(panel.rowIndex("150/0"), ListView.Center);
+            wait(50);
+            const before = locate("searchResultRow_150/0").mapToItem(list, 0, 0).y;
+            mouseClick(locate("searchResultContents_150/0"));
+            wait(100);
+            verify(Math.abs(locate("searchResultRow_150/0").mapToItem(list, 0, 0).y - before) < 1);
+            mouseClick(locate("searchResultRow_150/0/0"), 10, 10);
+            compare(panel.selectedRow.key, "150/0/0");
+            mouseClick(locate("searchResultContents_150/0"));
+            compare(panel.selectedRow.key, "150/0");
+            wait(100);
+            verify(Math.abs(locate("searchResultRow_150/0").mapToItem(list, 0, 0).y - before) < 1);
+            list.forceActiveFocus();
+            keyClick(Qt.Key_End);
+            compare(panel.selectedRow.key, "249");
+            verify(locate("searchResultRow_249").mapToItem(list, 0, 0).y < list.height);
+            keyClick(Qt.Key_Home);
+            compare(panel.selectedRow.key, "0");
+        }
+        function test_compactPanelStillShowsResults() {
+            showResults();
+            panel.width = 220;
+            scene.height = 185;
+            wait(50);
+            const list = locate("searchResultsList");
+            verify(list.height > 0);
+            const expand = locate("searchResultsExpandAll"), collapse = locate("searchResultsCollapseAll");
+            verify(expand.mapToItem(panel, expand.width, 0).x <= collapse.mapToItem(panel, 0, 0).x);
+            verify(collapse.mapToItem(panel, collapse.width, 0).x <= panel.width);
+            mouseClick(expand); compare(panel.visibleRowCount, 5);
+            mouseClick(collapse); compare(panel.visibleRowCount, 2);
         }
         function test_resultLimitScrollAndScreenshot() {
             const results = [];

@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
     "Disable Qt Creator package-manager auto setup" FORCE)
 
-project(DewralMapEditor VERSION 1.1.49 LANGUAGES C CXX)
+project(DewralMapEditor VERSION 1.1.50 LANGUAGES C CXX)
 
 set(DME_RELEASE_REPOSITORY "dewral/DewralMapEditor" CACHE STRING
     "GitHub repository hosting the stable update packages")
@@ -138,6 +138,8 @@ add_executable(DewralMapEditor
     editor/core/creaturefilter.h
     editor/core/updateservice.cpp
     editor/core/updateservice.h
+    editor/core/updaterruntime.cpp
+    editor/core/updaterruntime.h
     editor/core/updateversion.cpp
     editor/core/updateversion.h
     editor/core/activityservice.cpp
@@ -828,6 +830,13 @@ if(WIN32)
     # The updater must use the same compiler and Qt runtime as the editor.
     add_dependencies(DewralMapEditor DMEUpdater)
     if(BUILD_TESTING)
+        add_executable(updater_runtime_test EXCLUDE_FROM_ALL
+            tests/updater_runtime_test.cpp editor/core/updaterruntime.cpp)
+        target_include_directories(updater_runtime_test PRIVATE editor/core)
+        target_link_libraries(updater_runtime_test PRIVATE Qt6::Core)
+        add_test(NAME updater_runtime COMMAND updater_runtime_test "$<TARGET_FILE_DIR:DMEUpdater>")
+        set_tests_properties(updater_runtime PROPERTIES TIMEOUT 45
+            ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
         add_test(NAME dme_updater_startup COMMAND DMEUpdater --smoke-test)
         set_tests_properties(dme_updater_startup PROPERTIES TIMEOUT 15)
     endif()

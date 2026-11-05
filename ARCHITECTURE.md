@@ -119,6 +119,7 @@ Dla istniejącego builda odczytaj `CMakeCache.txt`. Nie mieszaj MSVC i MinGW w j
 | Obszar | Targety do zbudowania | Nazwy CTest |
 |---|---|---|
 | Startup | `DewralMapEditor` | `dme_startup` (`--smoke-test`, software Qt Quick) |
+| Windows updater | `DMEUpdater`, `updater_runtime_test` | `dme_updater_startup`, `updater_runtime` (pełny runtime i odrzucanie uszkodzonej DLL bez Qt SDK w PATH) |
 | GPU | `map_rhi_backend_test` | `map_rhi_opengl`, na Windows `map_rhi_d3d11` |
 | Atlas | `atlas_background_build_test` | `atlas_background_build` |
 | Interakcja/Preview | `map_creature_refresh_test` | `map_creature_refresh`, `map_view_position`, `map_item_locations` |

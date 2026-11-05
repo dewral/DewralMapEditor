@@ -2,6 +2,7 @@
 
 #include "documentmanager.h"
 #include "updateversion.h"
+#include "updaterruntime.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -327,7 +328,6 @@ void UpdateService::downloadAndInstall()
         setState(QStringLiteral("installing"));
         if (!launchUpdater(archivePath))
             return;
-        QCoreApplication::quit();
     });
 }
 
@@ -353,40 +353,13 @@ bool UpdateService::launchUpdater(const QString &archivePath)
         return false;
     }
 
-    auto copyRuntimeFile = [](const QString &from, const QString &to,
-                              bool required = true) {
-        if (!QFileInfo::exists(from))
-            return !required;
-        QFile::remove(to);
-        return QFile::copy(from, to);
-    };
-    const QString tempUpdater = runtimePath + QStringLiteral("/DMEUpdater.exe");
-    const QStringList requiredFiles{
-        QStringLiteral("DMEUpdater.exe"), QStringLiteral("Qt6Core.dll"),
-        QStringLiteral("Qt6Gui.dll"), QStringLiteral("Qt6Widgets.dll")
-    };
-    for (const QString &file : requiredFiles) {
-        if (!copyRuntimeFile(applicationDir + QLatin1Char('/') + file,
-                             runtimePath + QLatin1Char('/') + file)) {
-            runtime.removeRecursively();
-            fail(QStringLiteral("The updater runtime is incomplete: %1 is missing.").arg(file));
-            return false;
-        }
-    }
-    if (!copyRuntimeFile(applicationDir + QStringLiteral("/platforms/qwindows.dll"),
-                         runtimePath + QStringLiteral("/platforms/qwindows.dll"))) {
+    QString runtimeError;
+    if (!UpdaterRuntime::prepare(applicationDir, runtimePath, runtimeError)) {
         runtime.removeRecursively();
-        fail(QStringLiteral("The updater runtime is missing the Windows platform plugin."));
+        fail(runtimeError);
         return false;
     }
-    const QStringList optionalFiles{
-        QStringLiteral("libgcc_s_seh-1.dll"), QStringLiteral("libstdc++-6.dll"),
-        QStringLiteral("libwinpthread-1.dll"), QStringLiteral("D3Dcompiler_47.dll")
-    };
-    for (const QString &file : optionalFiles)
-        copyRuntimeFile(applicationDir + QLatin1Char('/') + file,
-                        runtimePath + QLatin1Char('/') + file, false);
-
+    const QString tempUpdater = runtimePath + QStringLiteral("/DMEUpdater.exe");
     const QStringList arguments{
         QStringLiteral("--pid"), QString::number(QCoreApplication::applicationPid()),
         QStringLiteral("--archive"), QDir::toNativeSeparators(archivePath),
@@ -394,10 +367,24 @@ bool UpdateService::launchUpdater(const QString &archivePath)
         QStringLiteral("--exe"), QStringLiteral("DME.exe"),
         QStringLiteral("--sha256"), m_expectedSha256
     };
-    if (!QProcess::startDetached(tempUpdater, arguments, runtimePath)) {
-        fail(QStringLiteral("The updater process could not be started."));
-        return false;
-    }
+    UpdaterRuntime::probe(runtimePath, this,
+        [this, tempUpdater, arguments, runtimePath](bool ok, const QString &error) {
+            if (m_state != QStringLiteral("installing"))
+                return;
+            if (!ok) {
+                fail(error);
+                return;
+            }
+            if (m_documents && m_documents->hasDirtyDocuments()) {
+                fail(QStringLiteral("Save all modified maps before installing the update."));
+                return;
+            }
+            if (!QProcess::startDetached(tempUpdater, arguments, runtimePath)) {
+                fail(QStringLiteral("The updater process could not be started."));
+                return;
+            }
+            QCoreApplication::quit();
+        });
     return true;
 #else
     Q_UNUSED(archivePath)

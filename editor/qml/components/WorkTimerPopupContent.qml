@@ -23,18 +23,15 @@ Item {
     property var selectedSession: null
     property string pendingTimerRemoval: ""
     property bool showTimerDetails: false
-    readonly property bool fluentTheme: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
-    readonly property bool grayTheme: fluentTheme || Backend.uiTheme.style === "gray-dark"
-                                      || Backend.uiTheme.style === "gray-modern"
-    readonly property color panelColor: tibiaUi ? "#3b3b3b" : grayTheme ? "#202122" : "#0F141B"
-    readonly property color cardColor: tibiaUi ? "#414141" : grayTheme ? "#292b2d" : "#151B23"
-    readonly property color inputColor: tibiaUi ? "#363636" : grayTheme ? "#202020" : "#0D1117"
-    readonly property color hoverColor: tibiaUi ? "#505050" : grayTheme ? "#303030" : "#1B2632"
-    readonly property color borderColor: tibiaUi ? "#666666" : grayTheme ? "#414447" : "#2D3743"
-    readonly property color strongText: tibiaUi ? "#d5d5ce" : grayTheme ? "#F0F0F0" : "#F0F3F6"
-    readonly property color mutedText: tibiaUi ? "#a7a7a0" : grayTheme ? "#9A9A9A" : "#8B949E"
-    readonly property color subtleText: grayTheme ? "#777777" : "#6E7681"
-    readonly property color activeFill: fluentTheme ? "#414447" : grayTheme ? "#4A3A1F" : "#163B2C"
+    readonly property color panelColor: tibiaUi ? "#3b3b3b" : "#202122"
+    readonly property color cardColor: tibiaUi ? "#414141" : "#292b2d"
+    readonly property color inputColor: tibiaUi ? "#363636" : "#202020"
+    readonly property color hoverColor: tibiaUi ? "#505050" : "#303030"
+    readonly property color borderColor: tibiaUi ? "#666666" : "#414447"
+    readonly property color strongText: tibiaUi ? "#d5d5ce" : "#F0F0F0"
+    readonly property color mutedText: tibiaUi ? "#a7a7a0" : "#9A9A9A"
+    readonly property color subtleText: "#777777"
+    readonly property color activeFill: "#414447"
 
     function durationFromText(value) {
         var parts = value.split(":")
@@ -219,7 +216,7 @@ Item {
                             required property int index
                             width: historyList.width
                             height: 58
-                            radius: root.tibiaUi || root.fluentTheme ? 0 : 4
+                            radius: 0
                             color: historyMouse.containsMouse ? root.hoverColor : (index % 2 ? root.panelColor : root.cardColor)
                             border.width: 1
                             border.color: root.borderColor

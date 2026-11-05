@@ -55,8 +55,7 @@ Item {
             Backend.uiTheme.style = previousTheme;
         }
         function themes() {
-            return ["classic", "windows-classic", "github-dark", "gray-dark",
-                    "gray-modern", "fluent-dark"].map(theme => ({tag: theme, theme}));
+            return ["fluent-dark", "tibia-ui"].map(theme => ({tag: theme, theme}));
         }
         function openCombo(theme) {
             Backend.uiTheme.style = theme;

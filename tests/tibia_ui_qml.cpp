@@ -6,8 +6,7 @@ class TibiaUiSetup : public QObject {
     Q_OBJECT
 public slots:
     void qmlEngineAvailable(QQmlEngine *engine) {
-        auto *theme=new UiTheme(engine);
-        engine->addImageProvider(QStringLiteral("tibiaui"),new UiThemeImageProvider(theme));
+        engine->addImageProvider(QStringLiteral("tibiaui"),new UiThemeImageProvider());
     }
 };
 QUICK_TEST_MAIN_WITH_SETUP(tibia_ui, TibiaUiSetup)

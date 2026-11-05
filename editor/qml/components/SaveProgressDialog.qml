@@ -20,7 +20,7 @@ DmeDialog {
             width: parent.width
             text: dialog.fileName
             elide: Text.ElideMiddle
-            color: dialog.windowsClassic ? "#202020" : "#e0e0e0"
+            color: "#e0e0e0"
             font.family: dialog.tibiaTheme ? "Verdana" : Qt.application.font.family
             font.bold: true
         }
@@ -28,7 +28,7 @@ DmeDialog {
             width: parent.width
             text: "Please wait until saving is complete."
             wrapMode: Text.WordWrap
-            color: dialog.windowsClassic ? "#505050" : "#aaaaaa"
+            color: "#aaaaaa"
             font.family: dialog.tibiaTheme ? "Verdana" : Qt.application.font.family
         }
     }

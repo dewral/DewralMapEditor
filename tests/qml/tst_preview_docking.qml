@@ -28,7 +28,7 @@ Item {
         function renderOriginX() { return originX; }
         function renderOriginY() { return originY; }
     }
-    Components.IngamePreviewPanel { id:preview; mapView:map; settings:settings; githubUi:false; dockHost:host }
+    Components.IngamePreviewPanel { id:preview; mapView:map; settings:settings; dockHost:host }
     TestCase {
         name:"PreviewDocking"
         when:windowShown
@@ -43,11 +43,13 @@ Item {
             mouseClick(findChild(preview,"previewChangeOutfit"));
         }
         function test_tibiaSidebarAndIndependentSettings() {
-            Backend.uiTheme.style="tibia-ui"; host.x=0; host.width=1100; host.height=720;
+            Backend.uiTheme.style="tibia-ui"; host.x=0; host.y=0; host.width=1100; host.height=800;
             wait(80);
             const sidebar=findChild(host,"tibiaPreviewSidebar");
             verify(sidebar!==null); compare(sidebar.visible,true); compare(sidebar.width,254);
             settings.weatherRain=19;
+            mouseClick(findChild(host,"previewWeather"));
+            settings.previewWeatherEnabled=true;
             const rain=findChild(sidebar,"sidebarWeatherRain"); rain.value=73; rain.moved();
             compare(settings.previewWeatherRain,73); compare(settings.weatherRain,19);
             const speed=findChild(sidebar,"sidebarPlayerSpeed"); speed.value=315; speed.valueModified();
@@ -60,6 +62,11 @@ Item {
             settings.ingamePreviewShowItems=false;
             const renderer=findChild(host,"clientPreviewRenderer"); compare(renderer.showCreatures,false); compare(renderer.showItems,false);
             settings.ingamePreviewShowCreatures=true; settings.ingamePreviewShowItems=true;
+            settings.previewWeatherEnabled=false;
+            findChild(sidebar,"sidebarVisibilitySection").expanded=false;
+            findChild(sidebar,"sidebarLightingSection").expanded=false;
+            findChild(sidebar,"previewSidebarScroll").contentY=0;
+            waitForRendering(sidebar);
             grabImage(host).save("build/tibia-preview-sidebar.png");
             grabImage(sidebar).save("build/classic-preview-sidebar.png");
             mouseClick(findChild(host,"previewSidebarToggle")); compare(sidebar.visible,false);
@@ -73,6 +80,14 @@ Item {
             const sidebar=findChild(host,"tibiaPreviewSidebar");
             const explorer=findChild(preview,"previewExplorer");
             const minimap=findChild(sidebar,"previewSidebarMinimap");
+            for (const name of ["Minimap","Player","Settings","Weather","Visibility","Lighting"]) {
+                const section=findChild(sidebar,"sidebar"+name+"Section");
+                const caption=findChild(section,section.objectName+"Header");
+                compare(caption.height,17);
+                compare(caption.x,4);
+                compare(caption.width,section.width-8);
+            }
+            compare(minimap.height,106);
             minimap.pxPerTile=1;
             mouseClick(findChild(sidebar,"sidebarMinimapZoomIn")); compare(minimap.pxPerTile,2);
             mouseClick(findChild(sidebar,"sidebarMinimapZoomOut")); compare(minimap.pxPerTile,1);
@@ -97,12 +112,13 @@ Item {
             const ambient=findChild(sidebar,"sidebarAmbient"); ambient.value=127; ambient.moved(); compare(map.lightAmbient,127);
             light.expanded=false; map.lightAmbient=40;
             const scroll=findChild(sidebar,"previewSidebarScroll");
+            mouseClick(findChild(host,"previewWeather"));
             host.height=480; wait(20); verify(scroll.contentHeight>scroll.height);
             host.height=860; wait(20); verify(scroll.contentHeight<=scroll.height);
             host.x=740; host.width=440; host.height=700; Backend.uiTheme.style="fluent-dark";
         }
         function test_classicSidebarEditingAndNativeAssets() {
-            Backend.uiTheme.style="tibia-ui"; host.x=0; host.width=1100; host.height=800; wait(30);
+            Backend.uiTheme.style="tibia-ui"; host.x=0; host.y=0; host.width=1100; host.height=800; wait(30);
             const sidebar=findChild(host,"tibiaPreviewSidebar");
             const name=findChild(sidebar,"sidebarPlayerName");
             mouseClick(name); keyClick(Qt.Key_A,Qt.ControlModifier); keyClick(Qt.Key_M);
@@ -113,15 +129,36 @@ Item {
             const input=findChild(speed,"classicSpinInput"); settings.ingamePreviewSpeed=220;
             mouseClick(input); keyClick(Qt.Key_Up); compare(settings.ingamePreviewSpeed,221);
             settings.ingamePreviewSpeed=315; compare(input.text,"315");
+            const outfit=findChild(sidebar,"sidebarOutfitSprite");
+            for (const name of ["sidebarPreviousOutfit","sidebarNextOutfit"]) {
+                const arrow=findChild(sidebar,name);
+                compare(arrow.y+arrow.height/2,outfit.y+outfit.height/2);
+            }
+            const weather=findChild(sidebar,"sidebarWeatherSection");
+            compare(weather.expanded,false);
+            mouseClick(findChild(host,"previewWeather"));
+            compare(weather.expanded,true);
             const rain=findChild(sidebar,"sidebarWeatherRain"); settings.previewWeatherRain=50;
-            mouseClick(findChild(rain,"classicSlider-more")); compare(settings.previewWeatherRain,51);
-            settings.previewWeatherRain=67; compare(rain.value,67);
             const quality=findChild(sidebar,"sidebarWeatherQuality");
+            settings.previewWeatherEnabled=false;
+            verify(!rain.enabled && !quality.enabled);
+            mouseClick(findChild(rain,"nativeSliderIncrease")); compare(settings.previewWeatherRain,50);
+            const weatherToggle=findChild(sidebar,"sidebarWeatherEnabled");
+            verify(waitForRendering(weatherToggle));
+            mouseClick(weatherToggle,8,weatherToggle.height/2);
+            tryCompare(settings,"previewWeatherEnabled",true);
+            verify(rain.enabled && quality.enabled);
+            mouseClick(findChild(rain,"nativeSliderIncrease")); compare(settings.previewWeatherRain,51);
+            settings.previewWeatherRain=67; compare(rain.value,67);
             mouseClick(quality); keyClick(Qt.Key_End); keyClick(Qt.Key_Return); compare(settings.previewWeatherQuality,2);
-            const scroll=findChild(sidebar,"previewClassicScrollbar"); compare(scroll.visible,false);
-            host.height=400; wait(20); compare(scroll.visible,true);
-            const before=findChild(sidebar,"previewSidebarScroll").contentY;
-            mouseClick(scroll,6,scroll.height-6); verify(findChild(sidebar,"previewSidebarScroll").contentY>before);
+            const scroll=findChild(sidebar,"previewClassicScrollbar");
+            weather.expanded=false;
+            tryCompare(scroll,"visible",false);
+            host.height=400; weather.expanded=true;
+            tryCompare(scroll,"visible",true);
+            const scroller=findChild(sidebar,"previewSidebarScroll");
+            scroller.contentY=0;
+            mouseClick(scroll,6,scroll.height-6); verify(scroller.contentY>0);
             host.x=740; host.width=440; host.height=700; settings.ingamePreviewSpeed=0;
             Backend.uiTheme.style="fluent-dark";
         }
@@ -181,7 +218,7 @@ Item {
             mouseClick(camera);
             verify(camera.enabled);
         }
-        function cleanup() { settings.showIngamePreviewWindow=false; settings.ingamePreviewSpeed=0; host.x=740; host.width=440; host.height=700; Backend.uiTheme.style="fluent-dark"; }
+        function cleanup() { settings.showIngamePreviewWindow=false; settings.ingamePreviewSpeed=0; host.x=740; host.y=70; host.width=440; host.height=700; Backend.uiTheme.style="fluent-dark"; }
         function test_switchSidesAndDetach() {
             verify(preview.docked);
             const left=findChild(host,"dockPreviewLeft");
@@ -212,6 +249,14 @@ Item {
             const dock=findChild(host,"dockPreviewRight");
             compare(dock.parent.y,toolbar.y);
             verify(toolbar.x+toolbar.width<dock.parent.x);
+            Backend.uiTheme.style="tibia-ui";
+            const divider=findChild(host,"previewDockActionsSeparator");
+            const fullscreen=findChild(host,"previewFullscreen");
+            const left=findChild(host,"dockPreviewLeft");
+            verify(divider.visible);
+            tryVerify(() => fullscreen.x+fullscreen.width<divider.x
+                          && divider.x+divider.width<left.x);
+            compare(dock.parent.y,toolbar.y);
             host.width=440;
         }
         function test_followNavigationIgnoresMouseHover() {

@@ -44,7 +44,7 @@ Item {
         property int brushSize: 0
     }
     Components.FluentTools { id: tools; x: 8; y: popup.y+popup.height+6; width: 320; height: implicitHeight; sectionFrame: true; mapView: map }
-    Components.PaletteBrushSizeSelector { id: brush; x: 8; y: tools.y+tools.height+6; width: 320; height: implicitHeight; sectionFrame: true; githubUi: false; mapCtrl: map }
+    Components.PaletteBrushSizeSelector { id: brush; x: 8; y: tools.y+tools.height+6; width: 320; height: implicitHeight; sectionFrame: true; mapCtrl: map }
     Rectangle { id: viewport; x: 340; y: 200; width: scene.width-x-8; height: scene.height-y-8; color: "#11151a" }
     Skin.TibiaSurface { anchors.fill: viewport; kind: "strip"; frameOnly: true }
     Styles.DmeDialog {

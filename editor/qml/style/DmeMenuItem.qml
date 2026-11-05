@@ -6,11 +6,6 @@ import "../themes/fluent/Colors.js" as FluentColors
 MenuItem {
     id: control
     readonly property bool tibiaTheme: Backend.uiTheme.style === "tibia-ui"
-    readonly property bool fluentTheme: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
-    readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
-    readonly property bool modernTheme: Backend.uiTheme.style !== "classic" && !windowsClassic
-    readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
-                                      || Backend.uiTheme.style === "gray-modern"
     hoverEnabled: true
     readonly property string shortcutText: control.action && control.action.shortcut
         ? String(control.action.shortcut) : ""
@@ -29,14 +24,10 @@ MenuItem {
             anchors.leftMargin: control.tibiaTheme ? 26 : control.checkable ? 22 : 10
             anchors.verticalCenter: parent.verticalCenter
             text: control.text
-            color: control.tibiaTheme ? (control.enabled ? (control.highlighted || control.hovered ? "#ffffff" : "#dfdfdf") : "#777777") : control.fluentTheme ? (!control.enabled ? FluentColors.c("disabled") : FluentColors.c("text")) : control.windowsClassic
-                   ? (!control.enabled ? "#808080" : (control.highlighted ? "#ffffff" : "#202020"))
-                   : control.modernTheme
-                   ? (!control.enabled ? (control.grayTheme ? "#777777" : "#6E7681") : (control.highlighted ? "#FFFFFF" : (control.grayTheme ? "#E0E0E0" : "#C9D1D9")))
-                   : (!control.enabled ? "#777" : (control.highlighted ? "#eaffea" : "#dcdcdc"))
-            font.family: control.fluentTheme ? FluentColors.family() : Qt.application.font.family
-            font.bold: !control.tibiaTheme && control.fluentTheme && FluentColors.bold()
-            font.pixelSize: control.tibiaTheme ? 11 : control.fluentTheme ? FluentColors.size(12) : 12
+            color: control.tibiaTheme ? (control.enabled ? (control.highlighted || control.hovered ? "#ffffff" : "#dfdfdf") : "#777777") : ((!control.enabled ? FluentColors.c("disabled") : FluentColors.c("text")))
+            font.family: (FluentColors.family())
+            font.bold: !control.tibiaTheme && FluentColors.bold()
+            font.pixelSize: control.tibiaTheme ? 11 : (FluentColors.size(12))
             style: Text.Normal
             renderType: control.tibiaTheme ? Text.NativeRendering : Text.QtRendering
             font.hintingPreference: Font.PreferFullHinting
@@ -67,20 +58,20 @@ MenuItem {
             visible: !control.tibiaTheme
             anchors.centerIn: parent
             text: control.checked ? "\u2713" : ""
-            color: control.fluentTheme ? FluentColors.c("accent") : control.windowsClassic ? (control.highlighted ? "#ffffff" : "#202020") : control.modernTheme ? (control.highlighted ? "#FFFFFF" : control.grayTheme ? "#C79A3B" : "#3FB950") : "#80c080"
+            color: (FluentColors.c("accent"))
             font.pixelSize: 13; font.bold: true
         }
     }
     arrow: Text {
         visible: control.subMenu !== null; text: ">"; font.pixelSize: 10
-        color: control.fluentTheme ? FluentColors.c("muted") : control.windowsClassic ? (control.highlighted ? "#ffffff" : "#202020") : (control.modernTheme ? (control.highlighted ? "#FFFFFF" : (control.grayTheme ? "#929292" : "#8B949E")) : "#999")
+        color: (FluentColors.c("muted"))
         anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter
     }
     background: Rectangle {
         objectName: "menuEntryBackground"
-        radius: Backend.uiTheme.style === "tibia-ui" ? 0 : control.fluentTheme ? 4 : control.modernTheme ? 4 : 0
-        color: control.tibiaTheme ? ((control.highlighted || control.hovered) && control.enabled ? "#18ffffff" : "transparent") : control.fluentTheme ? (control.highlighted ? FluentColors.c("hover") : "transparent") : control.highlighted ? (control.windowsClassic ? "#0a64ad" : (control.modernTheme ? (control.grayTheme ? "#303030" : "#1B2632") : "#807a7d82")) : "transparent"
+        radius: Backend.uiTheme.style === "tibia-ui" ? 0 : 4
+        color: control.tibiaTheme ? ((control.highlighted || control.hovered) && control.enabled ? "#18ffffff" : "transparent") : ((control.highlighted ? FluentColors.c("hover") : "transparent"))
         border.width: !control.tibiaTheme && control.highlighted ? 1 : 0
-        border.color: control.fluentTheme ? FluentColors.c("border") : control.windowsClassic ? "#0a64ad" : (control.modernTheme ? (control.grayTheme ? "#555555" : "#3A4655") : "#9a9a9a")
+        border.color: (FluentColors.c("border"))
     }
 }

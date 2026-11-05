@@ -10,7 +10,6 @@ import "dialogs"
 import "style"
 import "controllers"
 import "components"
-import "themes/github"
 import "themes/fluent/Colors.js" as FluentColors
 
 DmeWindow {
@@ -141,17 +140,11 @@ DmeWindow {
         return valid;
     }
     // Both modern themes share one layout. Only their palettes differ.
-    readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
     readonly property bool tibiaUi: Backend.uiTheme.style === "tibia-ui"
-    readonly property bool windowsClassicUi: Backend.uiTheme.style === "windows-classic"
-    readonly property bool githubUi: Backend.uiTheme.style !== "classic" && !windowsClassicUi && !fluentUi
-    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
-                                   || Backend.uiTheme.style === "gray-modern"
-    readonly property bool modernGrayUi: Backend.uiTheme.style === "gray-modern"
     readonly property int fluentTitleHeight: tibiaUi ? 26 : 34
     readonly property int editorFrameInset: tibiaUi ? 4 : 0
-    readonly property int topBarHeight: fluentUi ? fluentTitleHeight + (tibiaUi ? 28 : 32) : (githubUi ? 56 : 45)
-    readonly property int minimumPaletteWidth: modernGrayUi ? 330 : (githubUi ? 220 : 160)
+    readonly property int topBarHeight: (fluentTitleHeight + (tibiaUi ? 28 : 32))
+    readonly property int minimumPaletteWidth: ((160))
     readonly property int maximumPaletteWidth: Math.floor(width * 0.5)
 
     // Render the native window without exposing an unfinished first frame.
@@ -191,13 +184,13 @@ DmeWindow {
     maximizeButton: maximizeWindowButton
     // An opaque native surface lets DWM apply the same window corners as
     // OTEditor's standard ApplicationWindow, including correct maximization.
-    color: root.fluentUi && Qt.platform.os === "windows" ? FluentColors.c("background") : "transparent"
+    color: Qt.platform.os === "windows" ? FluentColors.c("background") : "transparent"
 
     // Custom caption contents cover the native frame's client pixels. Keep
     // the subtle OTEditor-style outline visible above those contents.
     Rectangle {
         anchors.fill: parent
-        visible: root.fluentUi && !root.tibiaUi && root.visibility !== Window.Maximized
+        visible: !root.tibiaUi && root.visibility !== Window.Maximized
                  && root.visibility !== Window.FullScreen
         z: 1000
         color: "transparent"
@@ -218,7 +211,7 @@ DmeWindow {
 
     Rectangle {
         anchors.fill: parent
-        visible: root.fluentUi
+        visible: true
         color: FluentColors.c("background")
         Loader {
             anchors.fill: parent; active: root.tibiaUi
@@ -232,25 +225,7 @@ DmeWindow {
         }
     }
 
-    DmeDialogBackground {
-        anchors.fill: parent
-        visible: !root.githubUi && !root.fluentUi
 
-        frameSource: (Backend.uiTheme.tex + "popupwindow_tall.png")
-        topBorder: 45
-    }
-
-    Rectangle {
-        anchors.fill: parent
-        visible: root.githubUi
-        radius: root.visibility === Window.Maximized ? 0 : 6
-        antialiasing: true
-        color: root.grayUi ? "#151515" : "#0D1117"
-        border {
-            width: 1
-            color: root.grayUi ? "#383838" : "#242D38"
-        }
-    }
 
     Item {
         id: titleBar
@@ -258,34 +233,17 @@ DmeWindow {
             left: parent.left
             right: parent.right
             top: parent.top
-            topMargin: root.githubUi ? 1 : 0
-            leftMargin: root.githubUi || root.fluentUi ? 0 : 6
-            rightMargin: root.githubUi || root.fluentUi ? 0 : 6
+            topMargin: 0
+            leftMargin: 0
+            rightMargin: 0
         }
 
         height: root.topBarHeight
 
-        Rectangle {
-            anchors.fill: parent
-            visible: root.githubUi
-            radius: root.visibility === Window.Maximized ? 0 : 6
-            antialiasing: true
-            color: root.grayUi ? "#151515" : "#0D1117"
-
-            Rectangle {
-                anchors {
-                    left: parent.left
-                    right: parent.right
-                    bottom: parent.bottom
-                }
-                height: 1
-                color: root.grayUi ? "#383838" : "#212A35"
-            }
-        }
 
         Rectangle {
             anchors.fill: parent
-            visible: root.fluentUi && !root.tibiaUi
+            visible: !root.tibiaUi
             color: FluentColors.c("titleBar")
             TibiaSkin.TibiaSkin { anchors.fill: parent }
             Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 32; color: FluentColors.c("titleBar"); TibiaSkin.TibiaSkin { anchors.fill: parent } }
@@ -305,7 +263,7 @@ DmeWindow {
             height: root.fluentTitleHeight
             captionHeight: root.fluentTitleHeight
             caption: root.title
-            captionIconSource: "qrc:/ui/github/app-icon.png"
+            captionIconSource: "qrc:/ui/app-icon.png"
             captionIconSize: 20
             captionFontPixelSize: 14
             showCloseButton: false
@@ -315,12 +273,12 @@ DmeWindow {
             windowActive: root.active
         }
         Image {
-            visible: root.fluentUi && !root.tibiaUi
+            visible: !root.tibiaUi
             x: 10; y: (root.fluentTitleHeight - height) / 2; width: 16; height: width
-            source: "qrc:/ui/github/app-icon.png"
+            source: "qrc:/ui/app-icon.png"
         }
         Text {
-            visible: root.fluentUi && !root.tibiaUi
+            visible: !root.tibiaUi
             x: root.tibiaUi ? 90 : 38; y: 0; height: root.fluentTitleHeight
             width: Math.max(0, parent.width - (root.tibiaUi ? 180 : 190))
             text: root.title
@@ -330,67 +288,12 @@ DmeWindow {
             font.bold: root.tibiaUi
             verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
         }
-        Text {
-            id: titleText
 
-            visible: !root.githubUi && !root.fluentUi
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.verticalCenterOffset: root.fluentUi ? -15 : -5
-            text: root.title
-            color: root.windowsClassicUi ? "#202020" : "#c0c0c0"
-            font.bold: !root.windowsClassicUi
-            font.pixelSize: root.fluentUi ? 12 : 15
-            elide: Text.ElideMiddle
 
-            width: Math.max(0, Math.min(implicitWidth, parent.width - 2 * (menuBar.width + 24)))
-        }
-
-        Text {
-            id: githubTitleText
-            visible: root.githubUi && root.width >= 920
-            anchors.centerIn: parent
-            text: "Dewral Map Editor"
-            color: root.grayUi ? "#F0F0F0" : "#E6EDF3"
-            font {
-                pixelSize: 14
-                weight: Font.DemiBold
-            }
-            z: 2
-        }
-
-        Rectangle {
-            id: dmeAppIcon
-            visible: root.githubUi
-            anchors {
-                left: parent.left
-                leftMargin: 20
-                verticalCenter: parent.verticalCenter
-            }
-            width: 30
-            height: 30
-            radius: 7
-            color: root.grayUi ? "#4A3A1F" : "#174D2B"
-            border {
-                width: 1
-                color: root.grayUi ? "#C79A3B" : "#2EA043"
-            }
-            z: 5
-
-            Image {
-                anchors.centerIn: parent
-                width: 20
-                height: 20
-                source: "qrc:/ui/github/app-icon.png"
-                sourceSize: Qt.size(20, 20)
-                fillMode: Image.PreserveAspectFit
-                smooth: false
-            }
-        }
 
         Row {
             id: winButtons
-            height: root.fluentUi ? root.fluentTitleHeight : titleBar.height
+            height: root.fluentTitleHeight
             anchors {
                 right: parent.right
                 top: parent.top
@@ -399,14 +302,14 @@ DmeWindow {
             spacing: root.tibiaUi ? 2 : 0
             z: 5
 
-            GithubWindowButton {
+            DmeWindowButton {
                 height: parent.height
                 controlType: "minimize"
                 paletteCaption: root.tibiaUi
                 onTriggered: root.showMinimized()
             }
 
-            GithubWindowButton {
+            DmeWindowButton {
                 id: maximizeWindowButton
                 height: parent.height
                 controlType: "maximize"
@@ -417,7 +320,7 @@ DmeWindow {
                 onTriggered: root.visibility === Window.Maximized ? root.showNormal() : root.showMaximized()
             }
 
-            GithubWindowButton {
+            DmeWindowButton {
                 height: parent.height
                 controlType: "close"
                 paletteCaption: root.tibiaUi
@@ -434,7 +337,7 @@ DmeWindow {
             anchors.bottom: root.tibiaUi ? undefined : parent.bottom
             height: root.tibiaUi ? root.fluentTitleHeight : parent.height
             anchors {
-                leftMargin: root.githubUi ? 460 : 0
+                leftMargin: 0
                 rightMargin: root.tibiaUi ? 84 : 138
             }
             z: root.tibiaUi ? 1 : 0
@@ -458,10 +361,6 @@ DmeWindow {
     }
 
     Component.onCompleted: {
-        if (!prefs.githubLayoutV2Initialized) {
-            prefs.paletteWidth = 390;
-            prefs.githubLayoutV2Initialized = true;
-        }
         Backend.workTimer.ensureLoaded();
         app.initialize();
     }
@@ -507,9 +406,9 @@ DmeWindow {
         enabled: !root.clientBusy && !app.saving
         id: menuBar
         onActivityRequested: { if (!activityLoader.ensureLoaded()) return false; activityLoader.item.open(); }
-        menuLeftInset: root.fluentUi ? 8 : root.githubUi ? 52 : 4
-        menuVerticalOffset: root.fluentUi ? root.fluentTitleHeight / 2 : (root.githubUi ? 0 : -4)
-        width: root.githubUi ? 520 : implicitWidth
+        menuLeftInset: 8
+        menuVerticalOffset: (root.fluentTitleHeight / 2)
+        width: implicitWidth
         appController: app
         mapView: workspace.mapView
         mapRenderer: workspace.mapRenderer
@@ -621,7 +520,7 @@ DmeWindow {
         anchors.top: titleBar.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        visible: root.fluentUi
+        visible: true
         height: visible ? implicitHeight : 0
         settings: prefs
         brushDragActive: root.brushDragging
@@ -642,20 +541,19 @@ DmeWindow {
         id: paletteDock
         settings: prefs
         availableWidth: root.contentItem.width - 12
-        availableHeight: Math.max(0, root.contentItem.height - paletteTop - (root.fluentUi ? fluentStatusBar.height + 2 + root.editorFrameInset : 28))
+        availableHeight: Math.max(0, root.contentItem.height - paletteTop - ((fluentStatusBar.height + 2 + root.editorFrameInset)))
         panelWidth: palette.width
     }
-    readonly property real paletteTop: root.fluentUi ? fluentFileBar.y + fluentFileBar.height : titleBar.y + titleBar.height
-    property real baseMapLeft: root.fluentUi
-        ? (!prefs.paletteCollapsed && paletteDock.side === "left" ? palette.width + 12 : 6) : paletteSplitter.x + paletteSplitter.width
-    property real baseMapRight: root.githubUi ? 1 : root.fluentUi && !prefs.paletteCollapsed && paletteDock.side === "right" ? palette.width + 12 : 8
+    readonly property real paletteTop: (fluentFileBar.y + fluentFileBar.height)
+    property real baseMapLeft: ((!prefs.paletteCollapsed && paletteDock.side === "left" ? palette.width + 12 : 6))
+    property real baseMapRight: (!prefs.paletteCollapsed && paletteDock.side === "right" ? palette.width + 12 : 8)
 
     Behavior on baseMapLeft {
-        enabled: root.fluentUi && !splitterArea.pressed && !floatingPaletteResize.pressed
+        enabled: !splitterArea.pressed && !floatingPaletteResize.pressed
         NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
     }
     Behavior on baseMapRight {
-        enabled: root.fluentUi && !splitterArea.pressed && !floatingPaletteResize.pressed
+        enabled: !splitterArea.pressed && !floatingPaletteResize.pressed
         NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
     }
     readonly property bool previewDocked: prefs.showIngamePreviewWindow && (prefs.ingamePreviewDockSide==="left" || prefs.ingamePreviewDockSide==="right")
@@ -677,7 +575,7 @@ DmeWindow {
         y: root.paletteTop
         width: root.compactSearchDock ? root.previewDockWidth : Math.min(Math.max(280, prefs.searchResultsWidth), Math.max(220,
             root.width - root.baseMapLeft - root.baseMapRight - 240 - (root.previewDocked ? root.previewDockWidth + 6 : 0)))
-        height: Math.max(0, root.height - y - (root.fluentUi ? fluentStatusBar.height + 2 : 6)) * (root.compactSearchDock ? 0.5 : 1)
+        height: Math.max(0, root.height - y - ((fluentStatusBar.height + 2))) * (root.compactSearchDock ? 0.5 : 1)
         z: 3
         function close() {
             root.searchResultsVisible = false;
@@ -709,7 +607,7 @@ DmeWindow {
         x:prefs.ingamePreviewDockSide==="left" ? root.baseMapLeft : root.width-root.baseMapRight-root.searchResultsExtent-width
         y:root.compactSearchDock ? searchResultsHost.y + searchResultsHost.height + 6 : root.paletteTop
         width:root.previewDockWidth
-        height:Math.max(0,root.height-y-(root.fluentUi ? fluentStatusBar.height + 2 + root.editorFrameInset : 6))
+        height:Math.max(0,root.height-y-((fluentStatusBar.height + 2 + root.editorFrameInset)))
         z:3
     }
     Rectangle {
@@ -727,7 +625,7 @@ DmeWindow {
         }
     }
     Rectangle {
-        visible: root.fluentUi && paletteDock.dragging && paletteDock.target !== ""
+        visible: paletteDock.dragging && paletteDock.target !== ""
         x: paletteDock.target === "right" ? root.contentItem.width - paletteDock.panelWidth - 6 : 6
         y: root.paletteTop
         width: paletteDock.panelWidth; height: paletteDock.availableHeight
@@ -736,17 +634,17 @@ DmeWindow {
 
     PalettePanel {
         id: palette
-        floating: root.fluentUi && paletteDock.side === "floating"
+        floating: paletteDock.side === "floating"
         brushDockSettings: prefs
         onToolsDockDragStarted: { root.dockDragKind = "tools"; root.brushDragging = true; }
         onBrushDockDragStarted: { root.dockDragKind = "brush"; root.brushDragging = true; }
         onBrushDockDragMoved: (x,y) => { root.brushDragX = x; root.brushDragY = y; }
         onBrushDockDragFinished: (x,y) => root.finishBrushDock(x,y)
         onBrushDockDragCanceled: root.brushDragging = false
-        x: root.fluentUi ? 6 + paletteDock.x : (root.githubUi ? 1 : 6)
-        y: root.paletteTop + (root.fluentUi ? paletteDock.y : 0)
-        height: root.fluentUi ? paletteDock.panelHeight : root.contentItem.height - y - (root.githubUi ? 1 : 6)
-        z: root.fluentUi && paletteDock.side === "floating" ? 50 : 2
+        x: (6 + paletteDock.x)
+        y: root.paletteTop + (paletteDock.y)
+        height: paletteDock.panelHeight
+        z: paletteDock.side === "floating" ? 50 : 2
         positionLocked: prefs.palettePositionLocked
         onLockRequested: prefs.palettePositionLocked = !prefs.palettePositionLocked
         onDragStarted: (sx, sy) => paletteDock.begin(sx - 6, sy - root.paletteTop)
@@ -754,39 +652,36 @@ DmeWindow {
         onDragFinished: paletteDock.finish()
         onDragCanceled: paletteDock.cancel()
         width: {
-            if (!root.fluentUi && prefs.paletteCollapsed)
-                return 0;
             return Math.max(root.minimumPaletteWidth,
-                            Math.min(root.tibiaUi ? prefs.tibiaPaletteWidth : root.fluentUi ? prefs.fluentPaletteWidth : prefs.paletteWidth, root.maximumPaletteWidth));
+                            Math.min(root.tibiaUi ? prefs.tibiaPaletteWidth : prefs.fluentPaletteWidth, root.maximumPaletteWidth));
         }
-        opacity: root.fluentUi && prefs.paletteCollapsed ? 0 : 1
-        visible: !prefs.paletteCollapsed || (root.fluentUi && opacity > 0)
+        opacity: prefs.paletteCollapsed ? 0 : 1
+        visible: !prefs.paletteCollapsed || (opacity > 0)
         enabled: !prefs.paletteCollapsed && !root.clientBusy
         Behavior on opacity {
-            enabled: root.fluentUi
+            enabled: true
             NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
         }
         transform: Translate {
-            y: root.fluentUi && prefs.paletteCollapsed ? -8 : 0
+            y: prefs.paletteCollapsed ? -8 : 0
             Behavior on y {
-                enabled: root.fluentUi
+                enabled: true
                 NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
             }
         }
-        readonly property bool animateDock: root.fluentUi && !paletteDock.dragging && !paletteDock.pending
+        readonly property bool animateDock: !paletteDock.dragging && !paletteDock.pending
             && !splitterArea.pressed && !floatingPaletteResize.pressed
         Behavior on x { enabled: palette.animateDock; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
         Behavior on y { enabled: palette.animateDock; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
         Behavior on height { enabled: palette.animateDock; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
         app: app
         mapCtrl: workspace.mapView
-        modernLayout: root.modernGrayUi
         onCollapseRequested: prefs.paletteCollapsed = true
         onRevealRequested: prefs.paletteCollapsed = false
 
         MouseArea {
             id: floatingPaletteResize
-            visible: root.fluentUi && paletteDock.side === "floating" && !prefs.palettePositionLocked
+            visible: paletteDock.side === "floating" && !prefs.palettePositionLocked
             anchors.right: parent.right; anchors.bottom: parent.bottom
             width: 16; height: 16; cursorShape: Qt.SizeFDiagCursor
             property point startPointer
@@ -811,23 +706,23 @@ DmeWindow {
         id: paletteSplitter
         anchors.top: palette.top
         anchors.bottom: palette.bottom
-        x: root.fluentUi && paletteDock.side === "right" ? palette.x - width : palette.x + palette.width
-        width: root.githubUi ? 4 : 6
+        x: paletteDock.side === "right" ? palette.x - width : palette.x + palette.width
+        width: 6
         z: 10
-        visible: !prefs.paletteCollapsed && (!root.fluentUi || paletteDock.side !== "floating")
+        visible: !prefs.paletteCollapsed && (paletteDock.side !== "floating")
 
         Rectangle {
             anchors.centerIn: parent
             width: 1
             height: parent.height
             color: splitterArea.containsMouse || splitterArea.pressed
-                   ? (root.grayUi ? "#595959" : (root.githubUi ? "#3A4655" : "#4a90e2"))
+                   ? ((("#4a90e2")))
                    : "transparent"
         }
 
         MouseArea {
             id: splitterArea
-            enabled: !root.fluentUi || !prefs.palettePositionLocked
+            enabled: !prefs.palettePositionLocked
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.SizeHorCursor
@@ -841,125 +736,22 @@ DmeWindow {
             onPositionChanged: mouse => {
                 if (pressed) {
                     const value = Math.max(root.minimumPaletteWidth, Math.min(root.maximumPaletteWidth,
-                        startWidth + (root.fluentUi && paletteDock.side === "right" ? -1 : 1) * (mapToItem(root.contentItem, mouse.x, 0).x - startX)));
+                        startWidth + (paletteDock.side === "right" ? -1 : 1) * (mapToItem(root.contentItem, mouse.x, 0).x - startX)));
                     if (root.tibiaUi) prefs.tibiaPaletteWidth = value;
-                    else if (root.fluentUi) prefs.fluentPaletteWidth = value;
-                    else prefs.paletteWidth = value;
+                    else prefs.fluentPaletteWidth = value;
                 }
             }
         }
     }
 
-    Item {
-        id: paletteToggle
 
-        width: 10
-        height: 40
-        anchors.verticalCenter: palette.verticalCenter
 
-        x: prefs.paletteCollapsed ? 2 : (palette.x + palette.width)
-        z: 20
-        visible: !root.githubUi && !root.fluentUi
 
-        Rectangle {
-            anchors.fill: parent
-            color: root.windowsClassicUi ? (toggleArea.containsMouse ? "#e5f1fb" : "#f0f0f0") : (toggleArea.containsMouse ? "#3a3a3a" : "#242424")
-            border.color: root.windowsClassicUi ? "#7a7a7a" : "#4a4a4a"
-            border.width: 1
-        }
-        Text {
-            anchors.centerIn: parent
-            text: prefs.paletteCollapsed ? ">" : "<"
-            color: root.windowsClassicUi ? "#202020" : "#ccc"
-            font.pixelSize: 10
-        }
-        MouseArea {
-            id: toggleArea
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: prefs.paletteCollapsed = !prefs.paletteCollapsed
-        }
-    }
 
-    Item {
-        id: githubPaletteExpand
-
-        visible: root.githubUi && prefs.paletteCollapsed
-        x: 6
-        width: visible ? 30 : 0
-        height: 54
-        anchors.verticalCenter: parent.verticalCenter
-        z: 30
-
-        Rectangle {
-            anchors.fill: parent
-            radius: 7
-            color: githubExpandArea.containsMouse ? (root.grayUi ? "#303030" : "#171E27")
-                                                    : (root.grayUi ? "#242424" : "#111820")
-            border {
-                width: 1
-                color: githubExpandArea.containsMouse ? (root.grayUi ? "#595959" : "#3A4655")
-                                                       : (root.grayUi ? "#484848" : "#242D38")
-            }
-        }
-
-        Text {
-            anchors.centerIn: parent
-            text: ">"
-            color: githubExpandArea.containsMouse ? "#FFFFFF" : "#A7B1BC"
-            font.pixelSize: 16
-        }
-
-        MouseArea {
-            id: githubExpandArea
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: prefs.paletteCollapsed = false
-        }
-
-        GithubToolTip {
-            targetItem: githubExpandArea
-            targetHovered: githubExpandArea.containsMouse
-            message: "Expand palette (Ctrl+B)"
-        }
-    }
-
-    ImplicitHeightLoader {
-        id: toolBar
-        anchors.top: root.fluentUi ? fluentFileBar.bottom : titleBar.bottom
-        anchors.topMargin: 0
-        anchors.left: parent.left
-        anchors.leftMargin: root.mapLeft
-        anchors.right: parent.right
-        anchors.rightMargin: root.mapRight
-
-        sourceComponent: root.fluentUi ? null : root.githubUi
-                         ? githubToolBarComponent
-                         : classicToolBarComponent
-    }
-
-    Component {
-        id: classicToolBarComponent
-        EditorToolBar {
-            mapView: workspace.mapView
-            settings: prefs
-        }
-    }
-
-    Component {
-        id: githubToolBarComponent
-        GithubEditorToolBar {
-            mapView: workspace.mapView
-            settings: prefs
-            modernLayout: root.modernGrayUi
-        }
-    }
 
     ProceduralBrushBar {
         id: proceduralTopBar
-        anchors.top: toolBar.bottom
+        anchors.top: fluentFileBar.bottom
         anchors.left: parent.left
         anchors.leftMargin: root.mapLeft
         anchors.right: parent.right
@@ -980,12 +772,10 @@ DmeWindow {
         anchors.right: parent.right
         anchors.rightMargin: root.mapRight
         z: root.tibiaUi ? 1 : 0
-        height: app.started ? (root.tibiaUi ? 28 : root.fluentUi ? 36 : root.githubUi ? 42 : 22) : 0
+        height: app.started ? (root.tibiaUi ? 28 : 36) : 0
         visible: app.started
 
-        sourceComponent: root.githubUi
-                         ? githubTabsComponent
-                         : classicTabsComponent
+        sourceComponent: classicTabsComponent
     }
 
     Component {
@@ -996,13 +786,6 @@ DmeWindow {
         }
     }
 
-    Component {
-        id: githubTabsComponent
-        GithubDocumentTabs {
-            app: app
-            newMapDialog: newMapDialog
-        }
-    }
 
     DmeConfirmDialog {
         id: closeTabConfirm
@@ -1021,7 +804,7 @@ DmeWindow {
             Text {
                 width: appCloseConfirm.width - 24
                 text: appCloseConfirm.message
-                color: root.windowsClassicUi ? "#202020" : (root.grayUi ? "#E0E0E0" : (root.githubUi ? "#C9D1D9" : "#c0c0c0"))
+                color: (((("#c0c0c0"))))
                 font.pixelSize: 12
                 wrapMode: Text.WordWrap
             }
@@ -1070,7 +853,7 @@ DmeWindow {
         anchors.leftMargin: root.mapLeft
         anchors.right: parent.right
         anchors.rightMargin: root.mapRight
-        anchors.bottomMargin: root.fluentUi ? fluentStatusBar.height + 2 + root.editorFrameInset : root.githubUi ? 1 : 6
+        anchors.bottomMargin: (fluentStatusBar.height + 2 + root.editorFrameInset)
         visible: app.started
         app: app
         settings: prefs
@@ -1085,7 +868,7 @@ DmeWindow {
         anchors.leftMargin: root.editorFrameInset
         anchors.rightMargin: root.editorFrameInset
         anchors.bottomMargin: root.editorFrameInset
-        visible: root.fluentUi && app.started
+        visible: app.started
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
         height: implicitHeight
         mapView: workspace.mapView
@@ -1095,20 +878,6 @@ DmeWindow {
         fps: workspace.mapRenderer.fps
     }
 
-    ModernMapToolRail {
-        id: modernMapRail
-        visible: root.modernGrayUi && app.started && Backend.otbmReader.loaded
-        width: visible ? 58 : 0
-        height: visible ? Math.min(570, workspace.height - 28) : 0
-        anchors {
-            right: parent.right
-            rightMargin: 16
-            verticalCenter: workspace.verticalCenter
-        }
-        z: 40
-        mapView: workspace.mapView
-        settings: prefs
-    }
 
     SaveProgressDialog {
         visible: app.saving

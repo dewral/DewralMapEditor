@@ -172,7 +172,7 @@ Rectangle {
             clip: true
             Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
             Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-            mapCtrl: root.mapView; githubUi: false
+            mapCtrl: root.mapView
             onDockDragStarted: root.brushDockDragStarted()
             onDockDragMoved: (x,y) => root.brushDockDragMoved(x,y)
             onDockDragFinished: (x,y) => root.brushDockDragFinished(x,y)

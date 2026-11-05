@@ -119,7 +119,8 @@ TestCase {
         // Ensure already-persisted non-view preferences remain intact too.
         session.settings.showFps = false;
         session.settings.showClientBox = true;
-        session.settings.paletteWidth = 321;
+        session.settings.fluentPaletteWidth = 321;
+        session.settings.tibiaPaletteWidth = 412;
         closeSession(session);
 
         session = newSession();
@@ -129,7 +130,8 @@ TestCase {
         }
         compare(session.settings.showFps, false);
         compare(session.settings.showClientBox, true);
-        compare(session.settings.paletteWidth, 321);
+        compare(session.settings.fluentPaletteWidth, 321);
+        compare(session.settings.tibiaPaletteWidth, 412);
 
         // Saving the original defaults must work as well as saving nondefaults.
         for (const name of session.preferenceNames)

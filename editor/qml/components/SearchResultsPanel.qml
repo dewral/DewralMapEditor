@@ -20,13 +20,11 @@ FocusScope {
     property bool loading: false
     property bool pendingSearch: false
     property string status: ""
-    readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
-    readonly property bool fluent: Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui"
-    readonly property color foreground: windowsClassic ? "#202020" : fluent ? FluentColors.c("text") : "#e0e0e0"
-    readonly property color secondary: windowsClassic ? "#595959" : fluent ? FluentColors.c("muted") : "#9da7b1"
-    readonly property color accent: windowsClassic ? "#0067c0" : fluent ? FluentColors.c("accent") : "#4a9ec7"
-    readonly property color surface: windowsClassic ? "#f4f4f4" : fluent ? FluentColors.c("surface") : "#242424"
-    readonly property color line: windowsClassic ? "#ababab" : fluent ? FluentColors.c("border") : "#414141"
+    readonly property color foreground: ((FluentColors.c("text")))
+    readonly property color secondary: ((FluentColors.c("muted")))
+    readonly property color accent: ((FluentColors.c("accent")))
+    readonly property color surface: ((FluentColors.c("surface")))
+    readonly property color line: ((FluentColors.c("border")))
     readonly property var selectedRow: rowAt(resultList.currentIndex)
     signal closed()
     ListModel { id: rowModel }

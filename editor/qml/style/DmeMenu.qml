@@ -7,11 +7,6 @@ import "../themes/fluent/Colors.js" as FluentColors
 Menu {
     id: root
     readonly property bool tibiaTheme: Backend.uiTheme.style === "tibia-ui"
-    readonly property bool fluentTheme: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
-    readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
-                                      || Backend.uiTheme.style === "gray-modern"
-    readonly property bool classicLayout: Backend.uiTheme.style === "classic"
-                                          || Backend.uiTheme.style === "windows-classic"
     readonly property bool pointerInMenuTree: {
         if (!visible)
             return false;
@@ -35,10 +30,10 @@ Menu {
     }
     implicitWidth: Math.max(160, implicitContentWidth + leftPadding + rightPadding,
                             widestEntry + leftPadding + rightPadding)
-    padding: root.tibiaTheme ? 6 : root.fluentTheme ? 4 : 1
+    padding: root.tibiaTheme ? 6 : 4
     spacing: 0
     margins: root.tibiaTheme ? 6 : 0
-    palette.mid: root.fluentTheme ? FluentColors.c("separator") : "#808080"
+    palette.mid: (FluentColors.c("separator"))
     overlap: 0
     background: Loader {
         id: menuBackground
@@ -47,7 +42,7 @@ Menu {
             parent: menuBackground.parent || menuBackground
             enabled: root.tibiaTheme && root.visible
         }
-        sourceComponent: root.tibiaTheme ? tibiaMenuBackground : root.classicLayout ? classicMenuBackground : githubMenuBackground
+        sourceComponent: root.tibiaTheme ? tibiaMenuBackground : fluentMenuBackground
     }
     Component {
         id: tibiaMenuBackground
@@ -64,16 +59,8 @@ Menu {
         }
     }
     Component {
-        id: classicMenuBackground
-        Item {
-            implicitWidth: 150
-            Image { anchors.fill: parent; source: Backend.uiTheme.tex + "texture.png"; fillMode: Image.Tile; smooth: false }
-            Rectangle { anchors.fill: parent; color: "transparent"; border.width: 1; border.color: "#6e6e6e" }
-        }
-    }
-    Component {
-        id: githubMenuBackground
-        Rectangle { implicitWidth: 150; radius: root.fluentTheme ? 4 : 6; color: root.fluentTheme ? FluentColors.c("popup") : root.grayTheme ? "#202020" : "#10151C"; border.width: 1; border.color: root.fluentTheme ? FluentColors.c("border") : root.grayTheme ? "#424242" : "#2D3743"; TibiaSkin.TibiaSkin { anchors.fill: parent } }
+        id: fluentMenuBackground
+        Rectangle { implicitWidth: 150; radius: 4; color: (FluentColors.c("popup")); border.width: 1; border.color: (FluentColors.c("border")); TibiaSkin.TibiaSkin { anchors.fill: parent } }
     }
     delegate: DmeMenuItem {}
 }

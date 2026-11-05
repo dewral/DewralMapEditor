@@ -19,9 +19,6 @@ DmeDialog {
     property int targetX: 0
     property int targetY: 0
     property int targetZ: -1
-    readonly property bool githubUi: Backend.uiTheme.style !== "classic"
-                                     && Backend.uiTheme.style !== "windows-classic"
-    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     title: "Browse Field"
     width: 410
@@ -136,14 +133,14 @@ DmeDialog {
                     width: itemList.width
                     height: 48
                     color: rowDrop.containsDrag
-                           ? (dialog.grayUi ? "#59451F" : "#234F3A")
+                           ? ("#234F3A")
                            : itemList.currentIndex === index
-                           ? (dialog.githubUi ? (dialog.grayUi ? "#4A3A1F" : "#163B2C") : "#505050")
+                           ? ((("#163B2C")))
                            : (rowMouse.containsMouse
-                              ? (dialog.githubUi ? (dialog.grayUi ? "#303030" : "#161E27") : "#383838")
+                              ? ((("#161E27")))
                               : "transparent")
                     border.width: itemList.currentIndex === index ? 1 : 0
-                    border.color: dialog.githubUi ? (dialog.grayUi ? "#C79A3B" : "#2EA043") : "#777"
+                    border.color: (("#2EA043"))
                     opacity: rowMouse.drag.active ? 0.55 : 1.0
 
                     Item {

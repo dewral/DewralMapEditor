@@ -14,8 +14,16 @@ Item {
     signal lightColorRequested()
     signal navigationRequested()
     function openSection(name) {
-        if (name === "player") playerSection.expanded = true;
-        if (name === "weather") { settingsSection.expanded = true; weatherSection.expanded = true; }
+        const section = name === "player" ? playerSection : name === "weather" ? weatherSection : null;
+        if (!section) return;
+        if (section === weatherSection) settingsSection.expanded = true;
+        section.expanded = true;
+        Qt.callLater(() => {
+            if (!section.visible || scroller.height <= 0) return;
+            const top = section.mapToItem(sections, 0, 0).y;
+            const firstVisible = top + Math.min(section.height, scroller.height) - scroller.height;
+            scroller.contentY = Math.max(0, Math.min(top, Math.max(firstVisible, scroller.contentY)));
+        });
     }
     function centreMinimap() { minimap.pxPerTile = 2; minimapFloorOffset = 0; minimapPan = Qt.point(0, 0); }
 
@@ -25,6 +33,7 @@ Item {
         id: button
         property string glyph: ""
         property string tip: text
+        property string labelFont: "5"
         implicitWidth: glyph ? 20 : 86; implicitHeight: 20
         padding: 0; hoverEnabled: true; activeFocusOnTab: true
         background: Item {
@@ -37,7 +46,7 @@ Item {
             }
         }
         contentItem: Label {
-            text: button.glyph ? "" : button.text; bitmapFont: "5"
+            text: button.glyph ? "" : button.text; bitmapFont: button.labelFont
             horizontalAlignment: Text.AlignHCenter
             color: button.enabled ? "#bfbfbf" : "#777777"
             y: button.down ? 1 : 0
@@ -60,7 +69,7 @@ Item {
     }
     component ClassicField: TextField {
         id: field
-        implicitHeight: 18
+        implicitHeight: 22
         padding: 3; topPadding: 2; bottomPadding: 2
         font.family: "Verdana"; font.pixelSize: 11; font.bold: true
         color: "transparent"; selectionColor: "transparent"; selectedTextColor: "transparent"
@@ -73,17 +82,18 @@ Item {
         }
         Label {
             id: display
-            x: 3 - Math.max(0, prefix.implicitWidth - (field.width - 7)); y: 2
+            x: 3 - Math.max(0, prefix.implicitWidth - (field.width - 7))
+            y: Math.floor((field.height - height) / 2)
             width: implicitWidth; text: field.text
         }
         Label { id: beforeSelection; visible: false; text: field.text.slice(0, field.selectionStart) }
         Rectangle {
-            x: display.x + beforeSelection.implicitWidth; y: 2; width: selected.implicitWidth; height: 14
+            x: display.x + beforeSelection.implicitWidth; y: display.y; width: selected.implicitWidth; height: 14
             visible: field.selectionEnd > field.selectionStart; color: "#404080"
             Label { id: selected; anchors.fill: parent; text: field.selectedText; color: "white" }
         }
         Rectangle {
-            x: display.x + prefix.implicitWidth; y: 3; width: 1; height: 10; color: "#c0c0c0"
+            x: display.x + prefix.implicitWidth; y: display.y + 1; width: 1; height: 10; color: "#c0c0c0"
             visible: field.activeFocus && !field.readOnly && caret.on
         }
         Timer { id: caret; property bool on: true; interval: 500; repeat: true; running: field.activeFocus; onTriggered: on = !on }
@@ -97,7 +107,7 @@ Item {
         signal edited(int next)
         signal valueModified()
         onValueModified: edited(value)
-        implicitHeight: 18
+        implicitHeight: 22
         function setValue(next) { if (isFinite(next)) edited(Math.max(from, Math.min(to, Math.round(next)))); }
         ClassicField {
             id: spinInput; objectName: "classicSpinInput"; width: parent.width - 12; height: parent.height
@@ -184,29 +194,62 @@ Item {
         property string title: ""
         property string glyph: ""
         property bool expanded: true
-        property int inset: 6
+        property int inset: 9
+        property int rowSpacing: 4
         default property alias sectionContent: body.data
         width: parent.width
-        height: 16 + (expanded ? body.implicitHeight + 11 : 0)
-        TibiaPreviewFrame { anchors.fill: parent }
+        height: popupFrame.captionHeight + popupFrame.border.bottom
+                + (expanded ? body.implicitHeight + 10 : 0)
+
+        TibiaWindowFrame {
+            id: popupFrame
+            anchors.fill: parent
+            showHeader: false
+            movable: false
+            enabled: false
+        }
         AbstractButton {
             id: heading
             objectName: section.objectName + "Header"
-            width: parent.width; height: 16; padding: 0; hoverEnabled: true; activeFocusOnTab: true
+            x: popupFrame.border.left
+            width: section.width - popupFrame.border.left - popupFrame.border.right
+            height: popupFrame.captionHeight
+            padding: 0; hoverEnabled: true; activeFocusOnTab: true
             onClicked: section.expanded = !section.expanded
-            background: Item { }
+            background: Rectangle {
+                y: 2; height: parent.height - 4
+                color: heading.down ? "#24000000"
+                    : heading.hovered || heading.visualFocus ? "#16ffffff" : "transparent"
+            }
             contentItem: Item {
                 Image {
-                    x: 4; y: 2; width: 12; height: 12; smooth: false
+                    x: 3; y: Math.floor((parent.height - height) / 2)
+                    width: 12; height: 12; smooth: false
                     source: section.glyph === "player" ? Qt.resolvedUrl("classic/skills.png")
                         : section.glyph === "visibility" ? Qt.resolvedUrl("classic/battle.png")
-                        : section.glyph === "settings" ? Qt.resolvedUrl("classic/options.png") : ""
-                    sourceClipRect: section.glyph === "settings" ? Qt.rect(0, 0, 20, 20) : Qt.rect(0, 0, 12, 12)
+                        : section.glyph === "settings" ? Qt.resolvedUrl("classic/options.png")
+                        : section.glyph === "lighting" ? Qt.resolvedUrl("icons/lighting.svg") : ""
+                    sourceClipRect: section.glyph === "settings" ? Qt.rect(0, 0, 20, 20)
+                        : section.glyph === "lighting" ? Qt.rect(0, 0, 0, 0) : Qt.rect(0, 0, 12, 12)
                     visible: source.toString().length > 0
                 }
-                Label { x: section.glyph === "player" || section.glyph === "visibility" || section.glyph === "settings" ? 20 : 5; y: 1; width: parent.width - x - 20; height: 14; text: section.title; bitmapFont: "ui"; color: "#808080" }
+                Text {
+                    x: 3; width: 12; height: parent.height
+                    visible: section.glyph === "weather"; text: "☂"
+                    font.family: "Segoe UI Symbol"; font.pixelSize: 12
+                    color: "#d7d7d2"; verticalAlignment: Text.AlignVCenter
+                }
+                Label {
+                    x: section.glyph ? 19 : 3
+                    width: Math.max(0, collapseMark.x - x - 4)
+                    height: parent.height; text: section.title; bitmapFont: "ui"
+                    color: "#deded9"
+                }
                 Image {
-                    x: parent.width - 15; y: 2; width: 12; height: 12
+                    id: collapseMark
+                    x: parent.width - width - 1
+                    y: Math.floor((parent.height - height) / 2)
+                    width: 12; height: 12
                     source: Qt.resolvedUrl("classic/miniwindow_buttons.png"); smooth: false
                     sourceClipRect: Qt.rect(section.expanded ? 1 : 15, heading.down ? 29 : heading.hovered ? 15 : 1, 12, 12)
                 }
@@ -214,7 +257,13 @@ Item {
             Accessible.name: section.title
             Accessible.description: section.expanded ? "Collapse section" : "Expand section"
         }
-        Column { id: body; x: section.inset; y: 20; width: parent.width - section.inset * 2; spacing: 2; visible: section.expanded }
+        Column {
+            id: body
+            x: section.inset; y: popupFrame.captionHeight + 4
+            width: parent.width - section.inset * 2
+            spacing: section.rowSpacing
+            visible: section.expanded
+        }
     }
     component VitalBar: Row {
         property string glyph: "health"
@@ -238,7 +287,7 @@ Item {
         Column {
             id: sections; width: scroller.width - (scroller.contentHeight > scroller.height ? 13 : 0); spacing: 2
             Section {
-                objectName: "sidebarMinimapSection"; title: "Minimap"
+                objectName: "sidebarMinimapSection"; title: "Minimap"; inset: 6; rowSpacing: 2
                 Item {
                     width: parent.width; height: 115
                     TibiaPreviewFrame {
@@ -280,55 +329,111 @@ Item {
             }
             Section {
                 id: playerSection; objectName: "sidebarPlayerSection"; title: "Player options"; glyph: "player"
+                readonly property int labelWidth: 60
                 Row {
-                    width: parent.width; spacing: 5
-                    Label { width: 54; height: 18; text: "Name:" }
-                    ClassicField { objectName: "sidebarPlayerName"; width: parent.width - 59; height: 18; text: root.settings.ingamePreviewPlayerName; onTextEdited: root.settings.ingamePreviewPlayerName = text }
+                    width: parent.width; spacing: 6
+                    Label { width: playerSection.labelWidth; height: nameField.height; text: "Name:" }
+                    ClassicField {
+                        id: nameField; objectName: "sidebarPlayerName"; width: parent.width - playerSection.labelWidth - parent.spacing
+                        text: root.settings.ingamePreviewPlayerName
+                        onTextEdited: root.settings.ingamePreviewPlayerName = text
+                        Accessible.name: "Player name"
+                    }
                 }
                 Row {
-                    width: parent.width; spacing: 5
-                    Label { width: 54; height: 18; text: "Level:" }
-                    ClassicSpinBox { objectName: "sidebarPlayerLevel"; width: parent.width - 59; height: 18; from: 1; to: 1000; value: root.settings.ingamePreviewPlayerLevel; onEdited: next => { root.settings.ingamePreviewPlayerLevel = next; root.settings.ingamePreviewSpeed = 0; } }
+                    width: parent.width; spacing: 6
+                    Label { width: playerSection.labelWidth; height: levelField.height; text: "Level:" }
+                    ClassicSpinBox {
+                        id: levelField; objectName: "sidebarPlayerLevel"; width: parent.width - playerSection.labelWidth - parent.spacing
+                        from: 1; to: 1000; value: root.settings.ingamePreviewPlayerLevel
+                        onEdited: next => { root.settings.ingamePreviewPlayerLevel = next; root.settings.ingamePreviewSpeed = 0; }
+                    }
                 }
                 Row {
-                    width: parent.width; spacing: 5
-                    Label { width: 54; height: 18; text: "Speed:" }
-                    ClassicSpinBox { objectName: "sidebarPlayerSpeed"; width: parent.width - 59; height: 18; from: 20; to: 3000; value: root.controller.speed; onEdited: next => root.settings.ingamePreviewSpeed = next }
+                    width: parent.width; spacing: 6
+                    Label { width: playerSection.labelWidth; height: speedField.height; text: "Speed:" }
+                    ClassicSpinBox {
+                        id: speedField; objectName: "sidebarPlayerSpeed"; width: parent.width - playerSection.labelWidth - parent.spacing
+                        from: 20; to: 3000; value: root.controller.speed
+                        onEdited: next => root.settings.ingamePreviewSpeed = next
+                    }
                 }
                 Row {
-                    width: parent.width; height: 38; spacing: 5
-                    Label { width: 54; height: parent.height; text: "Outfit:" }
-                    ClassicButton { objectName: "sidebarPreviousOutfit"; width: 20; anchors.verticalCenter: parent.verticalCenter; text: "<"; tip: "Previous outfit"; onClicked: root.settings.ingamePreviewLookType = Math.max(1, root.settings.ingamePreviewLookType - 1) }
-                    Image { width: Math.max(32, parent.width - 109); height: 38; smooth: false; fillMode: Image.PreserveAspectFit; source: root.outfitSource(root.settings.ingamePreviewLookType, root.settings.ingamePreviewLookHead, root.settings.ingamePreviewLookBody, root.settings.ingamePreviewLookLegs, root.settings.ingamePreviewLookFeet) }
-                    ClassicButton { objectName: "sidebarNextOutfit"; width: 20; anchors.verticalCenter: parent.verticalCenter; text: ">"; tip: "Next outfit"; onClicked: root.settings.ingamePreviewLookType = Math.min(Math.max(1, Backend.datReader.outfitCount), root.settings.ingamePreviewLookType + 1) }
+                    width: parent.width; height: 48; spacing: 6
+                    Label { width: playerSection.labelWidth; height: parent.height; text: "Outfit:" }
+                    Item {
+                        width: parent.width - playerSection.labelWidth - parent.spacing; height: parent.height
+                        ClassicButton {
+                            objectName: "sidebarPreviousOutfit"
+                            anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
+                            width: 26; height: 24; labelFont: "ui"; text: "<"; tip: "Previous outfit"
+                            onClicked: root.settings.ingamePreviewLookType = Math.max(1, root.settings.ingamePreviewLookType - 1)
+                        }
+                        Image {
+                            objectName: "sidebarOutfitSprite"
+                            anchors.centerIn: parent; width: 44; height: 44
+                            smooth: false; fillMode: Image.PreserveAspectFit
+                            source: root.outfitSource(root.settings.ingamePreviewLookType, root.settings.ingamePreviewLookHead,
+                                root.settings.ingamePreviewLookBody, root.settings.ingamePreviewLookLegs, root.settings.ingamePreviewLookFeet)
+                        }
+                        ClassicButton {
+                            objectName: "sidebarNextOutfit"
+                            anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                            width: 26; height: 24; labelFont: "ui"; text: ">"; tip: "Next outfit"
+                            onClicked: root.settings.ingamePreviewLookType = Math.min(Math.max(1, Backend.datReader.outfitCount), root.settings.ingamePreviewLookType + 1)
+                        }
+                    }
                 }
-                ClassicButton { objectName: "sidebarChooseOutfit"; width: parent.width; text: "Choose outfit..."; onClicked: root.outfitRequested() }
+                ClassicButton {
+                    objectName: "sidebarChooseOutfit"
+                    width: parent.width; height: 24; labelFont: "7"; text: "Choose outfit..."
+                    onClicked: root.outfitRequested()
+                }
             }
             Section {
-                id: settingsSection; objectName: "sidebarSettingsSection"; title: "Preview settings"; inset: 3
+                id: settingsSection; objectName: "sidebarSettingsSection"; title: "Preview settings"; glyph: "settings"; inset: 6
                 Section {
-                    id: weatherSection; objectName: "sidebarWeatherSection"; title: "Weather"
+                    id: weatherSection; objectName: "sidebarWeatherSection"; title: "Weather"; glyph: "weather"; expanded: false
+                    readonly property int labelWidth: 56
+                    readonly property int valueWidth: 59
                     ClassicCheckBox { objectName: "sidebarWeatherEnabled"; text: "Enable weather"; checked: root.settings.previewWeatherEnabled; onClicked: root.settings.previewWeatherEnabled = !checked }
                     Repeater {
                         model: [{label: "Rain", key: "Rain"}, {label: "Storm", key: "Storm"}, {label: "Snow", key: "Snow"}, {label: "Fog", key: "Fog"}, {label: "Leaves", key: "Leaves"}, {label: "Fireflies", key: "Fireflies"}, {label: "Wind", key: "Wind"}]
                         delegate: Row {
                             required property var modelData
-                            width: parent.width; spacing: 4; height: 18
-                            Label { width: 46; height: parent.height; text: modelData.label + ":" }
+                            width: parent.width; spacing: 5; height: 18
+                            Label { width: weatherSection.labelWidth; height: parent.height; text: modelData.label + ":" }
                             ClassicSlider {
                                 objectName: "sidebarWeather" + modelData.key
-                                width: Math.max(48, parent.width - 108); height: 18
+                                width: Math.max(0, parent.width - weatherSection.labelWidth - weatherSection.valueWidth - 2 * parent.spacing)
+                                height: parent.height
+                                enabled: root.settings.previewWeatherEnabled
+                                opacity: enabled ? 1 : 0.48
+                                Accessible.name: modelData.label
                                 from: modelData.key === "Wind" ? -160 : 0; to: modelData.key === "Wind" ? 160 : 100
                                 value: root.settings["previewWeather" + modelData.key]
                                 onMoved: root.settings["previewWeather" + modelData.key] = Math.round(value)
                             }
-                            Label { width: 54; height: parent.height; horizontalAlignment: Text.AlignRight; text: root.settings["previewWeather" + modelData.key] + (modelData.key === "Wind" ? " px/s" : "%"); bitmapFont: "5" }
+                            Label {
+                                width: weatherSection.valueWidth; height: parent.height
+                                horizontalAlignment: Text.AlignRight
+                                text: root.settings["previewWeather" + modelData.key] + (modelData.key === "Wind" ? " px/s" : "%")
+                                color: root.settings.previewWeatherEnabled ? "#dfdfda" : "#a8a8a3"
+                            }
                         }
                     }
                     Row {
-                        width: parent.width; spacing: 4
-                        Label { width: 46; height: 20; text: "Quality:" }
-                        ClassicComboBox { objectName: "sidebarWeatherQuality"; width: parent.width - 50; model: ["Low", "Balanced", "High"]; currentIndex: root.settings.previewWeatherQuality; onActivated: index => root.settings.previewWeatherQuality = index }
+                        width: parent.width; spacing: 5
+                        Label { width: weatherSection.labelWidth; height: qualityBox.height; text: "Quality:" }
+                        ClassicComboBox {
+                            id: qualityBox; objectName: "sidebarWeatherQuality"
+                            width: parent.width - weatherSection.labelWidth - parent.spacing
+                            enabled: root.settings.previewWeatherEnabled
+                            opacity: enabled ? 1 : 0.48
+                            model: ["Low", "Balanced", "High"]; currentIndex: root.settings.previewWeatherQuality
+                            onActivated: index => root.settings.previewWeatherQuality = index
+                            Accessible.name: "Weather quality"
+                        }
                     }
                 }
                 Section {
@@ -339,7 +444,7 @@ Item {
                     ClassicCheckBox { objectName: "sidebarShowBorders"; text: "Show borders"; checked: root.settings.ingamePreviewShowBorders; onClicked: root.settings.ingamePreviewShowBorders = !checked }
                 }
                 Section {
-                    objectName: "sidebarLightingSection"; title: "Lighting"; expanded: false
+                    objectName: "sidebarLightingSection"; title: "Lighting"; glyph: "lighting"; expanded: false
                     ClassicCheckBox { objectName: "sidebarLightingEnabled"; text: "Enable lighting"; checked: root.settings.ingamePreviewLighting; onClicked: root.settings.ingamePreviewLighting = !checked }
                     Label { width: parent.width; text: "Ambient: " + root.mapView.lightAmbient }
                     ClassicSlider { objectName: "sidebarAmbient"; width: parent.width; from: 0; to: 255; value: root.mapView.lightAmbient; onMoved: root.mapView.lightAmbient = Math.round(value) }

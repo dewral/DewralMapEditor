@@ -10,17 +10,11 @@ import "../dialogs"
 Item {
     id: workspace
     readonly property bool tibiaUi: Backend.uiTheme.style === "tibia-ui"
-    readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
     required property var app
     required property var settings
     required property var propertiesDialog
     required property var browseFieldDialog
     required property var paletteNavigator
-    readonly property bool githubUi: Backend.uiTheme.style !== "classic"
-                                     && Backend.uiTheme.style !== "windows-classic"
-                                     && Backend.uiTheme.style !== "fluent-dark" && Backend.uiTheme.style !== "tibia-ui"
-    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
-                                   || Backend.uiTheme.style === "gray-modern"
 
     property var workTimerPopupHost
     property var proceduralBrushSession: null
@@ -57,20 +51,7 @@ Item {
         Backend.fileTools.setClipboard(positionText(format));
     }
 
-    DmePanel {
-        anchors.fill: parent
-        visible: !workspace.fluentUi && !workspace.githubUi
-    }
 
-    Rectangle {
-        anchors.fill: parent
-        visible: workspace.githubUi
-        color: workspace.grayUi ? "#1A1A1A" : "#0D1117"
-        border {
-            width: 1
-            color: workspace.grayUi ? "#3A3A3A" : "#242D38"
-        }
-    }
 
     Loader {
         objectName: "mapChatBackground"
@@ -155,12 +136,12 @@ Item {
         id: mapArea
         anchors {
             top: errorArea.bottom
-            bottom: workspace.githubUi ? githubStatus.top : parent.bottom
+            bottom: parent.bottom
             left: parent.left
             right: parent.right
-            margins: workspace.githubUi ? 1 : 3
-            rightMargin: workspace.tibiaUi ? 17 : workspace.githubUi ? 1 : 3
-            bottomMargin: workspace.tibiaUi ? 17 : workspace.githubUi ? 1 : 3
+            margins: 3
+            rightMargin: workspace.tibiaUi ? 17 : 3
+            bottomMargin: workspace.tibiaUi ? 17 : 3
         }
         visible: Backend.otbmReader.loaded
         clip: true
@@ -200,7 +181,7 @@ Item {
             readonly property var weatherDocument: weatherRegionLayer.document
             hotkeyBindings: Backend.hotkeys.activeBindings
             commandHotkeysEnabled: !Backend.hotkeys.capturing
-            modernZones: workspace.fluentUi
+            modernZones: true
             anchors.fill: parent
             focus: true
             otbm: Backend.docMgr.current
@@ -259,8 +240,7 @@ Item {
         ZoneLabels {
             z: 2
             anchors.fill: parent
-            visible: workspace.fluentUi || !!(workspace.mapView.showNumberedZones
-                && workspace.mapView.otbm && workspace.mapView.otbm.numberedZonesEnabled)
+            visible: true
             mapView: workspace.mapView
         }
 
@@ -275,7 +255,6 @@ Item {
             dockHost:workspace.previewDockHost
             mapView: mapView
             settings: workspace.settings
-            githubUi: workspace.githubUi
         }
 
         DmeMenu {
@@ -548,7 +527,7 @@ Item {
 
                 Text {
                     text: "Name"
-                    color: workspace.grayUi ? "#E0E0E0" : (workspace.githubUi ? "#C9D1D9" : "#D0D0D0")
+                    color: (("#D0D0D0"))
                     font.pixelSize: 11
                 }
                 DmeTextField {
@@ -559,7 +538,7 @@ Item {
                 }
                 Text {
                     text: "Doodad category"
-                    color: workspace.grayUi ? "#E0E0E0" : (workspace.githubUi ? "#C9D1D9" : "#D0D0D0")
+                    color: (("#D0D0D0"))
                     font.pixelSize: 11
                 }
                 DmeComboBox {
@@ -585,7 +564,7 @@ Item {
                 Text {
                     width: parent.width
                     text: "All item stacks in the selected tiles will be stored. Creatures and spawns are not included."
-                    color: workspace.grayUi ? "#919191" : (workspace.githubUi ? "#8B949E" : "#A0A0A0")
+                    color: (("#A0A0A0"))
                     font.pixelSize: 10
                     wrapMode: Text.WordWrap
                 }
@@ -659,11 +638,11 @@ Item {
                 Text {
                     width: parent.width
                     text: "Choose base prefabs in their canonical orientation. The generator rotates the tile layout and rotatable items automatically."
-                    color: workspace.grayUi ? "#B0B0B0" : (workspace.githubUi ? "#8B949E" : "#A0A0A0")
+                    color: (("#A0A0A0"))
                     font.pixelSize: 10
                     wrapMode: Text.WordWrap
                 }
-                Text { text: "Doodad category"; color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"; font.pixelSize: 11 }
+                Text { text: "Doodad category"; color: "#D0D0D0"; font.pixelSize: 11 }
                 DmeCheckBox {
                     id: preservePathGround
                     text: "Preserve existing ground (borders and objects only)"
@@ -676,11 +655,11 @@ Item {
                     model: pathBuilderDialog.paletteNames
                     onActivated: pathBuilderDialog.loadPrefabs()
                 }
-                Text { text: "Straight prefab (west - east)"; color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"; font.pixelSize: 11 }
+                Text { text: "Straight prefab (west - east)"; color: "#D0D0D0"; font.pixelSize: 11 }
                 DmeComboBox { id: straightPrefab; width: parent.width; model: pathBuilderDialog.prefabNames }
-                Text { text: "Corner prefab (west - north)"; color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"; font.pixelSize: 11 }
+                Text { text: "Corner prefab (west - north)"; color: "#D0D0D0"; font.pixelSize: 11 }
                 DmeComboBox { id: cornerPrefab; width: parent.width; model: pathBuilderDialog.prefabNames }
-                Text { text: "Optional end prefab (opening to west)"; color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"; font.pixelSize: 11 }
+                Text { text: "Optional end prefab (opening to west)"; color: "#D0D0D0"; font.pixelSize: 11 }
                 DmeComboBox {
                     id: endPrefab
                     width: parent.width
@@ -691,7 +670,7 @@ Item {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: "Segment spacing (tiles)"
-                        color: workspace.githubUi ? "#C9D1D9" : "#D0D0D0"
+                        color: "#D0D0D0"
                         font.pixelSize: 11
                     }
                     DmeSpinBox { id: pathSpacing; from: 1; to: 64; value: 4; width: 90 }
@@ -732,7 +711,7 @@ Item {
                     text: mapView.pathPreviewCount > 0
                           ? "Path preview: " + mapView.pathPreviewCount + " segments"
                           : "Drag on the map to draw a path"
-                    color: workspace.githubUi ? "#C9D1D9" : "#E0E0E0"
+                    color: "#E0E0E0"
                     font.pixelSize: 11
                 }
                 Row {
@@ -813,29 +792,6 @@ Item {
             }
         }
 
-        Rectangle {
-            visible: workspace.settings.showFps && !workspace.fluentUi && !workspace.githubUi
-            anchors {
-                left: parent.left
-                top: parent.top
-                margins: 6
-            }
-            width: fpsLabel.implicitWidth + 12
-            height: 20
-            radius: 4
-            color: "#B0000000"
-            Text {
-                id: fpsLabel
-                anchors.centerIn: parent
-                // This counter measures map renders, not lightweight UI composition.
-                // Demand-driven rendering makes a low idle value expected.
-                text: mapRenderer.fps > 0 ? ("FPS: " + mapRenderer.fps + "   QRhi")
-                                    : "FPS: idle   QRhi"
-                color: "#7fdc8f"
-                font.pixelSize: 11
-                font.bold: true
-            }
-        }
 
         Rectangle {
             anchors {
@@ -857,211 +813,9 @@ Item {
             }
         }
 
-        Rectangle {
-            anchors {
-                left: parent.left
-                bottom: parent.bottom
-                margins: 8
-            }
-            visible: !workspace.fluentUi && !workspace.githubUi && mapView.hoverText.length > 0
-            width: hoverLabel.implicitWidth + 16
-            height: 22
-            radius: 4
-            color: "#B0000000"
-            Text {
-                id: hoverLabel
-                anchors.centerIn: parent
-                text: mapView.hoverText
-                color: "#ddd"
-                font.pixelSize: 11
-            }
-        }
     }
 
-    Rectangle {
-        id: githubStatus
-        visible: workspace.githubUi && Backend.otbmReader.loaded
-        anchors {
-            left: parent.left
-            right: parent.right
-            bottom: parent.bottom
-            leftMargin: 1
-            rightMargin: 1
-            bottomMargin: 1
-        }
-        height: visible ? 44 : 0
-        color: workspace.grayUi ? "#202020" : "#0F141B"
-        border {
-            width: 1
-            color: workspace.grayUi ? "#3A3A3A" : "#242D38"
-        }
 
-        Row {
-            visible: githubStatus.width >= 920
-            anchors {
-                left: parent.left
-                leftMargin: 16
-                verticalCenter: parent.verticalCenter
-            }
-            spacing: 10
-
-            GithubIcon {
-                width: 20
-                height: 20
-                anchors.verticalCenter: parent.verticalCenter
-                name: "target"
-                opacity: 0.8
-            }
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "Coordinates"
-                color: workspace.grayUi ? "#A0A0A0" : "#A7B1BC"
-                font.pixelSize: 12
-            }
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: mapView.hoverText.length > 0 ? mapView.hoverText : "\u2014"
-                color: mapView.hoverText.length > 0 ? (workspace.grayUi ? "#E8E8E8" : "#E6EDF3") : (workspace.grayUi ? "#777777" : "#6E7681")
-                font.pixelSize: 12
-            }
-        }
-
-        Row {
-            id: floorZoomStatus
-            visible: githubStatus.width >= 680
-            anchors.centerIn: parent
-            spacing: 14
-
-            GithubIcon {
-                width: 21
-                height: 21
-                anchors.verticalCenter: parent.verticalCenter
-                name: "layers"
-                opacity: 0.8
-            }
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "Floor"
-                color: workspace.grayUi ? "#A0A0A0" : "#A7B1BC"
-                font.pixelSize: 12
-            }
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "Z - " + mapView.floor
-                color: workspace.grayUi ? "#E8E8E8" : "#E6EDF3"
-                font.pixelSize: 12
-                font.weight: Font.DemiBold
-            }
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "\u2304"
-                color: workspace.grayUi ? "#929292" : "#8B949E"
-                font.pixelSize: 15
-            }
-
-            Rectangle {
-                width: 1
-                height: 20
-                color: workspace.grayUi ? "#3A3A3A" : "#242D38"
-                anchors.verticalCenter: parent.verticalCenter
-            }
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "Zoom"
-                color: workspace.grayUi ? "#A0A0A0" : "#A7B1BC"
-                font.pixelSize: 12
-            }
-
-            Text {
-                width: 44
-                anchors.verticalCenter: parent.verticalCenter
-                horizontalAlignment: Text.AlignRight
-                text: Math.round(mapView.tileSize / 32 * 100) + "%"
-                color: workspace.grayUi ? "#E8E8E8" : "#E6EDF3"
-                font.pixelSize: 12
-                font.weight: Font.DemiBold
-            }
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "\u2304"
-                color: workspace.grayUi ? "#929292" : "#8B949E"
-                font.pixelSize: 15
-            }
-
-        }
-
-        MouseArea {
-            anchors.fill: floorZoomStatus
-            acceptedButtons: Qt.NoButton
-            onWheel: wheel => mapView.zoomSteps(wheel.angleDelta.y > 0 ? 1 : -1)
-        }
-
-        Row {
-            anchors {
-                right: parent.right
-                rightMargin: 18
-                verticalCenter: parent.verticalCenter
-            }
-            spacing: 7
-
-            WorkTimerStatus {
-        popupHost: workspace.workTimerPopupHost
-                visible: workspace.settings.showWorkTimer && githubStatus.width >= 500
-                width: githubStatus.width < 680 ? 205 : 245
-                height: 30
-                anchors.verticalCenter: parent.verticalCenter
-                foreground: workspace.grayUi ? "#E0E0E0" : "#C9D1D9"
-                accent: workspace.grayUi ? "#C79A3B" : "#3FB950"
-            }
-
-            Rectangle {
-                visible: workspace.settings.showWorkTimer && githubStatus.width >= 500
-                width: 1
-                height: 20
-                color: workspace.grayUi ? "#3A3A3A" : "#242D38"
-                anchors.verticalCenter: parent.verticalCenter
-            }
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                visible: workspace.settings.showFps
-                text: mapRenderer.fps > 0 ? ("FPS " + mapRenderer.fps) : "FPS idle"
-                color: workspace.grayUi ? "#C79A3B" : "#3FB950"
-                font {
-                    pixelSize: 12
-                    weight: Font.DemiBold
-                }
-            }
-            Rectangle {
-                visible: workspace.settings.showFps
-                width: 7
-                height: 7
-                radius: 4
-                color: workspace.grayUi ? "#C79A3B" : "#3FB950"
-                anchors.verticalCenter: parent.verticalCenter
-            }
-        }
-    }
-
-    WorkTimerStatus {
-        popupHost: workspace.workTimerPopupHost
-        visible: workspace.settings.showWorkTimer && !workspace.fluentUi && !workspace.githubUi && Backend.otbmReader.loaded
-        anchors {
-            right: parent.right
-            bottom: parent.bottom
-            margins: 8
-        }
-        z: 80
-        foreground: "#E0E0E0"
-        accent: "#D1B34C"
-    }
 
     Rectangle {
         id: loadingOverlay
@@ -1070,10 +824,10 @@ Item {
         width: Math.min(420, parent.width - 40)
         height: 112
         z: 100
-        radius: workspace.githubUi ? 7 : 2
-        color: workspace.grayUi ? "#F01C1C1C" : (workspace.githubUi ? "#F0161B22" : "#F02A2A2A")
+        radius: 2
+        color: (("#F02A2A2A"))
         border.width: 1
-        border.color: workspace.grayUi ? "#454545" : (workspace.githubUi ? "#3B4654" : "#777")
+        border.color: (("#777"))
 
         Column {
             anchors { fill: parent; margins: 16 }
@@ -1081,14 +835,14 @@ Item {
 
             Text {
                 text: "Loading map in background"
-                color: workspace.grayUi ? "#F0F0F0" : (workspace.githubUi ? "#E6EDF3" : "#E0E0E0")
+                color: (("#E0E0E0"))
                 font.pixelSize: 13
                 font.bold: true
             }
             Text {
                 width: parent.width
                 text: Backend.otbmReader.loadingStage
-                color: workspace.grayUi ? "#999999" : (workspace.githubUi ? "#A7B1BC" : "#C0C0C0")
+                color: (("#C0C0C0"))
                 font.pixelSize: 11
                 elide: Text.ElideRight
             }
@@ -1096,12 +850,12 @@ Item {
                 width: parent.width
                 height: 7
                 radius: 4
-                color: workspace.grayUi ? "#292929" : (workspace.githubUi ? "#21262D" : "#151515")
+                color: (("#151515"))
                 Rectangle {
                     width: parent.width * Backend.otbmReader.loadingProgress / 100
                     height: parent.height
                     radius: parent.radius
-                    color: workspace.grayUi ? "#C79A3B" : (workspace.githubUi ? "#2EA043" : "#4FAE62")
+                    color: (("#4FAE62"))
 
                     Behavior on width {
                         NumberAnimation { duration: 25; easing.type: Easing.OutCubic }

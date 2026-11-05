@@ -154,7 +154,7 @@ Item {
         Components.PaletteItemGrid {
             width: 300; height: 150
             app: mockApp; mapCtrl: mockMap; filterModel: items
-            currentKind: "RAW Palette"; githubUi: false
+            currentKind: "RAW Palette"
         }
     }
     Component {
@@ -171,7 +171,7 @@ Item {
             width: 300; height: 150
             app: mockApp; mapCtrl: mockMap; filterModel: items
             itemIds: [500, 503, 506, 509, 512, 515]
-            categoryName: ""; searchText: ""; githubUi: false
+            categoryName: ""; searchText: ""
         }
     }
 
@@ -186,7 +186,7 @@ Item {
             oldTilesets = Backend.tilesetStore;
             Backend.otbReader = items;
             Backend.tilesetStore = tilesets;
-            Backend.uiTheme.style = "gray-dark";
+            Backend.uiTheme.style = "fluent-dark";
             prefs.paletteViewMode = "grid";
             prefs.hideInvisibleSprites = false;
             prefs.hideNamedItems = false;
@@ -280,7 +280,7 @@ Item {
             tryCompare(background,"active",false); compare(background.item,null);
         }
         function test_rawTilesetSurvivesRestart_data() {
-            return ["tibia-ui", "fluent-dark", "gray-dark", "gray-modern", "github", "classic", "windows-classic"]
+            return ["fluent-dark", "tibia-ui"]
                     .map(theme => ({tag: theme, theme: theme}));
         }
         function test_rawTilesetSurvivesRestart(data) {
@@ -297,10 +297,7 @@ Item {
             const kind = findChild(panel, "paletteKindCombo");
             if (data.theme !== "fluent-dark")
                 kind.handleActivation(kind.model.indexOf("RAW Palette"));
-            if (panel.githubUi)
-                findChild(panel, "githubPaletteTilesetCombo").activated(1);
-            else
-                findChild(panel, "paletteTilesetCombo").handleActivation(1);
+            findChild(panel, "paletteTilesetCombo").handleActivation(1);
             compare(settings.lastPaletteKind, "RAW Palette");
             compare(settings.lastRawTileset, "Stones / Rocks");
             panel.destroy();
@@ -360,7 +357,7 @@ Item {
             compare(findChild(panel, "doodadPaletteGrid").count, 0);
         }
         function test_selectRawOpensMatchingTileset_data() {
-            return ["classic", "windows-classic", "github", "gray-dark", "gray-modern", "fluent-dark", "tibia-ui"]
+            return ["fluent-dark", "tibia-ui"]
                     .map(theme => ({tag: theme, theme: theme}));
         }
         function test_selectRawOpensMatchingTileset(data) {
@@ -399,7 +396,7 @@ Item {
         }
         function test_drawReplacesPreviousPaletteSelection_data() {
             const cases = [];
-            for (const theme of ["classic", "windows-classic", "github", "gray-dark", "gray-modern", "fluent-dark"])
+            for (const theme of ["fluent-dark", "tibia-ui"])
                 for (const view of ["grid", "list"])
                     cases.push({tag: theme + "-" + view, theme, view});
             return cases;
@@ -440,8 +437,7 @@ Item {
             }
         }
         function test_hideNamedItems_data() {
-            return ["classic", "windows-classic", "github", "gray-dark",
-                    "gray-modern", "fluent-dark"].map(theme => ({tag: theme, theme}));
+            return ["fluent-dark", "tibia-ui"].map(theme => ({tag: theme, theme}));
         }
         function test_hideNamedItems(data) {
             Backend.uiTheme.style = data.theme;
@@ -454,19 +450,14 @@ Item {
             const itemGrid = findChild(panel, "paletteItemGrid");
 
             tryCompare(itemGrid, "count", 80);
-            const prefix = panel.fluentUi ? "fluent" : panel.githubUi ? "github" : "palette";
-            const hideNamed = findChild(panel, prefix + "HideNamedItems");
-            const hideInvisible = findChild(panel, prefix + "HideInvisibleSprites");
-            if (data.theme === "fluent-dark") {
-                verify(!findChild(panel, "paletteHideNamedItems").visible);
-                verify(!findChild(panel, "paletteHideInvisibleSprites").visible);
-                wait(50);
-                mouseClick(findChild(panel, "fluentFilterButton"));
-                tryCompare(findChild(panel, "fluentFilterMenu"), "visible", true);
-            } else {
-                tryVerify(() => hideNamed.mapToItem(panel, 0, 0).x >= hideInvisible.mapToItem(panel, hideInvisible.width, 0).x);
-                compare(hideNamed.mapToItem(panel, 0, 0).y, hideInvisible.mapToItem(panel, 0, 0).y, "Filters must appear side by side");
-            }
+            const filterButton = findChild(panel, "fluentFilterButton");
+            const filterMenu = findChild(panel, "fluentFilterMenu");
+            const hideNamed = findChild(panel, "fluentHideNamedItems");
+            verify(waitForRendering(filterButton));
+            mouseMove(filterButton);
+            filterButton.clicked();
+            tryCompare(filterMenu, "visible", true);
+            verify(waitForRendering(hideNamed));
             mouseClick(hideNamed, 7, 7);
             compare(prefs.hideNamedItems, true);
 
@@ -477,22 +468,21 @@ Item {
             tryCompare(itemGrid, "count", 1);
             compare(itemGrid.filterModel.serverIdAtRow(0), 509);
             itemGrid.filterModel.searchText = "";
-            if (panel.fluentUi) {
-                mouseClick(findChild(panel, "fluentFilterButton"));
-                tryCompare(findChild(panel, "fluentFilterMenu"), "visible", true);
-            }
+            verify(waitForRendering(filterButton));
+            mouseMove(filterButton);
+            filterButton.clicked();
+            tryCompare(filterMenu, "visible", true);
+            verify(waitForRendering(hideNamed));
             mouseClick(hideNamed, 7, 7);
             compare(prefs.hideNamedItems, false);
             tryCompare(itemGrid, "count", 80);
 
             panel.width = 225;
-            tryVerify(() => hideNamed.y > hideInvisible.y);
-            verify(hideNamed.x + hideNamed.width <= hideNamed.parent.width,
-                   "Narrow palettes must keep the checkbox within the panel");
+            verify(filterButton.visible);
             panel.selectKind("Creature Palette");
-            verify(!hideNamed.visible);
+            verify(!filterMenu.visible);
             panel.selectKind("House Palette");
-            verify(!hideNamed.visible);
+            verify(!filterMenu.visible);
         }
         function test_hideNamedDoodads() {
             items.setProperty(1, "itemName", "");
@@ -586,8 +576,7 @@ Item {
         }
         function test_selectCreatureAfterPaletteDropdown_data() {
             const rows = [];
-            for (const theme of ["classic", "windows-classic", "github", "gray-dark",
-                                 "gray-modern", "fluent-dark"]) {
+            for (const theme of ["fluent-dark", "tibia-ui"]) {
                 for (const isNpc of [false, true])
                     rows.push({tag: theme + (isNpc ? "-npc" : "-monster"), theme, isNpc});
             }
@@ -727,7 +716,7 @@ Item {
         }
         function test_spriteExportKeepsDoodadContext_data() {
             const rows = [];
-            for (const theme of ["gray-dark", "tibia-ui"])
+            for (const theme of ["fluent-dark", "tibia-ui"])
                 for (const doodad of [false, true])
                     rows.push({tag: theme + "-" + doodad, theme: theme, doodad: doodad});
             return rows;

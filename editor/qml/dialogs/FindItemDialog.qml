@@ -19,19 +19,11 @@ DmeDialog {
     property int total: 0
     property bool truncated: false
     readonly property bool propertyMode: searchMode === "properties"
-    readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
-    readonly property bool neutralUi: fluentUi || Backend.uiTheme.style === "gray-dark"
-                                      || Backend.uiTheme.style === "gray-modern"
-    readonly property color foreground: windowsClassic ? "#202020"
-        : fluentUi ? FluentColors.c("text") : "#f0f0f0"
-    readonly property color secondary: windowsClassic ? "#595959"
-        : fluentUi ? FluentColors.c("muted") : neutralUi ? "#b1b1b1" : "#a0a8b1"
-    readonly property color accent: windowsClassic ? "#0067c0"
-        : fluentUi ? FluentColors.c("accent") : "#4a9fc2"
-    readonly property color panelColor: windowsClassic ? "#f4f4f4"
-        : fluentUi ? FluentColors.c("surface") : neutralUi ? "#232323" : "#161b22"
-    readonly property color lineColor: windowsClassic ? "#ababab"
-        : fluentUi ? FluentColors.c("border") : neutralUi ? "#414141" : "#30363d"
+    readonly property color foreground: ((FluentColors.c("text")))
+    readonly property color secondary: ((FluentColors.c("muted")))
+    readonly property color accent: ((FluentColors.c("accent")))
+    readonly property color panelColor: ((FluentColors.c("surface")))
+    readonly property color lineColor: ((FluentColors.c("border")))
     readonly property color selectedColor: Qt.tint(panelColor,
         Qt.rgba(accent.r, accent.g, accent.b, 0.22))
     readonly property real viewportWidth: Controls.Overlay.overlay ? Controls.Overlay.overlay.width : 1024
@@ -357,7 +349,7 @@ DmeDialog {
                             objectName: "findItemResult_" + modelData.serverId
                             width: resultList.width - 10
                             height: 62
-                            radius: dialog.modernTheme ? 3 : 0
+                            radius: 3
                             color: resultList.currentIndex === index ? dialog.selectedColor
                                 : resultMouse.containsMouse ? Qt.tint(dialog.panelColor, "#16ffffff") : "transparent"
                             border.width: resultList.currentIndex === index ? 1 : 0
@@ -455,7 +447,7 @@ DmeDialog {
         color: dialog.lineColor
     }
     component SectionPanel: Rectangle {
-        radius: dialog.modernTheme ? 5 : 0
+        radius: 5
         color: dialog.panelColor
         border.color: dialog.lineColor
     }
@@ -469,7 +461,7 @@ DmeDialog {
         onClicked: dialog.chooseMode(mode)
         padding: 10
         background: Rectangle {
-            radius: dialog.modernTheme ? 4 : 0
+            radius: 4
             color: modeButton.checked ? dialog.selectedColor : dialog.panelColor
             border.color: modeButton.checked ? dialog.accent : modeButton.hovered ? dialog.secondary : dialog.lineColor
         }
@@ -520,10 +512,10 @@ DmeDialog {
         contentItem: RowLayout {
             spacing: 7
             Rectangle {
-                width: 13; height: 13; radius: dialog.modernTheme ? 2 : 0
+                width: 13; height: 13; radius: 2
                 color: propertyCheck.checked ? dialog.accent : "transparent"
                 border.color: propertyCheck.checked ? dialog.accent : dialog.secondary
-                Text { anchors.centerIn: parent; text: "\u2713"; visible: propertyCheck.checked; color: dialog.windowsClassic ? "white" : "#10202a"; font.pixelSize: 11 }
+                Text { anchors.centerIn: parent; text: "\u2713"; visible: propertyCheck.checked; color: "#10202a"; font.pixelSize: 11 }
             }
             Text { Layout.fillWidth: true; text: propertyCheck.text; color: dialog.foreground; font.family: "Segoe UI"; font.pixelSize: 11; wrapMode: Text.WordWrap }
         }

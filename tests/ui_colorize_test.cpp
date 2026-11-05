@@ -20,7 +20,14 @@ int main(int argc, char **argv)
     QCoreApplication::setApplicationName("UIColors");
     QSettings::setDefaultFormat(QSettings::IniFormat);
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDir.path());
+    qunsetenv("DME_UI_STYLE_OVERRIDE");
+    QSettings().setValue("ui/style", "gray-dark");
     UiTheme theme;
+    expect(theme.style() == "tibia-ui", "A retired saved theme must fall back to Tibia-UI");
+    const auto styles = theme.styles();
+    expect(styles.size() == 2, "Only the two supported themes must be listed");
+    expect(styles.at(0).toMap().value("id") == "fluent-dark"
+        && styles.at(1).toMap().value("id") == "tibia-ui", "Theme selector must list Fluent Dark and Tibia-UI");
     int changes = 0;
     QObject::connect(&theme, &UiTheme::colorsChanged, [&] { ++changes; });
     expect(!theme.setUiColor("selected", QColor("invalid")), "Invalid colors must be rejected");
@@ -52,5 +59,10 @@ int main(int argc, char **argv)
     expect(savedTheme.style()=="tibia-ui","Tibia-UI must survive restarting the editor");
     theme.setStyle("fluent-dark");
     expect(theme.style()=="fluent-dark","Switching back to Fluent must remain supported");
+    theme.setStyle("gray-dark");
+    expect(theme.style() == "fluent-dark", "A retired theme must not replace the active style");
+    qputenv("DME_UI_STYLE_OVERRIDE", "gray-dark");
+    UiTheme ignoredOverride;
+    expect(ignoredOverride.style() == "fluent-dark", "A retired override must preserve a supported saved theme");
     return EXIT_SUCCESS;
 }

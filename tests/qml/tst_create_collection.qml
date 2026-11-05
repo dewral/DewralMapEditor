@@ -49,7 +49,7 @@ Item {
             created.target = null;
             created.clear();
         }
-        function cleanup() { Backend.uiTheme.style = "gray-dark"; }
+        function cleanup() { Backend.uiTheme.style = "fluent-dark"; }
         function openDialog() {
             const dialog = createTemporaryObject(dialogComponent, testRoot);
             verify(dialog);
@@ -59,7 +59,7 @@ Item {
             return dialog;
         }
         function test_previewAndSave_data() {
-            return ["classic", "windows-classic", "github", "gray-dark", "gray-modern", "fluent-dark"]
+            return ["fluent-dark", "tibia-ui"]
                     .map(theme => ({tag: theme, theme}));
         }
         function test_previewAndSave(data) {

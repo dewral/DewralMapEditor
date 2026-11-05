@@ -23,9 +23,6 @@ DmeDialog {
                                         && Number(itemIdField.text) <= 65535
     readonly property var displayedUsage: locationsSearched ? locations : usage
     property int problemPositionIndex: 0
-    readonly property bool githubUi: Backend.uiTheme.style !== "classic"
-                                     && Backend.uiTheme.style !== "windows-classic"
-    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     title: "Map Analyzer"
     width: 820
@@ -283,7 +280,7 @@ DmeDialog {
                     width: usageList.width
                     height: modelData.containerPath && modelData.containerPath.length ? 64 : 48
                     color: usageList.currentIndex === index
-                           ? (dialog.grayUi ? "#4A3A1F" : "#163B2C")
+                           ? ("#163B2C")
                            : (usageMouse.containsMouse ? "#242A31" : "transparent")
                     Row {
                         anchors.fill: parent
@@ -356,7 +353,7 @@ DmeDialog {
                     width: problemList.width
                     height: modelData.positions && modelData.positions.length > 1 ? 66 : 50
                     color: problemList.currentIndex === index
-                           ? (dialog.grayUi ? "#4A3A1F" : "#3B2525")
+                           ? ("#3B2525")
                            : (problemMouse.containsMouse ? "#242A31" : "transparent")
                     Column {
                         anchors.left: parent.left; anchors.right: parent.right

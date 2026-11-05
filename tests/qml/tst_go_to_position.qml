@@ -37,7 +37,7 @@ Item {
 
         function test_paste_data() {
             var rows = [];
-            for (const theme of ["classic", "github", "gray-dark", "fluent-dark"]) {
+            for (const theme of ["fluent-dark", "tibia-ui"]) {
                 for (var field = 0; field < 3; ++field) {
                     rows.push({tag: theme + "-ctrl-v-" + field,
                                theme: theme, field: field, button: false});

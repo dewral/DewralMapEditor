@@ -84,13 +84,13 @@ Item {
         function init() {
             controller.queryBusy = false; controller.searches = []; controller.destination = []; controller.cancellations = 0;
             scene.height = 780;
-            panel.visible = true; panel.width = 340; Backend.uiTheme.style = "gray-dark";
+            panel.visible = true; panel.width = 340; Backend.uiTheme.style = "fluent-dark";
             panel.openSearch("unique", false);
         }
         function cleanup() { panel.close(); controller.finish({cancelled: true}); }
 
         function test_navigationAndContents_data() {
-            return ["classic", "windows-classic", "github", "gray-dark", "gray-modern", "fluent-dark", "tibia-ui"]
+            return ["fluent-dark", "tibia-ui"]
                 .map(theme => ({tag: theme, theme: theme}));
         }
         function test_navigationAndContents(data) {
@@ -183,7 +183,7 @@ Item {
             lazyTool.active = false;
         }
         function test_expansionKeepsViewport_data() {
-            return ["classic", "windows-classic", "github", "gray-dark", "gray-modern", "fluent-dark", "tibia-ui"]
+            return ["fluent-dark", "tibia-ui"]
                 .map(theme => ({tag: theme, theme: theme}));
         }
         function test_expansionKeepsViewport(data) {

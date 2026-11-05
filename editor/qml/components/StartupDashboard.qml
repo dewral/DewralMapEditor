@@ -30,7 +30,7 @@ Item {
             ColumnLayout {
                 anchors.fill:parent;anchors.margins:16;spacing:12
                 RowLayout {
-                    Image {Layout.preferredWidth:28;Layout.preferredHeight:28;source:"qrc:/ui/github/app-icon.png"}
+                    Image {Layout.preferredWidth:28;Layout.preferredHeight:28;source:"qrc:/ui/app-icon.png"}
                     ColumnLayout {
                         Label {text:"Dewral Map Editor";font.bold:true;font.pixelSize:17}
                         Label {text:"Map workspace";color:"#aaa99f"}

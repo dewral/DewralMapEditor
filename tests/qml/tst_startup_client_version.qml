@@ -50,7 +50,6 @@ TestCase {
     }
 
     function newSession(loadProfiles) {
-        ignoreWarning(/.*Cannot open: qrc:\/ui\/github\/app-icon\.png/);
         const session = sessionComponent.createObject(testCase);
         verify(session !== null);
         if (loadProfiles !== false)

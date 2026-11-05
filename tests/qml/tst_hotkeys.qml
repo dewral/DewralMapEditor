@@ -154,7 +154,11 @@ Item {
             compare(testHotkeys.bindings.go_to_position, "Ctrl+G");
             compare(testHotkeys.bindings.save, "Ctrl+S");
         }
-        function test_preferencesHasHotkeysTab() {
+        function test_preferencesHasHotkeysTab_data() {
+            return ["fluent-dark", "tibia-ui"].map(theme => ({tag: theme, theme: theme}));
+        }
+        function test_preferencesHasHotkeysTab(data) {
+            Backend.uiTheme.style = data.theme;
             Backend.hotkeys = testHotkeys;
             const dialog = createTemporaryObject(preferencesComponent, root);
             verify(dialog !== null);
@@ -162,7 +166,11 @@ Item {
             tryCompare(dialog, "opened", true);
             const tab = visualChild(dialog.contentItem, "preferencesTabHotkeys");
             verify(tab !== null);
-            mouseClick(tab);
+            const target = data.theme === "tibia-ui"
+                         ? findChild(tab, "preferencesTabHotkeysButton") : tab;
+            verify(target !== null);
+            waitForRendering(target);
+            mouseClick(target);
             compare(dialog.page, 5);
             const hotkeysPage = findChild(dialog, "preferencesHotkeys");
             verify(hotkeysPage.visible);

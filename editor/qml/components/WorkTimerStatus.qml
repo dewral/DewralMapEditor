@@ -24,18 +24,15 @@ Item {
     property var selectedSession: null
     property string pendingTimerRemoval: ""
     property bool showTimerDetails: false
-    readonly property bool fluentTheme: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
-    readonly property bool grayTheme: fluentTheme || Backend.uiTheme.style === "gray-dark"
-                                      || Backend.uiTheme.style === "gray-modern"
-    readonly property color panelColor: grayTheme ? "#202122" : "#0F141B"
-    readonly property color cardColor: grayTheme ? "#292b2d" : "#151B23"
-    readonly property color inputColor: grayTheme ? "#202020" : "#0D1117"
-    readonly property color hoverColor: grayTheme ? "#303030" : "#1B2632"
-    readonly property color borderColor: grayTheme ? "#414447" : "#2D3743"
-    readonly property color strongText: grayTheme ? "#F0F0F0" : "#F0F3F6"
-    readonly property color mutedText: grayTheme ? "#9A9A9A" : "#8B949E"
-    readonly property color subtleText: grayTheme ? "#777777" : "#6E7681"
-    readonly property color activeFill: fluentTheme ? "#414447" : grayTheme ? "#4A3A1F" : "#163B2C"
+    readonly property color panelColor: "#202122"
+    readonly property color cardColor: "#292b2d"
+    readonly property color inputColor: "#202020"
+    readonly property color hoverColor: "#303030"
+    readonly property color borderColor: "#414447"
+    readonly property color strongText: "#F0F0F0"
+    readonly property color mutedText: "#9A9A9A"
+    readonly property color subtleText: "#777777"
+    readonly property color activeFill: "#414447"
 
     function durationFromText(value) {
         var parts = value.split(":")
@@ -47,7 +44,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: Backend.uiTheme.style === "tibia-ui" ? 0 : root.statusBarMode ? 4 : root.fluentTheme ? 0 : 4
+        radius: Backend.uiTheme.style === "tibia-ui" ? 0 : root.statusBarMode ? 4 : 0
         color: hit.containsMouse ? root.hoverColor : "transparent"
     }
     RowLayout {
@@ -129,7 +126,7 @@ Item {
 
             Rectangle {
                 anchors.fill: parent
-                radius: Backend.uiTheme.style === "tibia-ui" ? 0 : root.statusBarMode ? 4 : root.fluentTheme ? 0 : 4
+                radius: Backend.uiTheme.style === "tibia-ui" ? 0 : root.statusBarMode ? 4 : 0
                 color: statusToggleMouse.containsMouse ? root.activeFill : "transparent"
                 border.width: root.tibiaStatus ? 0 : root.statusBarMode || root.timerService.active ? 1 : 0
                 border.color: root.accent

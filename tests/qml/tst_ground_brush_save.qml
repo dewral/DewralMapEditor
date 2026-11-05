@@ -72,7 +72,7 @@ Item {
             Backend.uiTheme.style = previousTheme
         }
         function test_renameOnSave_data() {
-            return ["classic", "windows-classic", "github", "gray-dark", "gray-modern", "fluent-dark"]
+            return ["fluent-dark", "tibia-ui"]
                 .map(theme => ({tag: theme, theme: theme}))
         }
         function test_renameOnSave(data) {

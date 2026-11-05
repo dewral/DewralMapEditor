@@ -1,7 +1,4 @@
 import QtQuick
-import "../themes/classic/controls" as Classic
-import "../themes/github/controls" as Github
-import "../themes/gray/controls" as Gray
 import "../themes/fluent/controls" as Fluent
 import Tibia 1.0
 
@@ -24,22 +21,7 @@ Item {
         root.activated(index);
     }
 
-    Loader { id: controlLoader; anchors.fill: parent; sourceComponent: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui") ? fluentCombo : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicCombo : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayCombo : githubCombo) }
-    Component {
-        id: classicCombo
-        Classic.ClassicComboBox {
-            model: root.model; currentIndex: root.currentIndex; enabled: root.enabled
-            onActivated: index => root.handleActivation(index)
-        }
-    }
-    Component {
-        id: githubCombo
-        Github.GithubComboBox {
-            model: root.model; currentIndex: root.currentIndex; enabled: root.enabled
-            onActivated: index => root.handleActivation(index)
-        }
-    }
-    Component { id: grayCombo; Gray.GrayComboBox { model: root.model; currentIndex: root.currentIndex; enabled: root.enabled; onActivated: index => root.handleActivation(index) } }
+    Loader { id: controlLoader; anchors.fill: parent; sourceComponent: fluentCombo }
     Component {
         id: fluentCombo
         Fluent.FluentComboBox {

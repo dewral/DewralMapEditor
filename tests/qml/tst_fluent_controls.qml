@@ -20,7 +20,7 @@ Item {
     }
     Components.FluentFileBar { id: bar; width: parent.width; height: 40; mapView: map }
     Components.FluentTools { id: tools; y: 60; width: 265; mapView: map }
-    Components.PaletteBrushSizeSelector { id: brush; y: 200; width: 265; mapCtrl: map; githubUi: false }
+    Components.PaletteBrushSizeSelector { id: brush; y: 200; width: 265; mapCtrl: map }
     TestCase {
         name: "FluentControls"
         when: windowShown

@@ -14,7 +14,7 @@ DmeDialog {
     property var originalServerIds: []
     property var pendingServerIds: []
     property string errorText: ""
-    readonly property color textColor: windowsClassic ? "#202020" : "#C9D1D9"
+    readonly property color textColor: "#C9D1D9"
     signal collectionCreated(string name, int firstServerId)
 
     title: "Create Collection"
@@ -116,8 +116,8 @@ DmeDialog {
                     required property int modelData
                     width: items.cellWidth - 4
                     height: items.cellHeight - 4
-                    color: dialog.windowsClassic ? "#FFFFFF" : "#242424"
-                    border.color: dialog.windowsClassic ? "#808080" : "#424242"
+                    color: "#242424"
+                    border.color: "#424242"
                     readonly property string itemName: dialog.itemName(modelData)
                     Image {
                         anchors.horizontalCenter: parent.horizontalCenter
@@ -176,7 +176,7 @@ DmeDialog {
             Layout.fillWidth: true
             visible: text.length > 0
             text: dialog.errorText
-            color: dialog.windowsClassic ? "#A00000" : "#F85149"
+            color: "#F85149"
             font.pixelSize: 12
             wrapMode: Text.WordWrap
         }

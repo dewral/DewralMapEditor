@@ -8,9 +8,6 @@ DmeDialog {
     id: dialog
 
     property int initialServerId: 0
-    readonly property bool githubUi: Backend.uiTheme.style !== "classic"
-                                     && Backend.uiTheme.style !== "windows-classic"
-    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     signal itemSelected(int serverId)
 
@@ -61,7 +58,7 @@ DmeDialog {
         Text {
             width: parent.width
             text: "Search by server ID or item name:"
-            color: dialog.githubUi ? "#C9D1D9" : "#c0c0c0"
+            color: "#C9D1D9"
             font.pixelSize: 11
         }
 
@@ -112,9 +109,9 @@ DmeDialog {
                     width: itemList.width
                     height: 54
                     color: itemList.currentIndex === index
-                           ? (dialog.githubUi ? (dialog.grayUi ? "#4A3A1F" : "#163B2C") : "#505050")
+                           ? ((("#163B2C")))
                            : (rowMouse.containsMouse
-                              ? (dialog.githubUi ? (dialog.grayUi ? "#303030" : "#161E27") : "#383838")
+                              ? ((("#161E27")))
                               : "transparent")
 
                     Image {

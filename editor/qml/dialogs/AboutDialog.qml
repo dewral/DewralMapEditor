@@ -8,10 +8,8 @@ DmeDialog {
     title: "About"
     width: 440
 
-    readonly property color primaryText: dialog.grayTheme ? "#F0F0F0"
-                                                          : (dialog.modernTheme ? "#E6EDF3" : "#C0C0C0")
-    readonly property color secondaryText: dialog.grayTheme ? "#A0A0A0"
-                                                            : (dialog.modernTheme ? "#8B949E" : "#8A8A8A")
+    readonly property color primaryText: (("#E6EDF3"))
+    readonly property color secondaryText: (("#8B949E"))
     readonly property string githubUrl: "https://github.com/dewral/DewralMapEditor"
 
     contentItem: Column {
@@ -37,7 +35,7 @@ DmeDialog {
             text: "<a href=\"" + dialog.githubUrl + "\">" + dialog.githubUrl + "</a>"
             textFormat: Text.RichText
             color: dialog.primaryText
-            linkColor: dialog.modernTheme ? "#58A6FF" : "#80A0C0"
+            linkColor: "#58A6FF"
             font.pixelSize: 12
             onLinkActivated: link => Qt.openUrlExternally(link)
 
@@ -49,7 +47,7 @@ DmeDialog {
         Rectangle {
             width: parent.width
             height: 1
-            color: dialog.modernTheme ? (dialog.grayTheme ? "#3A3A3A" : "#30363D") : "#555555"
+            color: (("#30363D"))
         }
 
         Text {

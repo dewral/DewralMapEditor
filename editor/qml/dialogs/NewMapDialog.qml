@@ -9,7 +9,7 @@ DmeDialog {
     property string preferredProfileKey: app.loadedClientKey
 
     title: "New Map"
-    readonly property color labelColor: windowsClassic ? "#202020" : tibiaTheme ? "#e0e0e0" : "#999"
+    readonly property color labelColor: (tibiaTheme ? "#e0e0e0" : "#999")
 
     property var profileKeys: []
     onAboutToShow: {

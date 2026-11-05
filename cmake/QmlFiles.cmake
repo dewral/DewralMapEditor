@@ -13,12 +13,10 @@ set(DME_QML_FILES
     editor/qml/components/DmeStatusBar.qml
     editor/qml/components/DocumentTabs.qml
     editor/qml/components/DoodadPaletteGrid.qml
-    editor/qml/components/EditorToolBar.qml
     editor/qml/components/FluentFileBar.qml
     editor/qml/components/FluentTools.qml
     editor/qml/components/GenerationMaskOverlay.qml
     editor/qml/components/GeneratorMaterialSlot.qml
-    editor/qml/components/GithubPaletteCombo.qml
     editor/qml/components/GroundBrushPicker.qml
     editor/qml/components/HotkeysPage.qml
     editor/qml/components/HousePaletteView.qml
@@ -117,19 +115,9 @@ set(DME_QML_FILES
     editor/qml/style/DmeSeparator.qml
     editor/qml/style/DmeSpinBox.qml
     editor/qml/style/DmeTextField.qml
-    editor/qml/style/GithubIcon.qml
-    editor/qml/style/GithubToolTip.qml
-    editor/qml/style/GithubWindowButton.qml
+    editor/qml/style/DmeToolTip.qml
+    editor/qml/style/DmeWindowButton.qml
     editor/qml/style/TooltipSurface.qml
-    editor/qml/themes/classic/controls/ClassicButton.qml
-    editor/qml/themes/classic/controls/ClassicCheckBox.qml
-    editor/qml/themes/classic/controls/ClassicComboBox.qml
-    editor/qml/themes/classic/controls/ClassicDarkButton.qml
-    editor/qml/themes/classic/controls/ClassicDialogBackground.qml
-    editor/qml/themes/classic/controls/ClassicPanel.qml
-    editor/qml/themes/classic/controls/ClassicSeparator.qml
-    editor/qml/themes/classic/controls/ClassicSpinBox.qml
-    editor/qml/themes/classic/controls/ClassicTextField.qml
     editor/qml/themes/fluent/Colors.js
     editor/qml/themes/fluent/controls/FluentButton.qml
     editor/qml/themes/fluent/controls/FluentCheckBox.qml
@@ -139,26 +127,6 @@ set(DME_QML_FILES
     editor/qml/themes/fluent/controls/FluentSeparator.qml
     editor/qml/themes/fluent/controls/FluentSpinBox.qml
     editor/qml/themes/fluent/controls/FluentTextField.qml
-    editor/qml/themes/github/GithubActivityRail.qml
-    editor/qml/themes/github/GithubDocumentTabs.qml
-    editor/qml/themes/github/GithubEditorToolBar.qml
-    editor/qml/themes/github/ModernMapToolRail.qml
-    editor/qml/themes/github/controls/GithubButton.qml
-    editor/qml/themes/github/controls/GithubCheckBox.qml
-    editor/qml/themes/github/controls/GithubComboBox.qml
-    editor/qml/themes/github/controls/GithubDialogBackground.qml
-    editor/qml/themes/github/controls/GithubPanel.qml
-    editor/qml/themes/github/controls/GithubSeparator.qml
-    editor/qml/themes/github/controls/GithubSpinBox.qml
-    editor/qml/themes/github/controls/GithubTextField.qml
-    editor/qml/themes/gray/controls/GrayButton.qml
-    editor/qml/themes/gray/controls/GrayCheckBox.qml
-    editor/qml/themes/gray/controls/GrayComboBox.qml
-    editor/qml/themes/gray/controls/GrayDialogBackground.qml
-    editor/qml/themes/gray/controls/GrayPanel.qml
-    editor/qml/themes/gray/controls/GraySeparator.qml
-    editor/qml/themes/gray/controls/GraySpinBox.qml
-    editor/qml/themes/gray/controls/GrayTextField.qml
     editor/qml/themes/tibia/TibiaClassicFrame.qml
     editor/qml/themes/tibia/TibiaClientFrame.qml
     editor/qml/themes/tibia/TibiaMapScrollBar.qml

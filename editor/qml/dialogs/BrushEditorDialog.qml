@@ -30,17 +30,14 @@ DmeDialog {
     property int pickerSelectionAnchor: -1
     property int pickerCellSize: 52
 
-    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
-    readonly property bool windowsClassicUi: Backend.uiTheme.style === "windows-classic"
-    readonly property bool modernUi: Backend.uiTheme.style !== "classic" && !windowsClassicUi
-    readonly property color textColor: windowsClassicUi ? "#202020" : (grayUi ? "#F0F0F0" : (modernUi ? "#F0F6FC" : "#D0D0D0"))
-    readonly property color mutedColor: windowsClassicUi ? "#606060" : (grayUi ? "#A0A0A0" : (modernUi ? "#8B949E" : "#999999"))
-    readonly property color panelColor: windowsClassicUi ? "#f0f0f0" : (grayUi ? "#242424" : (modernUi ? "#0D1117" : "#252525"))
-    readonly property color cellColor: windowsClassicUi ? "#ffffff" : (grayUi ? "#2D2D2D" : (modernUi ? "#161B22" : "#252525"))
-    readonly property color borderColor: windowsClassicUi ? "#ababab" : (grayUi ? "#494949" : (modernUi ? "#30363D" : "#3A3A3A"))
-    readonly property color accentColor: windowsClassicUi ? "#0a64ad" : (grayUi ? "#C79A3B" : (modernUi ? "#2EA043" : "#7FDC8F"))
-    readonly property color membershipColor: windowsClassicUi ? "#0a64ad" : "#58A6FF"
-    readonly property color membershipTextColor: windowsClassicUi ? "#FFFFFF" : "#0D1117"
+    readonly property color textColor: (((("#F0F6FC"))))
+    readonly property color mutedColor: (((("#8B949E"))))
+    readonly property color panelColor: (((("#0D1117"))))
+    readonly property color cellColor: (((("#161B22"))))
+    readonly property color borderColor: (((("#30363D"))))
+    readonly property color accentColor: (((("#2EA043"))))
+    readonly property color membershipColor: "#58A6FF"
+    readonly property color membershipTextColor: "#0D1117"
 
     property var tilesetCategoryCodes: ["terrain", "doodad", "item", "raw", "collection", "door"]
     property var tilesetCategoryLabels: ["Terrain", "Doodads", "Items", "RAW", "Collections", "Doors"]
@@ -877,7 +874,7 @@ DmeDialog {
                 Rectangle {
                     width: 14
                     height: 14
-                    radius: root.modernUi ? 3 : 0
+                    radius: 3
                     color: root.membershipColor
                     Text {
                         anchors.centerIn: parent
@@ -933,7 +930,7 @@ DmeDialog {
                         color: cellMa.containsMouse ? Qt.lighter(root.cellColor, 1.18) : root.cellColor
                         border.color: selected ? root.accentColor : root.borderColor
                         border.width: selected ? 2 : 1
-                        radius: root.modernUi ? 4 : 0
+                        radius: 4
 
                         Image {
                             anchors.centerIn: parent
@@ -953,7 +950,7 @@ DmeDialog {
                             width: idLabel.implicitWidth + 6
                             height: idLabel.implicitHeight + 2
                             radius: 2
-                            color: root.grayUi ? "#CC242424" : "#CC0D1117"
+                            color: "#CC0D1117"
                             Text {
                                 id: idLabel
                                 anchors.centerIn: parent
@@ -971,7 +968,7 @@ DmeDialog {
                             anchors.margins: 3
                             width: 14
                             height: 14
-                            radius: root.modernUi ? 3 : 0
+                            radius: 3
                             color: root.membershipColor
                             Text {
                                 anchors.centerIn: parent
@@ -1278,9 +1275,9 @@ DmeDialog {
                                 readonly property bool selected: root.selectedTilesetItems.indexOf(Number(modelData)) >= 0
                                 width: 70
                                 height: 76
-                                radius: root.modernUi ? 5 : 0
+                                radius: 5
                                 color: selected
-                                       ? (root.grayUi ? "#4A3A1F" : "#163B2C") : root.cellColor
+                                       ? ("#163B2C") : root.cellColor
                                 border.width: selected ? 2 : 1
                                 border.color: selected
                                               ? root.accentColor : root.borderColor
@@ -1509,7 +1506,7 @@ DmeDialog {
                             objectName: "brushManagerDoodadItem" + index
                             width: doodadItemsList.width - 12
                             height: 64
-                            radius: root.modernUi ? 5 : 0
+                            radius: 5
                             color: root.cellColor
                             border.color: root.borderColor
                             Row {
@@ -1610,9 +1607,9 @@ DmeDialog {
                                     readonly property var ids: root.doodadCellItems[index] || []
                                     width: 70
                                     height: 70
-                                    radius: root.modernUi ? 5 : 0
+                                    radius: 5
                                     clip: true
-                                    color: doodadDrop.containsDrag ? (root.grayUi ? "#5A4721" : "#163B2C")
+                                    color: doodadDrop.containsDrag ? ("#163B2C")
                                                                       : root.cellColor
                                     border.width: doodadDrop.containsDrag ? 2 : 1
                                     border.color: doodadDrop.containsDrag ? root.accentColor : root.borderColor

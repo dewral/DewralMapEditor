@@ -83,7 +83,7 @@ Item {
             compare(locate("findItemName").text,"wooden door");
         }
         function test_typeImmediately_data() {
-            return ["fluent-dark","gray-dark","gray-modern","github-dark","classic","windows-classic"].map(theme=>({tag:theme,theme:theme}));
+            return ["fluent-dark", "tibia-ui"].map(theme=>({tag:theme,theme:theme}));
         }
         function test_typeImmediately(data) {
             search.close();tryCompare(search,"visible",false);
@@ -122,11 +122,6 @@ Item {
         function test_layout_data() {
             return [
                 {tag:"fluent",theme:"fluent-dark",width:1100,height:820},
-                {tag:"gray",theme:"gray-dark",width:1100,height:820},
-                {tag:"gray-modern",theme:"gray-modern",width:1000,height:750},
-                {tag:"github",theme:"github-dark",width:1100,height:820},
-                {tag:"classic",theme:"classic",width:1000,height:750},
-                {tag:"windows-classic",theme:"windows-classic",width:1000,height:750},
                 {tag:"compact",theme:"fluent-dark",width:800,height:600},
                 {tag:"short",theme:"fluent-dark",width:900,height:480}
             ];

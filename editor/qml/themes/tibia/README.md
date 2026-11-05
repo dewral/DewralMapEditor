@@ -82,7 +82,7 @@ Workspace popup polish: Palette and Tools use the exact Dudantas client
 caption. Their caption is 17px, with 8px inner spacing and native close/lock
 buttons. Sidebar content, caption hit areas and dock handles share these metrics.
 Map tabs are 24px high and use native close buttons; the status strip is 32px.
-These sizes apply only to Tibia-UI. Other editor themes keep their geometry.
+These sizes apply only to Tibia-UI. Fluent Dark keeps its own geometry.
 
 
 ## Shared embedded windows

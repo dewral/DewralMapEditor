@@ -59,8 +59,7 @@ multi-floor Tibia maps.
   entry, right-click it in the collection and choose **Remove from "name"**.
 - Includes an In-game Preview that can float in its own window or dock on either side of the editor. Drag its inner header to an edge, or use Dock left / Dock right / Open in separate window. Dock width is resizable, and the side and width are remembered.
 - Loads maps even when optional house and spawn sidecar files are absent.
-- Offers Fluent Dark, GitHub Dark, gray themes, Windows Classic and the
-  Tibia-inspired Classic UI through the theme settings.
+- Offers Fluent Dark and Tibia-UI through the theme settings.
 - Produces a self-contained Windows release folder and ZIP archive.
 
 ## Screenshots
@@ -127,12 +126,10 @@ wall PNGs use the 2×2 shape layout. Both preserve transparency and native pixel
 Save any brush edits first to include them in the archive. **Export PNG…** still
 exports the current brush draft individually.
 
-### Classic UI
+### Tibia-UI
 
-The interface can be changed at any time in the theme settings. Choose the
-Fluent Dark, the modern GitHub-inspired layout or the textured, Tibia-inspired Classic UI.
-
-![Dewral Map Editor using the Tibia-inspired Classic UI](docs/screenshots/classic-interface.png)
+Tibia-UI uses the classic client’s textures, controls and In-game Preview sidebar.
+Switch between Tibia-UI and Fluent Dark in **Preferences → Interface → Theme**.
 
 ## Download and run
 

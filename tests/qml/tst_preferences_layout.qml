@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import Tibia 1.0
 import "../../editor/qml/dialogs" as Dialogs
 Item {
     id: root
@@ -41,7 +42,14 @@ Item {
     TestCase {
         name: "PreferencesLayout"
         when: windowShown
-        function test_pages_stay_above_footer() {
+        function test_pages_stay_above_footer_data() {
+            return ["fluent-dark", "tibia-ui"].map(theme => ({tag: theme, theme: theme}));
+        }
+        function test_pages_stay_above_footer(data) {
+            Backend.uiTheme.style = data.theme;
+            prefs.lightingMinimumZoom = 25;
+            prefs.creatureNamesMinimumZoom = 25;
+            map.selectionOpacity = 0.25;
             const dialog = createTemporaryObject(dialogComponent, root);
             verify(dialog !== null);
             dialog.height = 440;
@@ -62,7 +70,7 @@ Item {
             }
             const slider = findChild(dialog, "tooltipMinimumZoomSlider");
             verify(slider !== null);
-            compare(slider.handle.width, 16);
+            compare(slider.handle.width, data.theme === "tibia-ui" ? 28 : 16);
             const opacity = findChild(dialog, "selectionOpacitySlider");
             verify(opacity !== null);
             opacity.value = 70;

@@ -43,7 +43,7 @@ Item {
             locate("findZones").clicked();
             compare(map.calls[0][0],42); compare(map.calls[0][1],true); compare(dialog.total,1);
         }
-        function test_themes_data() { return [{tag:"Fluent",style:"fluent-dark"},{tag:"Gray",style:"gray-dark"},{tag:"Github",style:"github-dark"},{tag:"Classic",style:"classic"}]; }
+        function test_themes_data() { return [{tag:"Fluent",style:"fluent-dark"},{tag:"Tibia",style:"tibia-ui"}]; }
         function test_themes(data) {
             Backend.uiTheme.style=data.style; wait(30);
             verify(dialog.contentItem.width<=dialog.width);

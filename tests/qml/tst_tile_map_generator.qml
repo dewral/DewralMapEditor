@@ -205,7 +205,7 @@ Item {
             dialog.saveProfile(true); compare(Backend.tileMapGenProfiles.profiles.length, 2);
         }
         function test_themeLayout_data() {
-            return ["fluent-dark", "github", "gray-dark", "gray-modern", "classic", "windows-classic"].map(style => ({tag: style, style: style}));
+            return ["fluent-dark", "tibia-ui"].map(style => ({tag: style, style: style}));
         }
         function test_incompatibleSavedBrushDisablesGeneration() {
             dialog.selectGround(field("tileMapFloor"), "rock");

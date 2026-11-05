@@ -17,10 +17,6 @@ Item {
     required property var itemIds
     required property string categoryName
     required property string searchText
-    readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
-    required property bool githubUi
-    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
-                                   || Backend.uiTheme.style === "gray-modern"
     readonly property int fluentCellSize: root.app.iconSizePx
     readonly property bool listView: root.app.settings.paletteViewMode === "list"
 
@@ -116,21 +112,18 @@ Item {
     GridView {
         id: grid
         objectName: "paletteGrid"
-        readonly property int gap: root.githubUi ? 8 : 2
+        readonly property int gap: 2
         readonly property int fluentColumns: Math.max(1, (Backend.uiTheme.style === "tibia-ui" ? Math.floor(width / root.fluentCellSize) : Math.round(width / root.fluentCellSize)))
-        readonly property int preferredWidth: root.githubUi ? Math.max(72, root.app.iconSizePx + 14)
-                                                          : root.app.iconSizePx
+        readonly property int preferredWidth: root.app.iconSizePx
         readonly property int columns: root.listView ? 1
                                                     : Math.max(1, Math.floor((width + gap) / (preferredWidth + gap)))
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        width: parent.width - (Backend.uiTheme.style === "tibia-ui" ? 14 : root.githubUi ? 4 : 14)
+        width: parent.width - (Backend.uiTheme.style === "tibia-ui" ? 14 : 14)
         clip: true
-        cellWidth: root.listView ? grid.width : root.fluentUi ? Math.floor(grid.width / grid.fluentColumns) : root.githubUi ? Math.max(1, Math.floor(width / columns)) : root.app.iconSizePx
-        cellHeight: root.listView ? Math.max(48, root.app.iconSizePx * 0.72) : root.fluentUi ? grid.cellWidth : root.githubUi ? (root.listView ? Math.max(48, root.app.iconSizePx * 0.72)
-                                                  : root.app.iconSizePx + 22)
-                                  : root.app.iconSizePx
+        cellWidth: root.listView ? grid.width : (Math.floor(grid.width / grid.fluentColumns))
+        cellHeight: root.listView ? Math.max(48, root.app.iconSizePx * 0.72) : grid.cellWidth
         model: root.entries
 
         delegate: Rectangle {
@@ -138,7 +131,7 @@ Item {
                 id: cellMotion
                 view: grid
                 targetCell: cell
-                enabled: root.fluentUi || root.githubUi
+                enabled: true
             }
             opacity: cellMotion.reveal
             id: cell
@@ -155,14 +148,14 @@ Item {
 
             width: grid.cellWidth - grid.gap
             height: grid.cellHeight - grid.gap
-            radius: root.fluentUi ? 1 : root.githubUi ? 4 : 0
+            radius: 1
             clip: true
-            color: selected ? (root.fluentUi ? Colors.c("selectedCell") : root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
-                            : (area.containsMouse ? (root.githubUi ? (root.grayUi ? "#303030" : "#161E27") : "#303030")
-                                                  : (root.githubUi ? (root.grayUi ? "#242424" : "#0D1117") : (root.fluentUi ? Colors.c("cell") : "#252525")))
+            color: selected ? ((Colors.c("selectedCell")))
+                            : (area.containsMouse ? ("#303030")
+                                                  : ((((Colors.c("cell"))))))
             border.width: selected ? 2 : 1
-            border.color: selected ? (root.fluentUi ? Colors.c("selectedBorder") : root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
-                                   : (root.githubUi ? (root.grayUi ? "#424242" : "#202A35") : (root.fluentUi ? Colors.c("cellBorder") : "#3a3a3a"))
+            border.color: selected ? ((Colors.c("selectedBorder")))
+                                   : ((((Colors.c("cellBorder")))))
 
             Loader {
                 anchors.fill: parent
@@ -175,7 +168,7 @@ Item {
                 anchors.horizontalCenter: root.listView ? undefined : parent.horizontalCenter
                 anchors.left: root.listView ? parent.left : undefined
                 anchors.leftMargin: root.listView ? 8 : 0
-                anchors.verticalCenterOffset: root.githubUi && !root.listView ? -4 : 0
+                anchors.verticalCenterOffset: 0
                 readonly property int nativeWidth: cell.doodadSource !== ""
                                                    ? Math.max(1, implicitWidth)
                                                    : Math.max(1, cell.modelData.itemWidth * 32)
@@ -185,8 +178,8 @@ Item {
                 readonly property real availableWidth: root.listView
                                                            ? Math.max(1, Math.min(40, parent.height - 8))
                                                            : Math.max(1, parent.width - 12)
-                readonly property real availableHeight: Math.max(1, parent.height - (root.githubUi ? 24 : 6))
-                readonly property real scaleFactor: Math.min(root.fluentUi ? (root.app.iconSizePx - 8) / 32 : 1, availableWidth / nativeWidth,
+                readonly property real availableHeight: Math.max(1, parent.height - (6))
+                readonly property real scaleFactor: Math.min(((root.app.iconSizePx - 8) / 32), availableWidth / nativeWidth,
                                                              availableHeight / nativeHeight)
                 width: nativeWidth * scaleFactor
                 height: nativeHeight * scaleFactor
@@ -203,19 +196,6 @@ Item {
                                                            cell.modelData.layers))
             }
 
-            Text {
-                visible: !root.listView && !root.fluentUi
-                anchors.bottom: parent.bottom
-                anchors.horizontalCenter: root.githubUi ? parent.horizontalCenter : undefined
-                anchors.right: root.githubUi ? undefined : parent.right
-                anchors.margins: root.githubUi ? 4 : 2
-                width: root.githubUi ? parent.width - 8 : implicitWidth
-                text: cell.modelData.prefab ? cell.modelData.name : cell.modelData.serverId
-                color: root.grayUi ? "#929292" : (root.githubUi ? "#7D8590" : "#777")
-                font.pixelSize: root.githubUi ? 11 : 9
-                horizontalAlignment: Text.AlignHCenter
-                elide: Text.ElideRight
-            }
 
             Column {
                 visible: root.listView
@@ -230,14 +210,14 @@ Item {
                 Text {
                     width: parent.width
                     text: cell.modelData.name || "Unnamed item"
-                    color: root.grayUi ? "#F0F0F0" : "#F0F6FC"
+                    color: "#F0F6FC"
                     elide: Text.ElideRight
                     font { pixelSize: 12; bold: true }
                 }
                 Text {
                     text: cell.modelData.prefab ? "Prefab"
                                                 : "Server ID " + cell.modelData.serverId
-                    color: root.grayUi ? "#929292" : "#7D8590"
+                    color: "#7D8590"
                     font.pixelSize: 10
                 }
             }
@@ -283,12 +263,12 @@ Item {
     PaletteSmoothScroll {
         id: smoothScroll
         view: grid
-        enabled: root.fluentUi || root.githubUi
+        enabled: true
         step: grid.cellHeight * 2
     }
 
     DmeScrollBar {
-        scrollController: (root.fluentUi || root.githubUi) ? smoothScroll : null
+        scrollController: smoothScroll
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom

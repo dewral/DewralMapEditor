@@ -22,7 +22,7 @@ toolbar, document tabs and status bar use embedded strip chrome. Status fields
 have separators instead of individual boxes. The viewport changes only its
 transparent frame. Shared `DmeDialog` uses the same caption and popup texture for
 Tibia-UI; close rejects the dialog, and NoAutoClose dialogs have no caption close
-button. Other themes keep their existing dialog presentation and controls.
+button. Fluent Dark keep their existing dialog presentation and controls.
 
 The Brush size section gains a collapsible header. It keeps the old button sizes;
 its extra caption space comes from the palette grid, not from the map. Palette
@@ -118,7 +118,7 @@ handler, using the DmeTextField API, with no weather setting/layout changes.
 
 The square Tibia-UI window already draws its full QML popup border. Its extra
 Windows DWM outline is now suppressed with DWMWA_BORDER_COLOR / DWMWA_COLOR_NONE;
-other themes restore the system default when rounded corners are enabled.
+Fluent Dark restore the system default when rounded corners are enabled.
 This applies both on initial HWND creation and on theme changes. Window resize,
 Snap, maximize and unsaved-map handling are unchanged.
 
@@ -213,7 +213,7 @@ Artifacts: build/matching-toolbar-panels/.
 Tools in tibia-ui now use eight direct SVG assets, muted role colors and no
 visible captions. Full descriptions remain in tooltips and accessibility names.
 Palette buttons are 40px tall with 24px icons; compact buttons use 22px icons
-and the docked toolbar allocation is reduced to 297px. Other themes retain labels.
+and the docked toolbar allocation is reduced to 297px. Fluent Dark retain labels.
 Lucide attribution and the existing ISC license are bundled with the assets.
 The grid column count no longer depends on its derived button width, removing
 a theme-transition binding loop. Theme suite: 32 passed; brush/topbar suite: 9

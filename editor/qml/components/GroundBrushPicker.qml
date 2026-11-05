@@ -9,8 +9,7 @@ ComboBox {
     textRole: "label"; valueRole: "name"
     readonly property string currentName: currentIndex >= 0 && currentIndex < count ? String(currentValue || "") : ""
     readonly property bool currentUsable: currentIndex >= 0 && currentIndex < count && !!model[currentIndex].usable
-    readonly property bool lightTheme: Backend.uiTheme.style === "windows-classic"
-    readonly property color labelColor: lightTheme ? "#202020" : Colors.c("text")
+    readonly property color labelColor: (Colors.c("text"))
     implicitHeight: 38; implicitWidth: 240
     function spriteSource(entry) {
         if (!entry || !entry.clientId || !Backend.sprReader.loaded) return "";
@@ -18,9 +17,9 @@ ComboBox {
         return Backend.sprReader.itemImageSourceForClientId(entry.clientId);
     }
     background: Rectangle {
-        radius: control.lightTheme ? 0 : 4
-        color: control.lightTheme ? "#ffffff" : Colors.c("field")
-        border.color: control.activeFocus ? Colors.c("accent") : control.lightTheme ? "#808080" : Colors.c("border")
+        radius: 4
+        color: (Colors.c("field"))
+        border.color: control.activeFocus ? Colors.c("accent") : (Colors.c("border"))
     }
     indicator: Text {
         x: control.width - width - 9; y: (control.height - height) / 2
@@ -47,7 +46,7 @@ ComboBox {
         objectName: control.objectName + "Row" + index
         width: control.popup.width - 2; height: 40
         highlighted: control.highlightedIndex === index
-        background: Rectangle { color: entry.highlighted ? (control.lightTheme ? "#d9e8fb" : Colors.c("hover")) : "transparent" }
+        background: Rectangle { color: entry.highlighted ? ((Colors.c("hover"))) : "transparent" }
         contentItem: Item {
             Image {
                 objectName: control.objectName + "Sprite" + entry.index
@@ -70,9 +69,9 @@ ComboBox {
             ScrollIndicator.vertical: ScrollIndicator {}
         }
         background: Rectangle {
-            color: control.lightTheme ? "#ffffff" : Colors.c("popup")
-            border.color: control.lightTheme ? "#808080" : Colors.c("border")
-            radius: control.lightTheme ? 0 : 4
+            color: (Colors.c("popup"))
+            border.color: (Colors.c("border"))
+            radius: 4
         }
     }
 }

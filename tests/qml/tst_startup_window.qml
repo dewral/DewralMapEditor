@@ -72,7 +72,7 @@ Item {
             compare(welcome.loadingMap,false);
         }
         function test_cardsKeepTheirOriginalSize_data() {
-            return ["classic","windows-classic","github-dark","gray-dark","gray-modern","fluent-dark","tibia-ui"]
+            return ["fluent-dark", "tibia-ui"]
                 .map(style => ({tag:style,style:style}));
         }
         function test_cardsKeepTheirOriginalSize(data) {
@@ -128,7 +128,7 @@ Item {
             Backend.otbmReader.loadingProgress=80;
             welcome.show();
             wait(150);
-            grabImage(welcome.contentItem).save("build/classic-timer-color/dark-green-loading.png");
+            grabImage(welcome.contentItem).save("build/startup-loading-green.png");
             welcome.hide();
             Backend.uiTheme.style="fluent-dark";
             compare(track.height,7); compare(track.radius,4); compare(fill.gradient,null);

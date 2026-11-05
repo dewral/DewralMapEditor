@@ -1,7 +1,4 @@
 import QtQuick
-import "../themes/classic/controls" as Classic
-import "../themes/github/controls" as Github
-import "../themes/gray/controls" as Gray
 import "../themes/fluent/controls" as Fluent
 import "../themes/tibia" as TibiaSkin
 import Tibia 1.0
@@ -14,11 +11,8 @@ Item {
     Loader {
         id: controlLoader
         anchors.fill: parent
-        sourceComponent: Backend.uiTheme.style === "tibia-ui" ? tibiaSeparator : Backend.uiTheme.style === "fluent-dark" ? fluentSeparator : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicSeparator : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? graySeparator : githubSeparator)
+        sourceComponent: Backend.uiTheme.style === "tibia-ui" ? tibiaSeparator : fluentSeparator
     }
     Component { id: tibiaSeparator; TibiaSkin.TibiaSeparator { orientation: root.orientation } }
-    Component { id: classicSeparator; Classic.ClassicSeparator { orientation: root.orientation } }
-    Component { id: githubSeparator; Github.GithubSeparator { orientation: root.orientation } }
-    Component { id: graySeparator; Gray.GraySeparator { orientation: root.orientation } }
     Component { id: fluentSeparator; Fluent.FluentSeparator { orientation: root.orientation } }
 }

@@ -13,9 +13,6 @@ DmeDialog {
     property var items: []
     property var selectedItem: null
     property var titles: []
-    readonly property bool githubUi: Backend.uiTheme.style !== "classic"
-                                     && Backend.uiTheme.style !== "windows-classic"
-    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     title: titles.length > 0 ? titles[titles.length - 1] : "Container"
     width: 560
@@ -130,9 +127,9 @@ DmeDialog {
                     width: itemList.width
                     height: 54
                     color: itemList.currentIndex === index
-                           ? (dialog.githubUi ? (dialog.grayUi ? "#4A3A1F" : "#163B2C") : "#505050")
+                           ? ((("#163B2C")))
                            : (rowMouse.containsMouse
-                              ? (dialog.githubUi ? (dialog.grayUi ? "#303030" : "#161E27") : "#383838")
+                              ? ((("#161E27")))
                               : "transparent")
 
                     Image {

@@ -21,7 +21,7 @@
 - `dme_window` i `dme_window_scaled`: element testowy musi przejść przez `updatePaintNode` przed potwierdzeniem tokenu; sprawdzane także łączenie żądań i emisja potwierdzenia na GUI.
 - CTest `otbm_rme_compatibility`, `otbm_legacy_subtypes`, `dme_startup`, oba testy okna: 5/5.
 - Testy otwierania legacy map i sesji aplikacji: 6/6 oraz 5/5.
-- Natywny OpenGL QRhi z rzeczywistymi zasobami i Backend: Save As przy widocznym komunikacie we wszystkich siedmiu motywach, brak ostrzeżeń silnika QML. Osobny przebieg Tibia-UI sprawdza także zwykły Save po Save As.
+- Natywny OpenGL QRhi z rzeczywistymi zasobami i Backend: Save As przy widocznym komunikacie w Fluent Dark i Tibia-UI, brak ostrzeżeń silnika QML. Osobny przebieg Tibia-UI sprawdza także zwykły Save po Save As.
 - Nie wykonano testu długiego zapisu prywatnej mapy ani osobnej walidacji D3D11/MSVC. Nie deklarujemy przyspieszenia samej serializacji.
 
 Build jest w `build/startup-implementation/dist-save`; nie nadpisano uruchomionego EXE. Zachowano równoległe, niezwiązane modyfikacje repozytorium. Nie wykonywano push ani publikacji.

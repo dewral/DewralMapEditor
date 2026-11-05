@@ -1,7 +1,4 @@
 import QtQuick
-import "../themes/classic/controls" as Classic
-import "../themes/github/controls" as Github
-import "../themes/gray/controls" as Gray
 import "../themes/fluent/controls" as Fluent
 import Tibia 1.0
 
@@ -23,26 +20,7 @@ Item {
     Loader {
         id: controlLoader
         anchors.fill: parent
-        sourceComponent: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui") ? fluentTextField : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicTextField : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayTextField : githubTextField)
+        sourceComponent: fluentTextField
     }
-    Component {
-        id: classicTextField
-        Classic.ClassicTextField {
-            text: root.text; placeholderText: root.placeholderText; enabled: root.enabled
-            onUserTextChanged: value => root.text = value
-            onAccepted: root.accepted()
-            onEditingFinished: root.editingFinished()
-        }
-    }
-    Component {
-        id: githubTextField
-        Github.GithubTextField {
-            text: root.text; placeholderText: root.placeholderText; enabled: root.enabled
-            onUserTextChanged: value => root.text = value
-            onAccepted: root.accepted()
-            onEditingFinished: root.editingFinished()
-        }
-    }
-    Component { id: grayTextField; Gray.GrayTextField { text: root.text; placeholderText: root.placeholderText; enabled: root.enabled; onUserTextChanged: value => root.text = value; onAccepted: root.accepted(); onEditingFinished: root.editingFinished() } }
     Component { id: fluentTextField; Fluent.FluentTextField { text: root.text; placeholderText: root.placeholderText; enabled: root.enabled; onUserTextChanged: value => root.text = value; onAccepted: root.accepted(); onEditingFinished: root.editingFinished() } }
 }

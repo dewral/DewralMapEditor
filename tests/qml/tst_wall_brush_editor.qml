@@ -82,7 +82,7 @@ Item {
             Backend.brushStore = brushes
             Backend.otbReader = items
             Backend.sprReader = sprites
-            Backend.uiTheme.style = "gray-dark"
+            Backend.uiTheme.style = "fluent-dark"
             items.clear()
             for (const id of [100, 101, 102, 103, 104])
                 items.append({serverId: id, itemName: "Wall piece " + id, spriteIds: [id], itemWidth: 1, itemHeight: 1, layers: 1})
@@ -131,7 +131,7 @@ Item {
             fail("Discard dialog missing")
         }
         function test_layout_data() {
-            return ["classic", "windows-classic", "github", "gray-dark", "gray-modern", "fluent-dark"]
+            return ["fluent-dark", "tibia-ui"]
                 .map(theme => ({tag: theme, theme: theme}))
         }
         function test_layout(data) {

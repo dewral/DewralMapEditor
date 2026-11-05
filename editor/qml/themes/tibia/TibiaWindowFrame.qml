@@ -31,6 +31,29 @@ BorderImage {
     verticalTileMode: BorderImage.Repeat
     smooth: false
 
+    // Tile cropped regions so the frame's outer edges never enter the fill.
+    Image {
+        x: frame.border.left
+        width: Math.max(0, frame.width - frame.border.left - frame.border.right)
+        height: frame.border.top
+        source: frame.source
+        sourceClipRect: Qt.rect(4, 0, 96, 17)
+        fillMode: Image.Tile
+        smooth: false
+    }
+    Image {
+        anchors.fill: parent
+        visible: frame.height > frame.border.top + frame.border.bottom
+        anchors.leftMargin: frame.border.left
+        anchors.rightMargin: frame.border.right
+        anchors.topMargin: frame.border.top
+        anchors.bottomMargin: frame.border.bottom
+        source: frame.source
+        sourceClipRect: Qt.rect(4, 17, 96, 96)
+        fillMode: Image.Tile
+        smooth: false
+    }
+
     // Keep the original border slices. A taller main caption repeats only the
     // native header texture, then moves its bottom divider down; icons stay unscaled.
     Loader {

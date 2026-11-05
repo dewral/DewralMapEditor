@@ -133,7 +133,6 @@ Settings {
     property int ingamePreviewLookBody: 69
     property int ingamePreviewLookLegs: 58
     property int ingamePreviewLookFeet: 76
-    property int paletteWidth: 390
     property bool paletteCollapsed: false
     property int iconSize: 66
     property string paletteViewMode: "grid"
@@ -142,5 +141,4 @@ Settings {
     property bool hideInvisibleSprites: true
     property bool hideNamedItems: false
     property int undoLimit: 1000
-    property bool githubLayoutV2Initialized: false
 }

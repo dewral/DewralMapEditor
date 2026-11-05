@@ -6,10 +6,6 @@ Column {
     id: root
 
     required property var mapCtrl
-    readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
-    required property bool githubUi
-    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
-                                   || Backend.uiTheme.style === "gray-modern"
 
     property var allHouses: []
     property var towns: []
@@ -249,13 +245,11 @@ Column {
                 height: 34
                 property bool selected: root.selectedHouseId === modelData.id
                 color: selected
-                       ? (root.fluentUi ? "#414447" : root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
-                       : (root.githubUi
-                          ? (houseMouseArea.containsMouse ? (root.grayUi ? "#303030" : "#161E27") : (root.grayUi ? "#242424" : "#0D1117"))
-                          : (houseMouseArea.containsMouse ? "#3A3A3A" : "#2A2A2A"))
+                       ? ("#414447")
+                       : (((houseMouseArea.containsMouse ? "#3A3A3A" : "#2A2A2A")))
                 border.color: selected
-                              ? (root.fluentUi ? "#B8BDC2" : root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
-                              : (root.githubUi ? (root.grayUi ? "#424242" : "#202A35") : "#3a3a3a")
+                              ? ("#B8BDC2")
+                              : ("#3a3a3a")
                 border.width: 1
 
                 Column {
@@ -264,7 +258,7 @@ Column {
                     anchors.verticalCenter: parent.verticalCenter
                     Text {
                         text: modelData.name
-                        color: root.grayUi ? "#999999" : (root.githubUi ? "#A7B1BC" : "#c0c0c0")
+                        color: (("#c0c0c0"))
                         font.pixelSize: 12
                         width: houseList.width - 12
                         elide: Text.ElideRight

@@ -14,10 +14,9 @@ ColumnLayout {
         return (command.label + " " + command.category + " " + command.shortcut
                 + " " + command.defaultShortcut).toLowerCase().includes(query);
     }).sort((a, b) => a.category.localeCompare(b.category) || a.label.localeCompare(b.label))
-    readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
-    readonly property color textColor: fluentUi ? Colors.c("text") : "#F0F3F6"
-    readonly property color mutedColor: fluentUi ? Colors.c("muted") : "#8B949E"
-    readonly property color accentColor: fluentUi ? Colors.c("accent") : "#58A6FF"
+    readonly property color textColor: (Colors.c("text"))
+    readonly property color mutedColor: (Colors.c("muted"))
+    readonly property color accentColor: (Colors.c("accent"))
     spacing: 10
     component ShortcutCaps: Row {
         property string sequence: ""
@@ -27,8 +26,8 @@ ColumnLayout {
             delegate: Rectangle {
                 required property string modelData
                 width: keyLabel.implicitWidth + 14; height: 26; radius: 4
-                color: page.fluentUi ? Colors.c("button") : "#2D333B"
-                border.color: page.fluentUi ? Colors.c("border") : "#444C56"
+                color: (Colors.c("button"))
+                border.color: (Colors.c("border"))
                 Text {
                     id: keyLabel
                     anchors.centerIn: parent
@@ -109,14 +108,14 @@ ColumnLayout {
                 Rectangle {
                     anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                     height: 58
-                    color: rowHover.hovered ? (page.fluentUi ? Colors.c("hover") : "#303030")
-                           : (page.fluentUi ? Colors.c("surface") : "#242424")
+                    color: rowHover.hovered ? ((Colors.c("hover")))
+                           : ((Colors.c("surface")))
                     radius: 5
                     HoverHandler { id: rowHover }
                     Rectangle {
                         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 8; rightMargin: 8 }
                         height: 1
-                        color: page.fluentUi ? Colors.c("separator") : "#343434"
+                        color: (Colors.c("separator"))
                     }
                     RowLayout {
                         anchors { fill: parent; margins: 8 }
@@ -156,7 +155,7 @@ ColumnLayout {
                             }
                             background: Rectangle {
                                 radius: 5
-                                color: bindingButton.down ? (page.fluentUi ? Colors.c("pressed") : "#333333") : "transparent"
+                                color: bindingButton.down ? ((Colors.c("pressed"))) : "transparent"
                                 border.width: bindingButton.hovered || bindingButton.activeFocus ? 1 : 0
                                 border.color: page.accentColor
                             }
@@ -259,7 +258,7 @@ ColumnLayout {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 44
                     radius: 6
-                    color: page.fluentUi ? Colors.c("surface") : "#242424"
+                    color: (Colors.c("surface"))
                     border.color: page.accentColor
                     ShortcutCaps { anchors.centerIn: parent; sequence: captureDialog.candidate }
                 }

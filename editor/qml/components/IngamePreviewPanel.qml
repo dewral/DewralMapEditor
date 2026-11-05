@@ -13,7 +13,6 @@ Item {
     readonly property bool tibiaUi: Backend.uiTheme.style === "tibia-ui"
     required property var mapView
     required property var settings
-    required property bool githubUi
     property Item dockHost: null
     readonly property bool docked: dockHost && (settings.ingamePreviewDockSide === "left" || settings.ingamePreviewDockSide === "right")
     readonly property bool active: docked ? (panel.activeFocus && panel.Window.window && panel.Window.window.active) : floatingWindow.active
@@ -92,11 +91,9 @@ Item {
     readonly property int sidebarWidth: sidebarVisible ? Math.max(254, Math.min(320, Math.round(width * 0.21))) : 0
     readonly property int captionHeight: tibiaUi && !previewWindow.docked ? 28 : 0
     readonly property bool compact: width<900
-    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
 
     readonly property var mapView: previewWindow.mapView
     readonly property var settings: previewWindow.settings
-    readonly property bool githubUi: previewWindow.githubUi
 
     readonly property int headerHeight: ambientControls.visible ? ambientControls.y + ambientControls.height + 8 : Math.max(playbackControls.y + playbackControls.height, dockActions.y + dockActions.height) + 8
     readonly property int footerHeight: tibiaUi ? (screenshotMessage ? 24 : 0) : 42
@@ -361,19 +358,20 @@ Item {
             height: panel.captionHeight; active: panel.tibiaUi && !previewWindow.docked
             sourceComponent: Item {
                 TibiaSkin.TibiaClassicFrame { anchors.fill: parent; kind: "panel" }
-                Image { x: 6; y: 6; width: 16; height: 16; source: "qrc:/ui/github/app-icon.png" }
+                Image { x: 6; y: 6; width: 16; height: 16; source: "qrc:/ui/app-icon.png" }
                 Text { anchors.fill: parent; anchors.leftMargin: 36; anchors.rightMargin: 96; text: floatingWindow.title; color: "#dfdfdf"; font.family: "Verdana"; font.pixelSize: 12; font.bold: true; verticalAlignment: Text.AlignVCenter }
             }
         }
         Row {
             z: 6; visible: panel.tibiaUi && !previewWindow.docked
             anchors.right: parent.right; y: 1
-            GithubWindowButton { height: 26; controlType: "minimize"; onTriggered: floatingWindow.showMinimized() }
-            GithubWindowButton { height: 26; controlType: "maximize"; maximized: floatingWindow.visibility===Window.Maximized; onTriggered: maximized ? floatingWindow.showNormal() : floatingWindow.showMaximized() }
-            GithubWindowButton { height: 26; controlType: "close"; onTriggered: panel.settings.showIngamePreviewWindow=false }
+            DmeWindowButton { height: 26; controlType: "minimize"; onTriggered: floatingWindow.showMinimized() }
+            DmeWindowButton { height: 26; controlType: "maximize"; maximized: floatingWindow.visibility===Window.Maximized; onTriggered: maximized ? floatingWindow.showNormal() : floatingWindow.showMaximized() }
+            DmeWindowButton { height: 26; controlType: "close"; onTriggered: panel.settings.showIngamePreviewWindow=false }
         }
         Row {
             id:dockActions
+            readonly property bool inlineWithPlayback: panel.width >= (panel.tibiaUi ? 760 : 480)
             PreviewButton {
                 objectName: "previewScreenshot"
                 width: panel.tibiaUi ? 40 : 28; height: panel.tibiaUi ? 44 : 32; text: "\uE722"; font.family: "Segoe Fluent Icons"
@@ -383,7 +381,17 @@ Item {
                 Accessible.name: "Save preview screenshot"
             }
             PreviewButton { objectName:"previewFullscreen"; width:panel.tibiaUi ? 40 : 28; height:panel.tibiaUi ? 44 : 32; text:"\uE740"; font.family:"Segoe Fluent Icons"; onClicked:previewWindow.toggleFullscreen(); ToolTip.visible:hovered; ToolTip.text:"Fullscreen ("+(Backend.hotkeys.bindings.preview_fullscreen || "F11")+")" }
-            anchors.right:parent.right; anchors.rightMargin:6; y:panel.width >= 480 ? playbackControls.y : playbackControls.y + playbackControls.height + 6; spacing:4
+            anchors.right: parent.right; anchors.rightMargin: 6
+            y: inlineWithPlayback ? playbackControls.y : playbackControls.y + playbackControls.height + 6
+            spacing: 4
+            Item {
+                objectName: "previewDockActionsSeparator"
+                width: 10; height: 44; visible: panel.tibiaUi
+                TibiaSkin.TibiaSeparator {
+                    anchors.centerIn: parent
+                    orientation: Qt.Vertical; width: 2; height: 32
+                }
+            }
             PreviewButton { objectName:"dockPreviewLeft"; width:panel.tibiaUi ? 40 : 28; height:panel.tibiaUi ? 44 : 32; svgIcon:"dock-left"; checked:previewWindow.docked && panel.settings.ingamePreviewDockSide==="left"; onClicked:previewWindow.dock("left"); ToolTip.visible:hovered; ToolTip.text:"Dock left" }
             PreviewButton { objectName:"dockPreviewRight"; width:panel.tibiaUi ? 40 : 28; height:panel.tibiaUi ? 44 : 32; svgIcon:"dock-right"; checked:previewWindow.docked && panel.settings.ingamePreviewDockSide==="right"; onClicked:previewWindow.dock("right"); ToolTip.visible:hovered; ToolTip.text:"Dock right" }
             PreviewButton { objectName:"detachPreview"; width:panel.tibiaUi ? 40 : 28; height:panel.tibiaUi ? 44 : 32; svgIcon:"detach"; onClicked:previewWindow.dock("window"); ToolTip.visible:hovered; ToolTip.text:"Open in separate window" }
@@ -393,7 +401,7 @@ Item {
         Flow {
             id: playbackControls
             objectName: "previewToolbar"
-            x: 6; y: panel.tibiaUi ? panel.captionHeight+6 : 46; width: parent.width - 12 - (panel.width >= 480 ? dockActions.width + 12 : 0); spacing: 6
+            x: 6; y: panel.tibiaUi ? panel.captionHeight+6 : 46; width: parent.width - 12 - (dockActions.inlineWithPlayback ? dockActions.width + 12 : 0); spacing: 6
             PreviewButton {
                 objectName: "previewSidebarToggle"
                 visible: panel.tibiaUi; width: 40; height: 44; text: "☰"
@@ -647,12 +655,12 @@ Item {
                         height: 32
                         radius: 4
                         color: panel.selectedOutfitPart === index
-                               ? (panel.grayUi ? "#3A3A3A" : "#1B2632")
+                               ? ("#1B2632")
                                : "transparent"
                         border.width: 1
                         border.color: panel.selectedOutfitPart === index
                                       ? Fluent.c("accent")
-                                      : (panel.grayUi ? "#484848" : "#30363D")
+                                      : ("#30363D")
                         Rectangle {
                             anchors { left: parent.left; leftMargin: 6; verticalCenter: parent.verticalCenter }
                             width: 14; height: 14; radius: 3
@@ -916,7 +924,7 @@ Item {
             Text { text: explorer.x + ", " + explorer.y + " · Floor " + explorer.z; color: Fluent.c("muted"); font.family: Fluent.family(); font.pixelSize: 11 }
         }
         Text { objectName: "previewScreenshotStatus"; x: 10; y: 23; width: parent.width - 20; elide: Text.ElideMiddle; text: panel.screenshotMessage || "WASD / arrows · Right-click to use"; color: Fluent.c("muted"); font.family: Fluent.family(); font.pixelSize: 10 }
-        GithubToolTip {
+        DmeToolTip {
             targetItem: playerHover
             targetHovered: panel.visible && playerHover.containsMouse
             message: explorer.lastBlockReason

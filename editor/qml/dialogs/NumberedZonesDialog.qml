@@ -9,8 +9,8 @@ DmeDialog {
     required property var mapReader
     property var results: []
     property int total: 0
-    readonly property color fg: windowsClassic ? "#202020" : "#e0e0e0"
-    readonly property color muted: windowsClassic ? "#595959" : "#b1b1b1"
+    readonly property color fg: "#e0e0e0"
+    readonly property color muted: "#b1b1b1"
     title: "Numbered zones"
     width: 580
     onAboutToShow: {
@@ -84,7 +84,7 @@ DmeDialog {
         }
         Rectangle {
             width: parent.width; height: 188
-            color: dialog.windowsClassic ? "#f4f4f4" : "#1b1c1e"
+            color: "#1b1c1e"
             border.color: "#414141"; radius: 4
             ListView {
                 id: list; anchors.fill: parent; anchors.margins: 4; clip: true

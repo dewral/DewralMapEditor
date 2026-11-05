@@ -3,14 +3,11 @@ import QtQuick.Window
 import Tibia 1.0
 import "../themes/fluent/Colors.js" as FluentColors
 
-// Lightweight GitHub-style tooltip. It is an Item instead of a Controls
+// Lightweight tooltip. It is an Item instead of a Controls
 // Popup so it also works in the editor's frameless Window (which is not an
 // ApplicationWindow and therefore has no guaranteed Controls overlay).
 Item {
     id: root
-    readonly property bool fluentTheme: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
-    readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
-                                      || Backend.uiTheme.style === "gray-modern"
 
     property Item targetItem
     property bool targetHovered: false

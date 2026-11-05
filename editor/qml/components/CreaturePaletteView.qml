@@ -11,12 +11,8 @@ Column {
 
     required property var app
     required property var mapCtrl
-    readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
-    required property bool githubUi
     required property string searchText
     required property string filterMode
-    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
-                                   || Backend.uiTheme.style === "gray-modern"
     readonly property int count: creatureGrid.count
 
     spacing: 4
@@ -126,13 +122,11 @@ Column {
                 property bool isBrush: root.mapCtrl.creatureBrush === name
                                        && root.mapCtrl.creatureBrushIsNpc === isNpc
                 color: isBrush
-                       ? (root.fluentUi ? "#414447" : root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
-                       : (root.githubUi
-                          ? (creatureMouseArea.containsMouse ? (root.grayUi ? "#303030" : "#161E27") : (root.grayUi ? "#242424" : "#0D1117"))
-                          : (creatureMouseArea.containsMouse ? "#3A3A3A" : "#2A2A2A"))
+                       ? ("#414447")
+                       : (((creatureMouseArea.containsMouse ? "#3A3A3A" : "#2A2A2A")))
                 border.color: isBrush
-                              ? (root.fluentUi ? "#B8BDC2" : root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
-                              : (root.githubUi ? (root.grayUi ? "#424242" : "#202A35") : "#3a3a3a")
+                              ? ("#B8BDC2")
+                              : ("#3a3a3a")
                 border.width: isBrush ? 2 : 1
 
                 Loader {
@@ -165,7 +159,7 @@ Column {
                     }
                     Text {
                         text: creatureDelegate.name
-                        color: root.grayUi ? "#999999" : (root.githubUi ? "#A7B1BC" : "#c0c0c0")
+                        color: (("#c0c0c0"))
                         font.pixelSize: 10
                         width: creatureGrid.cellWidth - 8
                         horizontalAlignment: Text.AlignHCenter
@@ -178,14 +172,14 @@ Column {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    ToolTip.visible: !root.githubUi && containsMouse
+                    ToolTip.visible: containsMouse
                     ToolTip.delay: 550
                     ToolTip.text: creatureDelegate.name
                                   + (creatureDelegate.isNpc ? "  (NPC)" : "")
 
-                    GithubToolTip {
+                    DmeToolTip {
                         targetItem: creatureMouseArea
-                        targetHovered: root.githubUi && creatureMouseArea.containsMouse
+                        targetHovered: false
                         message: creatureDelegate.name
                                  + (creatureDelegate.isNpc ? "  (NPC)" : "")
                     }
@@ -211,7 +205,7 @@ Column {
             text: root.filterMode === "npc"
                   ? "No NPCs loaded. Import NPC XML files from Tools > Monster and NPC Manager."
                   : "No creatures match the current filter."
-            color: root.grayUi ? "#929292" : "#8B949E"
+            color: "#8B949E"
             font.pixelSize: 11
         }
 

@@ -116,7 +116,7 @@ Item {
             layer.previewCamera=true; layer.previewOriginX=12; map.x=120; map.contentUpdated(); compare(layer.viewX,110);
             layer.previewCamera=false;
         }
-        function test_themes_data() { return [{tag:"Fluent",style:"fluent-dark"},{tag:"Tibia",style:"tibia-ui"},{tag:"Gray",style:"gray-dark"},{tag:"Github",style:"github-dark"},{tag:"Classic",style:"classic"}]; }
+        function test_themes_data() { return [{tag:"Fluent",style:"fluent-dark"},{tag:"Tibia",style:"tibia-ui"}]; }
         function test_themes(data) { Backend.uiTheme.style=data.style; wait(30); verify(locate("weatherRain").visible); verify(dialog.contentItem.width<=dialog.width); if(data.style==="tibia-ui") grabImage(scene.Window.window.contentItem).save("build/tibia-classic-popup.png"); }
     }
 }

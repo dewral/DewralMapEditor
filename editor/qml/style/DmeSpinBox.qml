@@ -1,7 +1,4 @@
 import QtQuick
-import "../themes/classic/controls" as Classic
-import "../themes/github/controls" as Github
-import "../themes/gray/controls" as Gray
 import "../themes/fluent/controls" as Fluent
 import Tibia 1.0
 
@@ -28,7 +25,7 @@ Item {
     Loader {
         id: controlLoader
         anchors.fill: parent
-        sourceComponent: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui") ? fluentSpinBox : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicSpinBox : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? graySpinBox : githubSpinBox)
+        sourceComponent: fluentSpinBox
     }
     // Keep external changes flowing to the themed control after a user edit.
     Binding {
@@ -37,27 +34,6 @@ Item {
         value: root.value
         when: controlLoader.item !== null
     }
-    Component {
-        id: classicSpinBox
-        Classic.ClassicSpinBox {
-            from: root.from; to: root.to; stepSize: root.stepSize
-            editable: root.editable; enabled: root.enabled
-            nextTabItem: root.nextTabItem; previousTabItem: root.previousTabItem
-            pasteHandler: root.pasteHandler
-            onValueModified: value => { root.value = value; root.valueModified(); }
-        }
-    }
-    Component {
-        id: githubSpinBox
-        Github.GithubSpinBox {
-            from: root.from; to: root.to; stepSize: root.stepSize
-            editable: root.editable; enabled: root.enabled
-            nextTabItem: root.nextTabItem; previousTabItem: root.previousTabItem
-            pasteHandler: root.pasteHandler
-            onValueModified: value => { root.value = value; root.valueModified(); }
-        }
-    }
-    Component { id: graySpinBox; Gray.GraySpinBox { from: root.from; to: root.to; stepSize: root.stepSize; editable: root.editable; enabled: root.enabled; nextTabItem: root.nextTabItem; previousTabItem: root.previousTabItem; pasteHandler: root.pasteHandler; onValueModified: value => { root.value = value; root.valueModified(); } } }
     Component { id: fluentSpinBox; Fluent.FluentSpinBox { from: root.from; to: root.to; stepSize: root.stepSize; editable: root.editable; enabled: root.enabled; nextTabItem: root.nextTabItem; previousTabItem: root.previousTabItem; pasteHandler: root.pasteHandler; onValueModified: value => { root.value = value; root.valueModified(); } }
 }
 }

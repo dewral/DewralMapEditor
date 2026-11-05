@@ -24,7 +24,7 @@ Item {
         property int activeZone: 0
     }
     Components.FluentFileBar { id: bar; width: parent.width; height: implicitHeight; mapView: map; settings: prefs }
-    Components.PaletteBrushSizeSelector { id: selector; y: 120; width: 280; compact: true; githubUi: false; mapCtrl: map }
+    Components.PaletteBrushSizeSelector { id: selector; y: 120; width: 280; compact: true; mapCtrl: map }
     Components.FluentTools { id: tools; y: 220; width: 489; compact: true; mapView: map }
     SignalSpy { id: toolsDropped; target: tools; signalName: "dockDragFinished" }
     SignalSpy { id: dropped; target: selector; signalName: "dockDragFinished" }

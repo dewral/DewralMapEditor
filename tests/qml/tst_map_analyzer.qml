@@ -56,7 +56,7 @@ Item {
             scene.Window.window.height = 820;
         }
         function init() {
-            Backend.uiTheme.style = "gray-dark";
+            Backend.uiTheme.style = "fluent-dark";
             controller.queryBusy = false;
             controller.searches = [];
             controller.destination = [];
@@ -77,7 +77,7 @@ Item {
         }
 
         function test_navigationKeepsAnalyzerOpen_data() {
-            return ["classic", "windows-classic", "github", "gray-dark", "gray-modern", "fluent-dark"]
+            return ["fluent-dark", "tibia-ui"]
                 .map(theme => ({tag: theme, theme: theme}));
         }
         function test_navigationKeepsAnalyzerOpen(data) {
@@ -176,7 +176,7 @@ Item {
         }
 
         function test_layout() {
-            for (const theme of ["classic", "gray-dark", "fluent-dark"]) {
+            for (const theme of ["fluent-dark", "tibia-ui"]) {
                 Backend.uiTheme.style = theme;
                 const field = locate("ItemId"), button = locate("Search");
                 verify(field.mapToItem(analyzer.contentItem, field.width, 0).x

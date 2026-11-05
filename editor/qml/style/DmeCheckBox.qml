@@ -1,7 +1,4 @@
 import QtQuick
-import "../themes/classic/controls" as Classic
-import "../themes/github/controls" as Github
-import "../themes/gray/controls" as Gray
 import "../themes/fluent/controls" as Fluent
 import Tibia 1.0
 
@@ -17,22 +14,7 @@ Item {
     Loader {
         id: controlLoader
         anchors.fill: parent
-        sourceComponent: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui") ? fluentCheckBox : (Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic") ? classicCheckBox : ((Backend.uiTheme.style === "gray-dark" || Backend.uiTheme.style === "gray-modern") ? grayCheckBox : githubCheckBox)
+        sourceComponent: fluentCheckBox
     }
-    Component {
-        id: classicCheckBox
-        Classic.ClassicCheckBox {
-            text: root.text; checked: root.checked; enabled: root.enabled
-            onClicked: root.clicked()
-        }
-    }
-    Component {
-        id: githubCheckBox
-        Github.GithubCheckBox {
-            text: root.text; checked: root.checked; enabled: root.enabled
-            onClicked: root.clicked()
-        }
-    }
-    Component { id: grayCheckBox; Gray.GrayCheckBox { text: root.text; checked: root.checked; enabled: root.enabled; onClicked: root.clicked() } }
     Component { id: fluentCheckBox; Fluent.FluentCheckBox { text: root.text; checked: root.checked; enabled: root.enabled; onClicked: root.clicked() } }
 }

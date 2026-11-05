@@ -17,7 +17,7 @@ DmeDialog {
     property bool propertiesAdvanced: false
     property string timedSmokeState: ""
     readonly property bool testing: regionLayer.testingMap
-    readonly property color fg: windowsClassic ? "#202020" : "#e0e0e0"
+    readonly property color fg: "#e0e0e0"
     title: "Pogoda — strefy i test na mapie"
     parent: Controls.Overlay.overlay
     modal: false; dim: false

@@ -1,26 +1,10 @@
 # DME UI themes
 
-Application screens use neutral controls from `qml/style/Dme*.qml`.
+Application screens share the controls in [qml/style](../style).
 
-- `themes/tibia` adds the Tibia-UI texture skin to the Fluent layout.
-- `themes/classic/controls` owns Classic/Tibia textures and metrics.
-- `themes/github/controls` owns GitHub UI colors, radii and metrics.
-- `themes/gray/controls` owns the neutral gray palette and turquoise accent.
-- `windows-classic` reuses the compact Classic layout with generated Windows-style
-  light surfaces and beveled controls.
-- Shared screens must not reference `Classic*`, `Github*` or legacy `Tibia*`
-  controls directly.
-- Theme-specific shells such as `GithubEditorToolBar` and the classic
-  `EditorToolBar` may use their own theme controls directly.
-- A `Dme*` router must instantiate only the active implementation. Do not put
-  both skins in the same component and switch them with `visible`.
+- [Fluent Dark](fluent) defines the shared layout, control metrics and editable color palette.
+- [Tibia-UI](tibia) adds the classic Tibia textures and controls, including the
+  Preview sidebar and native window frames.
 
-All themes can be smoke-tested without changing saved user settings:
-
-```text
-DME_UI_STYLE_OVERRIDE=tibia-ui
-DME_UI_STYLE_OVERRIDE=classic
-DME_UI_STYLE_OVERRIDE=github-dark
-DME_UI_STYLE_OVERRIDE=gray-dark
-DME_UI_STYLE_OVERRIDE=windows-classic
-```
+Use the theme selector in **Preferences → Interface**. For a local smoke test,
+set the environment variable DME_UI_STYLE_OVERRIDE to fluent-dark or tibia-ui.

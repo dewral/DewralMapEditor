@@ -67,7 +67,7 @@ Item {
         Styles.DmeTextField { id: search; x: 12; y: 134; width: 296; height: 28; placeholderText: "Search items or ID..." }
         Skin.TibiaSurface { x: 12; y: 176; width: 296; height: 230; kind: "field" }
         Components.FluentTools { id: tools; x: 12; y: 420; width: 296; mapView: map }
-        Components.PaletteBrushSizeSelector { id: brush; x: 12; y: 550; width: 296; mapCtrl: map; githubUi: false }
+        Components.PaletteBrushSizeSelector { id: brush; x: 12; y: 550; width: 296; mapCtrl: map }
     }
     Rectangle { x: 340; y: 150; width: scene.width-350; height: 596; color: "#0f141b" }
     Skin.TibiaSkin { x: 340; y: 150; width: scene.width-350; height: 596; frameOnly: true; kind: "window" }
@@ -107,7 +107,7 @@ Item {
     Skin.TibiaMapScrollBar { id: verticalScroll; x: 1100; y: 200; width: 12; height: 300; mapView: navigation }
     Flickable { id: scrollContent; visible: false; width: 100; height: 200; contentHeight: 1000 }
     Styles.DmeScrollBar { id: paletteScroll; x: 1140; y: 200; height: 300; flickable: scrollContent }
-    Styles.GithubWindowButton { id: captionButton; x: 700; y: 5 }
+    Styles.DmeWindowButton { id: captionButton; x: 700; y: 5 }
     SignalSpy { id: captionSpy; target: captionButton; signalName: "triggered" }
     TestCase {
         name: "TibiaTheme"; when: windowShown
@@ -418,18 +418,15 @@ Item {
             compare(scene.menuActionCalls,1); compare(scene.menuFpsVisible,true);
             tryCompare(testViewMenu,"opened",false);
         }
-        function test_menuOtherThemesRetainGeometry_data() {
-            return ["fluent-dark","classic","windows-classic","github-dark","gray-dark"].map(style=>({tag:style,style:style}));
-        }
-        function test_menuOtherThemesRetainGeometry(data) {
-            Backend.uiTheme.style=data.style; wait(20);
+        function test_fluentMenuRetainsGeometry() {
+            Backend.uiTheme.style="fluent-dark"; wait(20);
             const heading=findChild(testMenuBar,"menuHeading_View");
             mouseClick(heading,heading.width/2,heading.height/2);
             tryCompare(testViewMenu,"opened",true);
             const entry=testViewMenu.itemAt(1);
             compare(entry.implicitHeight,24);
             verify(!findChild(entry,"classicMenuCheckBox").visible);
-            compare(testViewMenu.padding,data.style==="fluent-dark" ? 4 : 1);
+            compare(testViewMenu.padding,4);
             keyClick(Qt.Key_Escape); tryCompare(testViewMenu,"opened",false);
         }
         function test_menuVisualLayout() {

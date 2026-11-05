@@ -9,16 +9,12 @@ Dialog {
     property bool showCaptionCloseButton: (closePolicy & Popup.CloseOnEscape) !== 0
     property bool floatingPositionInitialized: false
     readonly property bool tibiaTheme: Backend.uiTheme.style === "tibia-ui"
-    readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
-    readonly property bool modernTheme: Backend.uiTheme.style !== "classic" && !windowsClassic
-    readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
-                                      || Backend.uiTheme.style === "gray-modern"
     modal: true
     focus: true
-    dim: modernTheme
+    dim: true
     anchors.centerIn: root.movable ? null : Overlay.overlay
     closePolicy: Popup.CloseOnEscape
-    padding: tibiaTheme ? 8 : modernTheme ? 16 : 12
+    padding: tibiaTheme ? 8 : 16
     background: DmeDialogBackground {}
 
     onOpened: {
@@ -32,11 +28,11 @@ Dialog {
     header: Item {
         id: dialogHeader
         visible: root.title.length > 0
-        implicitHeight: visible ? (root.tibiaTheme ? 17 : root.modernTheme ? 38 : 28) : 0
+        implicitHeight: visible ? (root.tibiaTheme ? 17 : 38) : 0
         Rectangle {
-            visible: root.modernTheme && !root.tibiaTheme
+            visible: !root.tibiaTheme
             anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-            height: 1; color: root.grayTheme ? "#3A3A3A" : "#30363D"
+            height: 1; color: "#30363D"
         }
         TibiaSkin.TibiaSkin { anchors.fill: parent; visible: !root.tibiaTheme }
         TibiaSkin.TibiaPanelHeader {
@@ -59,11 +55,11 @@ Dialog {
         Text {
             visible: !root.tibiaTheme
             anchors.verticalCenter: parent.verticalCenter
-            x: root.tibiaTheme ? (parent.width-width)/2 : root.modernTheme ? 16 : (parent.width-width)/2
+            x: root.tibiaTheme ? (parent.width-width)/2 : 16
             text: root.title
-            color: root.tibiaTheme ? "#c0c0c0" : root.windowsClassic ? "#202020" : (root.grayTheme ? "#F0F0F0" : (root.modernTheme ? "#F0F6FC" : "#c0c0c0"))
-            font.bold: !root.windowsClassic
-            font.pixelSize: root.tibiaTheme ? 11 : root.modernTheme ? 14 : 13
+            color: root.tibiaTheme ? "#c0c0c0" : (((("#F0F6FC"))))
+            font.bold: true
+            font.pixelSize: root.tibiaTheme ? 11 : 14
             font.family: root.tibiaTheme ? "Verdana" : Qt.application.font.family
         }
 

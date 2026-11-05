@@ -14,26 +14,14 @@ DmeDialog {
     required property var mapView
     signal colorizeRequested()
 
-    title: "Preferences"
-    width: Math.min(820, Overlay.overlay ? Overlay.overlay.width - 32 : 820)
-    height: Math.min(650, Overlay.overlay ? Overlay.overlay.height - 32 : 570)
+    title: tibiaTheme ? "Options" : "Preferences"
+    width: Math.min(tibiaTheme ? 740 : 820, Overlay.overlay ? Overlay.overlay.width - 32 : 820)
+    height: Math.min(tibiaTheme ? 470 : 650, Overlay.overlay ? Overlay.overlay.height - 32 : 570)
+    readonly property bool showClassicCategoryDescriptions: tibiaTheme && width >= 650
     property int page: 0
     readonly property bool fluentUi: Backend.uiTheme.style === "fluent-dark"
 
     readonly property color descriptionColor: tibiaTheme ? "#d0d0d0" : "#8B949E"
-
-    background: DmeDialogBackground {
-        Image {
-            anchors.fill: parent
-            anchors.margins: 4
-            anchors.topMargin: 17
-            visible: dialog.tibiaTheme
-            source: Qt.resolvedUrl("../themes/tibia/images/dialog-frame-borderimage.png")
-            sourceClipRect: Qt.rect(4, 17, 96, 96)
-            fillMode: Image.Tile
-            smooth: false
-        }
-    }
 
     function styleIndex() {
         for (let i = 0; i < Backend.uiTheme.styles.length; ++i)
@@ -53,35 +41,89 @@ DmeDialog {
         clip: true
         spacing: 12
 
-        DmePanel {
-            Layout.preferredWidth: 176
+        Item {
+            Layout.preferredWidth: dialog.tibiaTheme ? (dialog.showClassicCategoryDescriptions ? 244 : 118) : 176
             Layout.minimumHeight: 0
             Layout.fillHeight: true
+
+            Loader {
+                anchors.fill: parent
+                active: !dialog.tibiaTheme
+                sourceComponent: DmePanel {}
+            }
+            Rectangle {
+                anchors.right: parent.right
+                height: parent.height
+                width: 1
+                color: "#777770"
+                visible: dialog.tibiaTheme
+            }
 
             Column {
                 anchors { fill: parent; margins: 8 }
                 spacing: 5
                 Repeater {
                     model: [
-                        { name: "General", icon: "\uE713" },
-                        { name: "Interface", icon: "\uE790" },
-                        { name: "Performance", icon: "\uE9D9" },
-                        { name: "Editor", icon: "\uE70F" },
-                        { name: "Zone display", icon: "\uE81E" },
-                        { name: "Hotkeys", icon: "\uE765" }
+                        { name: "General", description: "Startup and updates", icon: "\uE713" },
+                        { name: "Interface", description: "Theme and palette", icon: "\uE790" },
+                        { name: "Performance", description: "Graphics and frame rate", icon: "\uE9D9" },
+                        { name: "Editor", description: "Editing and autosave", icon: "\uE70F" },
+                        { name: "Zone display", description: "Map zone overlays", icon: "\uE81E" },
+                        { name: "Hotkeys", description: "Keyboard shortcuts", icon: "\uE765" }
                     ]
                     delegate: Rectangle {
+                        id: tab
                         required property var modelData
                         required property int index
                         objectName: "preferencesTab" + modelData.name.replace(/ /g, "")
                         width: parent.width
-                        height: Math.min(44, (parent.height - 5 * parent.spacing) / 6)
+                        height: Math.max(0, Math.min(dialog.tibiaTheme ? 33 : 44, (parent.height - 5 * parent.spacing) / 6))
                         radius: dialog.tibiaTheme ? 0 : 5
                         color: dialog.tibiaTheme ? "transparent" : dialog.page === index ? Colors.c("selected") : navMouse.containsMouse ? Colors.c("hover") : "transparent"
                         Loader {
-                            anchors.fill: parent
-                            active: dialog.tibiaTheme && (dialog.page === index || navMouse.containsMouse)
-                            sourceComponent: TibiaSkin.TibiaClassicFrame { kind: "button"; pressed: true }
+                            width: Math.min(parent.width, 104)
+                            height: Math.min(parent.height, 24)
+                            anchors.verticalCenter: parent.verticalCenter
+                            active: dialog.tibiaTheme
+                            sourceComponent: Button {
+                                objectName: tab.objectName + "Button"
+                                text: tab.modelData.name
+                                padding: 3
+                                hoverEnabled: true
+                                highlighted: dialog.page === tab.index
+                                onClicked: dialog.page = tab.index
+                                background: TibiaSkin.TibiaClassicFrame {
+                                    kind: "button"
+                                    pressed: parent.down || parent.highlighted
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        anchors.margins: 1
+                                        visible: parent.parent.hovered || parent.parent.visualFocus
+                                        color: "#13ffffff"
+                                    }
+                                }
+                                contentItem: Text {
+                                    text: parent.text
+                                    color: "#e1dfd8"
+                                    font.family: "Verdana"
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                    elide: Text.ElideRight
+                                }
+                            }
+                        }
+                        Text {
+                            x: 114
+                            width: Math.max(0, parent.width - x)
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: dialog.showClassicCategoryDescriptions
+                            text: tab.modelData.description
+                            color: dialog.descriptionColor
+                            font.family: "Verdana"
+                            font.pixelSize: 11
+                            wrapMode: Text.WordWrap
                         }
                         Rectangle {
                             x: 0; anchors.verticalCenter: parent.verticalCenter
@@ -90,11 +132,12 @@ DmeDialog {
                             color: Colors.c("accent")
                         }
                         Row {
+                            visible: !dialog.tibiaTheme
                             x: 14; anchors.verticalCenter: parent.verticalCenter; spacing: 12
                             Text { text: modelData.icon; color: dialog.page === index ? Colors.c("accent") : Colors.c("muted"); font.family: "Segoe Fluent Icons"; font.pixelSize: 19; anchors.verticalCenter: parent.verticalCenter }
                             Text { text: modelData.name; color: Colors.c("text"); font.family: Colors.family(); font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
                         }
-                        MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; onClicked: dialog.page = index }
+                        MouseArea { id: navMouse; anchors.fill: parent; visible: !dialog.tibiaTheme; hoverEnabled: true; onClicked: dialog.page = index }
                     }
                 }
             }
@@ -431,8 +474,9 @@ DmeDialog {
         }
         DmeButton {
             anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-            width: 100
-            text: "Close"
+            width: dialog.tibiaTheme ? 52 : 100
+            height: dialog.tibiaTheme ? 24 : implicitHeight
+            text: dialog.tibiaTheme ? "OK" : "Close"
             onClicked: dialog.close()
         }
     }
@@ -450,7 +494,7 @@ DmeDialog {
             id: pageColumn
             width: prefPage.availableWidth - 12
             spacing: 12
-            Text { text: prefPage.title; color: Colors.c("text"); font { family: Colors.family(); pixelSize: dialog.tibiaTheme ? 16 : 20; bold: true } }
+            Text { text: prefPage.title; color: Colors.c("text"); font { family: Colors.family(); pixelSize: dialog.tibiaTheme ? 13 : 20; bold: true } }
             Text { width: parent.width; text: prefPage.description; color: dialog.tibiaTheme ? dialog.descriptionColor : Colors.c("muted"); font.family: Colors.family(); font.pixelSize: 12; wrapMode: Text.WordWrap }
         }
     }

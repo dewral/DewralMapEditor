@@ -179,8 +179,8 @@ QtObject {
         function checkForUpdates() {}
     }
     property QtObject uiTheme: QtObject {
-        property string style: "gray-dark"
-        property var styles: [{ id: "fluent-dark", name: "Fluent Dark" }, { id: "gray-dark", name: "Gray Dark" }]
+        property string style: "fluent-dark"
+        property var styles: [{ id: "fluent-dark", name: "Fluent Dark" }, { id: "tibia-ui", name: "Tibia-UI" }]
         property var colorOverrides: ({})
         property string highlightedColor: ""
         signal colorsChanged()
@@ -190,7 +190,6 @@ QtObject {
         }
         function resetUiColor(key) { const copy = Object.assign({}, colorOverrides); delete copy[key]; colorOverrides = copy; colorsChanged(); }
         function resetUiColors() { colorOverrides = ({}); colorsChanged(); }
-        property string tex: Qt.resolvedUrl("../../../../editor/ui/")
     }
     property QtObject fileTools: QtObject {
         property string text: ""
@@ -250,7 +249,7 @@ QtObject {
         function outfitColor(index) { return "#888888"; }
         property bool loaded: true
         property int itemImagesRevision: 1
-        function itemImageSourceForClientId(clientId) { return generatorPreviewSprites ? Qt.resolvedUrl("../../../../editor/ui/github/app-icon.png") : "" }
-        function itemImageSource(spriteIds, width, height, layers) { return generatorPreviewSprites ? Qt.resolvedUrl("../../../../editor/ui/github/app-icon.png") : "" }
+        function itemImageSourceForClientId(clientId) { return generatorPreviewSprites ? Qt.resolvedUrl("../../../../editor/ui/app-icon.png") : "" }
+        function itemImageSource(spriteIds, width, height, layers) { return generatorPreviewSprites ? Qt.resolvedUrl("../../../../editor/ui/app-icon.png") : "" }
     }
 }

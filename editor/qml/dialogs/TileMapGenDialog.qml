@@ -20,7 +20,7 @@ DmeDialog {
     property string activeProfileId: ""
     readonly property var profileEntries: Backend.tileMapGenProfiles.profiles
     property string message: "Choose your materials and settings, then generate a preview on the map."
-    readonly property color textColor: Backend.uiTheme.style === "windows-classic" ? "#202020" : "#c9d1d9"
+    readonly property color textColor: "#c9d1d9"
     readonly property bool busy: Backend.tileMapGen.busy
     readonly property bool isSettlement: style.currentIndex === 3
     readonly property int effectiveFloors: isSettlement ? 1 + upperLevels.value + basementLevels.value : floors.value
@@ -328,7 +328,7 @@ DmeDialog {
                     Caption { text: "Optional AI blueprint"; font.bold: true }
                     Caption { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "AI planning is a paid OpenAI request. Your description and selected material metadata are sent; sprites stay local. Map previews generate locally." }
                     TextField { id: apiKey; objectName: "settlementApiKey"; Layout.fillWidth: true; Layout.preferredHeight: 30; echoMode: TextInput.Password; color: dialog.textColor; placeholderText: "OpenAI API key, or OPENAI_API_KEY in .env.local"
-                        background: Rectangle { color: Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic" ? "#f4f4f4" : "#151b18"; border.color: "#59604e"; radius: 4 }
+                        background: Rectangle { color: "#151b18"; border.color: "#59604e"; radius: 4 }
                     }
                     RowLayout {
                         DmeCheckBox { id: rememberKey; text: "Remember securely"; enabled: Backend.tileMapGen.aiStatus.secure_storage === true; onClicked: checked = !checked }
@@ -338,7 +338,7 @@ DmeDialog {
                     Caption { text: Backend.tileMapGen.aiStatus.configured === true ? "API key configured" : "No API key configured" }
                     DmeTextField { id: aiModel; objectName: "settlementAiModel"; Layout.fillWidth: true; text: Backend.tileMapGen.aiStatus.model || "gpt-6.1-sol"; placeholderText: "OpenAI model" }
                     TextArea { id: aiPrompt; objectName: "settlementPrompt"; Layout.fillWidth: true; Layout.preferredHeight: 90; wrapMode: TextEdit.Wrap; color: dialog.textColor; placeholderText: "An abandoned stone town, a market square, a two-storey inn and cellars beneath the northern district."
-                        background: Rectangle { color: Backend.uiTheme.style === "classic" || Backend.uiTheme.style === "windows-classic" ? "#f4f4f4" : "#151b18"; border.color: "#59604e"; radius: 4 }
+                        background: Rectangle { color: "#151b18"; border.color: "#59604e"; radius: 4 }
                     }
                     DmeButton { text: Backend.tileMapGen.aiBusy ? "Cancel AI planning" : "Generate AI plan · paid request"
                         enabled: Backend.tileMapGen.aiBusy || (!dialog.busy && Backend.tileMapGen.settlementAvailable && Backend.tileMapGen.aiStatus.configured === true && aiPrompt.text.trim().length > 0)

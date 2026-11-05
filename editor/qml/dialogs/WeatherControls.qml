@@ -16,9 +16,8 @@ Item {
     property bool advanced:false
     signal mixChanged()
     function settingKey(key) { return settingsPrefix + key.slice(7); }
-    readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
-    readonly property color foreground: windowsClassic ? "#202020" : "#e0e0e0"
-    readonly property color muted: windowsClassic ? "#595959" : "#a9afb5"
+    readonly property color foreground: "#e0e0e0"
+    readonly property color muted: "#a9afb5"
     readonly property color accent: "#4a9fc2"
     implicitWidth: 478
     implicitHeight: weatherControls.implicitHeight

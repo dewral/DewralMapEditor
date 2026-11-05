@@ -6,14 +6,12 @@ import "../themes/fluent/Colors.js" as Colors
 
 Item {
     id: tabs
-    readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
     readonly property bool tibiaUi: Backend.uiTheme.style === "tibia-ui"
-    readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
     required property var app
     signal newRequested()
     property var documents: Backend.docMgr
 
-    Rectangle { anchors.fill: parent; visible: tabs.fluentUi && !tabs.tibiaUi; color: Colors.c("background") }
+    Rectangle { anchors.fill: parent; visible: !tabs.tibiaUi; color: Colors.c("background") }
 
     Loader {
         objectName: "mapTabsBackground"
@@ -24,16 +22,16 @@ Item {
 
     Flickable {
         anchors.fill: parent
-        contentWidth: tabRow.width + (tabs.fluentUi ? 8 : 0)
+        contentWidth: tabRow.width + (8)
         contentHeight: height
-        clip: tabs.fluentUi
-        interactive: tabs.fluentUi && contentWidth > width
+        clip: true
+        interactive: contentWidth > width
         boundsBehavior: Flickable.StopAtBounds
         flickableDirection: Flickable.HorizontalFlick
     Row {
         id: tabRow
-        x: tabs.fluentUi ? 4 : 0
-        y: tabs.height - (tabs.tibiaUi ? 24 : tabs.fluentUi ? 32 : 20)
+        x: 4
+        y: tabs.height - (tabs.tibiaUi ? 24 : 32)
         spacing: tabs.tibiaUi ? 0 : 2
 
         Repeater {
@@ -44,26 +42,14 @@ Item {
                 required property var modelData
                 required property int index
                 readonly property bool active: index === tabs.documents.currentIndex
-                width: tabs.tibiaUi ? Math.max(96,Math.min(260,tabLabel.implicitWidth+36)) : tabs.fluentUi ? Math.min(260,tabLabel.implicitWidth+44) : tabLabel.implicitWidth+34
-                height: tabs.tibiaUi ? 24 : tabs.fluentUi ? 28 : 20
+                width: tabs.tibiaUi ? Math.max(96,Math.min(260,tabLabel.implicitWidth+36)) : (Math.min(260,tabLabel.implicitWidth+44))
+                height: tabs.tibiaUi ? 24 : 28
 
                 Rectangle {
                     anchors.fill: parent
-                    visible: tabs.fluentUi && !tabs.tibiaUi
+                    visible: !tabs.tibiaUi
                     radius: tabs.tibiaUi ? 0 : 4
                     color: tabs.tibiaUi ? (tabDelegate.active ? "#484848" : "#303030") : tabDelegate.active ? Colors.c("selected") : Colors.c("background")
-                }
-                BorderImage {
-                    visible: !tabs.fluentUi
-                    anchors.fill: parent
-                    source: Backend.uiTheme.tex + (tabDelegate.active ? "tab_checked.png" : "tab_normal.png")
-                    smooth: false
-                    border {
-                        left: 2
-                        right: 2
-                        top: 2
-                        bottom: 2
-                    }
                 }
                 BorderImage {
                     objectName: "tibiaDocumentTabBackground" + tabDelegate.index
@@ -83,13 +69,13 @@ Item {
                         verticalCenter: parent.verticalCenter
                     }
                     text: tabDelegate.modelData.title + (tabDelegate.modelData.dirty ? " *" : "")
-                    color: tabs.tibiaUi ? (tabDelegate.active ? "#f4f4f4" : "#b0b0b0") : tabs.fluentUi ? Colors.c("text") : tabs.windowsClassic ? "#202020" : (tabDelegate.active ? "#eaffea" : "#c0c0c0")
-                    font.pixelSize: tabs.tibiaUi ? 11 : tabs.fluentUi ? Colors.fontSize : 11
-                    font.family: tabs.fluentUi ? Colors.family() : Qt.application.font.family
-                    renderType: tabs.fluentUi ? Text.NativeRendering : Text.QtRendering
-                    width: parent.width - (tabs.fluentUi ? 36 : 28)
+                    color: tabs.tibiaUi ? (tabDelegate.active ? "#f4f4f4" : "#b0b0b0") : (Colors.c("text"))
+                    font.pixelSize: tabs.tibiaUi ? 11 : Colors.fontSize
+                    font.family: (Colors.family())
+                    renderType: Text.NativeRendering
+                    width: parent.width - (36)
                     elide: Text.ElideRight
-                    font.bold: tabs.tibiaUi ? tabDelegate.active : (!tabs.fluentUi && tabDelegate.active)
+                    font.bold: tabs.tibiaUi ? tabDelegate.active : false
                 }
                 MouseArea {
                     anchors.fill: parent
@@ -126,10 +112,10 @@ Item {
                         verticalCenter: parent.verticalCenter
                     }
                     visible: !tabs.tibiaUi
-                    text: tabs.fluentUi ? "\u00d7" : "X"
-                    color: closeArea.containsMouse ? (tabs.windowsClassic ? "#c42b1c" : "#ff8f8f") : (tabs.windowsClassic ? "#444" : "#888")
+                    text: "\u00d7"
+                    color: closeArea.containsMouse ? ("#ff8f8f") : ("#888")
                     font.pixelSize: 12
-                    font.bold: !tabs.fluentUi
+                    font.bold: false
                     MouseArea {
                         id: closeArea
                         anchors.fill: parent

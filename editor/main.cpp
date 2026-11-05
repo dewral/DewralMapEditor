@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
     if (!vsyncEnabled) qputenv("QSG_NO_VSYNC", QByteArrayLiteral("1"));
 
     QGuiApplication app(argc, argv);
-    app.setWindowIcon(QIcon(QStringLiteral(":/ui/github/app-icon.png")));
+    app.setWindowIcon(QIcon(QStringLiteral(":/ui/app-icon.png")));
 
     QCoreApplication::setOrganizationName(QStringLiteral("Dewral"));
     QCoreApplication::setApplicationName(QStringLiteral("DewralMapEditor"));
@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
     });
 
     engine.addImageProvider(QStringLiteral("tibiaui"),
-                            new UiThemeImageProvider(backend.uiTheme()));
+                            new UiThemeImageProvider());
     engine.addImageProvider(QStringLiteral("paletteitem"),
                             new PaletteImageProvider(backend.sprReader()));
 

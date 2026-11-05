@@ -68,7 +68,7 @@ Item {
             Backend.brushStore = brushes
             Backend.otbReader = items
             Backend.tilesetStore = tilesets
-            Backend.uiTheme.style = "gray-dark"
+            Backend.uiTheme.style = "fluent-dark"
             brushes.saved = ({})
             brushes.captured = ({})
             brushes.failSave = false
@@ -120,7 +120,7 @@ Item {
             compare(composer.doodadChance(100), "50.0%")
         }
         function test_weightsAndRemoval_data() {
-            return ["classic", "windows-classic", "github", "gray-dark", "gray-modern", "fluent-dark"]
+            return ["fluent-dark", "tibia-ui"]
                 .map(theme => ({tag: theme, theme: theme}))
         }
         function test_weightsAndRemoval(data) {

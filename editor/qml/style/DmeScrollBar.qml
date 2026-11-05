@@ -6,14 +6,9 @@ import Tibia 1.0
 Item {
     id: root
     readonly property bool tibiaTheme: Backend.uiTheme.style === "tibia-ui"
-    readonly property bool fluentTheme: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
     property var scrollController: null
     property var flickable
     property bool dragging: false
-    readonly property bool githubTheme: Backend.uiTheme.style !== "classic"
-                                        && Backend.uiTheme.style !== "windows-classic" && Backend.uiTheme.style !== "tibia-ui"
-    readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
-                                      || Backend.uiTheme.style === "gray-modern"
 
     visible: flickable && flickable.contentHeight > flickable.height
     clip: true
@@ -37,7 +32,7 @@ Item {
         anchors.bottom: downArrow.top
         anchors.left: parent.left
         anchors.right: parent.right
-        Loader { anchors.fill: parent; sourceComponent: root.githubTheme ? githubTrack : classicTrack }
+        Loader { anchors.fill: parent; sourceComponent: !root.tibiaTheme ? fluentTrack : tibiaTrack }
         MouseArea {
             anchors.fill: parent
             onClicked: mouse => root.scrollBy((mouse.y+track.y<thumb.y ? -1 : 1)*(root.flickable ? root.flickable.height : 100))
@@ -48,7 +43,7 @@ Item {
         id: upArrow
         anchors.top: parent.top
         width: root.width; height: root.width
-        Loader { anchors.fill: parent; sourceComponent: root.githubTheme ? githubUp : classicUp }
+        Loader { anchors.fill: parent; sourceComponent: !root.tibiaTheme ? fluentUp : tibiaUp }
         MouseArea {
             id: upArea; anchors.fill: parent; hoverEnabled: true
             onPressed: { root.scrollBy(-root.pixelStep); upRepeat.interval=350; upRepeat.start(); }
@@ -62,7 +57,7 @@ Item {
         id: downArrow
         anchors.bottom: parent.bottom
         width: root.width; height: root.width
-        Loader { anchors.fill: parent; sourceComponent: root.githubTheme ? githubDown : classicDown }
+        Loader { anchors.fill: parent; sourceComponent: !root.tibiaTheme ? fluentDown : tibiaDown }
         MouseArea {
             id: downArea; anchors.fill: parent; hoverEnabled: true
             onPressed: { root.scrollBy(root.pixelStep); downRepeat.interval=350; downRepeat.start(); }
@@ -78,7 +73,7 @@ Item {
         height: root.flickable && root.flickable.contentHeight > 0
                 ? Math.min(track.height, Math.max(root.tibiaTheme ? 14 : 24, track.height * (root.flickable.height / root.flickable.contentHeight)))
                 : 20
-        Loader { anchors.fill: parent; sourceComponent: root.githubTheme ? githubThumb : classicThumb }
+        Loader { anchors.fill: parent; sourceComponent: !root.tibiaTheme ? fluentThumb : tibiaThumb }
         Binding {
             target: thumb; property: "y"; when: !root.dragging
             value: upArrow.height + root.scrollPos * (track.height - thumb.height)
@@ -108,39 +103,38 @@ Item {
     }
 
     Component {
-        id: classicTrack
+        id: tibiaTrack
         Item {
             Image { anchors.fill: parent; visible: root.tibiaTheme; source: Qt.resolvedUrl("../themes/tibia/images/scrollbar-texture-vertical.png"); fillMode: Image.Tile; smooth: false }
-            BorderImage { anchors.fill: parent; visible: !root.tibiaTheme; source: Backend.uiTheme.tex + "scrollbar_track.png"; smooth: false; border { left: 1; right: 1; top: 1; bottom: 1 } }
         }
     }
     Component {
-        id: githubTrack
-        Item { Rectangle { anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 4; radius: root.fluentTheme ? 4 : 2; color: root.fluentTheme ? Colors.c("scrollTrack") : root.grayTheme ? "#242424" : "#161B22" } }
+        id: fluentTrack
+        Item { Rectangle { anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 4; radius: 4; color: (Colors.c("scrollTrack")) } }
     }
     Component {
-        id: classicUp
-        Image { smooth: false; source: root.tibiaTheme ? Qt.resolvedUrl("../themes/tibia/images/scrollbar-buttonup-"+(upArea.pressed ? "down" : "up")+".png") : upArea.pressed ? (Backend.uiTheme.tex + "scrollbar_arrow_up_hover.png") : (Backend.uiTheme.tex + "scrollbar_arrow_up.png") }
+        id: tibiaUp
+        Image { smooth: false; source: Qt.resolvedUrl("../themes/tibia/images/scrollbar-buttonup-"+(upArea.pressed ? "down" : "up")+".png") }
     }
     Component {
-        id: githubUp
-        Text { text: "\u2303"; color: upArea.containsMouse ? (root.grayTheme ? "#E0E0E0" : "#C9D1D9") : (root.grayTheme ? "#777777" : "#6E7681"); font.pixelSize: 9; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+        id: fluentUp
+        Text { text: "\u2303"; color: upArea.containsMouse ? ("#C9D1D9") : ("#6E7681"); font.pixelSize: 9; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
     }
     Component {
-        id: classicDown
-        Image { smooth: false; source: root.tibiaTheme ? Qt.resolvedUrl("../themes/tibia/images/scrollbar-buttondown-"+(downArea.pressed ? "down" : "up")+".png") : downArea.pressed ? (Backend.uiTheme.tex + "scrollbar_arrow_down_hover.png") : (Backend.uiTheme.tex + "scrollbar_arrow_down.png") }
+        id: tibiaDown
+        Image { smooth: false; source: Qt.resolvedUrl("../themes/tibia/images/scrollbar-buttondown-"+(downArea.pressed ? "down" : "up")+".png") }
     }
     Component {
-        id: githubDown
-        Text { text: "\u2304"; color: downArea.containsMouse ? (root.grayTheme ? "#E0E0E0" : "#C9D1D9") : (root.grayTheme ? "#777777" : "#6E7681"); font.pixelSize: 9; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+        id: fluentDown
+        Text { text: "\u2304"; color: downArea.containsMouse ? ("#C9D1D9") : ("#6E7681"); font.pixelSize: 9; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
     }
     Component {
-        id: classicThumb
-        BorderImage { objectName: "clientScrollbarHandle"; source: root.tibiaTheme ? Qt.resolvedUrl("../themes/tibia/images/scrollbar-handle-vertical.png") : Backend.uiTheme.tex + "scrollbar_thumb.png"; smooth: false; border { left: root.tibiaTheme ? 0 : 6; right: root.tibiaTheme ? 0 : 6; top: 6; bottom: 6 } }
+        id: tibiaThumb
+        BorderImage { objectName: "clientScrollbarHandle"; source: Qt.resolvedUrl("../themes/tibia/images/scrollbar-handle-vertical.png"); smooth: false; border { left: 0; right: 0; top: 6; bottom: 6 } }
     }
     Component {
-        id: githubThumb
-        Item { Rectangle { anchors.fill: parent; anchors.leftMargin: 3; anchors.rightMargin: 3; radius: root.fluentTheme ? 0 : 3; color: thumbArea.containsMouse || root.dragging ? (root.grayTheme ? "#A0A0A0" : "#8B949E") : (root.fluentTheme ? Colors.c("scrollThumb") : root.grayTheme ? "#666666" : "#57606A") } }
+        id: fluentThumb
+        Item { Rectangle { anchors.fill: parent; anchors.leftMargin: 3; anchors.rightMargin: 3; radius: 0; color: thumbArea.containsMouse || root.dragging ? ("#8B949E") : ((Colors.c("scrollThumb"))) } }
     }
     ColorHighlight { targetItem: root; colorKeys: ["scrollTrack", "scrollThumb"] }
 }

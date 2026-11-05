@@ -96,4 +96,6 @@
     <file alias="tool-pvp.svg">../editor/qml/themes/tibia/icons/tool-pvp.svg</file>
     <file alias="tool-auto.svg">../editor/qml/themes/tibia/icons/tool-auto.svg</file>
     <file alias="tool-doors.svg">../editor/qml/themes/tibia/icons/tool-doors.svg</file>
+</qresource><qresource prefix="/ui">
+    <file alias="app-icon.png">../editor/ui/app-icon.png</file>
 </qresource></RCC>

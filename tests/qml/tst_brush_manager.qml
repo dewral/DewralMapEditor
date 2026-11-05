@@ -101,7 +101,7 @@ Item {
             Backend.otbReader = items
             Backend.sprReader = sprites
             sprites.visibleIds = [3618]
-            Backend.uiTheme.style = "gray-dark"
+            Backend.uiTheme.style = "fluent-dark"
             tilesets.deleteCount = 0
             tilesets.addedIds = []
             tilesets.removedIds = []
@@ -155,8 +155,7 @@ Item {
         }
 
         function test_hideInvisibleSprites_data() {
-            return ["classic", "windows-classic", "github", "gray-dark",
-                    "gray-modern", "fluent-dark"].map(theme => ({tag: theme, theme}))
+            return ["fluent-dark", "tibia-ui"].map(theme => ({tag: theme, theme}))
         }
 
         function pickerCell(row) {
@@ -168,8 +167,7 @@ Item {
             return findChild(pickerCell(row), "brushManagerMembershipBadge")
         }
         function test_tilesetMembership_data() {
-            return ["classic", "windows-classic", "github", "gray-dark",
-                    "gray-modern", "fluent-dark"].map(theme => ({tag: theme, theme}))
+            return ["fluent-dark", "tibia-ui"].map(theme => ({tag: theme, theme}))
         }
         function test_tilesetMembership(data) {
             Backend.uiTheme.style = data.theme
@@ -183,7 +181,7 @@ Item {
             manager.selectPickerItem(13614, 1, Qt.NoModifier)
             compare(pickerCell(1).border.color, manager.accentColor)
             compare(membershipBadge(1).visible, true)
-            verify(membershipBadge(1).color !== pickerCell(1).border.color || data.theme === "windows-classic")
+            verify(membershipBadge(1).color !== pickerCell(1).border.color)
             verify(waitForRendering(membershipBadge(1)))
             verify(membershipBadge(1).x >= 0 && membershipBadge(1).y >= 0)
             verify(membershipBadge(1).x + membershipBadge(1).width <= pickerCell(1).width)
@@ -333,8 +331,7 @@ Item {
             }
         }
         function test_tilesetCtrlSelection_data() {
-            return ["classic", "windows-classic", "github", "gray-dark",
-                    "gray-modern", "fluent-dark"].map(theme => ({tag: theme, theme}))
+            return ["fluent-dark", "tibia-ui"].map(theme => ({tag: theme, theme}))
         }
         function test_tilesetCtrlSelection(data) {
             Backend.uiTheme.style = data.theme
@@ -475,8 +472,7 @@ Item {
         }
         function test_deleteEditsText_data() {
             const rows = []
-            for (const theme of ["classic", "windows-classic", "github", "gray-dark",
-                                 "gray-modern", "fluent-dark"])
+            for (const theme of ["fluent-dark", "tibia-ui"])
                 for (const field of ["brushManagerTilesetName", "brushManagerPickerSearch"])
                     rows.push({tag: theme + "-" + field, theme, field})
             return rows
@@ -558,8 +554,7 @@ Item {
         }
 
         function test_revealTilesetSprite_data() {
-            return ["classic", "windows-classic", "github", "gray-dark",
-                    "gray-modern", "fluent-dark"].map(theme => ({tag: theme, theme}))
+            return ["fluent-dark", "tibia-ui"].map(theme => ({tag: theme, theme}))
         }
         function test_revealTilesetSprite(data) {
             Backend.uiTheme.style = data.theme

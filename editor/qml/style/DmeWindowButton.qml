@@ -6,9 +6,6 @@ import "../themes/tibia" as TibiaSkin
 Item {
     id: root
     readonly property bool tibiaTheme: Backend.uiTheme.style === "tibia-ui"
-    readonly property bool grayTheme: Backend.uiTheme.style === "gray-dark"
-                                      || Backend.uiTheme.style === "gray-modern"
-    readonly property bool windowsClassic: Backend.uiTheme.style === "windows-classic"
 
     property string controlType: "minimize"
     property bool maximized: false
@@ -30,10 +27,8 @@ Item {
                 return "transparent";
             if (root.tibiaTheme) return "transparent";
             if (root.controlType === "close")
-                return root.pressed ? "#B62324" : (root.windowsClassic ? "#e81123" : "#DA3633");
-            if (root.windowsClassic)
-                return root.pressed ? "#c8dff2" : "#dcecf8";
-            return root.pressed ? (root.grayTheme ? "#353535" : "#30363D") : (root.grayTheme ? "#292929" : "#21262D");
+                return root.pressed ? "#B62324" : ("#DA3633");
+            return root.pressed ? ("#30363D") : ("#21262D");
         }
     }
 
@@ -71,7 +66,7 @@ Item {
             }
             width: 11
             height: 1
-            color: root.windowsClassic && !(root.controlType === "close" && root.hovered) ? "#202020" : (root.hovered ? "#FFFFFF" : "#A7B1BC")
+            color: ((root.hovered ? "#FFFFFF" : "#A7B1BC"))
         }
 
         Rectangle {
@@ -81,7 +76,7 @@ Item {
             height: 9
             color: "transparent"
             border.width: 1
-            border.color: root.windowsClassic ? "#202020" : (root.hovered ? "#FFFFFF" : "#A7B1BC")
+            border.color: ((root.hovered ? "#FFFFFF" : "#A7B1BC"))
         }
 
         Rectangle {
@@ -90,9 +85,9 @@ Item {
             y: 2
             width: 8
             height: 8
-            color: root.windowsClassic ? "#e7eef7" : (root.grayTheme ? "#151515" : "#0D1117")
+            color: (("#0D1117"))
             border.width: 1
-            border.color: root.windowsClassic ? "#202020" : (root.hovered ? "#FFFFFF" : "#A7B1BC")
+            border.color: ((root.hovered ? "#FFFFFF" : "#A7B1BC"))
         }
 
         Rectangle {
@@ -101,9 +96,9 @@ Item {
             y: 4
             width: 8
             height: 8
-            color: root.windowsClassic ? (root.hovered ? "#dcecf8" : "#e7eef7") : (root.hovered ? (root.grayTheme ? "#292929" : "#21262D") : (root.grayTheme ? "#151515" : "#0D1117"))
+            color: ((root.hovered ? ("#21262D") : ("#0D1117")))
             border.width: 1
-            border.color: root.windowsClassic ? "#202020" : (root.hovered ? "#FFFFFF" : "#A7B1BC")
+            border.color: ((root.hovered ? "#FFFFFF" : "#A7B1BC"))
         }
 
         Rectangle {
@@ -112,7 +107,7 @@ Item {
             width: 12
             height: 1
             rotation: 45
-            color: root.windowsClassic && !root.hovered ? "#202020" : (root.hovered ? "#FFFFFF" : "#A7B1BC")
+            color: ((root.hovered ? "#FFFFFF" : "#A7B1BC"))
             antialiasing: true
         }
 
@@ -122,7 +117,7 @@ Item {
             width: 12
             height: 1
             rotation: -45
-            color: root.windowsClassic && !root.hovered ? "#202020" : (root.hovered ? "#FFFFFF" : "#A7B1BC")
+            color: ((root.hovered ? "#FFFFFF" : "#A7B1BC"))
             antialiasing: true
         }
     }

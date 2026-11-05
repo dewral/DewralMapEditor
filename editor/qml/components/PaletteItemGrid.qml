@@ -13,10 +13,6 @@ Item {
     required property var mapCtrl
     required property var filterModel
     required property string currentKind
-    readonly property bool fluentUi: (Backend.uiTheme.style === "fluent-dark" || Backend.uiTheme.style === "tibia-ui")
-    required property bool githubUi
-    readonly property bool grayUi: Backend.uiTheme.style === "gray-dark"
-                                   || Backend.uiTheme.style === "gray-modern"
     readonly property int fluentCellSize: root.app.iconSizePx
     readonly property bool listView: root.app.settings.paletteViewMode === "list"
 
@@ -56,26 +52,16 @@ Item {
         objectName: "paletteGrid"
 
         readonly property int fluentColumns: Math.max(1, (Backend.uiTheme.style === "tibia-ui" ? Math.floor(width / root.fluentCellSize) : Math.round(width / root.fluentCellSize)))
-        readonly property int githubGridGap: 8
-        readonly property int githubPreferredCellWidth: Math.max(72, root.app.iconSizePx + 14)
-        readonly property int githubMaxNativeColumns: Math.max(1, Math.floor(width / 76))
-        readonly property int githubColumns: root.listView ? 1 : Math.min(githubMaxNativeColumns,
-                                                       Math.max(1, Math.floor((width + githubGridGap)
-                                                                              / (githubPreferredCellWidth + githubGridGap) + 0.4)))
-        readonly property real githubCellHeight: root.listView
-                                                     ? Math.max(48, root.app.iconSizePx * 0.72)
-                                                     : (root.fluentUi ? Math.floor(grid.width / grid.fluentColumns) : root.app.iconSizePx) + 22
 
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        width: parent.width - (Backend.uiTheme.style === "tibia-ui" ? 14 : root.githubUi ? 4 : 14)
+        width: parent.width - 14
         clip: true
         reuseItems: true
         cacheBuffer: Math.max(0, grid.height)
-        cellWidth: root.listView ? grid.width : root.githubUi ? Math.max(1, Math.floor(width / githubColumns))
-                                 : (root.fluentUi ? Math.floor(grid.width / grid.fluentColumns) : root.app.iconSizePx)
-        cellHeight: root.listView ? Math.max(48, root.app.iconSizePx * 0.72) : root.githubUi ? githubCellHeight : (root.fluentUi ? grid.cellWidth : root.app.iconSizePx)
+        cellWidth: root.listView ? grid.width : Math.floor(grid.width / grid.fluentColumns)
+        cellHeight: root.listView ? Math.max(48, root.app.iconSizePx * 0.72) : grid.cellWidth
         model: Backend.otbReader.loaded
                ? root.filterModel
                : (Backend.datReader.loaded ? Backend.datReader : Backend.sprReader)
@@ -88,13 +74,13 @@ Item {
                 id: cellMotion
                 view: grid
                 targetCell: paletteCell
-                enabled: root.fluentUi || root.githubUi
+                enabled: true
             }
             opacity: cellMotion.reveal
-            width: grid.cellWidth - (root.githubUi ? grid.githubGridGap : 2)
-            height: grid.cellHeight - (root.githubUi ? grid.githubGridGap : 2)
+            width: grid.cellWidth - (2)
+            height: grid.cellHeight - (2)
             clip: true
-            radius: root.fluentUi ? 1 : root.githubUi ? 4 : 0
+            radius: 1
 
             property bool isBrush: typeof serverId !== "undefined"
                                    && root.mapCtrl.brushServerId === serverId
@@ -103,15 +89,13 @@ Item {
             property string doodadPreview: typeof serverId !== "undefined"
                                            ? root.mapCtrl.doodadPreviewSource(serverId) : ""
             color: selected
-                   ? (root.fluentUi ? Colors.c("selectedCell") : root.githubUi ? (root.grayUi ? "#4A3A1F" : "#163B2C") : "#2f6f4f")
+                   ? ((Colors.c("selectedCell")))
                    : (cellMouseArea.containsMouse
-                      ? (root.githubUi ? (root.grayUi ? "#303030" : "#161E27") : "#303030")
-                      : (root.githubUi ? (root.grayUi ? "#242424" : "#0D1117") : (root.fluentUi ? Colors.c("cell") : "#252525")))
+                      ? ("#303030")
+                      : ((((Colors.c("cell"))))))
             border.color: selected
-                          ? (root.fluentUi ? Colors.c("selectedBorder") : root.githubUi ? (root.grayUi ? "#C79A3B" : "#2EA043") : "#7fdc8f")
-                          : (root.githubUi
-                             ? (cellMouseArea.containsMouse ? (root.grayUi ? "#595959" : "#3A4655") : (root.grayUi ? "#424242" : "#202A35"))
-                             : (root.fluentUi ? Colors.c("cellBorder") : "#3a3a3a"))
+                          ? ((Colors.c("selectedBorder")))
+                          : ((((Colors.c("cellBorder")))))
             border.width: selected ? 2 : 1
             Loader {
                 anchors.fill: parent
@@ -125,7 +109,7 @@ Item {
                 anchors.horizontalCenter: root.listView ? undefined : parent.horizontalCenter
                 anchors.left: root.listView ? parent.left : undefined
                 anchors.leftMargin: root.listView ? 8 : 0
-                anchors.verticalCenterOffset: root.githubUi && !root.listView ? -4 : 0
+                anchors.verticalCenterOffset: 0
 
                 readonly property int nativeW: parent.doodadPreview !== ""
                                                ? Math.max(1, implicitWidth)
@@ -135,10 +119,10 @@ Item {
                                                : Math.max(1, (typeof itemHeight !== "undefined" ? itemHeight : 1) * 32)
                 readonly property real availableW: root.listView
                                                        ? Math.max(1, Math.min(40, parent.height - 8))
-                                                       : Math.max(1, parent.width - (root.githubUi ? 12 : 6))
-                readonly property real availableH: Math.max(1, parent.height - (root.githubUi ? 24 : 6))
-                readonly property real tileScale: (grid.cellWidth - (root.githubUi ? 16 : 6)) / 64
-                readonly property real fitScale: Math.min(root.fluentUi ? (root.app.iconSizePx - 8) / 32 : root.githubUi ? 1 : tileScale,
+                                                       : Math.max(1, parent.width - (6))
+                readonly property real availableH: Math.max(1, parent.height - (6))
+                readonly property real tileScale: (grid.cellWidth - (6)) / 64
+                readonly property real fitScale: Math.min(((root.app.iconSizePx - 8) / 32),
                                                            availableW / nativeW,
                                                            availableH / nativeH)
 
@@ -168,24 +152,6 @@ Item {
                 }
             }
 
-            Text {
-                visible: !root.listView && !root.fluentUi
-                anchors.bottom: parent.bottom
-                anchors.horizontalCenter: root.githubUi ? parent.horizontalCenter : undefined
-                anchors.right: root.githubUi ? undefined : parent.right
-                anchors.margins: root.githubUi ? 4 : 2
-                font.pixelSize: root.githubUi ? (root.app.iconSizePx >= 88 ? 13 : 11) : 9
-                color: root.grayUi ? "#929292" : (root.githubUi ? "#7D8590" : "#777")
-                text: {
-                    if (typeof serverId !== "undefined")
-                        return serverId;
-                    if (typeof itemId !== "undefined")
-                        return itemId;
-                    if (typeof spriteId !== "undefined")
-                        return spriteId;
-                    return "";
-                }
-            }
 
             Column {
                 visible: root.listView
@@ -202,7 +168,7 @@ Item {
                     width: parent.width
                     text: typeof itemName !== "undefined" && itemName.length > 0
                           ? itemName : "Unnamed item"
-                    color: root.grayUi ? "#F0F0F0" : "#F0F6FC"
+                    color: "#F0F6FC"
                     elide: Text.ElideRight
                     font { pixelSize: 12; bold: true }
                 }
@@ -210,7 +176,7 @@ Item {
                     text: typeof serverId !== "undefined" ? "Server ID " + serverId
                           : typeof itemId !== "undefined" ? "Item ID " + itemId
                           : typeof spriteId !== "undefined" ? "Sprite ID " + spriteId : ""
-                    color: root.grayUi ? "#929292" : "#7D8590"
+                    color: "#7D8590"
                     font.pixelSize: 10
                 }
             }
@@ -230,13 +196,13 @@ Item {
                     if (!ids.length && typeof spriteId !== "undefined") ids.push("Sprite ID: " + spriteId);
                     return (name || "Unnamed item") + (ids.length ? "\n" + ids.join("  ") : "");
                 }
-                ToolTip.visible: !root.githubUi && !root.fluentUi && containsMouse
+                ToolTip.visible: false
                 ToolTip.text: itemTooltip
                 ToolTip.delay: 550
 
-                GithubToolTip {
+                DmeToolTip {
                     targetItem: cellMouseArea
-                    targetHovered: (root.githubUi || root.fluentUi) && cellMouseArea.containsMouse
+                    targetHovered: cellMouseArea.containsMouse
                     message: cellMouseArea.itemTooltip
                 }
 
@@ -266,12 +232,12 @@ Item {
     PaletteSmoothScroll {
         id: smoothScroll
         view: grid
-        enabled: root.fluentUi || root.githubUi
+        enabled: true
         step: grid.cellHeight * 2
     }
 
     DmeScrollBar {
-        scrollController: (root.fluentUi || root.githubUi) ? smoothScroll : null
+        scrollController: smoothScroll
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom

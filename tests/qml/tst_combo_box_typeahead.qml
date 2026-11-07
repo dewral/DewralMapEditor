@@ -24,6 +24,23 @@ Item {
         function namesFor(category) { return ["Addon and Quest Items", "Magic Fields", "Nature", "Roofs"] }
         function itemsFor(category, name) { return name === "Nature" ? [100] : [] }
     }
+    QtObject {
+        id: brushes
+        property int revision: 0
+        signal brushesChanged()
+        function groundBrushNames() { return ["Grass", "Ice", "Stone"] }
+        function groundBrushEdit(name) {
+            return {zorder: 100, items: [{id: 100 + groundBrushNames().indexOf(name), chance: 1}],
+                    borders: []};
+        }
+        function wallBrushNames() { return ["Brick", "Stone", "Wood"] }
+        function advancedBrushEdit(kind, name) {
+            const id = 110 + wallBrushNames().indexOf(name);
+            return {lookid: id, items: {"6": [[id, 100]]}};
+        }
+        function prefabsForPalette(name) { return [] }
+        function searchAliasesForServerId(id) { return [] }
+    }
     SignalSpy { id: activationSpy; signalName: "activated" }
 
     TestCase {
@@ -32,11 +49,13 @@ Item {
         property var combo
         property var manager
         property var previousTilesets
+        property var previousBrushes
         property string previousTheme
 
         function init() {
             previousTheme = Backend.uiTheme.style;
             previousTilesets = Backend.tilesetStore;
+            previousBrushes = Backend.brushStore;
         }
         function cleanup() {
             if (combo) {
@@ -52,6 +71,7 @@ Item {
             activationSpy.target = null;
             wait(0);
             Backend.tilesetStore = previousTilesets;
+            Backend.brushStore = previousBrushes;
             Backend.uiTheme.style = previousTheme;
         }
         function themes() {
@@ -72,6 +92,66 @@ Item {
             tryCompare(findChild(combo, "comboBoxTypeAhead").view, "activeFocus", true);
         }
 
+        function test_arrowsSelectAndRevealRows_data() { return themes(); }
+        function test_arrowsSelectAndRevealRows(data) {
+            openCombo(data.theme);
+            keyClick(Qt.Key_Up);
+            compare(combo.currentIndex, 0);
+            compare(activationSpy.count, 0);
+            keyClick(Qt.Key_Down);
+            compare(combo.currentIndex, 1);
+            keyClick(Qt.Key_Up);
+            compare(combo.currentIndex, 0);
+            compare(activationSpy.count, 2);
+            for (let index = 1; index < combo.model.length; ++index) {
+                keyClick(Qt.Key_Down);
+                compare(combo.currentIndex, index);
+            }
+            const view = findChild(combo, "comboBoxTypeAhead").view;
+            compare(view.currentIndex, combo.currentIndex);
+            tryVerify(() => view.itemAtIndex(combo.currentIndex) !== null);
+            const row = view.itemAtIndex(combo.currentIndex);
+            verify(row.y >= view.contentY);
+            verify(row.y + row.height <= view.contentY + view.height);
+            const activations = activationSpy.count;
+            keyClick(Qt.Key_Down);
+            compare(combo.currentIndex, combo.model.length - 1);
+            compare(activationSpy.count, activations);
+            compare(combo.open, true);
+            keyClick(Qt.Key_Enter);
+            tryCompare(combo, "open", false);
+            combo.currentIndex = 2;
+            compare(combo.currentText, "Magic Fields", "Arrow activation must preserve the wrapper's index binding");
+        }
+        function test_arrowsWithoutSelectionAndWithEmptyModel_data() { return themes(); }
+        function test_arrowsWithoutSelectionAndWithEmptyModel(data) {
+            openCombo(data.theme);
+            combo.currentIndex = -1;
+            keyClick(Qt.Key_Down);
+            compare(combo.currentIndex, 0);
+            combo.currentIndex = -1;
+            keyClick(Qt.Key_Up);
+            compare(combo.currentIndex, combo.model.length - 1);
+            compare(activationSpy.count, 2);
+            combo.model = [];
+            combo.currentIndex = -1;
+            keyClick(Qt.Key_Down);
+            keyClick(Qt.Key_Up);
+            compare(combo.currentIndex, -1);
+            compare(activationSpy.count, 2);
+        }
+        function test_arrowsResetTypeAhead_data() { return themes(); }
+        function test_arrowsResetTypeAhead(data) {
+            openCombo(data.theme);
+            keyClick(Qt.Key_N);
+            compare(combo.currentText, "Nature");
+            keyClick(Qt.Key_Up);
+            compare(combo.currentText, "Miscellaneous 19");
+            keyClick(Qt.Key_I);
+            compare(combo.currentText, "Miscellaneous 19", "Typing after an arrow must start a fresh search");
+            keyClick(Qt.Key_R);
+            compare(combo.currentText, "Roofs");
+        }
         function test_letterSelectsAndRevealsNature_data() { return themes(); }
         function test_letterSelectsAndRevealsNature(data) {
             openCombo(data.theme);
@@ -113,6 +193,8 @@ Item {
             keyClick(Qt.Key_Z);
             keyClick(Qt.Key_N, Qt.ControlModifier);
             keyClick(Qt.Key_N, Qt.AltModifier);
+            keyClick(Qt.Key_Down, Qt.ControlModifier);
+            keyClick(Qt.Key_Down, Qt.AltModifier);
             compare(combo.currentIndex, 0);
             compare(activationSpy.count, 0);
             keyClick(Qt.Key_N);
@@ -183,6 +265,47 @@ Item {
             keyClick(Qt.Key_Escape);
             tryCompare(tilesetCombo, "open", false);
             compare(manager.opened, true);
+        }
+        function test_brushManagerLoadsArrowSelection_data() {
+            const rows = [];
+            for (const theme of themes())
+                for (const kind of ["ground", "wall"])
+                    rows.push({tag: theme.theme + "-" + kind, theme: theme.theme, kind});
+            return rows;
+        }
+        function test_brushManagerLoadsArrowSelection(data) {
+            Backend.uiTheme.style = data.theme;
+            Backend.brushStore = brushes;
+            Backend.tilesetStore = tilesets;
+            manager = createTemporaryObject(managerComponent, testRoot, {tab: data.kind});
+            verify(manager);
+            manager.open();
+            tryCompare(manager, "opened", true);
+            const ground = data.kind === "ground";
+            if (ground)
+                manager.loadGround("Grass");
+            else
+                manager.wallEditor.load("Brick");
+            const picker = findChild(manager, ground ? "brushManagerGroundCombo" : "wallBrushCombo");
+            verify(picker);
+            mouseClick(picker, 10, picker.height / 2);
+            tryCompare(picker, "open", true);
+            keyClick(Qt.Key_Down);
+            compare(picker.currentText, ground ? "Ice" : "Stone");
+            if (ground) {
+                compare(manager.curGround, "Ice");
+                compare(findChild(manager, "brushManagerGroundItems").get(0).sid, 101);
+            } else {
+                compare(manager.wallEditor.originalName, "Stone");
+                compare(manager.wallEditor.variants(6), [[111, 100]]);
+            }
+            manager.width = 1100;
+            keyClick(Qt.Key_Up);
+            compare(picker.currentText, ground ? "Grass" : "Brick");
+            compare(ground ? manager.curGround : manager.wallEditor.originalName, ground ? "Grass" : "Brick");
+            keyClick(Qt.Key_Escape);
+            tryCompare(picker, "open", false);
+            compare(manager.opened, true, "Escape should close only the dropdown");
         }
     }
 }

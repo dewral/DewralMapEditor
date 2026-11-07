@@ -32,8 +32,26 @@ Item {
             event.accepted = true;
             return;
         }
-        if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)
-                || event.text.length !== 1 || event.text.charCodeAt(0) < 32)
+        if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))
+            return;
+        if (event.key === Qt.Key_Up || event.key === Qt.Key_Down) {
+            reset();
+            const count = comboBox.model.length;
+            if (count > 0) {
+                const down = event.key === Qt.Key_Down;
+                const index = comboBox.currentIndex < 0 ? (down ? 0 : count - 1)
+                    : Math.max(0, Math.min(count - 1, comboBox.currentIndex + (down ? 1 : -1)));
+                if (index !== comboBox.currentIndex) {
+                    comboBox.currentIndex = index;
+                    comboBox.activated(index);
+                }
+                if (comboBox.currentIndex >= 0)
+                    view.positionViewAtIndex(comboBox.currentIndex, ListView.Contain);
+            }
+            event.accepted = true;
+            return;
+        }
+        if (event.text.length !== 1 || event.text.charCodeAt(0) < 32)
             return;
 
         const text = event.text.toLowerCase();

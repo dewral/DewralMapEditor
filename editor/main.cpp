@@ -228,6 +228,57 @@ int main(int argc, char *argv[])
     }
 
     if (app.arguments().contains(QStringLiteral("--smoke-test"))) {
+        const int shutdownOption = app.arguments().indexOf(QStringLiteral("--smoke-shutdown"));
+        const bool shutdownSmoke = shutdownOption >= 0;
+        if (shutdownSmoke) {
+            const QString mode = app.arguments().value(shutdownOption + 1);
+            if (mode != QStringLiteral("startup") && mode != QStringLiteral("editor")
+                && mode != QStringLiteral("native") && mode != QStringLiteral("hidden")) return 11;
+            QVariant ready;
+            if (!QMetaObject::invokeMethod(engine.rootObjects().first(), "prepareProfileEditor",
+                                          Q_RETURN_ARG(QVariant, ready)) || !ready.toBool()) return 11;
+            DmeWindow *editor = nullptr;
+            for (auto *window : QGuiApplication::allWindows())
+                if (auto *candidate = qobject_cast<DmeWindow *>(window)) editor = candidate;
+            if (!editor) return 11;
+            auto *controller = editor->property("appController").value<QObject *>();
+            auto *settings = editor->property("prefs").value<QObject *>();
+            if (!controller || !settings) return 11;
+            controller->setProperty("started", true);
+            editor->setProperty("editorPresented", true);
+            // The profile manager retains a native window after being hidden,
+            // and rejects close events. QGuiApplication::quit can be vetoed by it.
+            if (!QMetaObject::invokeMethod(engine.rootObjects().first(), "smokeClientProfiles",
+                    Q_RETURN_ARG(QVariant, ready), Q_ARG(QVariant, QVariant(QString())),
+                    Q_ARG(QVariant, QVariant(true))) || !ready.toBool()) return 11;
+            QWindow *profiles = nullptr;
+            for (auto *window : QGuiApplication::allWindows())
+                if (window->objectName() == QStringLiteral("clientProfilesWindow")) profiles = window;
+            if (!profiles || !profiles->isVisible()) return 11;
+            profiles->hide();
+            // A real independent preview must not keep the editor process alive.
+            settings->setProperty("ingamePreviewDockSide", QStringLiteral("window"));
+            settings->setProperty("showIngamePreviewWindow", mode != QStringLiteral("hidden"));
+            if (mode == QStringLiteral("startup")) {
+                controller->setProperty("started", false);
+                editor->setProperty("editorPresented", false);
+            }
+            QTimer::singleShot(500, &app, [editor, controller, mode, &app] {
+                bool previewVisible = false;
+                for (auto *window : QGuiApplication::allWindows())
+                    if (window->title() == QStringLiteral("In-game Preview - Dewral Map Editor"))
+                        previewVisible = window->isVisible() && !window->transientParent();
+                if (previewVisible != (mode != QStringLiteral("hidden"))) { app.exit(11); return; }
+                std::fprintf(stderr, "SHUTDOWN_CLOSE_REQUESTED=%s\n", qPrintable(mode));
+                std::fflush(stderr);
+                if (mode == QStringLiteral("startup")) {
+                    auto *startup = qobject_cast<QWindow *>(controller->property("startupWindow").value<QObject *>());
+                    if (!startup || !startup->isVisible()) { app.exit(11); return; }
+                    startup->close();
+                } else if (mode == QStringLiteral("native")) editor->close();
+                else QMetaObject::invokeMethod(controller, "requestAppClose");
+            });
+        }
         const bool weatherSmoke=app.arguments().contains(QStringLiteral("--smoke-weather-regions"));
         if(weatherSmoke) {
             QVariant ready;
@@ -340,7 +391,7 @@ int main(int argc, char *argv[])
                             });
                         });
                     },Qt::QueuedConnection);
-                } else if(!documentSmoke && !profilesSmoke) QObject::connect(quick,&QQuickWindow::frameSwapped,&app,&QCoreApplication::quit,Qt::QueuedConnection);
+                } else if(!documentSmoke && !profilesSmoke && !shutdownSmoke) QObject::connect(quick,&QQuickWindow::frameSwapped,&app,&QCoreApplication::quit,Qt::QueuedConnection);
             }
         QTimer::singleShot(documentSmoke ? 60000 : 10000, &app, [] { QCoreApplication::exit(5); });
     }

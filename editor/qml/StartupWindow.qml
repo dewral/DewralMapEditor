@@ -108,6 +108,7 @@ Window {
     }
 
     transientParent: null
+    onClosing: Qt.exit(0)
     visible: !editorReady
     width: loadingMap ? 460 : nativeDashboard ? 1000 : 800
     height: loadingMap ? 190 : nativeDashboard ? 660 : 600
@@ -190,7 +191,7 @@ Window {
                     height: parent.height
                     compact: true
                     controlType: "close"
-                    onTriggered: Qt.quit()
+                    onTriggered: startupScreen.close()
                 }
             }
 

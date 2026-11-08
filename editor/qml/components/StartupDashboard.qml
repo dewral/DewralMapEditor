@@ -20,7 +20,7 @@ Item {
     function openSelected() { if(selectedMap && Backend.fileTools.exists(selectedMap))startup.beginLoadMap(selectedMap,selectedKey); }
     Skin.TibiaWindowFrame {
         anchors.fill:parent;caption:"Dewral Map Editor";centerCaption:true;headerHeight:28
-        onCloseRequested:Qt.quit();onDragStarted:root.startup.startSystemMove()
+        onCloseRequested:root.startup.close();onDragStarted:root.startup.startSystemMove()
     }
     RowLayout {
         anchors {fill:parent;leftMargin:12;rightMargin:12;topMargin:40;bottomMargin:58}

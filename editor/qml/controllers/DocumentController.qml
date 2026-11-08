@@ -36,6 +36,7 @@ Item {
     property bool appCloseAllowed: false
     property var appCloseSaveQueue: []
     property bool appCloseSaveAsPending: false
+    signal quitRequested()
 
     Connections {
         target: controller.mapView
@@ -422,8 +423,11 @@ Item {
     }
 
     function finishAppClose() {
+        if (appCloseAllowed) return;
         appCloseAllowed = true;
         appWindow.close();
+        // A floating preview or tool window can prevent implicit application exit.
+        quitRequested();
     }
 
     function abortSaveAllAndClose(message) {

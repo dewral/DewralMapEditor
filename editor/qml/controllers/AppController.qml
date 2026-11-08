@@ -66,6 +66,8 @@ Item {
         saveDialog: controller.saveDialog
         closeTabConfirm: controller.closeTabConfirm
         appCloseConfirm: controller.appCloseConfirm
+        // Close-to-hide tool windows must not veto an approved application exit.
+        onQuitRequested: Qt.exit(0)
     }
 
     function initialize() {

@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
     "Disable Qt Creator package-manager auto setup" FORCE)
 
-project(DewralMapEditor VERSION 1.1.51 LANGUAGES C CXX)
+project(DewralMapEditor VERSION 1.1.52 LANGUAGES C CXX)
 
 set(DME_RELEASE_REPOSITORY "dewral/DewralMapEditor" CACHE STRING
     "GitHub repository hosting the stable update packages")
@@ -378,7 +378,11 @@ if(BUILD_TESTING)
             -platform "$<IF:$<PLATFORM_ID:Windows>,windows,offscreen>"
             -input "${CMAKE_SOURCE_DIR}/tests/qml/tst_save_feedback.qml"
             -import "${CMAKE_SOURCE_DIR}/tests/qml/imports")
-        set_tests_properties(tibia_ui_qml classic_panels_qml search_results_qml save_feedback_qml PROPERTIES
+        add_test(NAME item_properties_teleport_qml COMMAND tibia_ui_qml_test
+            -platform "${_dme_theme_test_platform}"
+            -input "${CMAKE_SOURCE_DIR}/tests/qml/tst_item_properties_teleport.qml"
+            -import "${CMAKE_SOURCE_DIR}/tests/qml/imports")
+        set_tests_properties(tibia_ui_qml classic_panels_qml search_results_qml save_feedback_qml item_properties_teleport_qml PROPERTIES
             WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
             ENVIRONMENT "QT_QUICK_CONTROLS_STYLE=Basic;QT_QUICK_BACKEND=software"
             ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"

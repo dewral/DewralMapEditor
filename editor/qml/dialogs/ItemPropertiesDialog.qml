@@ -86,6 +86,23 @@ DmeDialog {
         }
     }
 
+    function pasteTeleportPosition() {
+        const match = Backend.fileTools.clipboardText().match(/^\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*$/);
+        if (!match)
+            return false;
+
+        const x = Number(match[1]);
+        const y = Number(match[2]);
+        const z = Number(match[3]);
+        if (x > teleX.to || y > teleY.to || z > teleZ.to)
+            return false;
+
+        teleX.value = x;
+        teleY.value = y;
+        teleZ.value = z;
+        return true;
+    }
+
     function applyAndClose() {
         if (mapCtrl && ctx.hasItem === true) {
             var p = {
@@ -235,18 +252,22 @@ DmeDialog {
                 visible: propsDialog.isTeleport
                 DmeSpinBox {
                     id: teleX
+                    objectName: "teleportXField"
                     width: 100
                     from: 0
                     to: 65535
+                    pasteHandler: function() { return propsDialog.pasteTeleportPosition(); }
                 }
                 DmeSpinBox {
                     id: teleY
+                    objectName: "teleportYField"
                     width: 100
                     from: 0
                     to: 65535
                 }
                 DmeSpinBox {
                     id: teleZ
+                    objectName: "teleportZField"
                     width: 84
                     from: 0
                     to: 15

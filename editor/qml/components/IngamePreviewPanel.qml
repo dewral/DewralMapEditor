@@ -98,6 +98,11 @@ Item {
     readonly property int headerHeight: ambientControls.visible ? ambientControls.y + ambientControls.height + 8 : Math.max(playbackControls.y + playbackControls.height, dockActions.y + dockActions.height) + 8
     readonly property int footerHeight: tibiaUi ? (screenshotMessage ? 24 : 0) : 42
     readonly property int contentWidth: settings.ingamePreviewWidthTiles * 32
+    // Labels use screen pixels, so retain the displayed scale.
+    // grabToImage applies the window DPR to this logical target size.
+    readonly property size screenshotSize: Qt.size(
+        Math.max(1, Math.round(contentWidth * scaledPreview.scale)),
+        Math.max(1, Math.round(contentHeight * scaledPreview.scale)))
     property bool screenshotBusy: false
     property string screenshotMessage: ""
     function takeScreenshot() {
@@ -112,7 +117,7 @@ Item {
             screenshotMessage = result.saveToFile(path) ? "Screenshot saved: " + path : "Could not save screenshot";
             screenshotBusy = false;
             screenshotNotice.restart();
-        }, Qt.size(contentWidth, contentHeight));
+        }, screenshotSize);
         if (!started) {
             screenshotBusy = false;
             screenshotMessage = "Could not capture preview";
@@ -377,7 +382,7 @@ Item {
                 width: panel.tibiaUi ? 40 : 28; height: panel.tibiaUi ? 44 : 32; text: "\uE722"; font.family: "Segoe Fluent Icons"
                 enabled: explorer.positioned && !panel.screenshotBusy
                 onClicked: panel.takeScreenshot()
-                ToolTip.visible: hovered; ToolTip.text: "Save screenshot · PNG at native resolution"
+                ToolTip.visible: hovered; ToolTip.text: "Save screenshot · PNG at displayed resolution"
                 Accessible.name: "Save preview screenshot"
             }
             PreviewButton { objectName:"previewFullscreen"; width:panel.tibiaUi ? 40 : 28; height:panel.tibiaUi ? 44 : 32; text:"\uE740"; font.family:"Segoe Fluent Icons"; onClicked:previewWindow.toggleFullscreen(); ToolTip.visible:hovered; ToolTip.text:"Fullscreen ("+(Backend.hotkeys.bindings.preview_fullscreen || "F11")+")" }

@@ -29,6 +29,7 @@ struct SpriteData {
 
 class DatReader;
 struct ClientItem;
+class AppearanceSpriteSource;
 
 class SprReader : public QAbstractListModel
 {
@@ -65,6 +66,12 @@ public:
                                quint32 expectedSignature = 0,
                                bool extended = false,
                                bool useAlpha = false);
+
+    // Tibia 13+/15.x sprite sheets. The source keeps the virtual 32x32 table
+    // built by AppearancesReader; loadFile(catalog-content.json) finds it
+    // again through AppearanceSpriteSource's registry.
+    bool loadAppearanceSource(std::shared_ptr<AppearanceSpriteSource> source);
+    bool isAppearanceSource() const { return static_cast<bool>(m_appearance); }
 
     Q_INVOKABLE QString toLocalFile(const QUrl &url) const { return url.toLocalFile(); }
 
@@ -132,6 +139,7 @@ private:
     void cacheDataUrl(QString key, QString value);
 
     std::unique_ptr<QFile> m_file = std::make_unique<QFile>();
+    std::shared_ptr<AppearanceSpriteSource> m_appearance;
     uchar *m_mappedData = nullptr;
     int m_bulkAccessDepth = 0;
     qint64 m_fileSize = 0;

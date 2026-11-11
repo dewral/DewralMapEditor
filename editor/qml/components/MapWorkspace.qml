@@ -464,7 +464,7 @@ Item {
                       : (mapArea.ctx.spawnRadius > 0
                          ? "Spawn properties"
                          : "Properties")
-                enabled: mapArea.ctx.hasItem || mapArea.ctx.creatureName !== "" || mapArea.ctx.spawnRadius > 0
+                enabled: mapArea.ctx.hasItem || mapArea.ctx.creatureName !== "" || mapArea.ctx.spawnRadius > 0 || mapArea.ctx.npcSpawnRadius > 0
                 onTriggered: workspace.propertiesDialog.open()
             }
         }

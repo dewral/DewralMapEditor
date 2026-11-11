@@ -208,6 +208,8 @@ void DocumentManager::removeRecoveryPath(const QString &path)
     QFile::remove(path);
     QFile::remove(dir.filePath(base + QStringLiteral(".spawn.xml")));
     QFile::remove(dir.filePath(base + QStringLiteral(".house.xml")));
+    QFile::remove(dir.filePath(base + QStringLiteral(".npc.xml")));
+    QFile::remove(dir.filePath(base + QStringLiteral(".zones.xml")));
 }
 
 void DocumentManager::removeRecoveryFiles(const QString &id)
@@ -283,7 +285,7 @@ void DocumentManager::loadPreviousSession()
                     QStringLiteral("yyyy-MM-dd HH:mm:ss")));
                 entry.insert(QStringLiteral("size"), recoveryInfo.size());
                 for (const auto &key : {QStringLiteral("profileKey"), QStringLiteral("spawnFile"),
-                                       QStringLiteral("houseFile")})
+                                       QStringLiteral("houseFile"), QStringLiteral("npcFile"), QStringLiteral("zoneFile")})
                     entry.insert(key, object.value(key).toString());
                 m_recoveries.push_back(entry);
                 recoveredIds.insert(id);
@@ -319,6 +321,8 @@ void DocumentManager::writeSession(bool cleanExit)
         object.insert(QStringLiteral("profileKey"), m_profileKeys.value(doc));
         object.insert(QStringLiteral("spawnFile"), doc->spawnFile());
         object.insert(QStringLiteral("houseFile"), doc->houseFile());
+        object.insert(QStringLiteral("npcFile"), doc->npcFile());
+        object.insert(QStringLiteral("zoneFile"), doc->zoneFile());
         documents.append(object);
     }
     for (const QVariant &value : m_recoveries) {
@@ -337,6 +341,8 @@ void DocumentManager::writeSession(bool cleanExit)
                       entry.value(QStringLiteral("spawnFile")).toString());
         object.insert(QStringLiteral("houseFile"),
                       entry.value(QStringLiteral("houseFile")).toString());
+        object.insert(QStringLiteral("npcFile"), entry.value(QStringLiteral("npcFile")).toString());
+        object.insert(QStringLiteral("zoneFile"), entry.value(QStringLiteral("zoneFile")).toString());
         documents.append(object);
     }
 
@@ -464,17 +470,20 @@ bool DocumentManager::adoptCurrentRecovery(const QString &recoveryId,
     m_documentIds[doc] = recoveryId;
     QString spawnFile;
     QString houseFile;
+    QString npcFile, zoneFile;
     for (int i = 0; i < m_recoveries.size(); ++i) {
         const QVariantMap entry = m_recoveries[i].toMap();
         if (entry.value(QStringLiteral("id")).toString() == recoveryId) {
             m_recoveryPaths[doc] = entry.value(QStringLiteral("recoveryPath")).toString();
             spawnFile = entry.value(QStringLiteral("spawnFile")).toString();
             houseFile = entry.value(QStringLiteral("houseFile")).toString();
+            npcFile = entry.value(QStringLiteral("npcFile")).toString();
+            zoneFile = entry.value(QStringLiteral("zoneFile")).toString();
             m_recoveries.removeAt(i);
             break;
         }
     }
-    doc->adoptRecoveryIdentity(originalPath, spawnFile, houseFile);
+    doc->adoptRecoveryIdentity(originalPath, spawnFile, houseFile, npcFile, zoneFile);
     const qint64 now = m_clock.elapsed();
     m_lastEditMs[doc] = now;
     m_lastRecoveryMs[doc] = now;

@@ -135,6 +135,16 @@ TestCase {
         wait(10);
         tryCompare(prefs, "selectedClientKey", "Midhem");
     }
+    function test_canaryModeIsSavedPerProfile() {
+        const entry={id:"canary",name:"Canary",version:1511,folder:"C:/assets",files:{},flags:{},canary:true};
+        compare(profiles.saveProfile(entry),"");
+        compare(JSON.parse(prefs.clientProfilesJson).profiles.canary.canary,true);
+        verify(profiles.profileMatchesVersion("canary",1511));
+        entry.canary=false; compare(profiles.saveProfile(entry),"");
+        compare(profiles.profile("canary").canary,false);
+        verify(!profiles.profileMatchesVersion("canary",1511));
+        compare(profiles.profile("772").canary,false);
+    }
     function test_redux_profiles_and_version_labels() {
         verify(profiles.knownVersions.includes(740));
         verify(profiles.knownVersions.includes(10100));

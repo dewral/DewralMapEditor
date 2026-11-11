@@ -30,6 +30,14 @@ Item {
     TestCase {
         name:"StartupProfiles";when:windowShown
         function initTestCase(){Backend.uiTheme.style="tibia-ui";profiles.saveProfile({id:"772",name:"Tibia 7.72",version:772,folder:"C:/client",files:{},flags:{}});}
+        function test_canaryTogglePersists(){
+            profiles.saveProfile({id:"canary-test",name:"Canary test",version:772,folder:"C:/assets",files:{},flags:{},canary:false});
+            manager.openFor("canary-test");wait(100);
+            const toggle=findChild(manager.contentItem,"canaryProfileMode");verify(toggle);compare(toggle.checked,false);
+            mouseClick(toggle);compare(manager.draft.canary,true);compare(manager.draft.version,1511);verify(manager.save());
+            manager.loadProfile("canary-test");compare(toggle.checked,true);
+            mouseClick(toggle);compare(manager.draft.canary,false);verify(manager.save());manager.hide();
+        }
         function test_dashboardAndSearch(){
             welcome.show();wait(150);verify(welcome.width>=900);verify(welcome.height>=600);
             const list=findChild(welcome,"startupRecentMaps");compare(list.count,2);

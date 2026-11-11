@@ -13,9 +13,13 @@ QtObject {
     property var documentConfigurations: new Map()
     function copy(value) { return JSON.parse(JSON.stringify(value)); }
     function profile(key) {
-        if(profileEntries[key])return copy(profileEntries[key]);
+        if(profileEntries[key]) {
+            const entry=copy(profileEntries[key]);
+            if(entry.canary===undefined)entry.canary=Number(entry.version)===1511;
+            return entry;
+        }
         return {id:String(key),name:isCustomKey(key) ? String(key) : "Tibia "+versionLabel(profileVer(key)),
-            version:profileVer(key),folder:clientPaths[key] || "",files:{},flags:{},resourceKey:isCustomKey(key) ? String(key) : ""};
+            canary:profileVer(key)===1511,version:profileVer(key),folder:clientPaths[key] || "",files:{},flags:{},resourceKey:isCustomKey(key) ? String(key) : ""};
     }
     function persistProfiles() {
         if(typeof settings.clientProfilesJson!=="undefined")settings.clientProfilesJson=JSON.stringify({version:1,profiles:profileEntries});
@@ -45,7 +49,7 @@ QtObject {
     property var activeConfiguration: null
     function bindCurrentDocument(key) { documentConfigurations.set(Backend.docMgr.current,copy(activeConfiguration && activeConfiguration.id===key ? activeConfiguration : profile(key))); }
 
-    readonly property var knownVersions: [740, 760, 772, 780, 792, 800, 810, 820, 840, 850, 854, 860, 870, 910, 920, 946, 954, 960, 970, 986, 1010, 1020, 1021, 1030, 1031, 1035, 1041, 1077, 1098, 10100, 1271, 1281, 1285, 1286, 1287, 1290, 1310, 1320, 1330]
+    readonly property var knownVersions: [740, 760, 772, 780, 792, 800, 810, 820, 840, 850, 854, 860, 870, 910, 920, 946, 954, 960, 970, 986, 1010, 1020, 1021, 1030, 1031, 1035, 1041, 1077, 1098, 10100, 1271, 1281, 1285, 1286, 1287, 1290, 1310, 1320, 1330, 1511]
     property int loadedClientVersion: 0
     property string loadedClientKey: ""
     property string loadedClientFolder: ""
@@ -205,6 +209,7 @@ QtObject {
     }
 
     function switchMapProfile(key) {
+        if (Backend.otbmReader.loaded && !!Backend.otbmReader.canaryFormat !== !!profile(key).canary) return false;
         prepareClientVersion(key, function(success) {
             if (!success) return;
             bindCurrentDocument(String(key));
@@ -229,6 +234,7 @@ QtObject {
     }
 
     function profileMatchesVersion(key, version) {
+        if (version === 1511) return profile(key).canary === true;
         var base = profileVer(key);
         // OTB minor 3 is shared by 7.60 and 7.72. Respect an explicit 7.60 profile.
         return base === version || (version === 772 && base === 760);

@@ -1,4 +1,8 @@
 #include "clientloadservice.h"
+#include "appearancesreader.h"
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
 #include "backend.h"
 #include "dmedatadir.h"
 #include "mapview.h"
@@ -31,6 +35,7 @@ struct ClientPreparedState {
         decltype(std::declval<DatReader>().m_sourceFilePath) m_sourceFilePath;
         decltype(std::declval<DatReader>().m_signature) m_signature;
         decltype(std::declval<DatReader>().m_maxItemId) m_maxItemId;
+        bool m_appearanceClient = false;
         decltype(std::declval<DatReader>().m_loaded) m_loaded;
         decltype(std::declval<DatReader>().m_errorString) m_errorString;
     } dat;
@@ -41,11 +46,13 @@ struct ClientPreparedState {
         decltype(std::declval<OtbReader>().m_majorVersion) m_majorVersion;
         decltype(std::declval<OtbReader>().m_minorVersion) m_minorVersion;
         decltype(std::declval<OtbReader>().m_buildNumber) m_buildNumber;
+        bool m_appearanceItems = false;
         decltype(std::declval<OtbReader>().m_loaded) m_loaded;
         decltype(std::declval<OtbReader>().m_errorString) m_errorString;
     } otb;
     struct SprReaderState {
         decltype(std::declval<SprReader>().m_offsets) m_offsets;
+        decltype(std::declval<SprReader>().m_appearance) m_appearance;
         decltype(std::declval<SprReader>().m_signature) m_signature;
         decltype(std::declval<SprReader>().m_spriteCount) m_spriteCount;
         decltype(std::declval<SprReader>().m_extended) m_extended;
@@ -157,6 +164,53 @@ QVariantMap resolveClient(const QVariantMap &profile) {
         else if(required)errors[key]="File not found";
         return QString();
     };
+    // Tibia 13+/15.x: catalog-content.json + appearances + LZMA sprite sheets,
+    // either in the chosen folder or in its "assets" subfolder. There is no
+    // Tibia.dat/Tibia.spr/items.otb; Canary maps store client ids directly.
+    const bool canary = profile.value("canary", version == 1511).toBool();
+    QString catalog=canary ? overrides.value("catalog").toString() : QString();
+    if(canary && catalog.isEmpty() && !folder.isEmpty()) {
+        for(const QString &candidate:{directory.filePath("catalog-content.json"),directory.filePath("assets/catalog-content.json")})
+            if(QFileInfo(candidate).isFile()) { catalog=QFileInfo(candidate).absoluteFilePath(); break; }
+    }
+    if(canary && catalog.isEmpty())
+        return {{"success",false},{"appearance",true},{"paths",QVariantMap{{"catalog",QString()},{"xml",QString()}}},
+                {"flags",QVariantMap{}},{"fingerprint",QString()},{"validated",false},
+                {"errors",QVariantMap{{"catalog","Choose a Canary assets folder containing catalog-content.json"}}}};
+    if(!catalog.isEmpty()) {
+        paths["catalog"]=catalog;paths["dat"]=catalog;paths["spr"]=catalog;paths["otb"]=QString();
+        paths["xml"]=find("xml","items.xml",false);
+        if(paths.value("xml").toString().isEmpty()) {
+            const QString assetsXml=QDir(QFileInfo(catalog).absolutePath()).filePath("items.xml");
+            const auto resource=profile.value("resourceKey").toString();
+            const QString customXml=QDir(dmeDataDir()).filePath(resource+"/items.xml");
+            const QString baseXml=QDir(dmeDataDir()).filePath(QString::number(version)+"/items.xml");
+            if(QFileInfo::exists(assetsXml))paths["xml"]=assetsXml;
+            else if(!resource.isEmpty() && QFileInfo::exists(customXml))paths["xml"]=customXml;
+            else if(QFileInfo::exists(baseXml))paths["xml"]=baseXml;
+        }
+        for(auto it=paths.cbegin();it!=paths.cend();++it) {
+            const QString path=it.value().toString();
+            if(!path.isEmpty() && (!QFileInfo(path).isFile() || !QFileInfo(path).isReadable()))errors[it.key()]="File missing or unreadable";
+        }
+        if(version<=0)errors["version"]="Choose a client version";
+        const QVariantMap flags{{"extended",true},{"alpha",true},{"durations",true},{"groups",true}};
+        QString fingerprint=QString::number(version)+":appearances:"+profile.value("resourceKey").toString();
+        QFile catalogFile(catalog);
+        if (catalogFile.open(QIODevice::ReadOnly)) {
+            const QDir assets(QFileInfo(catalog).absolutePath());
+            const auto entries = QJsonDocument::fromJson(catalogFile.readAll()).array();
+            for (const auto &entry : entries) {
+                const auto object = entry.toObject();
+                const auto type = object.value("type").toString();
+                if (type == "appearances" || type == "sprite")
+                    fingerprint += "|" + fileStamp(assets.filePath(object.value("file").toString()));
+            }
+        }
+        for(auto it=paths.cbegin();it!=paths.cend();++it)fingerprint+="|"+fileStamp(it.value().toString());
+        return {{"success",errors.isEmpty()},{"paths",paths},{"errors",errors},{"flags",flags},
+            {"hasOtfi",false},{"appearance",true},{"fingerprint",fingerprint},{"validated",false}};
+    }
     paths["otfi"]=find("otfi","Tibia.otfi",false);
     OtfiReader otfi;
     bool hasOtfi=false;
@@ -270,11 +324,26 @@ std::shared_ptr<ClientPreparedState> ClientLoadService::prepare(const QString &k
         dat.setClientVersion(version);
         dat.setOtfiOverrides(state->otfiFound,state->extended,state->durations,state->groups);
         job->stage.store(1); job->progress.store(10);
+        if (state->report.value("appearance").toBool()) {
+            AppearancesReader appearances;
+            if (!dat.loadAppearances(appearances, state->datPath)) throw std::runtime_error(dat.errorString().toStdString());
+            QString sheetError;
+            if (!appearances.source()->validateSheets(&sheetError, [&] { return job->cancelled.load(); }))
+                throw std::runtime_error(sheetError.toStdString());
+            AppearanceSpriteSource::registerSource(appearances.source());
+            check(); job->stage.store(2); job->progress.store(25);
+            if (!spr.loadAppearanceSource(appearances.source())) throw std::runtime_error("Cannot prepare Tibia 15 sprite sheets");
+            check(); job->stage.store(3); job->progress.store(35);
+            if(!paths.value("xml").toString().isEmpty() && !xml.loadFile(paths.value("xml").toString()))
+                throw std::runtime_error("Cannot parse items.xml");
+            otb.buildFromAppearances(dat, appearances.takeItemInfo());
+        } else {
         if (!dat.loadFile(state->datPath, 0)) throw std::runtime_error(dat.errorString().toStdString());
         check(); job->stage.store(2); job->progress.store(25);
         if (!spr.loadFile(state->sprPath, 0, state->extended, state->alpha)) throw std::runtime_error(spr.errorString().toStdString());
         check(); job->stage.store(3); job->progress.store(35);
         if (!otb.loadFile(state->otbPath)) throw std::runtime_error(otb.errorString().toStdString());
+        }
         const auto checkSprites=[&](const auto &definitions) {
             for(const auto &item:definitions)for(const auto sprite:item.sprite_ids)
                 if(sprite>static_cast<uint32_t>(spr.spriteCount()))throw std::runtime_error("DAT references sprites outside this SPR. Choose matching DAT and SPR files.");
@@ -314,6 +383,9 @@ std::shared_ptr<ClientPreparedState> ClientLoadService::prepare(const QString &k
         state->dat.m_sourceFilePath = std::move(dat.m_sourceFilePath);
         state->dat.m_signature = std::move(dat.m_signature);
         state->dat.m_maxItemId = std::move(dat.m_maxItemId);
+        state->dat.m_appearanceClient = dat.m_appearanceClient;
+        state->otb.m_appearanceItems = otb.m_appearanceItems;
+        state->spr.m_appearance = std::move(spr.m_appearance);
         state->dat.m_loaded = std::move(dat.m_loaded);
         state->dat.m_errorString = std::move(dat.m_errorString);
         state->otb.m_items = std::move(otb.m_items);
@@ -433,6 +505,9 @@ void ClientLoadService::publish(quint64 id, const std::shared_ptr<ClientPrepared
     dat.m_sourceFilePath = std::move(state->dat.m_sourceFilePath);
     dat.m_signature = std::move(state->dat.m_signature);
     dat.m_maxItemId = std::move(state->dat.m_maxItemId);
+    dat.m_appearanceClient = state->dat.m_appearanceClient;
+    otb.m_appearanceItems = state->otb.m_appearanceItems;
+    spr.m_appearance = std::move(state->spr.m_appearance);
     dat.m_loaded = std::move(state->dat.m_loaded);
     dat.m_errorString = std::move(state->dat.m_errorString);
     otb.m_items = std::move(state->otb.m_items);

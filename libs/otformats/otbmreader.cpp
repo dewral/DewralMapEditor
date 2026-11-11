@@ -529,6 +529,7 @@ void OtbmReader::reset()
     m_houseFileOriginal.clear();
     m_spawnFile.clear();
     m_houseFile.clear();
+    m_canary = OtbmCanarySidecars{};
     m_spawnsXmlLoaded = false;
     m_housesXmlLoaded = false;
     m_spawnsModified = false;
@@ -631,11 +632,13 @@ QVariantMap OtbmReader::inspectFileHeader(const QString &path) const
         return value;
     };
     const quint32 version = u32(1);
-    if (version > static_cast<quint32>(OtbmVersion::V4))
+    if (version > static_cast<quint32>(OtbmVersion::V6))
         return {{"success", false}, {"error", QStringLiteral("Unsupported OTBM version: %1").arg(version)}};
+    const bool canary = version >= static_cast<quint32>(OtbmVersion::V5);
     return {{"success", true}, {"otbmVersion", version},
             {"otbItemsMajor", u32(9)}, {"otbItemsMinor", u32(13)},
-            {"clientVersion", clientVersionForItemsMinor(u32(13))}};
+            {"canary", canary},
+            {"clientVersion", canary ? kCanaryClientVersion : clientVersionForItemsMinor(u32(13))}};
 }
 
 bool OtbmReader::loadFile(const QString &path)
@@ -704,6 +707,11 @@ bool OtbmReader::loadFile(const QString &path)
     reportLoadingProgress(68, QStringLiteral("Loading spawn data..."));
     if (loadCancelled()) return abortLoad(QStringLiteral("Loading cancelled"));
     loadSpawnsXml(path);
+    if (isCanaryFormat()) {
+        reportLoadingProgress(69, QStringLiteral("Loading NPC and zone data..."));
+        loadNpcXml(path);
+        loadZonesXml(path);
+    }
     reportLoadingProgress(70, QStringLiteral("Loading house data..."));
     loadHousesXml(path);
 
@@ -792,6 +800,7 @@ bool OtbmReader::adoptLoadedState(OtbmReader &source)
     swap(m_houseFileOriginal, source.m_houseFileOriginal);
     swap(m_spawnFile, source.m_spawnFile);
     swap(m_houseFile, source.m_houseFile);
+    swap(m_canary, source.m_canary);
     swap(m_spawnsXmlLoaded, source.m_spawnsXmlLoaded);
     swap(m_housesXmlLoaded, source.m_housesXmlLoaded);
     swap(m_spawnsModified, source.m_spawnsModified);
@@ -888,7 +897,7 @@ bool OtbmReader::setMapProperties(const QString &description,
 }
 
 bool OtbmReader::newMap(int width, int height, int clientVersion,
-                        int otbMajor, int otbMinor)
+                        int otbMajor, int otbMinor, int canaryMode)
 {
     if (width <= 0 || height <= 0) return false;
 
@@ -897,7 +906,13 @@ bool OtbmReader::newMap(int width, int height, int clientVersion,
     m_height = static_cast<uint16_t>(std::clamp(height, 256, 65535));
     // Choose the default only for a newly created map. Loaded documents keep
     // the format read from their header for their entire lifetime.
-    m_otbmVersion = static_cast<uint32_t>(OtbmVersion::V3);
+    const bool canary = canaryMode < 0 ? clientVersion == kCanaryClientVersion : canaryMode != 0;
+    m_otbmVersion = static_cast<uint32_t>(canary
+                                              ? OtbmVersion::V5 : OtbmVersion::V3);
+    if (canary) {
+        m_canary.npcXmlLoaded = true;
+        m_canary.zonesXmlLoaded = true;
+    }
     applyClientVersions(clientVersion, otbMajor, otbMinor);
     m_description = QStringLiteral("Saved with Dewral Map Editor");
     m_spawnsXmlLoaded = true;
@@ -926,7 +941,7 @@ bool OtbmReader::parseRootHeader(BinaryNode &root)
         return false;
     }
 
-    if (m_otbmVersion > static_cast<uint32_t>(OtbmVersion::V4)) {
+    if (m_otbmVersion > static_cast<uint32_t>(OtbmVersion::V6)) {
         setError(QStringLiteral("Unsupported OTBM version: %1").arg(m_otbmVersion));
         return false;
     }
@@ -979,8 +994,14 @@ bool OtbmReader::parseMapData(BinaryNode &mapData)
             }
             break;
         case OtbmAttribute::ExtSpawnNpcFile:
-            if (!mapData.getString(value)) {
+            if (!mapData.getString(m_canary.npcFile, &m_canary.npcFileOriginal)) {
                 setError(QStringLiteral("Corrupt NPC file name in MapData"));
+                return false;
+            }
+            break;
+        case OtbmAttribute::ExtZoneFile:
+            if (!mapData.getString(m_canary.zoneFile, &m_canary.zoneFileOriginal)) {
+                setError(QStringLiteral("Corrupt zone file name in MapData"));
                 return false;
             }
             break;
@@ -1139,8 +1160,28 @@ bool OtbmReader::parseTile(BinaryNode &tile, uint16_t baseX, uint16_t baseY, uin
     for (const BinaryNode &sourceItem : tile.children()) {
         BinaryNode itemNode = sourceItem;
         uint8_t itemType = 0;
-        if (!itemNode.getU8(itemType)
-            || static_cast<OtbmNode>(itemType) != OtbmNode::Item) {
+        if (itemNode.getU8(itemType) && static_cast<OtbmNode>(itemType) == OtbmNode::TileZone) {
+            // Canary: u16 count followed by u16 zone ids.
+            uint16_t count = 0;
+            if (!itemNode.getU16(count)) {
+                setError(QStringLiteral("Corrupt zone node at tile %1, %2, %3")
+                             .arg(result.x).arg(result.y).arg(result.z));
+                return false;
+            }
+            for (uint16_t i = 0; i < count; ++i) {
+                uint16_t id = 0;
+                if (!itemNode.getU16(id) || id == 0) {
+                    setError(QStringLiteral("Invalid zone id at tile %1, %2, %3")
+                                 .arg(result.x).arg(result.y).arg(result.z));
+                    return false;
+                }
+                result.zone_ids.add(id);
+            }
+            m_numberedZonesEnabled = true;
+            m_canary.tileZoneNodes = true;
+            continue;
+        }
+        if (static_cast<OtbmNode>(itemType) != OtbmNode::Item) {
             setError(QStringLiteral("Invalid item node at tile %1, %2, %3")
                          .arg(result.x).arg(result.y).arg(result.z));
             return false;
@@ -1569,6 +1610,7 @@ bool OtbmReader::loadSpawnsXml(const QString &mapPath)
     std::vector<ParsedCreature> creatures;
     QHash<quint64, int> spawnByPosition;
     QHash<quint64, int> creatureByPosition;
+    QHash<quint64, QVector<OtbmSpawnAlternative>> choices;
 
     QXmlStreamReader xml(&f);
     auto fail = [this, &path](const QString &message) {
@@ -1577,11 +1619,16 @@ bool OtbmReader::loadSpawnsXml(const QString &mapPath)
         return false;
     };
 
-    if (!xml.readNextStartElement() || xml.name() != QLatin1String("spawns"))
+    // Classic RME: <spawns><spawn>. Canary: <monsters><monster> holding
+    // <monster> entries (NPCs live in their own -npc.xml file).
+    if (!xml.readNextStartElement()
+        || (xml.name() != QLatin1String("spawns") && xml.name() != QLatin1String("monsters")))
         return fail(QStringLiteral("Invalid root element in spawns.xml"));
+    const QString areaElement = xml.name() == QLatin1String("monsters")
+        ? QStringLiteral("monster") : QStringLiteral("spawn");
 
     while (xml.readNextStartElement()) {
-        if (xml.name() != QLatin1String("spawn"))
+        if (xml.name() != areaElement)
             return fail(QStringLiteral("Unsupported element in spawns.xml"));
 
         const QXmlStreamAttributes spawnAttributes = xml.attributes();
@@ -1635,10 +1682,16 @@ bool OtbmReader::loadSpawnsXml(const QString &mapPath)
             ParsedSpawn &parent = spawns[static_cast<size_t>(spawnByPosition.value(spawnKey))];
             parent.radius = std::max({parent.radius, std::abs(dx), std::abs(dy)});
             const quint64 creatureKey = posKey3d(creatureXi, creatureYi, cz);
+            bool weightOk = true;
+            const uint32_t weight = creatureAttributes.hasAttribute(QLatin1String("weight"))
+                ? creatureAttributes.value(QLatin1String("weight")).toUInt(&weightOk) : 1u;
+            if (!weightOk) return fail(QStringLiteral("Invalid monster weight"));
+            if (isCanaryFormat() && !isNpc) choices[creatureKey].push_back({name, spawnTime, direction, weight});
             const auto existingCreature = creatureByPosition.constFind(creatureKey);
             if (existingCreature != creatureByPosition.constEnd()) {
                 const ParsedCreature &old = creatures[static_cast<size_t>(existingCreature.value())];
-                if (old.name != name || old.spawnTime != spawnTime || old.npc != isNpc || old.direction != direction)
+                if (!(isCanaryFormat() && !isNpc && !old.npc)
+                    && (old.name != name || old.spawnTime != spawnTime || old.npc != isNpc || old.direction != direction))
                     return fail(QStringLiteral("Conflicting monster/NPC entries on one tile"));
             } else {
                 creatureByPosition.insert(creatureKey, static_cast<int>(creatures.size()));
@@ -1666,6 +1719,7 @@ bool OtbmReader::loadSpawnsXml(const QString &mapPath)
         tile->creature_is_npc = creature.npc;
         tile->creature_direction = static_cast<uint8_t>(creature.direction);
     }
+    m_canary.monsterChoices = std::move(choices);
     m_spawnsXmlLoaded = true;
     return true;
 }
@@ -1683,9 +1737,10 @@ bool OtbmReader::buildSpawnsXml(const QString &mapPath, QString &targetPath,
         data.clear();
         return true;
     }
+    const bool canary = isCanaryFormat();
     bool any = false;
     for (const OtbmTile &t : m_tiles)
-        if (t.spawn_radius > 0 || !t.creature_name.isEmpty()) { any = true; break; }
+        if (t.spawn_radius > 0 || (!t.creature_name.isEmpty() && !(canary && t.creature_is_npc))) { any = true; break; }
 
     if (m_spawnFile.isEmpty() && !any) {
         targetPath.clear();
@@ -1693,7 +1748,8 @@ bool OtbmReader::buildSpawnsXml(const QString &mapPath, QString &targetPath,
         return true;
     }
     if (m_spawnFile.isEmpty())
-        m_spawnFile = QFileInfo(mapPath).completeBaseName() + QStringLiteral("-spawn.xml");
+        m_spawnFile = QFileInfo(mapPath).completeBaseName()
+            + (canary ? QStringLiteral("-monster.xml") : QStringLiteral("-spawn.xml"));
 
     targetPath = QFileInfo(mapPath).dir().filePath(m_spawnFile);
     data.clear();
@@ -1707,22 +1763,23 @@ bool OtbmReader::buildSpawnsXml(const QString &mapPath, QString &targetPath,
     xml.setAutoFormatting(true);
     xml.setAutoFormattingIndent(-1);
     xml.writeStartDocument();
-    xml.writeStartElement(QStringLiteral("spawns"));
+    xml.writeStartElement(canary ? QStringLiteral("monsters") : QStringLiteral("spawns"));
 
     QSet<quint64> emittedCreatures;
     std::vector<const OtbmTile *> creatures;
     for (const OtbmTile &tile : m_tiles)
-        if (!tile.creature_name.isEmpty()) creatures.push_back(&tile);
+        if (!tile.creature_name.isEmpty() && !(canary && tile.creature_is_npc))
+            creatures.push_back(&tile);
 
-    const auto startSpawn = [&xml](int x, int y, int z, int radius) {
-        xml.writeStartElement(QStringLiteral("spawn"));
+    const auto startSpawn = [&xml, canary](int x, int y, int z, int radius) {
+        xml.writeStartElement(canary ? QStringLiteral("monster") : QStringLiteral("spawn"));
         xml.writeAttribute(QStringLiteral("centerx"), QString::number(x));
         xml.writeAttribute(QStringLiteral("centery"), QString::number(y));
         xml.writeAttribute(QStringLiteral("centerz"), QString::number(z));
         xml.writeAttribute(QStringLiteral("radius"), QString::number(radius));
     };
     const auto emitCreature = [&](const OtbmTile &tile, const OtbmTile &center) {
-        if (tile.creature_name.isEmpty() || tile.z != center.z
+        if (tile.creature_name.isEmpty() || (canary && tile.creature_is_npc) || tile.z != center.z
             || std::abs(int(tile.x) - center.x) > center.spawn_radius
             || std::abs(int(tile.y) - center.y) > center.spawn_radius) return;
         const quint64 key = posKey3d(tile.x, tile.y, tile.z);
@@ -1736,7 +1793,22 @@ bool OtbmReader::buildSpawnsXml(const QString &mapPath, QString &targetPath,
         xml.writeAttribute(QStringLiteral("spawntime"), QString::number(tile.creature_spawntime));
         if (tile.creature_direction != 0)
             xml.writeAttribute(QStringLiteral("direction"), QString::number(tile.creature_direction));
+        const auto choices = m_canary.monsterChoices.value(key);
+        if (canary && !tile.creature_is_npc)
+            xml.writeAttribute(QStringLiteral("weight"), QString::number(choices.isEmpty() ? 1u : choices.front().weight));
         xml.writeEndElement();
+        if (canary && !tile.creature_is_npc) for (int i = 1; i < choices.size(); ++i) {
+            const auto &choice = choices[i];
+            xml.writeStartElement(QStringLiteral("monster"));
+            xml.writeAttribute(QStringLiteral("name"), choice.name);
+            xml.writeAttribute(QStringLiteral("x"), QString::number(int(tile.x) - center.x));
+            xml.writeAttribute(QStringLiteral("y"), QString::number(int(tile.y) - center.y));
+            xml.writeAttribute(QStringLiteral("z"), QString::number(tile.z));
+            xml.writeAttribute(QStringLiteral("spawntime"), QString::number(choice.spawnTime));
+            xml.writeAttribute(QStringLiteral("direction"), QString::number(choice.direction));
+            xml.writeAttribute(QStringLiteral("weight"), QString::number(choice.weight));
+            xml.writeEndElement();
+        }
         emittedCreatures.insert(key);
     };
     for (const OtbmTile &center : m_tiles) {
@@ -1815,7 +1887,10 @@ bool OtbmReader::loadHousesXml(const QString &mapPath)
             || !optionalXmlInt(attributes, QLatin1String("entryy"), 0, h.entryY)
             || !optionalXmlInt(attributes, QLatin1String("entryz"), 0, h.entryZ)
             || !optionalXmlBool(attributes, QLatin1String("guildhall"), false,
-                                h.guildhall)) {
+                                h.guildhall)
+            || !optionalXmlInt(attributes, QLatin1String("clientid"), 0, h.clientId)
+            || !optionalXmlInt(attributes, QLatin1String("beds"), -1, h.beds)
+            || !optionalXmlInt(attributes, QLatin1String("size"), -1, h.size)) {
             return fail(QStringLiteral("Missing or invalid house data"));
         }
         if (id <= 0 || h.entryX < 0 || h.entryX > 65535 || h.entryY < 0
@@ -1865,8 +1940,16 @@ bool OtbmReader::buildHousesXml(const QString &mapPath, QString &targetPath,
         m_houseFile = QFileInfo(mapPath).completeBaseName() + QStringLiteral("-house.xml");
 
     QHash<uint32_t, int> sizes;
-    for (const OtbmTile &t : m_tiles)
-        if (t.is_house && t.house_id > 0) sizes[t.house_id]++;
+    for (const OtbmTile &t : m_tiles) {
+        if (!t.is_house || t.house_id == 0) continue;
+        bool wall = false, table = false;
+        for (const auto &item : t.items) {
+            wall = wall || m_itemTypes.walls.test(item.server_id);
+            table = table || m_itemTypes.tables.test(item.server_id);
+        }
+        const bool door = !t.items.empty() && m_itemTypes.doors.test(t.items.back().server_id);
+        if (!isCanaryFormat() || !wall || table || door) ++sizes[t.house_id];
+    }
 
     targetPath = QFileInfo(mapPath).dir().filePath(m_houseFile);
     data.clear();
@@ -1891,13 +1974,271 @@ bool OtbmReader::buildHousesXml(const QString &mapPath, QString &targetPath,
         xml.writeAttribute(QStringLiteral("rent"), QString::number(h.rent));
         if (h.guildhall) xml.writeAttribute(QStringLiteral("guildhall"), QStringLiteral("1"));
         xml.writeAttribute(QStringLiteral("townid"), QString::number(h.townId));
-        xml.writeAttribute(QStringLiteral("size"), QString::number(sizes.value(h.id, 0)));
+        // Use Canary brush geometry when available; standalone readers retain
+        // the source value until item classifications have been supplied.
+        const int size = isCanaryFormat() && !m_itemTypes.houseGeometryKnown && h.size >= 0
+            ? h.size : sizes.value(h.id, 0);
+        xml.writeAttribute(QStringLiteral("size"), QString::number(size));
+        if (h.clientId > 0) xml.writeAttribute(QStringLiteral("clientid"), QString::number(h.clientId));
+        if (h.beds >= 0) xml.writeAttribute(QStringLiteral("beds"), QString::number(h.beds));
         xml.writeEndElement();
     }
     xml.writeEndElement();
     xml.writeEndDocument();
     if (xml.hasError()) {
         setError(QStringLiteral("Failed to build house XML: %1").arg(targetPath));
+        return false;
+    }
+    return true;
+}
+
+// Canary -npc.xml: <npcs><npc centerx centery centerz radius><npc name x y z
+// spawntime direction/></npc></npcs>. NPC areas are kept apart from monster
+// spawns so both files round-trip.
+bool OtbmReader::loadNpcXml(const QString &mapPath)
+{
+    m_canary.npcSpawnRadius.clear();
+    m_canary.npcXmlLoaded = m_canary.npcFile.isEmpty();
+    if (m_canary.npcFile.isEmpty()) return true;
+    const QString path = QFileInfo(mapPath).dir().filePath(m_canary.npcFile);
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) {
+        m_canary.npcXmlLoaded = !QFileInfo::exists(path);
+        setError(m_errorString + (m_errorString.isEmpty() ? QString() : QStringLiteral("\n"))
+                 + QStringLiteral("Cannot read XML file: %1 (%2)").arg(path, f.errorString()));
+        return false;
+    }
+    auto fail = [this, &path](const QString &message) {
+        m_canary.npcSpawnRadius.clear();
+        setError(m_errorString + (m_errorString.isEmpty() ? QString() : QStringLiteral("\n"))
+                 + QStringLiteral("Cannot load %1: %2").arg(path, message));
+        return false;
+    };
+    struct ParsedNpc { int x, y, z, spawnTime, direction; QString name; };
+    std::vector<ParsedNpc> npcs;
+    QHash<quint64, int> areas;
+    QXmlStreamReader xml(&f);
+    if (!xml.readNextStartElement() || xml.name() != QLatin1String("npcs"))
+        return fail(QStringLiteral("Invalid root element in NPC XML"));
+    while (xml.readNextStartElement()) {
+        if (xml.name() != QLatin1String("npc"))
+            return fail(QStringLiteral("Unsupported element in NPC XML"));
+        const QXmlStreamAttributes a = xml.attributes();
+        int cx = 0, cy = 0, cz = 0, radius = 0;
+        if (!requiredXmlInt(a, QLatin1String("centerx"), cx)
+            || !requiredXmlInt(a, QLatin1String("centery"), cy)
+            || !requiredXmlInt(a, QLatin1String("centerz"), cz)
+            || !requiredXmlInt(a, QLatin1String("radius"), radius)
+            || !validPosition(cx, cy, cz) || radius < 1 || radius > 65535)
+            return fail(QStringLiteral("Missing or invalid NPC spawn data"));
+        int &stored = areas[posKey3d(cx, cy, cz)];
+        stored = std::max(stored, radius);
+        while (xml.readNextStartElement()) {
+            if (xml.name() != QLatin1String("npc"))
+                return fail(QStringLiteral("Unsupported element inside an NPC spawn"));
+            const QXmlStreamAttributes c = xml.attributes();
+            int dx = 0, dy = 0, spawnTime = 60, direction = 0;
+            const QString name = c.value(QLatin1String("name")).toString();
+            if (name.isEmpty()
+                || !requiredXmlInt(c, QLatin1String("x"), dx)
+                || !requiredXmlInt(c, QLatin1String("y"), dy)
+                || !optionalXmlInt(c, QLatin1String("spawntime"), 60, spawnTime)
+                || !optionalXmlInt(c, QLatin1String("direction"), 0, direction)
+                || spawnTime < 0 || direction < 0 || direction > 3
+                || !validPosition(cx + dx, cy + dy, cz))
+                return fail(QStringLiteral("Missing or invalid NPC data"));
+            stored = std::max({stored, std::abs(dx), std::abs(dy)});
+            npcs.push_back({cx + dx, cy + dy, cz, spawnTime == 0 ? 60 : spawnTime, direction, name});
+            if (xml.readNextStartElement())
+                return fail(QStringLiteral("An NPC element cannot have children"));
+        }
+    }
+    if (xml.hasError())
+        return fail(QStringLiteral("Corrupt NPC XML: %1").arg(xml.errorString()));
+    for (const ParsedNpc &npc : npcs) {
+        const OtbmTile *existing = tileAt(npc.x, npc.y, npc.z);
+        if (existing && !existing->creature_name.isEmpty()
+            && (!existing->creature_is_npc || existing->creature_name != npc.name))
+            return fail(QStringLiteral("NPC %1 shares tile %2, %3, %4 with another creature")
+                            .arg(npc.name).arg(npc.x).arg(npc.y).arg(npc.z));
+    }
+    for (const ParsedNpc &npc : npcs) {
+        OtbmTile *tile = getOrCreateTileRaw(npc.x, npc.y, npc.z);
+        if (!tile) return false;
+        tile->creature_name = npc.name;
+        tile->creature_spawntime = npc.spawnTime;
+        tile->creature_is_npc = true;
+        tile->creature_direction = static_cast<uint8_t>(npc.direction);
+    }
+    for (auto it = areas.cbegin(); it != areas.cend(); ++it) {
+        const auto key = it.key();
+        getOrCreateTileRaw(int(key & 0xFFFFFF),int((key >> 24) & 0xFFFFFF),int(key >> 48));
+    }
+    m_canary.npcSpawnRadius = std::move(areas);
+    m_canary.npcXmlLoaded = true;
+    return true;
+}
+
+bool OtbmReader::buildNpcXml(const QString &mapPath, QString &targetPath, QByteArray &data)
+{
+    targetPath.clear();
+    data.clear();
+    if (!m_canary.npcXmlLoaded) {
+        if (!m_canary.npcModified && !m_spawnsModified) return true;
+        setError(QStringLiteral("Cannot replace unread NPC XML. Correct the XML file and reload the map first: %1")
+                     .arg(m_canary.npcFile));
+        return false;
+    }
+    std::vector<const OtbmTile *> npcs;
+    for (const OtbmTile &tile : m_tiles)
+        if (!tile.creature_name.isEmpty() && tile.creature_is_npc) npcs.push_back(&tile);
+    if (m_canary.npcFile.isEmpty() && npcs.empty()) return true;
+    if (m_canary.npcFile.isEmpty())
+        m_canary.npcFile = QFileInfo(mapPath).completeBaseName() + QStringLiteral("-npc.xml");
+    targetPath = QFileInfo(mapPath).dir().filePath(m_canary.npcFile);
+
+    QBuffer buffer(&data);
+    if (!buffer.open(QIODevice::WriteOnly)) {
+        setError(QStringLiteral("Cannot prepare NPC data"));
+        return false;
+    }
+    QXmlStreamWriter xml(&buffer);
+    xml.setAutoFormatting(true);
+    xml.setAutoFormattingIndent(-1);
+    xml.writeStartDocument();
+    xml.writeStartElement(QStringLiteral("npcs"));
+    QSet<quint64> emitted;
+    const auto writeArea = [&](int cx, int cy, int cz, int radius, bool requireCenter) {
+        std::vector<const OtbmTile *> members;
+        bool centerMember = false;
+        for (const OtbmTile *npc : npcs) {
+            if (npc->z != cz || std::abs(int(npc->x) - cx) > radius
+                || std::abs(int(npc->y) - cy) > radius) continue;
+            const quint64 key = posKey3d(npc->x, npc->y, npc->z);
+            if (emitted.contains(key)) continue;
+            if (npc->x == cx && npc->y == cy) centerMember = true;
+            members.push_back(npc);
+        }
+        if (members.empty() || (requireCenter && !centerMember)) return;
+        xml.writeStartElement(QStringLiteral("npc"));
+        xml.writeAttribute(QStringLiteral("centerx"), QString::number(cx));
+        xml.writeAttribute(QStringLiteral("centery"), QString::number(cy));
+        xml.writeAttribute(QStringLiteral("centerz"), QString::number(cz));
+        xml.writeAttribute(QStringLiteral("radius"), QString::number(radius));
+        for (const OtbmTile *npc : members) {
+            xml.writeStartElement(QStringLiteral("npc"));
+            xml.writeAttribute(QStringLiteral("name"), npc->creature_name);
+            xml.writeAttribute(QStringLiteral("x"), QString::number(int(npc->x) - cx));
+            xml.writeAttribute(QStringLiteral("y"), QString::number(int(npc->y) - cy));
+            xml.writeAttribute(QStringLiteral("z"), QString::number(npc->z));
+            xml.writeAttribute(QStringLiteral("spawntime"), QString::number(npc->creature_spawntime));
+            if (npc->creature_direction != 0)
+                xml.writeAttribute(QStringLiteral("direction"), QString::number(npc->creature_direction));
+            xml.writeEndElement();
+            emitted.insert(posKey3d(npc->x, npc->y, npc->z));
+        }
+        xml.writeEndElement();
+    };
+    // Areas centred on their NPC first, so the common one-NPC areas keep their
+    // exact centre; then the wider areas; then NPCs placed outside any area.
+    std::vector<std::pair<quint64, int>> areas;
+    for (auto it = m_canary.npcSpawnRadius.cbegin(); it != m_canary.npcSpawnRadius.cend(); ++it)
+        areas.emplace_back(it.key(), it.value());
+    std::sort(areas.begin(), areas.end());
+    const auto decode = [](quint64 key, int &x, int &y, int &z) {
+        x = int(key & 0xFFFFFF); y = int((key >> 24) & 0xFFFFFF); z = int(key >> 48);
+    };
+    for (bool centered : {true, false})
+        for (const auto &area : areas) {
+            int x = 0, y = 0, z = 0;
+            decode(area.first, x, y, z);
+            writeArea(x, y, z, area.second, centered);
+        }
+    for (const OtbmTile *npc : npcs)
+        if (!emitted.contains(posKey3d(npc->x, npc->y, npc->z)))
+            writeArea(npc->x, npc->y, npc->z, 1, true);
+    xml.writeEndElement();
+    xml.writeEndDocument();
+    if (xml.hasError()) {
+        setError(QStringLiteral("Failed to build NPC XML: %1").arg(targetPath));
+        return false;
+    }
+    return true;
+}
+
+// Canary -zones.xml: <zones><zone name="..." zoneid="N"/></zones>.
+bool OtbmReader::loadZonesXml(const QString &mapPath)
+{
+    m_canary.zoneNames.clear();
+    m_canary.zonesXmlLoaded = m_canary.zoneFile.isEmpty();
+    if (m_canary.zoneFile.isEmpty()) return true;
+    const QString path = QFileInfo(mapPath).dir().filePath(m_canary.zoneFile);
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) {
+        m_canary.zonesXmlLoaded = !QFileInfo::exists(path);
+        if (m_canary.zonesXmlLoaded) return true;
+        setError(m_errorString + (m_errorString.isEmpty() ? QString() : QStringLiteral("\n"))
+                 + QStringLiteral("Cannot read XML file: %1 (%2)").arg(path, f.errorString()));
+        return false;
+    }
+    QXmlStreamReader xml(&f);
+    QMap<int, QString> names;
+    if (!xml.readNextStartElement() || xml.name() != QLatin1String("zones")) {
+        setError(QStringLiteral("Cannot load %1: invalid root element").arg(path));
+        return false;
+    }
+    while (xml.readNextStartElement()) {
+        if (xml.name() == QLatin1String("zone")) {
+            const QXmlStreamAttributes a = xml.attributes();
+            int id = 0;
+            if (requiredXmlInt(a, QLatin1String("zoneid"), id) && id > 0 && id <= 65535)
+                names.insert(id, a.value(QLatin1String("name")).toString());
+        }
+        xml.skipCurrentElement();
+    }
+    if (xml.hasError()) {
+        setError(QStringLiteral("Cannot load %1: %2").arg(path, xml.errorString()));
+        return false;
+    }
+    for (auto it = names.cbegin(); it != names.cend(); ++it) reserveZoneId(it.key());
+    m_canary.zoneNames = std::move(names);
+    m_canary.zonesXmlLoaded = true;
+    return true;
+}
+
+bool OtbmReader::buildZonesXml(const QString &mapPath, QString &targetPath, QByteArray &data)
+{
+    targetPath.clear();
+    data.clear();
+    if (!m_canary.zonesXmlLoaded) return true; // keep an unread file untouched
+    QMap<int, QString> names = m_canary.zoneNames;
+    for (const OtbmTile &tile : m_tiles)
+        for (uint16_t id : tile.zone_ids.values())
+            if (!names.contains(id)) names.insert(id, QStringLiteral("zone.%1").arg(id));
+    if (m_canary.zoneFile.isEmpty() && names.isEmpty()) return true;
+    if (m_canary.zoneFile.isEmpty())
+        m_canary.zoneFile = QFileInfo(mapPath).completeBaseName() + QStringLiteral("-zones.xml");
+    targetPath = QFileInfo(mapPath).dir().filePath(m_canary.zoneFile);
+    QBuffer buffer(&data);
+    if (!buffer.open(QIODevice::WriteOnly)) {
+        setError(QStringLiteral("Cannot prepare zone data"));
+        return false;
+    }
+    QXmlStreamWriter xml(&buffer);
+    xml.setAutoFormatting(true);
+    xml.setAutoFormattingIndent(-1);
+    xml.writeStartDocument();
+    xml.writeStartElement(QStringLiteral("zones"));
+    for (auto it = names.cbegin(); it != names.cend(); ++it) {
+        xml.writeStartElement(QStringLiteral("zone"));
+        xml.writeAttribute(QStringLiteral("name"), it.value());
+        xml.writeAttribute(QStringLiteral("zoneid"), QString::number(it.key()));
+        xml.writeEndElement();
+    }
+    xml.writeEndElement();
+    xml.writeEndDocument();
+    if (xml.hasError()) {
+        setError(QStringLiteral("Failed to build zone XML: %1").arg(targetPath));
         return false;
     }
     return true;
@@ -2036,6 +2377,34 @@ bool OtbmReader::clearHouseTileAt(int x, int y, int z)
     return true;
 }
 
+bool OtbmReader::setMonsterChoicesAt(int x,int y,int z,const QVector<OtbmSpawnAlternative> &choices)
+{
+    const auto *tile = tileAt(x,y,z);
+    if (!isCanaryFormat() || !tile || tile->creature_is_npc || tile->creature_name.isEmpty()) return false;
+    for (const auto &choice : choices)
+        if (choice.name.isEmpty() || choice.spawnTime < 1 || choice.direction < 0 || choice.direction > 3) return false;
+    recordTile(x,y,z);
+    const auto key = posKey3d(x,y,z);
+    if (choices.isEmpty()) m_canary.monsterChoices.remove(key);
+    else m_canary.monsterChoices[key] = choices;
+    m_spawnsModified = true;
+    if (!m_undoGrouping) emit mapChanged();
+    return true;
+}
+
+bool OtbmReader::setNpcSpawnAt(int x,int y,int z,int radius)
+{
+    if (!m_loaded || !isCanaryFormat() || !validPosition(x,y,z) || radius < 0 || radius > 65535) return false;
+    const auto key = posKey3d(x,y,z);
+    if (m_canary.npcSpawnRadius.value(key) == radius) return false;
+    if (!tileForSpawnEdit(x,y,z)) return false;
+    if (radius == 0) m_canary.npcSpawnRadius.remove(key);
+    else m_canary.npcSpawnRadius[key] = radius;
+    m_canary.npcModified = true;
+    if (!m_undoGrouping) emit mapChanged();
+    return true;
+}
+
 bool OtbmReader::setSpawnAt(int x, int y, int z, int radius)
 {
     if (radius <= 0) return clearSpawnAt(x, y, z);
@@ -2060,6 +2429,8 @@ bool OtbmReader::setCreatureAt(int x, int y, int z, const QString &name, int spa
         : (t->creature_name == name ? t->creature_direction : 0);
     if (t->creature_name == name && t->creature_spawntime == effectiveSpawnTime
         && t->creature_is_npc == isNpc && t->creature_direction == effectiveDirection) return true;
+    if (t->creature_name != name || t->creature_is_npc != isNpc)
+        m_canary.monsterChoices.remove(posKey3d(x,y,z));
     t->creature_name = name;
     t->creature_spawntime = effectiveSpawnTime;
     t->creature_is_npc = isNpc;
@@ -2089,6 +2460,7 @@ bool OtbmReader::clearCreatureAt(int x, int y, int z)
     OtbmTile &t = m_tiles[static_cast<size_t>(it.value())];
     if (t.creature_name.isEmpty()) return false;
     recordTile(x, y, z);
+    m_canary.monsterChoices.remove(posKey3d(x,y,z));
     t.creature_name.clear();
     t.creature_direction = 0;
     m_spawnsModified = true;
@@ -2739,6 +3111,8 @@ void OtbmReader::recordTile(int x, int y, int z)
         snap.flags = t.flags;
         snap.zone_ids = t.zone_ids;
         snap.spawn_radius = t.spawn_radius;
+        snap.monsterChoices = m_canary.monsterChoices.value(posKey3d(t.x,t.y,t.z));
+        snap.npcRadius = m_canary.npcSpawnRadius.value(posKey3d(t.x,t.y,t.z));
         snap.creature_name = t.creature_name;
         snap.creature_spawntime = t.creature_spawntime;
         snap.creature_is_npc = t.creature_is_npc;
@@ -2808,6 +3182,8 @@ qsizetype OtbmReader::estimateActionBytes(const UndoAction &action)
     bytes += static_cast<qsizetype>(action.tiles.capacity())
              * static_cast<qsizetype>(sizeof(TileSnapshot));
     for (const TileSnapshot &snapshot : action.tiles) {
+        bytes += snapshot.monsterChoices.capacity() * sizeof(OtbmSpawnAlternative);
+        for (const auto &choice : snapshot.monsterChoices) bytes += choice.name.capacity() * sizeof(QChar);
         bytes += snapshot.zone_ids.values().capacity() * sizeof(uint16_t);
         bytes += snapshot.creature_name.capacity()
                  * static_cast<qsizetype>(sizeof(QChar));
@@ -2861,6 +3237,8 @@ OtbmReader::TileSnapshot OtbmReader::currentSnapshot(int x, int y, int z) const
         snap.flags = t.flags;
         snap.zone_ids = t.zone_ids;
         snap.spawn_radius = t.spawn_radius;
+        snap.monsterChoices = m_canary.monsterChoices.value(posKey3d(t.x,t.y,t.z));
+        snap.npcRadius = m_canary.npcSpawnRadius.value(posKey3d(t.x,t.y,t.z));
         snap.creature_name = t.creature_name;
         snap.creature_spawntime = t.creature_spawntime;
         snap.creature_is_npc = t.creature_is_npc;
@@ -2931,6 +3309,11 @@ void OtbmReader::restoreSnapshots(const std::vector<TileSnapshot> &snapshots)
         tile.flags = snap.flags;
         tile.zone_ids = snap.zone_ids;
         tile.spawn_radius = snap.spawn_radius;
+        const auto spawnKey = posKey3d(snap.x,snap.y,snap.z);
+        if (snap.monsterChoices.isEmpty()) m_canary.monsterChoices.remove(spawnKey);
+        else m_canary.monsterChoices[spawnKey] = snap.monsterChoices;
+        if (snap.npcRadius <= 0) m_canary.npcSpawnRadius.remove(spawnKey);
+        else m_canary.npcSpawnRadius[spawnKey] = snap.npcRadius;
         tile.creature_name = snap.creature_name;
         tile.creature_spawntime = snap.creature_spawntime;
         tile.creature_is_npc = snap.creature_is_npc;
@@ -2942,6 +3325,10 @@ void OtbmReader::restoreSnapshots(const std::vector<TileSnapshot> &snapshots)
 
     for (const TileSnapshot &snap : snapshots) {
         const quint64 key = posKey3d(snap.x, snap.y, snap.z);
+        if (!snap.existed) {
+            m_canary.monsterChoices.remove(key);
+            m_canary.npcSpawnRadius.remove(key);
+        }
         const auto current = m_posIndex.constFind(key);
         if (current != m_posIndex.cend()) {
             const int index = current.value();
@@ -2970,6 +3357,11 @@ void OtbmReader::restoreSnapshots(const std::vector<TileSnapshot> &snapshots)
         tile.zone_ids = snap.zone_ids;
         tile.items = snap.items;
         tile.spawn_radius = snap.spawn_radius;
+        const auto spawnKey = posKey3d(snap.x,snap.y,snap.z);
+        if (snap.monsterChoices.isEmpty()) m_canary.monsterChoices.remove(spawnKey);
+        else m_canary.monsterChoices[spawnKey] = snap.monsterChoices;
+        if (snap.npcRadius <= 0) m_canary.npcSpawnRadius.remove(spawnKey);
+        else m_canary.npcSpawnRadius[spawnKey] = snap.npcRadius;
         tile.creature_name = snap.creature_name;
         tile.creature_spawntime = snap.creature_spawntime;
         tile.creature_is_npc = snap.creature_is_npc;
@@ -3104,6 +3496,15 @@ QVariantMap OtbmReader::importFile(const QString &path, int offsetX, int offsetY
     source.setItemTypes(m_itemTypes);
     if (!source.loadFile(path)) {
         result.insert(QStringLiteral("error"), source.errorString());
+        return result;
+    }
+    if (isCanaryFormat() != source.isCanaryFormat()) {
+        result.insert(QStringLiteral("error"), QStringLiteral("Canary and classic maps use different item IDs. Choose a map with a matching format."));
+        return result;
+    }
+    if (importSpawns && isCanaryFormat()
+        && (!m_canary.npcXmlLoaded || !source.m_canary.npcXmlLoaded)) {
+        result.insert(QStringLiteral("error"), QStringLiteral("Cannot import unread NPC XML. Correct the XML files and reload the maps first."));
         return result;
     }
     if ((importSpawns && (!m_spawnsXmlLoaded || !source.m_spawnsXmlLoaded))
@@ -3308,6 +3709,17 @@ QVariantMap OtbmReader::importFile(const QString &path, int offsetX, int offsetY
             for (const OtbmMapItem &item : tile.items) m_itemCount += countItems(item);
             m_posIndex.insert(key, static_cast<int>(m_tiles.size()));
             m_tiles.push_back(std::move(tile));
+        }
+        if (importSpawns && isCanaryFormat()) {
+            const auto sourceKey = posKey3d(sourceTile.x,sourceTile.y,sourceTile.z);
+            if (!sourceTile.creature_name.isEmpty() || collisionMode != 2) {
+                const auto choices = source.m_canary.monsterChoices.value(sourceKey);
+                if (choices.isEmpty()) m_canary.monsterChoices.remove(key);
+                else m_canary.monsterChoices[key] = choices;
+            }
+            const int radius = source.m_canary.npcSpawnRadius.value(sourceKey);
+            if (radius > 0) m_canary.npcSpawnRadius[key] = radius;
+            else if (collisionMode != 2) m_canary.npcSpawnRadius.remove(key);
         }
         ++importedTiles;
         m_width = std::max<uint16_t>(m_width, static_cast<uint16_t>(x));
@@ -3524,6 +3936,7 @@ struct OtbmReader::RecoverySnapshot {
     decltype(OtbmReader::m_descriptionOriginal) descriptionOriginal;
     decltype(OtbmReader::m_spawnFileOriginal) spawnFileOriginal;
     decltype(OtbmReader::m_houseFileOriginal) houseFileOriginal;
+    decltype(OtbmReader::m_canary) canary;
     decltype(OtbmReader::m_spawnsXmlLoaded) spawnsXmlLoaded;
     decltype(OtbmReader::m_housesXmlLoaded) housesXmlLoaded;
     decltype(OtbmReader::m_spawnsModified) spawnsModified;
@@ -3562,6 +3975,7 @@ std::shared_ptr<OtbmReader::RecoverySnapshot> OtbmReader::createRecoverySnapshot
     snapshot->descriptionOriginal = m_descriptionOriginal;
     snapshot->spawnFileOriginal = m_spawnFileOriginal;
     snapshot->houseFileOriginal = m_houseFileOriginal;
+    snapshot->canary = m_canary;
     snapshot->spawnsXmlLoaded = m_spawnsXmlLoaded;
     snapshot->housesXmlLoaded = m_housesXmlLoaded;
     snapshot->spawnsModified = m_spawnsModified;
@@ -3593,6 +4007,7 @@ QString OtbmReader::writeRecoverySnapshot(std::shared_ptr<RecoverySnapshot> snap
     writer.m_descriptionOriginal = std::move(snapshot->descriptionOriginal);
     writer.m_spawnFileOriginal = std::move(snapshot->spawnFileOriginal);
     writer.m_houseFileOriginal = std::move(snapshot->houseFileOriginal);
+    writer.m_canary = std::move(snapshot->canary);
     writer.m_spawnsXmlLoaded = std::move(snapshot->spawnsXmlLoaded);
     writer.m_housesXmlLoaded = std::move(snapshot->housesXmlLoaded);
     writer.m_spawnsModified = std::move(snapshot->spawnsModified);
@@ -3620,10 +4035,19 @@ bool OtbmReader::saveRecoveryFile(const QString &path)
     const bool oldHousesLoaded = m_housesXmlLoaded;
     const bool oldSpawnsModified = m_spawnsModified;
     const bool oldHousesModified = m_housesModified;
+    const OtbmCanarySidecars oldCanary = m_canary;
 
     const QString base = QFileInfo(path).completeBaseName();
     m_spawnFile = base + QStringLiteral(".spawn.xml");
     m_houseFile = base + QStringLiteral(".house.xml");
+    if (isCanaryFormat()) {
+        m_canary.npcFile = base + QStringLiteral(".npc.xml");
+        m_canary.npcFileOriginal.clear();
+        m_canary.zoneFile = base + QStringLiteral(".zones.xml");
+        m_canary.zoneFileOriginal.clear();
+        m_canary.npcXmlLoaded = true;
+        m_canary.zonesXmlLoaded = true;
+    }
     m_spawnsXmlLoaded = true;
     m_housesXmlLoaded = true;
     m_numberedZonesEnabled = m_numberedZonesEnabled || std::any_of(
@@ -3640,13 +4064,15 @@ bool OtbmReader::saveRecoveryFile(const QString &path)
     m_housesXmlLoaded = oldHousesLoaded;
     m_spawnsModified = oldSpawnsModified;
     m_housesModified = oldHousesModified;
+    m_canary = oldCanary;
     emit activitySave(true, result);
     return result;
 }
 
 void OtbmReader::adoptRecoveryIdentity(const QString &originalPath,
                                        const QString &spawnFile,
-                                       const QString &houseFile)
+                                       const QString &houseFile,
+                                       const QString &npcFile, const QString &zoneFile)
 {
     if (m_filePath != originalPath) {
         m_filePath = originalPath;
@@ -3654,6 +4080,10 @@ void OtbmReader::adoptRecoveryIdentity(const QString &originalPath,
     }
     m_spawnFile = spawnFile;
     m_houseFile = houseFile;
+    if (isCanaryFormat()) {
+        m_canary.npcFile = npcFile; m_canary.npcFileOriginal.clear();
+        m_canary.zoneFile = zoneFile; m_canary.zoneFileOriginal.clear();
+    }
     setDirty(true);
     emit mapChanged();
 }
@@ -3666,6 +4096,7 @@ bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
     }
 
     const bool legacy = m_otbmVersion == static_cast<uint32_t>(OtbmVersion::V1);
+    const bool canary = isCanaryFormat();
     if (legacy) {
         QString error;
         for (const OtbmTile &tile : m_tiles) {
@@ -3681,16 +4112,22 @@ bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
     const QString oldSpawnFile = m_spawnFile;
     const QString oldHouseFile = m_houseFile;
     const QString oldDescription = m_description;
-    auto restoreDocumentMetadata = [this, &oldSpawnFile, &oldHouseFile, &oldDescription]() {
+    const QString oldNpcFile = m_canary.npcFile;
+    const QString oldZoneFile = m_canary.zoneFile;
+    auto restoreDocumentMetadata = [this, &oldSpawnFile, &oldHouseFile, &oldDescription,
+                                    &oldNpcFile, &oldZoneFile]() {
         m_spawnFile = oldSpawnFile;
         m_houseFile = oldHouseFile;
         m_description = oldDescription;
+        m_canary.npcFile = oldNpcFile;
+        m_canary.zoneFile = oldZoneFile;
     };
 
     // Replace only the editor stamp; retain the mapper's description below it.
     const int firstNewline = m_description.indexOf(QLatin1Char('\n'));
     const QString firstLine = firstNewline < 0 ? m_description : m_description.left(firstNewline);
     if (firstLine.startsWith(QStringLiteral("Saved with Remere's Map Editor"))
+        || firstLine.startsWith(QStringLiteral("Saved with Canary's Map Editor"))
         || firstLine == QStringLiteral("Created with Dewral Map Editor")
         || m_description.isEmpty()) {
         m_description = QStringLiteral("Saved with Dewral Map Editor")
@@ -3698,10 +4135,16 @@ bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
     }
     QString spawnTarget;
     QString houseTarget;
+    QString npcTarget;
+    QString zoneTarget;
     QByteArray spawnData;
     QByteArray houseData;
+    QByteArray npcData;
+    QByteArray zoneData;
     if (!buildSpawnsXml(path, spawnTarget, spawnData)
-        || !buildHousesXml(path, houseTarget, houseData)) {
+        || !buildHousesXml(path, houseTarget, houseData)
+        || (canary && !buildNpcXml(path, npcTarget, npcData))
+        || (canary && !buildZonesXml(path, zoneTarget, zoneData))) {
         const QString error = m_errorString;
         restoreDocumentMetadata();
         setError(error);
@@ -3716,7 +4159,7 @@ bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
                                                : QDir(parent).filePath(file.fileName()));
     };
     QStringList targets;
-    for (const QString &target : {path, spawnTarget, houseTarget}) {
+    for (const QString &target : {path, spawnTarget, houseTarget, npcTarget, zoneTarget}) {
         if (target.isEmpty()) continue;
         targets.append(normalizedTarget(target));
         if (!recoveryMode) targets.append(normalizedTarget(target + QStringLiteral(".bak")));
@@ -3728,7 +4171,7 @@ bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
         for (qsizetype j = 0; j < i; ++j) {
             if (targets[i].compare(targets[j], pathCase) != 0) continue;
             restoreDocumentMetadata();
-            setError(QStringLiteral("The OTBM, spawn, house and backup files must use different paths"));
+            setError(QStringLiteral("The OTBM, spawn, NPC, house, zone and backup files must use different paths"));
             return false;
         }
     }
@@ -3758,11 +4201,17 @@ bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
         w.str(m_description, m_descriptionOriginal);
     }
     if (!m_spawnFile.isEmpty()) { w.data(static_cast<uint8_t>(OtbmAttribute::ExtSpawnFile)); w.str(m_spawnFile, m_spawnFileOriginal); }
+    if (canary && !m_canary.npcFile.isEmpty()) { w.data(static_cast<uint8_t>(OtbmAttribute::ExtSpawnNpcFile)); w.str(m_canary.npcFile, m_canary.npcFileOriginal); }
     if (!m_houseFile.isEmpty()) { w.data(static_cast<uint8_t>(OtbmAttribute::ExtHouseFile)); w.str(m_houseFile, m_houseFileOriginal); }
+    if (canary && !m_canary.zoneFile.isEmpty()) { w.data(static_cast<uint8_t>(OtbmAttribute::ExtZoneFile)); w.str(m_canary.zoneFile, m_canary.zoneFileOriginal); }
 
     quint64 activeArea = std::numeric_limits<quint64>::max();
     bool areaOpen = false;
     for (const OtbmTile &tile : m_tiles) {
+        // Canary's editor never writes empty tiles. DME creates them for
+        // spawn centers outside the ground; keep those only in the XML.
+        if (canary && tile.items.empty() && !tile.is_house && tile.flags == 0
+            && tile.zone_ids.empty()) continue;
         const int areaX = tile.x & 0xFF00;
         const int areaY = tile.y & 0xFF00;
         const quint64 area = posKey3d(areaX, areaY, tile.z);
@@ -3783,19 +4232,38 @@ bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
         if (house) {
             w.u32(tile.house_id);
         }
+        // Canary stores zones in an OTBM_TILE_ZONE child node; RME-ZONES uses
+        // TileFlags bit 0x40 followed by zero-terminated ids.
         const bool saveZones = m_numberedZonesEnabled && !tile.zone_ids.empty();
-        const uint32_t flags = (tile.flags & ~0x40u) | (saveZones ? 0x40u : 0u);
+        const bool flagZones = saveZones && !canary;
+        const uint32_t flags = (tile.flags & ~0x40u) | (flagZones ? 0x40u : 0u);
         if (flags != 0) {
             w.data(static_cast<uint8_t>(OtbmAttribute::TileFlags));
             w.u32(flags);
-            if (saveZones) {
+            if (flagZones) {
                 for (auto id : tile.zone_ids.values()) w.u16(id);
                 w.u16(0);
             }
         }
 
-        for (const OtbmMapItem &item : tile.items) {
-            writeMapItem(w, item, legacy ? &m_itemTypes : nullptr);
+        size_t firstNode = 0;
+        if (canary && !tile.items.empty()) {
+            // Canary's editor stores a plain ground as the compact OTBM_ATTR_ITEM.
+            const OtbmMapItem &ground = tile.items.front();
+            if (ground.is_ground && !ground.extra && !ground.has_subtype_attribute && ground.count <= 1) {
+                w.data(static_cast<uint8_t>(OtbmAttribute::Item));
+                w.u16(ground.server_id);
+                firstNode = 1;
+            }
+        }
+        for (size_t i = firstNode; i < tile.items.size(); ++i) {
+            writeMapItem(w, tile.items[i], legacy ? &m_itemTypes : nullptr);
+        }
+        if (saveZones && canary) {
+            w.start(static_cast<uint8_t>(OtbmNode::TileZone));
+            w.u16(static_cast<uint16_t>(tile.zone_ids.values().size()));
+            for (auto id : tile.zone_ids.values()) w.u16(id);
+            w.end();
         }
         w.end();
     }
@@ -3847,6 +4315,8 @@ bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
     };
     ExternalBackup spawnBackup;
     ExternalBackup houseBackup;
+    ExternalBackup npcBackup;
+    ExternalBackup zoneBackup;
 
     auto captureBackup = [this](const QString &target, ExternalBackup &backup,
                                 const QString &label) {
@@ -3870,7 +4340,9 @@ bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
     };
 
     if (!captureBackup(spawnTarget, spawnBackup, QStringLiteral("spawn file"))
-        || !captureBackup(houseTarget, houseBackup, QStringLiteral("house file"))) {
+        || !captureBackup(houseTarget, houseBackup, QStringLiteral("house file"))
+        || !captureBackup(npcTarget, npcBackup, QStringLiteral("NPC file"))
+        || !captureBackup(zoneTarget, zoneBackup, QStringLiteral("zone file"))) {
         const QString error = m_errorString;
         restoreDocumentMetadata();
         setError(error);
@@ -3879,6 +4351,8 @@ bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
 
     QSaveFile spawnOutput(spawnTarget);
     QSaveFile houseOutput(houseTarget);
+    QSaveFile npcOutput(npcTarget);
+    QSaveFile zoneOutput(zoneTarget);
     auto stage = [this](QSaveFile &output, const QString &target,
                         const QByteArray &data, const QString &label) {
         if (target.isEmpty()) return true;
@@ -3892,7 +4366,9 @@ bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
     };
 
     if (!stage(spawnOutput, spawnTarget, spawnData, QStringLiteral("spawn file"))
-        || !stage(houseOutput, houseTarget, houseData, QStringLiteral("house file"))) {
+        || !stage(houseOutput, houseTarget, houseData, QStringLiteral("house file"))
+        || !stage(npcOutput, npcTarget, npcData, QStringLiteral("NPC file"))
+        || !stage(zoneOutput, zoneTarget, zoneData, QStringLiteral("zone file"))) {
         const QString error = m_errorString;
         restoreDocumentMetadata();
         setError(error);
@@ -3933,7 +4409,9 @@ bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
     if (!recoveryMode
         && (!createPersistentBackup(path, QStringLiteral("map"))
             || !createPersistentBackup(spawnTarget, QStringLiteral("spawn file"))
-            || !createPersistentBackup(houseTarget, QStringLiteral("house file")))) {
+            || !createPersistentBackup(houseTarget, QStringLiteral("house file"))
+            || !createPersistentBackup(npcTarget, QStringLiteral("NPC file"))
+            || !createPersistentBackup(zoneTarget, QStringLiteral("zone file")))) {
         const QString error = m_errorString;
         restoreDocumentMetadata();
         setError(error);
@@ -3949,35 +4427,33 @@ bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
             && output.write(backup.data) == backup.data.size()
             && output.commit();
     };
-    auto rollback = [&](bool spawnCommitted, bool houseCommitted,
-                        const QString &originalError) {
+    std::vector<const ExternalBackup *> committed;
+    auto rollback = [&](const QString &originalError) {
         bool restored = true;
-        if (houseCommitted) restored = restoreBackup(houseBackup) && restored;
-        if (spawnCommitted) restored = restoreBackup(spawnBackup) && restored;
+        for (auto it = committed.rbegin(); it != committed.rend(); ++it)
+            restored = restoreBackup(**it) && restored;
         restoreDocumentMetadata();
         setError(restored
             ? originalError
             : originalError + QStringLiteral("; warning: not all XML files could be restored"));
         return false;
     };
-
-    bool spawnCommitted = false;
-    bool houseCommitted = false;
-    if (!spawnTarget.isEmpty()) {
-        if (!spawnOutput.commit())
-            return rollback(false, false,
-                            QStringLiteral("Failed to commit spawn file: %1").arg(spawnTarget));
-        spawnCommitted = true;
-    }
-    if (!houseTarget.isEmpty()) {
-        if (!houseOutput.commit())
-            return rollback(spawnCommitted, false,
-                            QStringLiteral("Failed to commit house file: %1").arg(houseTarget));
-        houseCommitted = true;
+    struct Pending { QSaveFile *output; const QString *target; const ExternalBackup *backup; const char *label; };
+    const Pending pending[] = {
+        {&spawnOutput, &spawnTarget, &spawnBackup, "spawn"},
+        {&npcOutput, &npcTarget, &npcBackup, "NPC"},
+        {&houseOutput, &houseTarget, &houseBackup, "house"},
+        {&zoneOutput, &zoneTarget, &zoneBackup, "zone"},
+    };
+    for (const Pending &entry : pending) {
+        if (entry.target->isEmpty()) continue;
+        if (!entry.output->commit())
+            return rollback(QStringLiteral("Failed to commit %1 file: %2")
+                                .arg(QLatin1String(entry.label), *entry.target));
+        committed.push_back(entry.backup);
     }
     if (!mapOutput.commit())
-        return rollback(spawnCommitted, houseCommitted,
-                        QStringLiteral("Failed to commit map file: %1").arg(path));
+        return rollback(QStringLiteral("Failed to commit map file: %1").arg(path));
 
     if (!recoveryMode && (!spawnTarget.isEmpty() || m_spawnFile.isEmpty())) {
         m_spawnsXmlLoaded = true;
@@ -3986,6 +4462,13 @@ bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
     if (!recoveryMode && (!houseTarget.isEmpty() || m_houseFile.isEmpty())) {
         m_housesXmlLoaded = true;
         m_housesModified = false;
+    }
+    if (!recoveryMode && canary) {
+        if (!npcTarget.isEmpty() || m_canary.npcFile.isEmpty()) {
+            m_canary.npcXmlLoaded = true;
+            m_canary.npcModified = false;
+        }
+        if (!zoneTarget.isEmpty() || m_canary.zoneFile.isEmpty()) m_canary.zonesXmlLoaded = true;
     }
 
     if (!recoveryMode && m_filePath != path) {
@@ -3999,6 +4482,7 @@ bool OtbmReader::saveFileInternal(const QString &path, bool recoveryMode)
 int OtbmReader::suggestedClientVersion() const
 {
     if (!m_loaded) return 0;
+    if (isCanaryFormat()) return kCanaryClientVersion;
     return clientVersionForItemsMinor(m_otbItemsMinor);
 }
 

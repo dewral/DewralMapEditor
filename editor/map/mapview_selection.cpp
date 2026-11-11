@@ -95,25 +95,29 @@ void MapView::copySelection()
         if (m_selectionController.wholeStack()) {
             ct.items.assign(t->items.begin(), t->items.end());
             ct.creature = t->creature_name;
+            ct.monsterChoices = m_otbm->monsterChoicesAt(t->x,t->y,t->z);
             ct.spawntime = t->creature_spawntime;
             ct.npc = t->creature_is_npc;
             ct.direction = t->creature_direction;
             ct.spawnRadius = t->spawn_radius;
+            ct.npcRadius = m_otbm->npcSpawnRadiusAt(t->x,t->y,t->z);
             ct.zoneIds = t->zone_ids;
         } else if (m_selectionController.entity(key) >= 0) {
             const int index = m_selectionController.entity(key);
             if (size_t(index) < t->items.size()) ct.items.push_back(t->items[size_t(index)]);
         } else if (m_selectionController.entity(key) == -3) {
             ct.spawnRadius = t->spawn_radius;
+            ct.npcRadius = m_otbm->npcSpawnRadiusAt(t->x,t->y,t->z);
         } else if (!t->creature_name.isEmpty() && m_selectionController.entity(key) != -3) {
             ct.creature = t->creature_name;
+            ct.monsterChoices = m_otbm->monsterChoicesAt(t->x,t->y,t->z);
             ct.spawntime = t->creature_spawntime;
             ct.npc = t->creature_is_npc;
             ct.direction = t->creature_direction;
         } else if (!t->items.empty()) {
             ct.items.push_back(t->items.back());
         }
-        if (ct.items.empty() && ct.creature.isEmpty() && ct.spawnRadius == 0 && ct.zoneIds.empty()) continue;
+        if (ct.items.empty() && ct.creature.isEmpty() && ct.spawnRadius == 0 && ct.npcRadius == 0 && ct.zoneIds.empty()) continue;
         m_selectionController.clipboard().push_back(std::move(ct));
     }
     emit clipboardChanged();
@@ -299,6 +303,8 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
         std::vector<OtbmMapItem> items;
         QString creature; int spawntime = 60; bool npc = false; uint8_t direction = 0;
         int spawnRadius = 0;
+        int npcRadius = 0;
+        QVector<OtbmSpawnAlternative> monsterChoices;
         int entity = -1;
         int targetEntity = -1;
         TileZoneIds zoneIds;
@@ -319,18 +325,24 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
         if (m_selectionController.wholeStack()) {
             s.items.assign(t->items.begin(), t->items.end());
             s.creature = t->creature_name;
+            s.monsterChoices = m_otbm->monsterChoicesAt(t->x,t->y,t->z);
+            for (auto &choice : s.monsterChoices) choice.direction = (choice.direction + quarterTurns + 4) % 4;
             s.spawntime = t->creature_spawntime;
             s.npc = t->creature_is_npc;
             s.direction = static_cast<uint8_t>((t->creature_direction + quarterTurns + 4) % 4);
             s.spawnRadius = t->spawn_radius;
+            s.npcRadius = m_otbm->npcSpawnRadiusAt(t->x,t->y,t->z);
             if (m_selectionController.wholeStack()) s.zoneIds = t->zone_ids;
         } else if (s.entity >= 0) {
             if (size_t(s.entity) < t->items.size()) s.items.push_back(t->items[size_t(s.entity)]);
         } else if (s.entity == -3) {
             s.spawnRadius = t->spawn_radius;
+            s.npcRadius = m_otbm->npcSpawnRadiusAt(t->x,t->y,t->z);
         } else if (!t->creature_name.isEmpty()) {
 
             s.creature = t->creature_name;
+            s.monsterChoices = m_otbm->monsterChoicesAt(t->x,t->y,t->z);
+            for (auto &choice : s.monsterChoices) choice.direction = (choice.direction + quarterTurns + 4) % 4;
             s.spawntime = t->creature_spawntime;
             s.npc = t->creature_is_npc;
             s.direction = static_cast<uint8_t>((t->creature_direction + quarterTurns + 4) % 4);
@@ -338,9 +350,10 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
             s.items.push_back(t->items.back());
         } else if (t->spawn_radius > 0) {
             s.spawnRadius = t->spawn_radius;
+            s.npcRadius = m_otbm->npcSpawnRadiusAt(t->x,t->y,t->z);
             if (m_selectionController.wholeStack()) s.zoneIds = t->zone_ids;
         }
-        if (s.items.empty() && s.creature.isEmpty() && s.spawnRadius == 0 && s.zoneIds.empty()) continue;
+        if (s.items.empty() && s.creature.isEmpty() && s.spawnRadius == 0 && s.npcRadius == 0 && s.zoneIds.empty()) continue;
         snap.push_back(std::move(s));
     }
     if (snap.empty()) return;
@@ -376,6 +389,7 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
         else for (size_t i = 0; i < s.items.size(); ++i) m_otbm->removeTopItem(s.x, s.y, s.z);
         if (!s.creature.isEmpty()) m_otbm->clearCreatureAt(s.x, s.y, s.z);
         if (!s.zoneIds.empty()) m_otbm->setTileZoneIds(s.x, s.y, s.z, TileZoneIds());
+        if (s.npcRadius > 0) m_otbm->setNpcSpawnAt(s.x,s.y,s.z,0);
         if (s.spawnRadius > 0) { m_otbm->clearSpawnAt(s.x, s.y, s.z); movedSpawn = true; }
         onTileEdited(s.x, s.y, s.z);
     }
@@ -410,9 +424,11 @@ void MapView::transformSelection(int dx, int dy, int dz, int quarterTurns)
         }
         if (!s.creature.isEmpty()) {
             m_otbm->setCreatureAt(nx, ny, nz, s.creature, s.spawntime, s.npc, s.direction);
+            if (!s.npc) m_otbm->setMonsterChoicesAt(nx,ny,nz,s.monsterChoices);
             onTileEdited(nx, ny, nz);
         }
         if (!s.zoneIds.empty() && m_otbm->setTileZoneIds(nx, ny, nz, s.zoneIds)) onTileEdited(nx, ny, nz);
+        if (s.npcRadius > 0) m_otbm->setNpcSpawnAt(nx,ny,nz,s.npcRadius);
         if (s.spawnRadius > 0) {
             m_otbm->setSpawnAt(nx, ny, nz, s.spawnRadius);
             onTileEdited(nx, ny, nz);
@@ -896,9 +912,11 @@ void MapView::commitPasteAt(int px, int py)
             placeItemOnFloor(tx, ty, tz, ci);
         if (!ct.creature.isEmpty()) {
             m_otbm->setCreatureAt(tx, ty, tz, ct.creature, ct.spawntime, ct.npc, ct.direction);
+            if (!ct.npc) m_otbm->setMonsterChoicesAt(tx,ty,tz,ct.monsterChoices);
             onTileEdited(tx, ty, tz);
         }
         if (!ct.zoneIds.empty() && m_otbm->setTileZoneIds(tx, ty, tz, ct.zoneIds)) onTileEdited(tx, ty, tz);
+        if (ct.npcRadius > 0) m_otbm->setNpcSpawnAt(tx,ty,tz,ct.npcRadius);
         if (ct.spawnRadius > 0) {
             m_otbm->setSpawnAt(tx, ty, tz, ct.spawnRadius);
             onTileEdited(tx, ty, tz);

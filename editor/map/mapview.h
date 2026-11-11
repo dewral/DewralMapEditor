@@ -235,6 +235,7 @@ public:
     Q_INVOKABLE void rotateDoodadBrush();
 
     Q_INVOKABLE void setBrushStore(BrushStore *bs);
+    OtbmItemTypes mapItemTypes() const;
 
     Q_INVOKABLE void setCreatureStore(CreatureStore *cs);
 
@@ -662,6 +663,7 @@ public:
     Q_INVOKABLE bool setContextSpawnCreatureSpawntime(int seconds);
 
     Q_INVOKABLE bool setContextSpawnRadius(int radius);
+    Q_INVOKABLE bool setContextNpcSpawnRadius(int radius);
 
     Q_INVOKABLE bool applyContextItemProperties(const QVariantMap &props);
 

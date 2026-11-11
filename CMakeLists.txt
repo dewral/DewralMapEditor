@@ -36,12 +36,14 @@ add_library(DmeLuaScripts STATIC editor/core/luascriptengine.cpp editor/core/lua
 target_include_directories(DmeLuaScripts PUBLIC editor/core)
 target_link_libraries(DmeLuaScripts PUBLIC Qt6::Core Qt6::Concurrent PRIVATE DmeLua)
 
-add_library(DmeLzma STATIC libs/lzma/LzmaEnc.c libs/lzma/LzFind.c libs/lzma/CpuArch.c)
+add_library(DmeLzma STATIC libs/lzma/LzmaEnc.c libs/lzma/LzmaDec.c libs/lzma/LzFind.c libs/lzma/CpuArch.c)
 set_target_properties(DmeLzma PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
 target_compile_definitions(DmeLzma PRIVATE Z7_ST)
 target_include_directories(DmeLzma PUBLIC libs/lzma)
 
 add_library(OTFormats STATIC
+    libs/otformats/appearancesreader.cpp
+    libs/otformats/appearancesreader.h
     libs/otformats/obdexport.cpp
     libs/otformats/obdexport.h
     libs/otformats/sprreader.cpp
@@ -535,6 +537,15 @@ if(BUILD_TESTING)
         set_tests_properties(weather_particles PROPERTIES ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
     endif()
+    # Needs the user's own Tibia 15 assets and a Canary map; not part of CTest.
+    add_executable(canary_format_test EXCLUDE_FROM_ALL tests/canary_format_test.cpp)
+    target_link_libraries(canary_format_test PRIVATE OTFormats DmeLzma Qt6::Core)
+    add_test(NAME canary_format COMMAND canary_format_test)
+    if(WIN32)
+        set_tests_properties(canary_format PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+    endif()
+    add_executable(canary_roundtrip_test EXCLUDE_FROM_ALL tests/canary_roundtrip_test.cpp)
+    target_link_libraries(canary_roundtrip_test PRIVATE OTFormats Qt6::Gui)
     add_executable(otbm_numbered_zones_test EXCLUDE_FROM_ALL tests/otbm_numbered_zones_test.cpp)
     target_link_libraries(otbm_numbered_zones_test PRIVATE OTFormats Qt6::Core)
     add_test(NAME otbm_numbered_zones COMMAND otbm_numbered_zones_test)

@@ -17,6 +17,7 @@
 #include <cstdio>
 
 #include "backend.h"
+#include "uiscale.h"
 #include "dmewindow.h"
 #include "mapview.h"
 #include "maprhiview.h"
@@ -84,6 +85,11 @@ int main(int argc, char *argv[])
     QSettings startupSettings(QSettings::NativeFormat, QSettings::UserScope,
                               QStringLiteral("Dewral"),
                               QStringLiteral("DewralMapEditor"));
+    bool isolatedScale = profile;
+    for (int i = 1; i < argc; ++i)
+        if (QByteArray(argv[i]) == "--smoke-test") isolatedScale = true;
+    const int uiScalePercent = UiScale::configure(
+        startupSettings.value(QStringLiteral("ui/scalePercent"), 100), isolatedScale);
     const bool vsyncEnabled =
         startupSettings.value(QStringLiteral("vsyncEnabled"), true).toBool();
 
@@ -110,6 +116,7 @@ int main(int argc, char *argv[])
     if (!vsyncEnabled) qputenv("QSG_NO_VSYNC", QByteArrayLiteral("1"));
 
     QGuiApplication app(argc, argv);
+    app.setProperty("dmeUiScalePercent", uiScalePercent);
     app.setWindowIcon(QIcon(QStringLiteral(":/ui/app-icon.png")));
 
     QCoreApplication::setOrganizationName(QStringLiteral("Dewral"));

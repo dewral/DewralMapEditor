@@ -1,8 +1,11 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Controls
 import Tibia 1.0
 import "../style"
+import "../themes/tibia" as TibiaSkin
+import "../themes/fluent/Colors.js" as Colors
 
 DmeDialog {
     id: propsDialog
@@ -13,7 +16,7 @@ DmeDialog {
     title: hasCreature
            ? "Creature & Spawn Properties"
            : (hasSpawn ? "Spawn Properties" : "Item Properties")
-    width: 500
+    width: isWritable ? Math.max(500, Math.min(740, Overlay.overlay.width - 24)) : 500
 
     ListModel {
         id: attributeModel
@@ -274,17 +277,100 @@ DmeDialog {
                 }
             }
 
-            Text {
-                visible: propsDialog.isWritable
-                text: "Text"
-                color: "#999"
-                font.pixelSize: 11
-            }
             Row {
                 visible: propsDialog.isWritable
-                DmeTextField {
-                    id: textField
-                    width: 456
+                width: parent.width
+                spacing: 10
+
+                Column {
+                    width: parent.width - textPreview.width - parent.spacing
+                    spacing: 4
+
+                    Text {
+                        text: "Text"
+                        color: Colors.c("text")
+                        font.pixelSize: Colors.size(12)
+                    }
+
+                    ScrollView {
+                        width: parent.width
+                        height: 112
+                        clip: true
+                        contentWidth: availableWidth
+                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+
+                        background: Rectangle {
+                            color: Colors.c("base")
+                            radius: propsDialog.tibiaTheme ? 0 : 4
+                            border.color: textField.activeFocus ? Colors.c("accent") : Colors.c("border")
+                            TibiaSkin.TibiaSkin {
+                                anchors.fill: parent
+                                kind: "field"
+                                selected: textField.activeFocus
+                            }
+                        }
+
+                        TextArea {
+                            id: textField
+                            objectName: "itemPropertiesText"
+                            background: null
+                            textFormat: TextEdit.PlainText
+                            wrapMode: TextEdit.Wrap
+                            selectByMouse: true
+                            padding: 8
+                            color: Colors.c("text")
+                            selectionColor: Colors.c("accent")
+                            font.family: Colors.family()
+                            font.pixelSize: Colors.size(13)
+                        }
+                    }
+                }
+
+                Column {
+                    id: textPreview
+                    width: 256
+                    spacing: 4
+
+                    Text {
+                        text: "In-game preview (Tibia 7.72)"
+                        color: Colors.c("text")
+                        font.pixelSize: Colors.size(12)
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        height: 112
+                        color: Colors.c("base")
+                        radius: propsDialog.tibiaTheme ? 0 : 4
+                        border.color: Colors.c("border")
+
+                        TibiaSkin.TibiaSkin {
+                            anchors.fill: parent
+                            kind: "field"
+                        }
+
+                        ListView {
+                            objectName: "itemPropertiesTextPreview"
+                            x: 6
+                            y: 6
+                            width: 232
+                            height: parent.height - 12
+                            clip: true
+                            boundsBehavior: Flickable.StopAtBounds
+                            model: propsDialog.visible && propsDialog.isWritable
+                                ? Backend.uiTheme.classicItemTextLines(textField.text) : []
+                            ScrollBar.vertical: ScrollBar {
+                                x: parent.width + 2
+                                policy: ScrollBar.AsNeeded
+                            }
+                            delegate: TibiaSkin.TibiaPreviewLabel {
+                                required property string modelData
+                                width: 232
+                                height: 14
+                                text: modelData
+                            }
+                        }
+                    }
                 }
             }
 
@@ -297,7 +383,7 @@ DmeDialog {
             DmeTextField {
                 id: descriptionField
                 visible: propsDialog.ctx.hasItem === true
-                width: 456
+                width: parent.width
                 placeholderText: "Optional item description"
             }
 

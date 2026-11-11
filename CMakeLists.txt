@@ -130,6 +130,7 @@ add_executable(DewralMapEditor
     editor/core/filetools.h
     editor/core/uitheme.cpp
     editor/core/uitheme.h
+    editor/core/uiscale.h
     editor/core/documentmanager.cpp
     editor/core/documentmanager.h
     editor/core/creaturestore.cpp

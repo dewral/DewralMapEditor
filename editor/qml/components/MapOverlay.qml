@@ -4,6 +4,7 @@ import QtQuick
 import Tibia 1.0
 import "../style"
 import "../themes/fluent/Colors.js" as Colors
+import "../themes/tibia" as TibiaSkin
 
 Item {
     id: overlay
@@ -284,10 +285,16 @@ Item {
                             required property var modelData
                             width: containerTip.slotSize
                             height: containerTip.slotSize
-                            radius: 2
-                            color: "#161B22"
+                            radius: containerTip.tibiaTheme ? 1 : 2
+                            color: containerTip.tibiaTheme ? Colors.c("cell") : "#161B22"
                             border.width: 1
-                            border.color: "#3D4650"
+                            border.color: containerTip.tibiaTheme ? Colors.c("cellBorder") : "#3D4650"
+
+                            Loader {
+                                anchors.fill: parent
+                                active: containerTip.tibiaTheme
+                                sourceComponent: TibiaSkin.TibiaSlot {}
+                            }
 
                             Image {
                                 anchors.centerIn: parent

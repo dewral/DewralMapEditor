@@ -303,6 +303,12 @@ void MapView::mousePressEvent(QMouseEvent *event)
     m_pointerMovePending = false;
     m_navigationController.lastMouse() = event->position();
 
+    if (event->button() == Qt::MiddleButton && event->modifiers().testFlag(Qt::ControlModifier)) {
+        resetZoomAt(event->position().x(), event->position().y());
+        event->accept();
+        return;
+    }
+
     // Space + left mouse is an alternative to middle-mouse panning. Handle
     // this before editing tools so a temporary pan cannot modify the map.
     if (event->button() == Qt::LeftButton && m_spacePanHeld) {
@@ -850,20 +856,29 @@ void MapView::wheelEvent(QWheelEvent *event)
 void MapView::zoomAt(int steps, qreal px, qreal py)
 {
     if (steps == 0) return;
+    int newSize = static_cast<int>(std::lround(m_navigationController.tileSize() * std::pow(1.2, steps)));
+    if (newSize == m_navigationController.tileSize()) newSize += (steps > 0 ? 1 : -1);
+    setTileSizeAt(newSize, px, py);
+}
+
+void MapView::resetZoomAt(qreal px, qreal py)
+{
+    setTileSizeAt(32, px, py);
+}
+
+void MapView::setTileSizeAt(int newSize, qreal px, qreal py)
+{
+    newSize = std::clamp(newSize, 1, 256);
+    if (newSize == m_navigationController.tileSize()) return;
     const qreal ts = std::max(1, m_navigationController.tileSize());
     const qreal worldX = m_navigationController.originX() + px / ts;
     const qreal worldY = m_navigationController.originY() + py / ts;
-
-    int newSize = static_cast<int>(std::lround(m_navigationController.tileSize() * std::pow(1.2, steps)));
-    if (newSize == m_navigationController.tileSize()) newSize += (steps > 0 ? 1 : -1);
-    newSize = std::clamp(newSize, 1, 256);
-    if (newSize != m_navigationController.tileSize()) {
-        m_navigationController.tileSize() = newSize;
-        emit tileSizeChanged();
-        m_navigationController.originX() = worldX - px / newSize;
-        m_navigationController.originY() = worldY - py / newSize;
-        emit contentUpdated(); update();
-    }
+    m_navigationController.tileSize() = newSize;
+    m_navigationController.originX() = worldX - px / newSize;
+    m_navigationController.originY() = worldY - py / newSize;
+    emit tileSizeChanged();
+    emit contentUpdated();
+    update();
 }
 
 void MapView::keyPressEvent(QKeyEvent *event)

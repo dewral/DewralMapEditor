@@ -1,9 +1,56 @@
 #pragma once
 
 #include <QSettings>
+#include <QMouseEvent>
 
 bool testMapViewPositions(const QTemporaryDir &directory)
 {
+    // Ctrl+middle reset must preserve the exact world point under the pointer,
+    // without becoming a drag, changing floors or modifying the map.
+    {
+        class InputView : public MapView {
+        public:
+            using MapView::mousePressEvent;
+            using MapView::mouseMoveEvent;
+            using MapView::mouseReleaseEvent;
+        } input;
+        OtbmReader map;
+        map.newMap(1024, 1024, 860, 2, 22);
+        input.setOtbm(&map); input.setSize({801, 603});
+        const QPointF pointer(123.25, 456.75);
+        for (int size : {1, 16, 31, 32, 64, 256}) {
+            input.setTileSize(size); input.centerOnTile(500, 600, 9);
+            const double x = input.renderOriginX() + pointer.x() / size;
+            const double y = input.renderOriginY() + pointer.y() / size;
+            QMouseEvent press(QEvent::MouseButtonPress, pointer, pointer,
+                Qt::MiddleButton, Qt::MiddleButton, Qt::ControlModifier);
+            input.mousePressEvent(&press);
+            if (!require(input.tileSize() == 32 && input.floor() == 9
+                && qAbs(input.renderOriginX() + pointer.x()/32 - x) < 1e-9
+                && qAbs(input.renderOriginY() + pointer.y()/32 - y) < 1e-9,
+                "Ctrl+middle reset moved the world point under the cursor")) return false;
+            const double originX = input.renderOriginX(), originY = input.renderOriginY();
+            QMouseEvent move(QEvent::MouseMove, pointer + QPointF(30,20), pointer + QPointF(30,20),
+                Qt::NoButton, Qt::MiddleButton, Qt::ControlModifier);
+            input.mouseMoveEvent(&move); input.advancePointerFrame();
+            QMouseEvent release(QEvent::MouseButtonRelease, pointer, pointer,
+                Qt::MiddleButton, Qt::NoButton, Qt::ControlModifier);
+            input.mouseReleaseEvent(&release);
+            if (!require(input.renderOriginX() == originX && input.renderOriginY() == originY
+                && input.selectionCount() == 0 && map.tileCount() == 0,
+                "Ctrl+middle zoom reset accidentally panned or edited the map")) return false;
+        }
+        const double originX = input.renderOriginX();
+        QMouseEvent pan(QEvent::MouseButtonPress, pointer, pointer,
+            Qt::MiddleButton, Qt::MiddleButton, Qt::NoModifier);
+        input.mousePressEvent(&pan);
+        QMouseEvent move(QEvent::MouseMove, pointer + QPointF(32,0), pointer + QPointF(32,0),
+            Qt::NoButton, Qt::MiddleButton, Qt::NoModifier);
+        input.mouseMoveEvent(&move); input.advancePointerFrame();
+        if (!require(input.renderOriginX() != originX, "Unmodified middle-button panning regressed")) return false;
+        input.setOtbm(nullptr);
+    }
+
     const QString firstPath = directory.filePath(QStringLiteral("first-view.otbm"));
     const QString secondPath = directory.filePath(QStringLiteral("second-view.otbm"));
     const QString copyPath = directory.filePath(QStringLiteral("copy-view.otbm"));

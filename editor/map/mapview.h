@@ -623,6 +623,7 @@ public:
 
     Q_INVOKABLE void centerOnTile(int x, int y, int z);
 
+    Q_INVOKABLE void resetZoomAt(qreal px, qreal py);
     Q_INVOKABLE void zoomSteps(int steps) {
         zoomAt(steps, width() / 2.0, height() / 2.0);
     }
@@ -856,6 +857,7 @@ protected:
     void wheelEvent(QWheelEvent *event) override;
 
     void zoomAt(int steps, qreal px, qreal py);
+    void setTileSizeAt(int newSize, qreal px, qreal py);
     void keyPressEvent(QKeyEvent *event) override;
     void keyReleaseEvent(QKeyEvent *event) override;
     void focusOutEvent(QFocusEvent *event) override;

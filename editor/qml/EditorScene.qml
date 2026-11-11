@@ -118,6 +118,20 @@ DmeWindow {
         return tileMapGenLoader.status === Loader.Ready && tileMapGenLoader.item !== null;
     }
     function smokeSearchResults() {
+        const menu=workspace.mapContextMenu;
+        const entries=[];
+        for(let i=0;i<menu.count;++i) entries.push(menu.itemAt(i).text || "");
+        const copy=entries.indexOf("Copy");
+        const selectors=["Select Creature","Select Spawn","Select RAW","Select Wallbrush",
+            "Select Carpetbrush","Select Tablebrush","Select Doodadbrush","Select Doorbrush",
+            "Select Groundbrush","Select Collection","Select House"];
+        const first=entries.indexOf(selectors[0]);
+        if(entries[0]!=="Cut" || first<=entries.indexOf("Copy Item Name")
+            || entries[copy+1]!=="Paste" || entries[copy+2]!=="Delete") return false;
+        for(let i=0;i<selectors.length;++i) if(entries[first+i]!==selectors[i]) return false;
+        const properties=entries.findIndex(text=>text==="Properties" || text==="Spawn properties"
+            || text.indexOf("Creature properties -")===0);
+        if(properties!==first+selectors.length+1) return false;
         searchResultsDialog.openSearch("unique", false);
         let valid = searchResultsVisible && searchResultsLoader.item !== null
             && searchResultsLoader.item.parent === searchResultsHost

@@ -14,6 +14,8 @@
 #include <algorithm>
 #include <vector>
 
+class AppearancesReader;
+
 struct ClientSpriteGroup {
     uint8_t type = 0;
     uint8_t width = 1;
@@ -159,6 +161,10 @@ public:
     }
 
     Q_INVOKABLE bool loadFile(const QString &path, quint32 expectedSignature = 0);
+    // Tibia 13+/15.x: reads the protobuf appearances listed in the folder's
+    // catalog-content.json. Item properties come from the appearance flags.
+    bool loadAppearances(AppearancesReader &reader, const QString &folder);
+    bool isAppearanceClient() const { return m_appearanceClient; }
 
     Q_INVOKABLE quint32 previewSpriteIdAt(int row) const;
     Q_INVOKABLE int itemIdAt(int row) const;
@@ -212,6 +218,7 @@ private:
     QString m_sourceFilePath;
     uint32_t m_signature = 0;
     uint16_t m_maxItemId = 0;
+    bool m_appearanceClient = false;
     bool m_loaded = false;
     QString m_errorString;
 };

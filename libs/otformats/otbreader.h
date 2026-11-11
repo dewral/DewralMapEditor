@@ -13,6 +13,7 @@
 
 class DatReader;
 class ItemsXmlReader;
+struct AppearanceItemInfo;
 
 enum class OtbItemGroup : uint8_t {
     None = 0,
@@ -111,6 +112,13 @@ public:
     void setItemsXml(ItemsXmlReader *itemsXml);
 
     Q_INVOKABLE bool loadFile(const QString &path);
+    // Tibia 13+/15.x (Canary): there is no items.otb. OTBM stores client ids,
+    // so every appearance object becomes an item whose server id equals its
+    // client id; flags, group and top order come from the appearance flags
+    // and from items.xml ("type" attribute) when one is loaded.
+    bool buildFromAppearances(const DatReader &dat,
+                              const QHash<uint16_t, AppearanceItemInfo> &info);
+    bool isAppearanceItemSet() const { return m_appearanceItems; }
     Q_INVOKABLE int clientIdForServerId(int serverId) const;
     Q_INVOKABLE QString nameForServerId(int serverId) const;
 
@@ -156,6 +164,7 @@ private:
     uint32_t m_majorVersion = 0;
     uint32_t m_minorVersion = 0;
     uint32_t m_buildNumber = 0;
+    bool m_appearanceItems = false;
     bool m_loaded = false;
     QString m_errorString;
 };

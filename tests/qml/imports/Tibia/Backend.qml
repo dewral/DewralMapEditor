@@ -146,6 +146,7 @@ QtObject {
         function matches(id, key, modifiers) { return false; }
     }
     property QtObject otbmReader: QtObject {
+        property bool canaryFormat: false
         function housesList() { return []; }
         function townsList() { return []; }
         property string filePath: ""

@@ -149,7 +149,7 @@ Item {
                 return;
             }
             if (Backend.otbmReader.loaded || Backend.otbmReader.filePath !== "") Backend.docMgr.newDocument();
-            Backend.otbmReader.newMap(width, height, profiles.profileVer(key), Backend.otbReader.majorVersion, Backend.otbReader.minorVersion);
+            Backend.otbmReader.newMap(width, height, profiles.profileVer(key), Backend.otbReader.majorVersion, Backend.otbReader.minorVersion, profiles.profile(key).canary ? 1 : 0);
             Backend.docMgr.setCurrentProfileKey(String(key));
             profiles.bindCurrentDocument(String(key));
             mapView.centerOnTile(Math.floor(width / 2), Math.floor(height / 2), 7);
@@ -191,6 +191,11 @@ Item {
                 startupWindow.chooseClientProfile(header.clientVersion,error || "Repair or choose a client profile.",function(key){
                     if(key){profiles.rememberMapProfile(mapPath,key);controller.loadEverything(mapPath,key);}
                 });
+                return;
+            }
+            if (!!header.canary !== !!(profiles.activeConfiguration && profiles.activeConfiguration.canary)) {
+                activeLoadPath="";activePreferredProfileKey="";startupWindow.loadingMap=false;
+                showToast("The map format and the profile Canary option do not match. Choose a compatible profile.");
                 return;
             }
             if (Backend.otbmReader.loaded && Backend.otbmReader.filePath !== mapPath) Backend.docMgr.newDocument();

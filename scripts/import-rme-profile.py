@@ -19,6 +19,8 @@ assert spec and spec.loader
 rme = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(rme)
 
+LOOKID_IS_ITEM_ID = False
+
 SIDECARS = ("tilesetsa.xml", "raw_palette.xml", "item_palette.xml", "collections.xml", "walls_extra.xml")
 BRUSH_KINDS = ("grounds", "walls", "doodads", "carpets", "tables")
 
@@ -73,6 +75,9 @@ def convert_materials(source: Path) -> tuple[dict, dict, list[str]]:
         if not list(node) and not node.get("server_lookid"):
             warnings.append(f"Empty brush placeholder omitted: {name}")
             continue
+        if node.get("lookid") and not node.get("server_lookid") and LOOKID_IS_ITEM_ID:
+            # Canary (Tibia 13+): server ids are client ids, so lookid is an item id.
+            node.set("server_lookid", node.get("lookid"))
         if node.get("lookid") and not node.get("server_lookid"):
             # XML lookid may be a client sprite ID. DME always wants server IDs.
             item_id = next((ids[0] for item in node.iter("item")
@@ -254,7 +259,11 @@ def main() -> int:
     parser.add_argument("--destination", required=True, type=Path, help="Exact DME data/<profile> folder to update")
     parser.add_argument("--dry-run", action="store_true", help="Show counts and source gaps without writing files")
     parser.add_argument("--items-xml", type=Path, help="Optional server items.xml to use instead of source metadata")
+    parser.add_argument("--lookid-is-item-id", action="store_true",
+                        help="Treat brush lookid as an item id (Canary / Tibia 13+ data, where server ids are client ids)")
     arguments = parser.parse_args()
+    global LOOKID_IS_ITEM_ID
+    LOOKID_IS_ITEM_ID = arguments.lookid_is_item_id
     try:
         report = import_profile(arguments.materials, arguments.destination, arguments.dry_run, arguments.items_xml)
     except (OSError, ValueError, RuntimeError, ET.ParseError) as error:

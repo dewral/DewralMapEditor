@@ -1,4 +1,5 @@
 #include "datreader.h"
+#include "appearancesreader.h"
 #include "datattributes.h"
 #include <algorithm>
 
@@ -83,6 +84,7 @@ void DatReader::reset()
     m_sourceFilePath.clear();
     m_signature = 0;
     m_maxItemId = 0;
+    m_appearanceClient = false;
     m_loaded = false;
     endResetModel();
 
@@ -154,6 +156,28 @@ bool DatReader::loadFile(const QString &path, quint32 expectedSignature)
     emit itemCountChanged();
     emit loadedChanged();
 
+    return true;
+}
+
+bool DatReader::loadAppearances(AppearancesReader &appearances, const QString &folder)
+{
+    reset();
+    if (!appearances.load(folder)) {
+        setError(appearances.errorString());
+        return false;
+    }
+    m_sourceFilePath = appearances.catalogPath();
+    m_signature = 0;
+    m_maxItemId = appearances.maxItemId();
+    beginResetModel();
+    m_items = appearances.takeItems();
+    m_outfits = appearances.takeOutfits();
+    m_effects = appearances.takeEffects();
+    m_appearanceClient = true;
+    m_loaded = true;
+    endResetModel();
+    emit itemCountChanged();
+    emit loadedChanged();
     return true;
 }
 

@@ -1,5 +1,6 @@
 #include "otbreader.h"
 
+#include "appearancesreader.h"
 #include "datreader.h"
 #include "itemsxmlreader.h"
 #include "nodefilereader.h"
@@ -229,6 +230,7 @@ void OtbReader::reset()
     m_majorVersion = 0;
     m_minorVersion = 0;
     m_buildNumber = 0;
+    m_appearanceItems = false;
     m_loaded = false;
     m_errorString.clear();
     endResetModel();
@@ -372,6 +374,96 @@ bool OtbReader::loadFile(const QString &path)
     m_loaded = true;
     endResetModel();
 
+    emit itemCountChanged();
+    emit loadedChanged();
+    return true;
+}
+
+bool OtbReader::buildFromAppearances(const DatReader &dat,
+                                     const QHash<uint16_t, AppearanceItemInfo> &info)
+{
+    reset();
+    std::vector<OtbItem> parsedItems;
+    parsedItems.reserve(dat.items().size());
+    for (const ClientItem &client : dat.items()) {
+        if (client.id < 100 || client.sprite_ids.empty()) continue;
+        const AppearanceItemInfo details = info.value(client.id);
+        OtbItem item;
+        item.server_id = client.id;
+        item.client_id = client.id;
+
+        const QString xmlType = m_itemsXml ? m_itemsXml->typeForServerId(client.id) : QString();
+        OtbItemGroup group = OtbItemGroup::None;
+        if (client.has(ClientProperty::Ground)) group = OtbItemGroup::Ground;
+        else if (client.has(ClientProperty::Container)) group = OtbItemGroup::Container;
+        else if (details.liquidContainer) group = OtbItemGroup::Fluid;
+        else if (details.liquidPool) group = OtbItemGroup::Splash;
+        if (group == OtbItemGroup::None || group == OtbItemGroup::Container) {
+            if (xmlType == QLatin1String("door")) group = OtbItemGroup::Door;
+            else if (xmlType == QLatin1String("teleport")) group = OtbItemGroup::Teleport;
+            else if (xmlType == QLatin1String("magicfield")) group = OtbItemGroup::MagicField;
+            else if (xmlType == QLatin1String("key")) group = OtbItemGroup::Key;
+            else if (xmlType == QLatin1String("podium")) group = OtbItemGroup::Podium;
+            else if (group == OtbItemGroup::None && details.writable) group = OtbItemGroup::Writeable;
+        }
+        item.group = static_cast<uint8_t>(group);
+
+        item.is_unpassable = client.has(ClientProperty::Solid);
+        item.blocks_missiles = client.has(ClientProperty::MissileBlock);
+        item.blocks_pathfinder = client.has(ClientProperty::PathBlock);
+        item.has_elevation = client.has(ClientProperty::Elevation);
+        item.is_useable = details.usable;
+        item.is_pickupable = client.has(ClientProperty::Pickup);
+        item.is_moveable = !client.has(ClientProperty::Fixed);
+        item.is_stackable = client.has(ClientProperty::Stackable);
+        item.always_on_top = details.topOrder > 0;
+        item.is_readable = client.has(ClientProperty::Writable);
+        item.is_rotatable = client.has(ClientProperty::Rotatable);
+        item.is_hangable = client.has(ClientProperty::Hangable);
+        item.hook_east = client.has(ClientProperty::EastHook);
+        item.hook_south = client.has(ClientProperty::SouthHook);
+
+        uint32_t flags = 0;
+        if (item.is_unpassable) flags |= Unpassable;
+        if (item.blocks_missiles) flags |= BlockMissiles;
+        if (item.blocks_pathfinder) flags |= BlockPathfinder;
+        if (item.has_elevation) flags |= HasElevation;
+        if (item.is_useable) flags |= Useable;
+        if (item.is_pickupable) flags |= Pickupable;
+        if (!item.is_moveable) flags |= Moveable;
+        if (item.is_stackable) flags |= Stackable;
+        if (item.always_on_top) flags |= AlwaysOnTop;
+        if (item.is_readable) flags |= Readable;
+        if (item.is_rotatable) flags |= Rotatable;
+        if (item.is_hangable) flags |= Hangable;
+        if (item.hook_east) flags |= HookEast;
+        if (item.hook_south) flags |= HookSouth;
+        item.flags = flags;
+
+        item.name = details.name;
+        item.speed = client.ground_speed;
+        item.max_text_length = client.max_text_length;
+        item.light_level = details.lightLevel;
+        item.light_color = details.lightColor;
+        item.stack_order = static_cast<int8_t>(details.topOrder);
+        parsedItems.push_back(std::move(item));
+    }
+
+    beginResetModel();
+    m_items = std::move(parsedItems);
+    for (int row = 0; row < static_cast<int>(m_items.size()); ++row) {
+        const OtbItem &item = m_items[static_cast<size_t>(row)];
+        m_serverIdToRow.insert(item.server_id, row);
+        m_clientIdToRow.insert(item.client_id, row);
+    }
+    // OTBM headers written by Canary's editor carry 4/4 here; Canary only
+    // requires a major version of at least 3.
+    m_majorVersion = 4;
+    m_minorVersion = 4;
+    m_buildNumber = 0;
+    m_appearanceItems = true;
+    m_loaded = true;
+    endResetModel();
     emit itemCountChanged();
     emit loadedChanged();
     return true;

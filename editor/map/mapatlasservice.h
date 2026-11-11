@@ -62,7 +62,9 @@ public:
 
 private:
     static constexpr int SpriteSize = 32;
-    static constexpr int Columns = 128;
+    // 256 columns (8192 px): a full Tibia 15 map (otservbr) needs ~93k 32x32
+    // cells, which must stay below the usual 16384 px texture height limit.
+    static constexpr int Columns = 256;
     QImage m_image;
     quint64 m_epoch = 1;
     QHash<uint32_t, int> m_spriteToSlot;

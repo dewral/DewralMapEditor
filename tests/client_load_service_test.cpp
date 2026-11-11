@@ -119,6 +119,10 @@ int main(int argc, char **argv)
         QFile::remove(fixture.filePath("invalid.xml"));
         QTemporaryDir ambiguous;
         if(!writeFile(ambiguous.filePath("first.dat"),matchingDatFile()) || !writeFile(ambiguous.filePath("second.dat"),matchingDatFile()))return 1;
+        const auto classic=service->resolveProfile({{"version",860},{"folder",fixture.path()},{"canary",false}});
+        if(!require(!classic.value("appearance").toBool(),"Classic profile entered Canary mode")) return 1;
+        const auto canary=service->resolveProfile({{"version",860},{"folder",fixture.path()},{"canary",true}});
+        if(!require(!canary.value("success").toBool() && canary.value("appearance").toBool() && canary.value("paths").toMap().contains("catalog"),"Canary mode did not require a catalog")) return 1;
         const auto report=service->resolveProfile({{"version",860},{"folder",ambiguous.path()}});
         if(!require(report.value("errors").toMap().value("dat").toString().contains("Several"),"Ambiguous DAT was silently chosen"))return 1;
         if (!writeFile(fixture.filePath("Tibia.dat"), "invalid")) return 1;

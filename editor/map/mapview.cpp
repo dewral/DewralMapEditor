@@ -28,6 +28,20 @@
 #include <vector>
 #include <QtConcurrent/QtConcurrentRun>
 
+OtbmItemTypes MapView::mapItemTypes() const
+{
+    auto types = m_otb ? m_otb->otbmItemTypes() : OtbmItemTypes{};
+    if (const auto *brushes = m_brushController.store()) {
+        types.houseGeometryKnown = true;
+        for (int id = 1; id <= 65535; ++id) {
+            types.walls.set(id, brushes->isWallBrushItem(id));
+            types.tables.set(id, brushes->isTableBrushItem(id));
+            types.doors.set(id, brushes->isDoorItem(id));
+        }
+    }
+    return types;
+}
+
 namespace {
 QString mapViewSettingsKey(const QString &path)
 {
@@ -196,7 +210,7 @@ bool MapView::loadMap(const QString &path)
     m_optionalBorderOverrides.clear();
 
     OtbmReader *target = m_otbm;
-    const OtbmItemTypes itemTypes = m_otb ? m_otb->otbmItemTypes() : OtbmItemTypes{};
+    const OtbmItemTypes itemTypes = mapItemTypes();
     if (m_mapLoadCancel) m_mapLoadCancel->store(true, std::memory_order_release);
     const auto cancel = std::make_shared<std::atomic_bool>(false);
     m_mapLoadCancel = cancel;
@@ -380,7 +394,7 @@ QVariantMap MapView::importMap(const QString &path, int offsetX, int offsetY,
 
     {
         std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
-        if (m_otb) m_otbm->setItemTypes(m_otb->otbmItemTypes());
+        if (m_otb) m_otbm->setItemTypes(mapItemTypes());
         result = m_otbm->importFile(path, offsetX, offsetY, offsetZ,
                                     importHouses, importSpawns, collisionMode);
     }
@@ -435,7 +449,7 @@ void MapView::setOtbm(OtbmReader *reader)
     m_mapLoadGeneration.fetch_add(1, std::memory_order_acq_rel);
     if (m_otbm && m_otbm->isLoading()) m_otbm->finishLoading(false);
     m_otbm = reader;
-    if (m_otbm && m_otb) m_otbm->setItemTypes(m_otb->otbmItemTypes());
+    if (m_otbm && m_otb) m_otbm->setItemTypes(mapItemTypes());
     m_optionalBorderTiles.clear();
     m_optionalBorderOverrides.clear();
     if (m_otbm) connect(m_otbm, &OtbmReader::loadedChanged, this, &MapView::onMapLoaded);
@@ -461,7 +475,7 @@ void MapView::setOtb(OtbReader *reader)
         const auto updateTypes = [this] {
             invalidateMapQuery();
             invalidateGeneration();
-            if (m_otbm) m_otbm->setItemTypes(m_otb->otbmItemTypes());
+            if (m_otbm) m_otbm->setItemTypes(mapItemTypes());
         };
         connect(m_otb, &OtbReader::loadedChanged, this, updateTypes);
         updateTypes();

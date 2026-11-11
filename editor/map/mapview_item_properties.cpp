@@ -22,6 +22,18 @@
 #include <limits>
 #include <vector>
 
+bool MapView::setContextNpcSpawnRadius(int radius)
+{
+    if (!m_otbm) return false;
+    bool changed;
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_dataMutex);
+        changed = m_otbm->setNpcSpawnAt(m_itemController.contextX(),m_itemController.contextY(),m_navigationController.floor(),radius);
+    }
+    if (changed) refreshAfterEdit(0);
+    return changed;
+}
+
 bool MapView::setContextSpawnRadius(int radius)
 {
     if (!m_otbm) return false;

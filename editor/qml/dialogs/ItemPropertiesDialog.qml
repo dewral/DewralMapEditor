@@ -15,7 +15,7 @@ DmeDialog {
 
     title: hasCreature
            ? "Creature & Spawn Properties"
-           : (hasSpawn ? "Spawn Properties" : "Item Properties")
+           : ((hasSpawn || ctx.npcSpawnRadius > 0) ? "Spawn Properties" : "Item Properties")
     width: isWritable ? Math.max(500, Math.min(740, Overlay.overlay.width - 24)) : 500
 
     ListModel {
@@ -74,6 +74,7 @@ DmeDialog {
         areaSpawntimeField.value = ctx.spawnCreatureSpawntime > 0
                 ? ctx.spawnCreatureSpawntime : 60;
         radiusField.value = ctx.spawnRadius > 0 ? ctx.spawnRadius : 1;
+        npcRadiusField.value = ctx.npcSpawnRadius || 0;
         attributeModel.clear();
         const attributes = ctx.customAttributes || [];
         for (let i = 0; i < attributes.length; ++i) {
@@ -153,6 +154,9 @@ DmeDialog {
             mapCtrl.setContextSpawnCreatureSpawntime(areaSpawntimeField.value);
         if (mapCtrl && hasSpawn)
             mapCtrl.setContextSpawnRadius(radiusField.value);
+        if (mapCtrl && Backend.otbmReader.canaryFormat
+            && npcRadiusField.value !== (ctx.npcSpawnRadius || 0))
+            mapCtrl.setContextNpcSpawnRadius(npcRadiusField.value);
         propsDialog.close();
     }
 
@@ -416,6 +420,12 @@ DmeDialog {
                 }
             }
 
+            Row {
+                visible: Backend.otbmReader.canaryFormat && (propsDialog.ctx.creatureIsNpc || propsDialog.ctx.npcSpawnRadius > 0)
+                spacing: 6
+                Text { text:"NPC spawn radius (0 = remove area)"; color:"#999"; font.pixelSize:11 }
+                DmeSpinBox { id:npcRadiusField; width:100; from:0; to:65535 }
+            }
             Text {
                 visible: propsDialog.hasCreature
                 text: "Spawn time - " + (propsDialog.ctx.creatureName || "")

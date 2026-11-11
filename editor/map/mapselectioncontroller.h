@@ -21,6 +21,8 @@ struct MapClipboardTile {
     bool npc = false;
     uint8_t direction = 0;
     int spawnRadius = 0;
+    int npcRadius = 0;
+    QVector<OtbmSpawnAlternative> monsterChoices;
     TileZoneIds zoneIds;
 };
 

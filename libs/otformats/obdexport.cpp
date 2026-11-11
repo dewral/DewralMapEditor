@@ -98,6 +98,8 @@ QString ObdExport::save(const DatReader &dat, SprReader &spr, int clientId, cons
         return tr("Choose a local OBD file to export the item.");
     if (!dat.isLoaded() || !spr.isLoaded() || clientId < 100 || clientId > 65535)
         return tr("Load a client and select an item before exporting OBD.");
+    if (dat.isAppearanceClient())
+        return tr("OBD export needs a DAT/SPR client; Tibia 15 appearances are not supported.");
     const ClientItem *item = dat.itemByClientId(uint16_t(clientId));
     if (!item || item->sprite_ids.empty())
         return tr("No item data is available for this item.");

@@ -22,7 +22,7 @@ Dewral Map Editor (DME) is a desktop OpenTibia map editor for OTBM maps. It
 uses a Qt 6/QML interface and a custom QRhi renderer designed for large,
 multi-floor Tibia maps.
 
-> Client assets are not included. DME requires your own `Tibia.dat`,
+> Client assets are not included. Classic profiles require your own `Tibia.dat`,
 > `Tibia.spr`, and `items.otb` files. These files are copyrighted by CipSoft
 > and must not be committed to this repository or included in a release.
 
@@ -139,13 +139,17 @@ Switch between Tibia-UI and Fluent Dark in **Preferences → Interface → Theme
    `qml` folders shipped next to it.
 3. Run `DME.exe`.
 4. Select a client version or create a custom profile.
-5. Point the profile at a directory containing:
+5. For a classic profile, point it at a directory containing:
 
    ```text
    Tibia.dat
    Tibia.spr
    items.otb
    ```
+
+   For Canary, enable **Canary (appearances, LZMA sprites and OTBM 5)** in
+   Client Profiles and select your Tibia assets folder with
+   `catalog-content.json`, appearances, and LZMA sprite sheets.
 
 6. Open an OTBM map.
 

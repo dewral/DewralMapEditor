@@ -8,6 +8,8 @@ struct OtbmItemTypes {
     std::bitset<65536> known;
     std::bitset<65536> subtype;
     std::bitset<65536> fluidContainers;
+    std::bitset<65536> walls, tables, doors;
+    bool houseGeometryKnown = false;
 };
 
 #endif

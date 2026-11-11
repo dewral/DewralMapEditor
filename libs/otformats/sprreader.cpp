@@ -1,5 +1,8 @@
 #include "sprreader.h"
+#include "appearancesreader.h"
 #include "datreader.h"
+
+#include <QFileInfo>
 #include "loadprofile.h"
 
 #include <QFile>
@@ -116,6 +119,7 @@ void SprReader::reset()
     }
     if (m_file->isOpen()) m_file->close();
     m_file->setFileName(QString());
+    m_appearance.reset();
     m_bulkAccessDepth = 0;
     m_fileSize = 0;
     m_offsets.clear();
@@ -157,6 +161,16 @@ bool SprReader::loadFile(const QString &path, quint32 expectedSignature, bool ex
     }
     m_extended = extended;
     m_useAlpha = useAlpha;
+
+    if (QFileInfo(path).fileName().compare(QStringLiteral("catalog-content.json"),
+                                          Qt::CaseInsensitive) == 0) {
+        auto source = AppearanceSpriteSource::lookup(path);
+        if (!source) {
+            setError(QStringLiteral("Tibia 15 sprite table is not loaded for %1").arg(path));
+            return false;
+        }
+        return loadAppearanceSource(std::move(source));
+    }
 
     m_file->setFileName(path);
     if (!m_file->open(QIODevice::ReadOnly)) {
@@ -254,6 +268,31 @@ bool SprReader::loadFile(const QString &path, quint32 expectedSignature, bool ex
     return true;
 }
 
+bool SprReader::loadAppearanceSource(std::shared_ptr<AppearanceSpriteSource> source)
+{
+    if (!source) return false;
+    if (m_loaded) reset();
+    const QString catalog = source->catalogPath();
+    // The file stays closed; it only carries the identity used by sourcePath().
+    if (m_file->isOpen()) m_file->close();
+    m_file->setFileName(catalog);
+    m_appearance = std::move(source);
+    m_fileSize = 0;
+    m_offsets.clear();
+    m_signature = 0;
+    m_spriteCount = m_appearance->virtualCount();
+    m_extended = true;
+    m_useAlpha = true;
+    m_loaded = true;
+    emit spriteCountChanged();
+    emit loadedChanged();
+    if (m_spriteCount > 0) {
+        beginInsertRows(QModelIndex(), 0, static_cast<int>(m_spriteCount) - 1);
+        endInsertRows();
+    }
+    return true;
+}
+
 std::shared_ptr<SpriteData> SprReader::loadSprite(uint32_t spriteId)
 {
     return loadSpriteImpl(spriteId, true);
@@ -305,6 +344,12 @@ std::shared_ptr<SpriteData> SprReader::decodeSprite(uint32_t spriteId)
 {
     auto sprite = std::make_shared<SpriteData>();
     sprite->id = spriteId;
+
+    if (m_appearance) {
+        sprite->image = m_appearance->image(spriteId);
+        sprite->is_empty = false;
+        return sprite;
+    }
 
     const uint32_t offset = m_offsets.at(static_cast<int>(spriteId) - 1);
     if (offset == 0) {

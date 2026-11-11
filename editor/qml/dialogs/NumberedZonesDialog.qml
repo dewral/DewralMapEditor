@@ -31,7 +31,7 @@ DmeDialog {
     contentItem: Column {
         width: 540
         spacing: 12
-        Text { text: "RME-ZONES"; color: dialog.fg; font { pixelSize: 14; bold: true } }
+        Text { text: dialog.mapReader.canaryFormat ? "Canary zones" : "RME-ZONES"; color: dialog.fg; font { pixelSize: 14; bold: true } }
         DmeCheckBox {
             objectName: "zonesEnabled"
             text: "Save numbered zones in this map"
@@ -41,8 +41,8 @@ DmeDialog {
         Text {
             width: parent.width
             text: dialog.mapReader.numberedZonesEnabled
-                ? "Enabled for this map. Your server must support the RME-ZONES extension."
-                : "Disabled: normal TFS output. Numbered zones are not written to the map file."
+                ? (dialog.mapReader.canaryFormat ? "Enabled for this Canary map." : "Enabled for this map. Your server must support the RME-ZONES extension.")
+                : "Numbered zones are disabled and will not be written to the map file."
             color: "#dfa65a"; font.pixelSize: 12; wrapMode: Text.WordWrap
         }
         Row {

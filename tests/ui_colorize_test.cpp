@@ -1,4 +1,5 @@
 #include "uitheme.h"
+#include "uiscale.h"
 #include <QCoreApplication>
 #include <QDir>
 #include <QSettings>
@@ -64,5 +65,35 @@ int main(int argc, char **argv)
     qputenv("DME_UI_STYLE_OVERRIDE", "gray-dark");
     UiTheme ignoredOverride;
     expect(ignoredOverride.style() == "fluent-dark", "A retired override must preserve a supported saved theme");
+    int scaleChanges = 0;
+    QObject::connect(&theme, &UiTheme::uiScaleChanged, [&] { ++scaleChanges; });
+    expect(theme.uiScalePercent() == 100 && !theme.uiScaleRestartRequired(), "UI scale must default to 100%");
+    theme.setUiScalePercent(80);
+    expect(theme.uiScalePercent() == 80 && theme.activeUiScalePercent() == 100
+        && theme.uiScaleRestartRequired() && scaleChanges == 1, "Scaling must persist a pending restart without changing active UI");
+    theme.setUiScalePercent(80);
+    theme.setUiScalePercent(0);
+    theme.setUiScalePercent(999);
+    expect(scaleChanges == 1 && theme.uiScalePercent() == 80, "Invalid or unchanged scales must not notify or overwrite preferences");
+    app.setProperty("dmeUiScalePercent", 80);
+    UiTheme scaledRestart;
+    expect(scaledRestart.uiScalePercent() == 80 && !scaledRestart.uiScaleRestartRequired(), "UI scale must survive restart and clear the notice");
+    scaledRestart.setUiScalePercent(100);
+    expect(scaledRestart.uiScaleRestartRequired(), "Restoring 100% must request restart too");
+    QSettings().setValue("ui/scalePercent", -10);
+    UiTheme invalidScale;
+    expect(invalidScale.uiScalePercent() == 100, "Corrupt UI scales must fall back safely");
+    qunsetenv("DME_UI_SCALE_PERCENT");
+    qunsetenv("DME_QT_BASE_SCALE_FACTOR");
+    qputenv("QT_SCALE_FACTOR", "1.5");
+    expect(UiScale::configure(80, false) == 80 && qgetenv("QT_SCALE_FACTOR") == "1.2", "UI scale must compose with an external Qt factor");
+    expect(UiScale::configure(80, false) == 80 && qgetenv("QT_SCALE_FACTOR") == "1.2", "Updater/restart inheritance must not compound scaling");
+    expect(UiScale::configure(125, false) == 125 && qgetenv("QT_SCALE_FACTOR") == "1.875", "A later restart must use the newly selected percentage");
+    expect(UiScale::configure(80, true) == 100, "Isolated smoke tests must not inherit user preferences");
+    qputenv("DME_UI_SCALE_PERCENT", "75");
+    expect(UiScale::configure(100, true) == 75, "Smoke validation must support an explicit scale override");
+    qunsetenv("DME_UI_SCALE_PERCENT");
+    qunsetenv("DME_QT_BASE_SCALE_FACTOR");
+    qunsetenv("QT_SCALE_FACTOR");
     return EXIT_SUCCESS;
 }

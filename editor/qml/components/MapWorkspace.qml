@@ -22,6 +22,7 @@ Item {
     property alias mapView: mapView
     property alias mapRenderer: mapRenderer
     property alias weatherRegions: weatherRegionLayer
+    readonly property alias mapContextMenu: contextMenu
     property alias context: mapArea.ctx
 
     MapViewSettings {
@@ -259,6 +260,7 @@ Item {
 
         DmeMenu {
             id: contextMenu
+            objectName: "mapContextMenu"
             Action {
                 text: "Cut"
                 enabled: mapView.selectionCount > 0
@@ -269,6 +271,17 @@ Item {
                 enabled: mapView.selectionCount > 0
                 onTriggered: mapView.copySelection()
             }
+            Action {
+                text: "Paste"
+                enabled: mapView.hasClipboard
+                onTriggered: mapView.startPasting()
+            }
+            Action {
+                text: "Delete"
+                enabled: mapView.selectionCount > 0
+                onTriggered: mapView.deleteSelectedTop()
+            }
+            MenuSeparator {}
             Action {
                 objectName: "createCollectionAction"
                 text: "Create Collection..."
@@ -333,16 +346,6 @@ Item {
                 enabled: mapArea.ctx.hasItem
                 onTriggered: workspace.browseFieldDialog.open()
             }
-            Action {
-                text: "Paste"
-                enabled: mapView.hasClipboard
-                onTriggered: mapView.startPasting()
-            }
-            Action {
-                text: "Delete"
-                enabled: mapView.selectionCount > 0
-                onTriggered: mapView.deleteSelectedTop()
-            }
             MenuSeparator {}
             Action {
                 text: "Copy Item Server Id"
@@ -361,15 +364,48 @@ Item {
             }
             MenuSeparator {}
             DmeMenuItem {
-                objectName: "selectGroundBrush"
-                text: "Select Ground Brush"
-                visible: !!mapArea.brushOptions.ground
+                text: "Go To Destination"
+                visible: mapArea.ctx.teleport === true && mapArea.ctx.hasTeleportDest === true
                 height: visible ? implicitHeight : 0
-                onTriggered: workspace.paletteNavigator.selectContextBrush(mapArea.brushOptions.ground)
+                onTriggered: mapView.centerOnPosition(mapArea.ctx.teleportX, mapArea.ctx.teleportY, mapArea.ctx.teleportZ)
+            }
+            DmeMenuItem {
+                text: "Rotate Item"
+                visible: mapArea.ctx.canRotate === true
+                height: visible ? implicitHeight : 0
+                onTriggered: mapView.rotateContextItem()
+            }
+            DmeMenuItem {
+                text: mapArea.ctx.doorOpen === true ? "Close Door" : "Open Door"
+                visible: mapArea.ctx.door === true
+                height: visible ? implicitHeight : 0
+                onTriggered: mapView.switchContextDoor()
+            }
+            DmeMenuItem {
+                text: "Select Creature"
+                visible: mapArea.ctx.singleTile && mapArea.ctx.creatureName !== ""
+                height: visible ? implicitHeight : 0
+                onTriggered: workspace.paletteNavigator.selectCreature(
+                                 mapArea.ctx.creatureName,
+                                 mapArea.ctx.creatureIsNpc === true)
+            }
+            DmeMenuItem {
+                objectName: "selectSpawnBrush"
+                text: "Select Spawn"
+                visible: mapArea.ctx.singleTile && mapArea.ctx.spawnRadius > 0
+                height: visible ? implicitHeight : 0
+                onTriggered: workspace.paletteNavigator.selectSpawn()
+            }
+            DmeMenuItem {
+                objectName: "selectRawBrush"
+                text: "Select RAW"
+                visible: mapArea.ctx.singleTile && mapArea.ctx.hasSelectedItem
+                height: visible ? implicitHeight : 0
+                onTriggered: workspace.paletteNavigator.selectRaw(mapArea.ctx.serverId)
             }
             DmeMenuItem {
                 objectName: "selectWallBrush"
-                text: "Select Wall Brush"
+                text: "Select Wallbrush"
                 visible: !!mapArea.brushOptions.wall
                 height: visible ? implicitHeight : 0
                 onTriggered: workspace.paletteNavigator.selectContextBrush(mapArea.brushOptions.wall)
@@ -403,33 +439,18 @@ Item {
                 onTriggered: workspace.paletteNavigator.selectContextBrush(mapArea.brushOptions.door)
             }
             DmeMenuItem {
+                objectName: "selectGroundBrush"
+                text: "Select Groundbrush"
+                visible: !!mapArea.brushOptions.ground
+                height: visible ? implicitHeight : 0
+                onTriggered: workspace.paletteNavigator.selectContextBrush(mapArea.brushOptions.ground)
+            }
+            DmeMenuItem {
                 objectName: "selectCollectionBrush"
                 text: "Select Collection"
                 visible: !!mapArea.brushOptions.collection
                 height: visible ? implicitHeight : 0
                 onTriggered: workspace.paletteNavigator.selectContextBrush(mapArea.brushOptions.collection)
-            }
-            DmeMenuItem {
-                objectName: "selectRawBrush"
-                text: "Select RAW"
-                visible: mapArea.ctx.singleTile && mapArea.ctx.hasSelectedItem
-                height: visible ? implicitHeight : 0
-                onTriggered: workspace.paletteNavigator.selectRaw(mapArea.ctx.serverId)
-            }
-            DmeMenuItem {
-                text: "Select Creature"
-                visible: mapArea.ctx.singleTile && mapArea.ctx.creatureName !== ""
-                height: visible ? implicitHeight : 0
-                onTriggered: workspace.paletteNavigator.selectCreature(
-                                 mapArea.ctx.creatureName,
-                                 mapArea.ctx.creatureIsNpc === true)
-            }
-            DmeMenuItem {
-                objectName: "selectSpawnBrush"
-                text: "Select Spawn"
-                visible: mapArea.ctx.singleTile && mapArea.ctx.spawnRadius > 0
-                height: visible ? implicitHeight : 0
-                onTriggered: workspace.paletteNavigator.selectSpawn()
             }
             DmeMenuItem {
                 text: "Select House"
@@ -440,24 +461,7 @@ Item {
                     workspace.paletteNavigator.selectHouse(mapArea.ctx.houseId);
                 }
             }
-            DmeMenuItem {
-                text: "Go To Destination"
-                visible: mapArea.ctx.teleport === true && mapArea.ctx.hasTeleportDest === true
-                height: visible ? implicitHeight : 0
-                onTriggered: mapView.centerOnPosition(mapArea.ctx.teleportX, mapArea.ctx.teleportY, mapArea.ctx.teleportZ)
-            }
-            DmeMenuItem {
-                text: "Rotate Item"
-                visible: mapArea.ctx.canRotate === true
-                height: visible ? implicitHeight : 0
-                onTriggered: mapView.rotateContextItem()
-            }
-            DmeMenuItem {
-                text: mapArea.ctx.doorOpen === true ? "Close Door" : "Open Door"
-                visible: mapArea.ctx.door === true
-                height: visible ? implicitHeight : 0
-                onTriggered: mapView.switchContextDoor()
-            }
+            MenuSeparator {}
             Action {
                 text: mapArea.ctx.creatureName !== ""
                       ? "Creature properties - " + mapArea.ctx.creatureSpawntime + " s"

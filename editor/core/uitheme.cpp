@@ -1,4 +1,6 @@
 #include "uitheme.h"
+#include "uiscale.h"
+#include <QCoreApplication>
 
 #include <QPainter>
 #include <QSettings>
@@ -22,6 +24,8 @@ UiTheme::UiTheme(QObject *parent)
 {
     // Migrate preferences saved before the Fluent Dark naming update.
     QSettings settings;
+    m_uiScalePercent = UiScale::normalized(settings.value(QStringLiteral("ui/scalePercent"), 100));
+    m_activeUiScalePercent = UiScale::normalized(qApp ? qApp->property("dmeUiScalePercent") : QVariant());
     const auto savedColors = settings.value(QStringLiteral("ui/fluentColors")).toMap();
     for (auto it = savedColors.cbegin(); it != savedColors.cend(); ++it) {
         const QColor color(it.value().toString());
@@ -40,6 +44,14 @@ UiTheme::UiTheme(QObject *parent)
         m_style = styleOverride;
     if (!isSupportedStyle(m_style))
         m_style = QStringLiteral("tibia-ui");
+}
+
+void UiTheme::setUiScalePercent(int percent)
+{
+    if (!UiScale::supported(percent) || percent == m_uiScalePercent) return;
+    m_uiScalePercent = percent;
+    QSettings().setValue(QStringLiteral("ui/scalePercent"), percent);
+    emit uiScaleChanged();
 }
 
 QString UiTheme::style() const
@@ -131,14 +143,18 @@ struct ClassicPreviewFont {
         }
         if (mode == 0) { widths[32] = 4; widths[127] = 1; }
     }
+    int advance(QChar character) const {
+        int code = character.unicode();
+        if (code < 32 || code >= 256) code = '?';
+        if (code == ' ' && columns == 32) code = ',';
+        return widths[code] + gap;
+    }
+
     QImage render(const QString &text, const QColor &color) const {
         if (atlas.isNull() || text.isEmpty() || text.size() > 1024 || text.contains('\n')) return {};
         int width = 0;
         auto code = [](QChar c) { return c.unicode() >= 32 && c.unicode() < 256 ? int(c.unicode()) : int('?'); };
-        for (QChar ch : text) {
-            const int c = code(ch);
-            width += (c == 32 && columns == 32 ? widths[','] : widths[c]) + gap;
-        }
+        for (QChar ch : text) width += advance(ch);
         width -= gap;
         if (width < 1 || width > 8192) return {};
         QImage output(width, lineHeight, QImage::Format_ARGB32);
@@ -157,18 +173,63 @@ struct ClassicPreviewFont {
                     qAlpha(pixel) * color.alpha() / 255));
             }
             painter.drawImage(x, 0, glyph);
-            x += (c == 32 && columns == 32 ? widths[','] : widths[c]) + gap;
+            x += advance(ch);
         }
         return output;
     }
 };
+const ClassicPreviewFont &classicInputFont()
+{
+    static const ClassicPreviewFont input(7);
+    return input;
+}
+
 QImage classicPreviewText(const QString &mode, const QString &text, const QColor &color) {
-    static const ClassicPreviewFont ui(0), small(5), input(7);
+    static const ClassicPreviewFont ui(0), small(5);
     if (mode == QStringLiteral("ui")) return ui.render(text, color);
     if (mode == QStringLiteral("5")) return small.render(text, color);
-    if (mode == QStringLiteral("7")) return input.render(text, color);
+    if (mode == QStringLiteral("7")) return classicInputFont().render(text, color);
     return {};
 }
+}
+
+QStringList UiTheme::classicItemTextLines(const QString &text) const
+{
+    // Tibia-QT's classic server text dialog uses a 232 px viewport and PIC font 7.
+    constexpr int viewportWidth = 232;
+    const auto &font = classicInputFont();
+    QString normalized = text;
+    normalized.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
+    normalized.replace(QLatin1Char('\r'), QLatin1Char('\n'));
+
+    QStringList lines;
+    int start = 0;
+    int width = 0;
+    int lastSpace = -1;
+    for (int index = 0; index < normalized.size();) {
+        const QChar ch = normalized.at(index);
+        if (ch == QLatin1Char('\n')) {
+            lines.append(normalized.mid(start, index - start));
+            start = ++index;
+            width = 0;
+            lastSpace = -1;
+            continue;
+        }
+
+        if (ch == QLatin1Char(' ')) lastSpace = index;
+        width += font.advance(ch);
+        if (index > start && width - font.gap > viewportWidth) {
+            const int end = lastSpace >= start ? lastSpace + 1 : index;
+            lines.append(normalized.mid(start, end - start));
+            index = start = end;
+            width = 0;
+            lastSpace = -1;
+        } else {
+            ++index;
+        }
+    }
+    lines.append(normalized.mid(start));
+    return lines;
 }
 
 UiThemeImageProvider::UiThemeImageProvider()

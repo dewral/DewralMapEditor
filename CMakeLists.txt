@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL
     "Disable Qt Creator package-manager auto setup" FORCE)
 
-project(DewralMapEditor VERSION 1.1.52 LANGUAGES C CXX)
+project(DewralMapEditor VERSION 1.1.53 LANGUAGES C CXX)
 
 set(DME_RELEASE_REPOSITORY "dewral/DewralMapEditor" CACHE STRING
     "GitHub repository hosting the stable update packages")
@@ -132,6 +132,7 @@ add_executable(DewralMapEditor
     editor/core/filetools.h
     editor/core/uitheme.cpp
     editor/core/uitheme.h
+    editor/core/uiscale.h
     editor/core/documentmanager.cpp
     editor/core/documentmanager.h
     editor/core/creaturestore.cpp

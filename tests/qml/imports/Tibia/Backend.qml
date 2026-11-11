@@ -146,6 +146,7 @@ QtObject {
         function matches(id, key, modifiers) { return false; }
     }
     property QtObject otbmReader: QtObject {
+        property bool canaryFormat: false
         function housesList() { return []; }
         function townsList() { return []; }
         property string filePath: ""
@@ -179,11 +180,15 @@ QtObject {
         function checkForUpdates() {}
     }
     property QtObject uiTheme: QtObject {
+        property int uiScalePercent: 100
+        property int activeUiScalePercent: 100
+        readonly property bool uiScaleRestartRequired: uiScalePercent !== activeUiScalePercent
         property string style: "fluent-dark"
         property var styles: [{ id: "fluent-dark", name: "Fluent Dark" }, { id: "tibia-ui", name: "Tibia-UI" }]
         property var colorOverrides: ({})
         property string highlightedColor: ""
         signal colorsChanged()
+        function classicItemTextLines(text) { return text.split("\n"); }
         function setUiColor(key, value) {
             if (!/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(value)) return false;
             const copy = Object.assign({}, colorOverrides); copy[key] = value; colorOverrides = copy; colorsChanged(); return true;

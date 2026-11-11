@@ -182,6 +182,33 @@ DmeDialog {
                     }
                 }
                 PrefCard {
+                    title: "Interface scale"
+                    PrefRow {
+                        label: "Scale"
+                        DmeComboBox {
+                            objectName: "interfaceScaleCombo"
+                            width: 190
+                            readonly property var percentages: [75, 80, 90, 100, 110, 125, 150]
+                            model: percentages.map(value => value + "%" + (value === 100 ? " (default)" : ""))
+                            currentIndex: Math.max(0, percentages.indexOf(Backend.uiTheme.uiScalePercent))
+                            onActivated: index => {
+                                Backend.uiTheme.uiScalePercent = percentages[index];
+                                currentIndex = Qt.binding(() => Math.max(0, percentages.indexOf(Backend.uiTheme.uiScalePercent)));
+                            }
+                        }
+                    }
+                    Text {
+                        objectName: "interfaceScaleRestartNotice"
+                        width: parent.width
+                        text: Backend.uiTheme.uiScaleRestartRequired
+                            ? "Restart DME to apply " + Backend.uiTheme.uiScalePercent + "%. Current scale: " + Backend.uiTheme.activeUiScalePercent + "%."
+                            : "Scales all windows, panels, icons and text. Changes apply after restarting DME. Map zoom is controlled separately."
+                        color: dialog.descriptionColor
+                        font.pixelSize: 11
+                        wrapMode: Text.WordWrap
+                    }
+                }
+                PrefCard {
                     title: "UI Colorize"
                     Text { width: parent.width; text: "Edit Fluent Dark colors, preview changes and locate UI elements."; color: dialog.descriptionColor; font.pixelSize: 11; wrapMode: Text.WordWrap }
                     DmeButton { text: "Open UI Colorize…"; width: 180; enabled: dialog.fluentUi; onClicked: { dialog.colorizeRequested(); dialog.close(); } }

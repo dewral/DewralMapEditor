@@ -560,3 +560,18 @@ third-party attribution.
 Release binaries must be accompanied by access to the complete corresponding
 source code for the same version. Tibia client files and artwork are not part
 of this project and are not covered by this license.
+
+### Interface size and pointer zoom
+
+In **File → Preferences → Interface → Interface scale**, choose 75%, 80%,
+90%, 100% (default), 110%, 125%, or 150%. Save your work and restart DME to
+apply the percentage to its windows, panels, icons, and text. It composes with
+Windows display scaling. Map zoom remains a separate control.
+
+**Ctrl + middle mouse click** resets map zoom to 100% around the position under
+the pointer. Middle-button dragging still pans the map. The map context menu
+keeps **Paste** and **Delete** immediately after **Copy**. Brush selection follows
+RME: **Select Creature**, **Spawn**, **RAW**, **Wallbrush**, **Carpetbrush**,
+**Tablebrush**, **Doodadbrush**, **Doorbrush**, **Groundbrush**, **Collection**,
+**House**, below item-copy/actions and immediately before **Properties**.
+Unavailable selectors stay hidden. Reference: [RME Redux MapPopupMenu](https://github.com/Open-Tibia-Tools/remeres-map-editor-redux/blob/master/source/ui/map_popup_menu.cpp).

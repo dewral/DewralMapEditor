@@ -42,6 +42,31 @@ Item {
     TestCase {
         name: "PreferencesLayout"
         when: windowShown
+        function test_interfaceScale_data() {
+            return ["fluent-dark", "tibia-ui"].map(theme => ({tag:theme,theme:theme}));
+        }
+        function test_interfaceScale(data) {
+            Backend.uiTheme.style=data.theme;
+            Backend.uiTheme.uiScalePercent=100;
+            Backend.uiTheme.activeUiScalePercent=100;
+            const dialog=createTemporaryObject(dialogComponent,root);
+            dialog.page=1; dialog.open();
+            tryCompare(dialog,"opened",true);
+            const combo=findChild(dialog,"interfaceScaleCombo");
+            const notice=findChild(dialog,"interfaceScaleRestartNotice");
+            verify(combo!==null && notice!==null);
+            compare(combo.currentIndex,3);
+            combo.currentIndex=1; combo.activated(1);
+            compare(Backend.uiTheme.uiScalePercent,80);
+            verify(notice.text.indexOf("Restart DME to apply 80%")>=0);
+            compare(Backend.uiTheme.activeUiScalePercent,100);
+            Backend.uiTheme.uiScalePercent=125;
+            compare(combo.currentIndex,5);
+            combo.currentIndex=3; combo.activated(3);
+            verify(!Backend.uiTheme.uiScaleRestartRequired);
+            verify(notice.text.indexOf("Restart DME to apply")<0);
+            dialog.close();
+        }
         function test_pages_stay_above_footer_data() {
             return ["fluent-dark", "tibia-ui"].map(theme => ({tag: theme, theme: theme}));
         }

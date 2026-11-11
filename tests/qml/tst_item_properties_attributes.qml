@@ -56,6 +56,19 @@ Item {
             dialog.applyAndClose();
             compare(map.received.count, 43);
         }
+        function test_editTextWithExplicitLineBreaks() {
+            const dialog = createTemporaryObject(dialogComponent, root);
+            verify(dialog !== null);
+            dialog.open();
+            tryCompare(dialog, "opened", true);
+            const editor = findChild(dialog, "itemPropertiesText");
+            const preview = findChild(dialog, "itemPropertiesTextPreview");
+            verify(editor !== null && preview !== null);
+            editor.text = "Pierwszy wiersz\n\nZażółć gęślą jaźń";
+            tryCompare(preview, "count", 3);
+            dialog.applyAndClose();
+            compare(map.received.text, "Pierwszy wiersz\n\nZażółć gęślą jaźń");
+        }
         function test_confirmPreservesExactKeysAndUnicodeText() {
             const dialog = createTemporaryObject(dialogComponent, root);
             verify(dialog !== null);

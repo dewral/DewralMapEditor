@@ -28,6 +28,7 @@ Item {
         function renderOriginX() { return originX; }
         function renderOriginY() { return originY; }
     }
+    Component { id: screenshotImage; Image { cache: false } }
     Components.IngamePreviewPanel { id:preview; mapView:map; settings:settings; dockHost:host }
     TestCase {
         name:"PreviewDocking"
@@ -200,13 +201,39 @@ Item {
             compare(findChild(preview,"previewExplorer").speed,220);
             findChild(preview,"previewPlayerOptions").close();
         }
-        function test_screenshotWritesNativeSizePng() {
-            const camera=findChild(host,"previewScreenshot");
+        function test_screenshotWritesDisplayedSizePng_data() {
+            return [
+                {tag:"fluent-small",theme:"fluent-dark",large:false,docked:true},
+                {tag:"fluent-large",theme:"fluent-dark",large:true,docked:true},
+                {tag:"tibia-large",theme:"tibia-ui",large:true,docked:true},
+                {tag:"tibia-floating",theme:"tibia-ui",large:true,docked:false}
+            ];
+        }
+        function test_screenshotWritesDisplayedSizePng(data) {
+            Backend.uiTheme.style=data.theme;
+            host.x=0; host.y=0;
+            host.width=data.large ? 1150 : 440;
+            host.height=data.large ? 780 : 700;
+            if(!data.docked) preview.dock("window");
+            wait(50);
+            const owner=data.docked ? host : preview;
+            const camera=findChild(owner,"previewScreenshot");
+            const renderer=findChild(owner,"clientPreviewRenderer");
+            verify(camera!==null && renderer!==null);
+            const scale=renderer.parent.scale;
+            verify(data.large ? scale>1 : scale<1);
+            const dpr=renderer.Screen.devicePixelRatio;
+            const expectedWidth=Math.round(Math.round(renderer.width*scale)*dpr);
+            const expectedHeight=Math.round(Math.round(renderer.height*scale)*dpr);
             findChild(preview,"previewExplorer").setPosition(100,100,7);
-            Backend.screenshotPath=Qt.resolvedUrl("../../build/preview-screenshot-test.png").toString().replace("file:///", "");
+            Backend.screenshotPath=Qt.resolvedUrl("../../build/preview-screenshot-test-"+data.tag+".png").toString().replace("file:///", "");
             mouseClick(camera);
             tryVerify(() => camera.enabled);
-            tryVerify(() => findChild(host,"previewScreenshotStatus").text.indexOf("Screenshot saved:") === 0);
+            tryVerify(() => findChild(owner,"previewScreenshotStatus").text.indexOf("Screenshot saved:") === 0);
+            const saved=createTemporaryObject(screenshotImage,root,{source:"file:///"+Backend.screenshotPath});
+            tryCompare(saved,"status",Image.Ready);
+            compare(saved.sourceSize.width,expectedWidth);
+            compare(saved.sourceSize.height,expectedHeight);
             Backend.screenshotPath="";
         }
         function test_screenshotFailureDoesNotLockButton() {

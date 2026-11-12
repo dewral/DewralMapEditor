@@ -55,6 +55,17 @@ Item {
         name: "SearchResultsSidebar"
         when: windowShown
         function locate(name) { return findChild(panel, name); }
+        function openQuestExport(key) {
+            mouseClick(locate("searchResultIds_" + key), 10, 5, Qt.RightButton);
+            tryCompare(locate("searchResultsQuestMenu"), "visible", true);
+            mouseClick(locate("searchResultsCopyQuest"));
+            tryCompare(locate("searchResultsQuestExport"), "visible", true);
+        }
+        function finishQuestCopy(name) {
+            locate("questExportName").text = name;
+            mouseClick(locate("questExportCopy"));
+            tryCompare(locate("searchResultsQuestExport"), "visible", false);
+        }
         function item(id, name, contents) {
             const result = {serverId: id, clientId: 0, name: name, x: 867, y: 889, z: 6,
                 actionId: 5000, uniqueId: 62378, count: 1, isContainer: contents !== undefined,
@@ -83,6 +94,7 @@ Item {
         function initTestCase() { scene.Window.window.width = 1000; scene.Window.window.height = 780; }
         function init() {
             controller.queryBusy = false; controller.searches = []; controller.destination = []; controller.cancellations = 0;
+            scene.Window.window.width = 1000; scene.Window.window.height = 780;
             scene.height = 780;
             panel.visible = true; panel.width = 340; Backend.uiTheme.style = "fluent-dark";
             panel.openSearch("unique", false);
@@ -110,18 +122,21 @@ Item {
             compare(controller.destination, []);
             mouseClick(locate("searchResultsCopyQuest"));
             tryCompare(menu, "visible", false);
-            compare(Backend.fileTools.clipboardText(), "{\n"
-                + "    position: {x: 31391, y: 31038, z: 8},\n"
-                + "    uniqueId: 62474,\n"
-                + "    actionId: 5001,\n"
-                + "    name: \"\",\n"
-                + "    reward: [{id: 6810, name: \"plate armor\"}]\n}");
+            tryCompare(locate("searchResultsQuestExport"), "visible", true);
+            compare(Backend.fileTools.clipboardText(), "unchanged");
+            compare(locate("questExportStorageId").text, "62474");
+            compare(locate("questExportStorageValue").text, "1");
+            verify(!locate("questExportCopy").enabled);
+            finishQuestCopy("Plate armor quest");
+            compare(JSON.parse(Backend.fileTools.clipboardText()), {
+                name: "Plate armor quest", position: {x: 31391, y: 31038, z: 8}, uniqueId: 62474, actionId: 5001,
+                storageId: 62474, storageValue: 1, rewards: [{id: 6810, name: "plate armor"}]
+            });
             compare(panel.visibleRowCount, 2, "Copy must include collapsed contents without expanding");
             const copied = Backend.fileTools.clipboardText();
             mouseClick(locate("searchResultContents_0"));
-            mouseClick(locate("searchResultIds_0"), 10, 5, Qt.RightButton);
-            tryCompare(menu, "visible", true);
-            mouseClick(locate("searchResultsCopyQuest"));
+            openQuestExport("0");
+            finishQuestCopy("Plate armor quest");
             compare(Backend.fileTools.clipboardText(), copied);
             mouseClick(locate("searchResultIds_0"), 10, 5, Qt.RightButton);
             tryCompare(menu, "visible", true);
@@ -136,12 +151,104 @@ Item {
             chest.actionId = 0;
             controller.finish({results: [chest], total: 1});
             tryVerify(() => locate("searchResultIds_0") !== null);
-            mouseClick(locate("searchResultIds_0"), 10, 5, Qt.RightButton);
-            tryCompare(locate("searchResultsQuestMenu"), "visible", true);
-            mouseClick(locate("searchResultsCopyQuest"));
-            const copied = eval("(" + Backend.fileTools.clipboardText() + ")");
-            compare(copied, {position: {x: 867, y: 889, z: 6}, uniqueId: 62378, actionId: 0, name: "",
-                reward: [{id: 6810, name: name}, {id: 1987, name: "bag"}, {id: 6810, name: ""}]});
+            openQuestExport("0");
+            finishQuestCopy("Equipment quest");
+            const copied = JSON.parse(Backend.fileTools.clipboardText());
+            compare(copied, {name: "Equipment quest", position: {x: 867, y: 889, z: 6}, uniqueId: 62378, actionId: 0,
+                storageId: 62378, storageValue: 1,
+                rewards: [{id: 6810, name: name}, {id: 1987, name: "bag"}, {id: 6810, name: ""}]});
+        }
+        function test_copyQuestStorageMetadata_data() {
+            return ["fluent-dark", "tibia-ui"]
+                .map(theme => ({tag: theme, theme: theme}));
+        }
+        function test_copyQuestStorageMetadata(data) {
+            Backend.uiTheme.style = data.theme;
+            const chest = item(9712, "quest chest", [item(6810, "plate armor")]);
+            chest.uniqueId = 6200;
+            controller.finish({results: [chest], total: 1});
+            tryVerify(() => locate("searchResultIds_0") !== null);
+            openQuestExport("0");
+            locate("questExportName").text = "Quest \"reward\" room";
+            locate("questExportStorageId").text = "30070";
+            wait(50);
+            grabImage(scene.Window.window.contentItem).save("build/quest-export-" + data.theme + ".png");
+            locate("questExportName").focusEditor();
+            keyClick(Qt.Key_Return);
+            tryCompare(locate("searchResultsQuestExport"), "visible", false);
+            compare(JSON.parse(Backend.fileTools.clipboardText()), {
+                name: "Quest \"reward\" room", position: {x: 867, y: 889, z: 6},
+                uniqueId: 6200, actionId: 5000, storageId: 30070, storageValue: 1,
+                rewards: [{id: 6810, name: "plate armor"}]
+            });
+            openQuestExport("0");
+            locate("questExportStorageId").text = "0";
+            locate("questExportStorageValue").text = "0";
+            finishQuestCopy("Zero completion");
+            const copied = JSON.parse(Backend.fileTools.clipboardText());
+            compare(copied.storageId, 0);
+            compare(copied.storageValue, 0);
+        }
+        function test_questExportValidationCancelAndReset_data() {
+            return ["fluent-dark", "tibia-ui"]
+                .map(theme => ({tag: theme, theme: theme}));
+        }
+        function test_questExportValidationCancelAndReset(data) {
+            Backend.uiTheme.style = data.theme;
+            showResults();
+            tryVerify(() => locate("searchResultIds_0") !== null);
+            Backend.fileTools.setClipboard("unchanged");
+            openQuestExport("0");
+            const dialog = locate("searchResultsQuestExport"), copy = locate("questExportCopy");
+            const name = locate("questExportName"), storage = locate("questExportStorageId");
+            const value = locate("questExportStorageValue");
+            verify(!copy.enabled);
+            name.text = "   "; verify(!copy.enabled);
+            name.text = "Quest"; verify(copy.enabled);
+            for (const input of ["", "-1", "1.5", "1e3", "invalid", "9007199254740992"]) {
+                storage.text = input;
+                verify(!copy.enabled, "Invalid storage ID accepted: " + input);
+                dialog.copy();
+                compare(Backend.fileTools.clipboardText(), "unchanged");
+            }
+            storage.text = "30070";
+            for (const input of ["", "1.5", "1e3", "invalid", "9007199254740992"]) {
+                value.text = input;
+                verify(!copy.enabled, "Invalid completion value accepted: " + input);
+            }
+            value.text = "-1"; verify(copy.enabled);
+            mouseClick(locate("questExportCancel"));
+            tryCompare(dialog, "visible", false);
+            compare(Backend.fileTools.clipboardText(), "unchanged");
+            openQuestExport("0");
+            compare(name.text, ""); compare(storage.text, "62378"); compare(value.text, "1");
+            keyClick(Qt.Key_Escape);
+            tryCompare(dialog, "visible", false);
+            verify(panel.visible);
+            openQuestExport("0");
+            controller.readersChanged();
+            tryCompare(dialog, "visible", false);
+            compare(Backend.fileTools.clipboardText(), "unchanged");
+        }
+        function test_questExportResize_data() {
+            return ["fluent-dark", "tibia-ui"]
+                .map(theme => ({tag: theme, theme: theme}));
+        }
+        function test_questExportResize(data) {
+            Backend.uiTheme.style = data.theme;
+            showResults();
+            tryVerify(() => locate("searchResultIds_0") !== null);
+            openQuestExport("0");
+            scene.Window.window.width = 280; scene.Window.window.height = 260;
+            wait(50);
+            const dialog = locate("searchResultsQuestExport"), copy = locate("questExportCopy");
+            verify(dialog.width <= 260 && dialog.height <= 240);
+            const edge = copy.mapToItem(scene.Window.window.contentItem, copy.width, copy.height);
+            verify(edge.x <= 280 && edge.y <= 260, "Copy button must stay inside the window");
+            const form = locate("questExportFormScroll");
+            verify(form.contentHeight > form.height, "Compact dialog must scroll its form");
+            finishQuestCopy("Compact quest");
+            compare(JSON.parse(Backend.fileTools.clipboardText()).name, "Compact quest");
         }
         function test_emptyQuestAndNoUniqueId() {
             const plain = item(2376, "sword"); plain.uniqueId = 0;
@@ -151,7 +258,9 @@ Item {
             mouseClick(locate("searchResultIds_0"), 10, 5, Qt.RightButton);
             tryCompare(menu, "visible", true);
             mouseClick(locate("searchResultsCopyQuest"));
-            compare(eval("(" + Backend.fileTools.clipboardText() + ")").reward, []);
+            tryCompare(locate("searchResultsQuestExport"), "visible", true);
+            finishQuestCopy("Empty quest");
+            compare(JSON.parse(Backend.fileTools.clipboardText()).rewards, []);
             Backend.fileTools.setClipboard("unchanged");
             mouseClick(locate("searchResultIds_1"), 10, 5, Qt.RightButton);
             verify(!menu.visible);

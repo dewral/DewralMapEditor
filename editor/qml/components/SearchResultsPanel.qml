@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Controls
 import Tibia 1.0
 import "../style"
 import "../themes/fluent/Colors.js" as FluentColors
@@ -48,6 +49,7 @@ FocusScope {
     }
     function clearResults() {
         questMenu.close();
+        questExport.close();
         rowModel.clear();
         results = [];
         total = 0;
@@ -57,6 +59,7 @@ FocusScope {
     }
     function runSearch() {
         questMenu.close();
+        questExport.close();
         pendingSearch = true;
         status = "";
         if (loading) mapCtrl.cancelMapQuery();
@@ -71,6 +74,7 @@ FocusScope {
     function applyResponse(response) {
         if (!loading) return;
         questMenu.close();
+        questExport.close();
         loading = false;
         if (pendingSearch) {
             Qt.callLater(startPendingSearch);
@@ -87,6 +91,7 @@ FocusScope {
     }
     function close() {
         questMenu.close();
+        questExport.close();
         pendingSearch = false;
         if (loading) mapCtrl.cancelMapQuery();
         loading = false;
@@ -217,14 +222,32 @@ FocusScope {
         const item = selectedRow.item;
         mapCtrl.centerOnPosition(item.x, item.y, item.z);
     }
-    function copyQuest(item) {
+    function copyQuest(item, metadata) {
         if (!item || !item.uniqueId) return;
-        const rewards = (item.contents || []).map(content =>
-            "{id: " + content.serverId + ", name: " + JSON.stringify(content.name || "") + "}");
-        Backend.fileTools.setClipboard("{\n"
-            + "    position: {x: " + item.x + ", y: " + item.y + ", z: " + item.z + "},\n"
-            + "    name: \"\",\n"
-            + "    reward: [" + rewards.join(", ") + "]\n}");
+        const details = metadata || {};
+        const quest = {
+            name: details.name || "",
+            position: {x: item.x, y: item.y, z: item.z},
+            uniqueId: item.uniqueId,
+            actionId: item.actionId || 0,
+            storageId: details.storageId === undefined ? item.uniqueId : details.storageId,
+            storageValue: details.storageValue === undefined ? 1 : details.storageValue,
+            rewards: (item.contents || []).map(content => ({id: content.serverId, name: content.name || ""}))
+        };
+        Backend.fileTools.setClipboard(JSON.stringify(quest, null, 4));
+    }
+    function storageNumber(text, signed) {
+        const input = text.trim();
+        const value = Number(input);
+        return (signed ? /^-?\d+$/ : /^\d+$/).test(input) && Number.isSafeInteger(value) ? value : null;
+    }
+    function prepareQuestExport(item) {
+        if (!item || !item.uniqueId) return;
+        questExport.questItem = item;
+        questName.text = "";
+        questStorageId.text = String(item.uniqueId);
+        questStorageValue.text = "1";
+        questExport.open();
     }
     function openQuestMenu(index, x, y) {
         const row = rowAt(index);
@@ -255,7 +278,7 @@ FocusScope {
         function onModelReset() { panel.invalidateResults(); }
     }
     Keys.onEscapePressed: event => { close(); event.accepted = true; }
-    onVisibleChanged: { if (!visible) questMenu.close(); }
+    onVisibleChanged: { if (!visible) { questMenu.close(); questExport.close(); } }
 
     DmeMenu {
         id: questMenu; objectName: "searchResultsQuestMenu"
@@ -264,9 +287,101 @@ FocusScope {
         onClosed: questItem = null
         DmeMenuItem {
             objectName: "searchResultsCopyQuest"
-            text: "Copy quest"
+            text: "Copy quest…"
             enabled: !!questMenu.questItem && !!questMenu.questItem.uniqueId
-            onTriggered: panel.copyQuest(questMenu.questItem)
+            onTriggered: panel.prepareQuestExport(questMenu.questItem)
+        }
+    }
+
+    DmeDialog {
+        id: questExport; objectName: "searchResultsQuestExport"
+        parent: Overlay.overlay
+        movable: false
+        title: "Copy quest as JSON"
+        width: Math.min(440, parent ? parent.width - 20 : 440)
+        height: Math.min(implicitHeight, parent ? parent.height - 20 : implicitHeight)
+        property var questItem: null
+        readonly property var storageId: panel.storageNumber(questStorageId.text, false)
+        readonly property var storageValue: panel.storageNumber(questStorageValue.text, true)
+        readonly property bool canCopy: !!questItem && questName.text.trim().length > 0
+            && storageId !== null && storageValue !== null
+        function copy() {
+            if (!canCopy) return;
+            panel.copyQuest(questItem, {name: questName.text.trim(), storageId: storageId, storageValue: storageValue});
+            accept();
+        }
+        onOpened: questName.focusEditor()
+        onClosed: questItem = null
+        contentItem: Flickable {
+            objectName: "questExportFormScroll"
+            implicitHeight: questForm.implicitHeight
+            contentHeight: questForm.implicitHeight
+            clip: true; boundsBehavior: Flickable.StopAtBounds
+            flickableDirection: Flickable.VerticalFlick
+            Column {
+                id: questForm
+                width: parent.width; spacing: 8
+                Text {
+                    width: parent.width; wrapMode: Text.Wrap
+                    text: questExport.questItem ? "UID: " + questExport.questItem.uniqueId
+                        + "   AID: " + (questExport.questItem.actionId || 0)
+                        + "\nPosition: [" + questExport.questItem.x + ", " + questExport.questItem.y + ", " + questExport.questItem.z + "]" : ""
+                    color: panel.secondary; font.pixelSize: 11
+                }
+                Text { text: "Quest name"; color: panel.foreground; font.pixelSize: 12 }
+                DmeTextField {
+                    id: questName; objectName: "questExportName"
+                    width: parent.width; placeholderText: "Quest display name (required)"
+                    onAccepted: questExport.copy()
+                }
+                Text { text: "Storage ID"; color: panel.foreground; font.pixelSize: 12 }
+                DmeTextField {
+                    id: questStorageId; objectName: "questExportStorageId"
+                    width: parent.width; placeholderText: "Player storage checked by the server"
+                    onAccepted: questExport.copy()
+                }
+                Text {
+                    width: parent.width; wrapMode: Text.Wrap
+                    text: "Starts with the chest UID. Verify it against your server script: player storage may use a different ID."
+                    color: panel.secondary; font.pixelSize: 11
+                }
+                Text { text: "Completion value"; color: panel.foreground; font.pixelSize: 12 }
+                DmeTextField {
+                    id: questStorageValue; objectName: "questExportStorageValue"
+                    width: parent.width; placeholderText: "Usually 1 for a simple chest quest"
+                    onAccepted: questExport.copy()
+                }
+                Text {
+                    width: parent.width; wrapMode: Text.Wrap
+                    visible: questExport.storageId === null || questExport.storageValue === null
+                    text: "Enter a non-negative whole storage ID and a whole completion value."
+                    color: panel.secondary; font.pixelSize: 11
+                }
+                Text {
+                    width: parent.width; wrapMode: Text.Wrap
+                    text: "Rewards include this item's immediate contents. Multi-stage quests and reward choices need additional server metadata."
+                    color: panel.secondary; font.pixelSize: 11
+                }
+            }
+        }
+        footer: Item {
+            implicitHeight: exportButtons.implicitHeight + 16
+            Row {
+                id: exportButtons
+                anchors { right: parent.right; bottom: parent.bottom; rightMargin: questExport.rightPadding; bottomMargin: 8 }
+                spacing: 8
+                DmeButton {
+                    objectName: "questExportCopy"
+                    text: "Copy JSON"; width: Math.min(100, (questExport.availableWidth - 8) / 2)
+                    enabled: questExport.canCopy
+                    onClicked: questExport.copy()
+                }
+                DmeButton {
+                    objectName: "questExportCancel"
+                    text: "Cancel"; width: Math.min(100, (questExport.availableWidth - 8) / 2)
+                    onClicked: questExport.reject()
+                }
+            }
         }
     }
 
@@ -296,7 +411,7 @@ FocusScope {
         DmeTextField {
             id: filter; objectName: "searchResultsFilter"
             width: parent.width; placeholderText: "Filter name, item ID, AID or UID…"
-            onTextChanged: { questMenu.close(); panel.rebuildRows(); }
+            onTextChanged: { questMenu.close(); questExport.close(); panel.rebuildRows(); }
         }
         Row {
             id: summaryRow

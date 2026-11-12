@@ -3,7 +3,7 @@ import QtQuick
 ListModel {
     id: filter
     property var sourceModel
-    property var sprReader
+    property var sprReader: null
     property var brushStore
     property bool hideInvisibleSprites: false
     property bool useDoodadPreviews: true
@@ -27,7 +27,8 @@ ListModel {
             if (searchText !== "" && String(item.serverId).indexOf(searchText) < 0
                     && item.itemName.indexOf(searchText) < 0)
                 continue;
-            append({serverId: item.serverId, itemName: item.itemName, spriteIds:item.spriteIds || [],
+            append({serverId: item.serverId, clientId:item.clientId || 0,
+                    itemGroup:item.itemGroup || 0, itemName: item.itemName, spriteIds:item.spriteIds || [],
                     itemWidth:item.itemWidth || 1,itemHeight:item.itemHeight || 1,layers:item.layers || 1});
         }
     }

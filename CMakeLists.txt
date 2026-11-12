@@ -385,7 +385,11 @@ if(BUILD_TESTING)
             -platform "${_dme_theme_test_platform}"
             -input "${CMAKE_SOURCE_DIR}/tests/qml/tst_item_properties_teleport.qml"
             -import "${CMAKE_SOURCE_DIR}/tests/qml/imports")
-        set_tests_properties(tibia_ui_qml classic_panels_qml search_results_qml save_feedback_qml item_properties_teleport_qml PROPERTIES
+        add_test(NAME container_dialog_qml COMMAND tibia_ui_qml_test
+            -platform "${_dme_theme_test_platform}"
+            -input "${CMAKE_SOURCE_DIR}/tests/qml/tst_container_dialog.qml"
+            -import "${CMAKE_SOURCE_DIR}/tests/qml/imports")
+        set_tests_properties(tibia_ui_qml classic_panels_qml search_results_qml save_feedback_qml item_properties_teleport_qml container_dialog_qml PROPERTIES
             WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
             ENVIRONMENT "QT_QUICK_CONTROLS_STYLE=Basic;QT_QUICK_BACKEND=software"
             ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"

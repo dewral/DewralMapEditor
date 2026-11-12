@@ -223,6 +223,8 @@ FocusScope {
             "{id: " + content.serverId + ", name: " + JSON.stringify(content.name || "") + "}");
         Backend.fileTools.setClipboard("{\n"
             + "    position: {x: " + item.x + ", y: " + item.y + ", z: " + item.z + "},\n"
+            + "    uniqueId: " + item.uniqueId + ",\n"
+            + "    actionId: " + (item.actionId || 0) + ",\n"
             + "    name: \"\",\n"
             + "    reward: [" + rewards.join(", ") + "]\n}");
     }

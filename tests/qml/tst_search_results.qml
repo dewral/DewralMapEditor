@@ -97,6 +97,7 @@ Item {
             Backend.uiTheme.style = data.theme;
             const chest = item(9712, "quest chest", [item(6810, "plate armor")]);
             chest.x = 31391; chest.y = 31038; chest.z = 8; chest.uniqueId = 62474;
+            chest.actionId = 5001;
             controller.finish({results: [chest, item(1988, "backpack", [])], total: 2});
             tryVerify(() => locate("searchResultIds_0") !== null);
             mouseClick(locate("searchResultRow_1"), 10, 10);
@@ -111,6 +112,8 @@ Item {
             tryCompare(menu, "visible", false);
             compare(Backend.fileTools.clipboardText(), "{\n"
                 + "    position: {x: 31391, y: 31038, z: 8},\n"
+                + "    uniqueId: 62474,\n"
+                + "    actionId: 5001,\n"
                 + "    name: \"\",\n"
                 + "    reward: [{id: 6810, name: \"plate armor\"}]\n}");
             compare(panel.visibleRowCount, 2, "Copy must include collapsed contents without expanding");
@@ -130,13 +133,14 @@ Item {
             const name = "hero's \"armor\" \\ reward\nnext line";
             const bag = item(1987, "bag", [item(2148, "gold coin")]);
             const chest = item(9712, "quest chest", [item(6810, name), bag, item(6810, "")]);
+            chest.actionId = 0;
             controller.finish({results: [chest], total: 1});
             tryVerify(() => locate("searchResultIds_0") !== null);
             mouseClick(locate("searchResultIds_0"), 10, 5, Qt.RightButton);
             tryCompare(locate("searchResultsQuestMenu"), "visible", true);
             mouseClick(locate("searchResultsCopyQuest"));
             const copied = eval("(" + Backend.fileTools.clipboardText() + ")");
-            compare(copied, {position: {x: 867, y: 889, z: 6}, name: "",
+            compare(copied, {position: {x: 867, y: 889, z: 6}, uniqueId: 62378, actionId: 0, name: "",
                 reward: [{id: 6810, name: name}, {id: 1987, name: "bag"}, {id: 6810, name: ""}]});
         }
         function test_emptyQuestAndNoUniqueId() {

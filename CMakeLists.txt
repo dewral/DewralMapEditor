@@ -732,15 +732,16 @@ if(BUILD_TESTING)
     add_test(NAME map_view_position COMMAND map_creature_refresh_test --view-position-only)
     add_test(NAME map_item_locations COMMAND map_creature_refresh_test --item-locations-only)
     add_test(NAME map_rubber_band COMMAND map_creature_refresh_test --rubber-band-only)
+    add_test(NAME map_raw_erase COMMAND map_creature_refresh_test --raw-erase-only)
     add_test(NAME map_goto_render COMMAND map_creature_refresh_test --goto-render-only)
     set_tests_properties(map_goto_render PROPERTIES
         ENVIRONMENT "QSG_RHI_BACKEND=opengl;QSG_RENDER_LOOP=basic" TIMEOUT 90)
     set_tests_properties(map_goto_render PROPERTIES ENVIRONMENT_MODIFICATION
         "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
-    set_tests_properties(map_creature_refresh map_view_position map_item_locations map_rubber_band PROPERTIES
+    set_tests_properties(map_creature_refresh map_view_position map_item_locations map_rubber_band map_raw_erase PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=minimal" TIMEOUT 30)
     if(WIN32)
-        set_tests_properties(map_creature_refresh map_view_position map_item_locations map_rubber_band PROPERTIES ENVIRONMENT
+        set_tests_properties(map_creature_refresh map_view_position map_item_locations map_rubber_band map_raw_erase PROPERTIES ENVIRONMENT
             "QT_QPA_PLATFORM=minimal;QT_QPA_PLATFORM_PLUGIN_PATH=$<TARGET_FILE_DIR:Qt6::QWindowsIntegrationPlugin>")
     endif()
     add_executable(activity_service_test EXCLUDE_FROM_ALL tests/activity_service_test.cpp editor/core/activityservice.cpp editor/core/documentmanager.cpp)

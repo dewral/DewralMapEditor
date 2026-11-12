@@ -235,6 +235,7 @@ bool atlasBudget(const QTemporaryDir &directory)
 #include "map_zone_overlay_checks.h"
 #include "map_hotkey_checks.h"
 #include "map_context_brush_checks.h"
+#include "map_raw_erase_checks.h"
 #include "map_legacy_subtype_checks.h"
 #include "map_hangable_checks.h"
 #include "map_selection_delete_checks.h"
@@ -249,6 +250,7 @@ int main(int argc, char **argv)
 {
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     QGuiApplication application(argc, argv);
+    if (application.arguments().contains("--raw-erase-only")) return testRawSpriteErase() ? 0 : 1;
     if(application.arguments().contains("--raw-style-check"))return testRawStyle(application.arguments())?0:1;
     if(application.arguments().contains("--midhem-brush-check"))return testMidhemBrush(application.arguments())?0:1;
     if (application.arguments().contains("--brush-demo")) return testBrushDemo(application.arguments()) ? 0 : 1;
@@ -306,6 +308,7 @@ int main(int argc, char **argv)
     }
     if (!testMapHotkeys()) return 1;
     if (!testContextBrushes()) return 1;
+    if (!testRawSpriteErase()) return 1;
     if (!testZoneOverlays() || !testNumberedZoneOverlays() || !testNumberedZoneBoundaries()) return 1;
     if (QCoreApplication::arguments().contains(QStringLiteral("--zone-overlay-only"))) return 0;
     QTemporaryDir directory(QDir(QDir::currentPath()).filePath(

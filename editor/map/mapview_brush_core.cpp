@@ -61,6 +61,23 @@ void MapView::eraseAt(int cx, int cy)
             if (brushCovers(dx, dy)) footprint.push_back({ cx + dx, cy + dy });
     if (footprint.empty()) return;
 
+    // Ctrl with a RAW item erases that exact server ID throughout the footprint.
+    if (!m_editController.eraseMode() && m_brushController.serverId() > 0
+        && m_brushController.groundBrush().isEmpty() && m_brushController.wallBrush().isEmpty()
+        && m_brushController.doodadBrush().isEmpty() && m_brushController.carpetBrush().isEmpty()
+        && m_brushController.tableBrush().isEmpty() && m_brushController.doorBrushId() == 0
+        && m_brushController.creatureBrush().isEmpty() && !m_brushController.spawnBrush()) {
+        const std::vector<uint16_t> ids{static_cast<uint16_t>(m_brushController.serverId())};
+        beginEditBatch();
+        for (const auto &p : footprint) {
+            if (!m_brushController.markPlaced(posKey(p.first, p.second))) continue;
+            if (m_otbm->removeItemsById(p.first, p.second, m_navigationController.floor(), ids) > 0)
+                onTileEdited(p.first, p.second, m_navigationController.floor());
+        }
+        endEditBatch();
+        return;
+    }
+
     beginEditBatch();
     const bool savedFx = m_placeEffect;
     const bool savedBulk = m_brushController.bulkEdit();

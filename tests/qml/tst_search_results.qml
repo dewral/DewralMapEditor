@@ -89,6 +89,101 @@ Item {
         }
         function cleanup() { panel.close(); controller.finish({cancelled: true}); }
 
+        function test_copyQuest_data() {
+            return ["fluent-dark", "tibia-ui"]
+                .map(theme => ({tag: theme, theme: theme}));
+        }
+        function test_copyQuest(data) {
+            Backend.uiTheme.style = data.theme;
+            const chest = item(9712, "quest chest", [item(6810, "plate armor")]);
+            chest.x = 31391; chest.y = 31038; chest.z = 8; chest.uniqueId = 62474;
+            controller.finish({results: [chest, item(1988, "backpack", [])], total: 2});
+            tryVerify(() => locate("searchResultIds_0") !== null);
+            mouseClick(locate("searchResultRow_1"), 10, 10);
+            Backend.fileTools.setClipboard("unchanged");
+            const menu = locate("searchResultsQuestMenu");
+            mouseClick(locate("searchResultIds_0"), 10, 5, Qt.RightButton);
+            tryCompare(menu, "visible", true);
+            compare(panel.selectedRow.key, "0");
+            compare(Backend.fileTools.clipboardText(), "unchanged");
+            compare(controller.destination, []);
+            mouseClick(locate("searchResultsCopyQuest"));
+            tryCompare(menu, "visible", false);
+            compare(Backend.fileTools.clipboardText(), "{\n"
+                + "    position: {x: 31391, y: 31038, z: 8},\n"
+                + "    name: \"\",\n"
+                + "    reward: [{id: 6810, name: \"plate armor\"}]\n}");
+            compare(panel.visibleRowCount, 2, "Copy must include collapsed contents without expanding");
+            const copied = Backend.fileTools.clipboardText();
+            mouseClick(locate("searchResultContents_0"));
+            mouseClick(locate("searchResultIds_0"), 10, 5, Qt.RightButton);
+            tryCompare(menu, "visible", true);
+            mouseClick(locate("searchResultsCopyQuest"));
+            compare(Backend.fileTools.clipboardText(), copied);
+            mouseClick(locate("searchResultIds_0"), 10, 5, Qt.RightButton);
+            tryCompare(menu, "visible", true);
+            keyClick(Qt.Key_Escape);
+            tryCompare(menu, "visible", false);
+            verify(panel.visible, "Escape should dismiss the context menu before the panel");
+        }
+        function test_copyQuestRewardsAndEscaping() {
+            const name = "hero's \"armor\" \\ reward\nnext line";
+            const bag = item(1987, "bag", [item(2148, "gold coin")]);
+            const chest = item(9712, "quest chest", [item(6810, name), bag, item(6810, "")]);
+            controller.finish({results: [chest], total: 1});
+            tryVerify(() => locate("searchResultIds_0") !== null);
+            mouseClick(locate("searchResultIds_0"), 10, 5, Qt.RightButton);
+            tryCompare(locate("searchResultsQuestMenu"), "visible", true);
+            mouseClick(locate("searchResultsCopyQuest"));
+            const copied = eval("(" + Backend.fileTools.clipboardText() + ")");
+            compare(copied, {position: {x: 867, y: 889, z: 6}, name: "",
+                reward: [{id: 6810, name: name}, {id: 1987, name: "bag"}, {id: 6810, name: ""}]});
+        }
+        function test_emptyQuestAndNoUniqueId() {
+            const plain = item(2376, "sword"); plain.uniqueId = 0;
+            controller.finish({results: [item(1988, "backpack", []), plain], total: 2});
+            tryVerify(() => locate("searchResultIds_0") !== null);
+            const menu = locate("searchResultsQuestMenu");
+            mouseClick(locate("searchResultIds_0"), 10, 5, Qt.RightButton);
+            tryCompare(menu, "visible", true);
+            mouseClick(locate("searchResultsCopyQuest"));
+            compare(eval("(" + Backend.fileTools.clipboardText() + ")").reward, []);
+            Backend.fileTools.setClipboard("unchanged");
+            mouseClick(locate("searchResultIds_1"), 10, 5, Qt.RightButton);
+            verify(!menu.visible);
+            compare(Backend.fileTools.clipboardText(), "unchanged");
+            mouseClick(locate("searchResultIds_0"), 10, 5, Qt.RightButton);
+            tryCompare(menu, "visible", true);
+            controller.readersChanged();
+            tryCompare(menu, "visible", false);
+            verify(!locate("searchResultsCopyQuest").enabled);
+        }
+        function test_contentsGrouping_data() {
+            return ["fluent-dark", "tibia-ui"]
+                .map(theme => ({tag: theme, theme: theme}));
+        }
+        function test_contentsGrouping(data) {
+            Backend.uiTheme.style = data.theme;
+            showResults();
+            mouseClick(locate("searchResultsExpandAll"));
+            wait(50);
+            const root = locate("searchResultCard_0"), child = locate("searchResultCard_0/0");
+            const nested = locate("searchResultCard_0/0/0"), sibling = locate("searchResultCard_0/1");
+            verify(child.x > root.x);
+            verify(nested.x > child.x);
+            compare(sibling.x, child.x);
+            const rail = locate("searchResultGroupRail_0/0");
+            verify(rail.visible);
+            const row = locate("searchResultRow_0/0");
+            verify(rail.y < 0, "The group rail must bridge the gap between related rows");
+            compare(rail.y + rail.height, row.height);
+            compare(locate("searchResultCard_1").x, root.x);
+            verify(!locate("searchResultGroupRail_1").visible);
+            panel.width = 220;
+            wait(50);
+            verify(nested.width > 0);
+            verify(nested.mapToItem(panel, nested.width, 0).x <= panel.width);
+        }
         function test_navigationAndContents_data() {
             return ["fluent-dark", "tibia-ui"]
                 .map(theme => ({tag: theme, theme: theme}));

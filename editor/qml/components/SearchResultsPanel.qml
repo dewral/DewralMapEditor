@@ -47,6 +47,7 @@ FocusScope {
         resultList.forceActiveFocus();
     }
     function clearResults() {
+        questMenu.close();
         rowModel.clear();
         results = [];
         total = 0;
@@ -55,6 +56,7 @@ FocusScope {
         rebuildRows();
     }
     function runSearch() {
+        questMenu.close();
         pendingSearch = true;
         status = "";
         if (loading) mapCtrl.cancelMapQuery();
@@ -68,6 +70,7 @@ FocusScope {
     }
     function applyResponse(response) {
         if (!loading) return;
+        questMenu.close();
         loading = false;
         if (pendingSearch) {
             Qt.callLater(startPendingSearch);
@@ -83,6 +86,7 @@ FocusScope {
         status = total ? "" : "No matching items found.";
     }
     function close() {
+        questMenu.close();
         pendingSearch = false;
         if (loading) mapCtrl.cancelMapQuery();
         loading = false;
@@ -213,6 +217,23 @@ FocusScope {
         const item = selectedRow.item;
         mapCtrl.centerOnPosition(item.x, item.y, item.z);
     }
+    function copyQuest(item) {
+        if (!item || !item.uniqueId) return;
+        const rewards = (item.contents || []).map(content =>
+            "{id: " + content.serverId + ", name: " + JSON.stringify(content.name || "") + "}");
+        Backend.fileTools.setClipboard("{\n"
+            + "    position: {x: " + item.x + ", y: " + item.y + ", z: " + item.z + "},\n"
+            + "    name: \"\",\n"
+            + "    reward: [" + rewards.join(", ") + "]\n}");
+    }
+    function openQuestMenu(index, x, y) {
+        const row = rowAt(index);
+        if (!row || !row.item.uniqueId) return;
+        resultList.currentIndex = index;
+        resultList.forceActiveFocus();
+        questMenu.questItem = row.item;
+        questMenu.popup(x, y);
+    }
     Connections {
         target: panel.mapCtrl
         function onItemSearchFinished(response) { panel.applyResponse(response); }
@@ -234,6 +255,20 @@ FocusScope {
         function onModelReset() { panel.invalidateResults(); }
     }
     Keys.onEscapePressed: event => { close(); event.accepted = true; }
+    onVisibleChanged: { if (!visible) questMenu.close(); }
+
+    DmeMenu {
+        id: questMenu; objectName: "searchResultsQuestMenu"
+        parent: panel
+        property var questItem: null
+        onClosed: questItem = null
+        DmeMenuItem {
+            objectName: "searchResultsCopyQuest"
+            text: "Copy quest"
+            enabled: !!questMenu.questItem && !!questMenu.questItem.uniqueId
+            onTriggered: panel.copyQuest(questMenu.questItem)
+        }
+    }
 
     DmePanel { anchors.fill: parent }
     MouseArea { anchors.fill: parent }
@@ -261,7 +296,7 @@ FocusScope {
         DmeTextField {
             id: filter; objectName: "searchResultsFilter"
             width: parent.width; placeholderText: "Filter name, item ID, AID or UID…"
-            onTextChanged: panel.rebuildRows()
+            onTextChanged: { questMenu.close(); panel.rebuildRows(); }
         }
         Row {
             id: summaryRow
@@ -308,26 +343,58 @@ FocusScope {
         Keys.onEnterPressed: panel.goToSelected()
         Keys.onRightPressed: { if (panel.selectedRow && panel.selectedRow.item.isContainer && !panel.expanded[panel.selectedRow.key]) panel.toggle(panel.selectedRow); }
         Keys.onLeftPressed: { if (panel.selectedRow && panel.expanded[panel.selectedRow.key]) panel.toggle(panel.selectedRow); }
-        delegate: Rectangle {
+        delegate: Item {
             id: row
             required property string key
             required property int level
             required property int index
             readonly property var item: panel.itemForKey(key)
+            readonly property real indent: Math.min(level, 4) * 20
+            readonly property bool inGroup: level > 0 || !!panel.expanded[key]
             objectName: "searchResultRow_" + key
             width: resultList.width
             height: details.implicitHeight + 12
-            color: resultList.currentIndex === index ? Qt.tint(panel.surface, Qt.rgba(panel.accent.r, panel.accent.g, panel.accent.b, 0.22))
-                                                    : mouse.containsMouse ? Qt.tint(panel.surface, "#16808080") : panel.surface
-            border.color: resultList.currentIndex === index ? panel.accent : panel.line
+            Rectangle {
+                objectName: "searchResultCard_" + row.key
+                x: row.indent; width: parent.width - x; height: parent.height
+                color: resultList.currentIndex === row.index ? Qt.tint(panel.surface, Qt.rgba(panel.accent.r, panel.accent.g, panel.accent.b, 0.22))
+                    : mouse.containsMouse ? Qt.tint(panel.surface, "#16808080")
+                    : row.inGroup ? Qt.tint(panel.surface, Qt.rgba(panel.accent.r, panel.accent.g, panel.accent.b, 0.07)) : panel.surface
+                border.color: resultList.currentIndex === row.index ? panel.accent : panel.line
+            }
+            Rectangle {
+                objectName: "searchResultGroupRail_" + row.key
+                visible: row.inGroup
+                x: 0; y: row.level > 0 ? -resultList.spacing : 0
+                width: 3; height: row.height - y
+                color: panel.accent
+            }
+            Rectangle {
+                visible: row.level > 0
+                x: 3; y: 22; width: Math.max(0, row.indent - x); height: 1
+                color: panel.accent
+            }
             MouseArea {
                 id: mouse; anchors.fill: parent; hoverEnabled: true
-                onClicked: { resultList.currentIndex = row.index; resultList.forceActiveFocus(); }
-                onDoubleClicked: { resultList.currentIndex = row.index; panel.goToSelected(); }
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                onClicked: event => {
+                    if (event.button === Qt.RightButton) {
+                        const point = mapToItem(panel, event.x, event.y);
+                        panel.openQuestMenu(row.index, point.x, point.y);
+                    } else {
+                        resultList.currentIndex = row.index;
+                        resultList.forceActiveFocus();
+                    }
+                }
+                onDoubleClicked: event => {
+                    if (event.button !== Qt.LeftButton) return;
+                    resultList.currentIndex = row.index;
+                    panel.goToSelected();
+                }
             }
             Image {
                 id: icon
-                x: 6 + Math.min(row.level, 4) * 12; y: 8; width: 28; height: 28
+                x: 6 + row.indent; y: 8; width: 28; height: 28
                 fillMode: Image.PreserveAspectFit; smooth: false
                 source: row.item.clientId > 0 ? "image://paletteitem/" + row.item.clientId + "/" + Backend.sprReader.itemImagesRevision : ""
             }
@@ -341,6 +408,7 @@ FocusScope {
                     color: panel.foreground; font.pixelSize: 12; font.bold: true
                 }
                 Text {
+                    objectName: "searchResultIds_" + row.key
                     width: parent.width; wrapMode: Text.Wrap
                     text: "Item ID: " + row.item.serverId
                         + (row.item.actionId ? "   AID: " + row.item.actionId : "")

@@ -44,7 +44,10 @@ DmeDialog {
         close();
     }
 
-    onOpened: Qt.callLater(positionInitialItem)
+    onOpened: Qt.callLater(function() {
+        positionInitialItem();
+        searchField.focusEditor();
+    })
 
     PaletteFilter {
         id: itemFilter
@@ -52,10 +55,22 @@ DmeDialog {
         searchText: searchField.text
     }
 
+    Shortcut {
+        sequence: "Down"
+        enabled: dialog.opened
+        onActivated: itemList.incrementCurrentIndex()
+    }
+    Shortcut {
+        sequence: "Up"
+        enabled: dialog.opened
+        onActivated: itemList.decrementCurrentIndex()
+    }
+
     contentItem: Column {
         spacing: 10
 
         Text {
+            id: searchLabel
             width: parent.width
             text: "Search by server ID or item name:"
             color: "#C9D1D9"
@@ -64,6 +79,7 @@ DmeDialog {
 
         DmeTextField {
             id: searchField
+            objectName: "itemPickerSearchField"
             width: parent.width
             height: 30
             placeholderText: "Server ID or name..."
@@ -78,10 +94,12 @@ DmeDialog {
 
         DmePanel {
             width: parent.width
-            height: 390
+            height: Math.max(80, dialog.contentItem.height - searchLabel.height
+                             - searchField.height - buttons.height - 3 * parent.spacing)
 
             ListView {
                 id: itemList
+                objectName: "itemPickerList"
                 anchors {
                     fill: parent
                     margins: 2
@@ -197,10 +215,12 @@ DmeDialog {
         }
 
         Row {
+            id: buttons
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: 8
 
             DmeButton {
+                objectName: "itemPickerSelectButton"
                 width: 90
                 text: "Select"
                 variant: "primary"
@@ -209,6 +229,7 @@ DmeDialog {
             }
 
             DmeButton {
+                objectName: "itemPickerCancelButton"
                 width: 90
                 text: "Cancel"
                 onClicked: dialog.close()

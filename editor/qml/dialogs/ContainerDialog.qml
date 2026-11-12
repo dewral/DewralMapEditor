@@ -13,6 +13,7 @@ DmeDialog {
     property var items: []
     property var selectedItem: null
     property var titles: []
+    property string addError: ""
 
     title: titles.length > 0 ? titles[titles.length - 1] : "Container"
     width: 560
@@ -25,6 +26,7 @@ DmeDialog {
     }
 
     function refresh(preferredIndex) {
+        addError = "";
         items = mapCtrl.contextContainerItems(currentPath);
         selectedItem = null;
         itemList.currentIndex = -1;
@@ -83,6 +85,17 @@ DmeDialog {
 
     onOpened: refresh()
 
+    ItemPickerDialog {
+        id: itemPicker
+        objectName: "containerItemPicker"
+        onItemSelected: serverId => {
+            if (dialog.mapCtrl.addContextContainerItem(dialog.currentPath, serverId))
+                dialog.refresh();
+            else
+                dialog.addError = "Unable to add the item to this container.";
+        }
+    }
+
     contentItem: Column {
         spacing: 10
 
@@ -90,6 +103,7 @@ DmeDialog {
             spacing: 8
 
             DmeButton {
+                objectName: "containerBackButton"
                 text: "Back"
                 width: 70
                 enabled: dialog.currentPath.length > dialog.rootPath.length
@@ -112,6 +126,7 @@ DmeDialog {
 
             ListView {
                 id: itemList
+                objectName: "containerItemList"
                 anchors.fill: parent
                 anchors.margins: 2
                 anchors.rightMargin: 14
@@ -203,34 +218,25 @@ DmeDialog {
         }
 
         Row {
+            width: parent.width
             spacing: 6
 
             Text {
-                text: "Server ID"
-                color: "#999"
+                objectName: "containerAddError"
+                width: parent.width - 96
+                text: dialog.addError
+                color: "#f85149"
+                font.pixelSize: 11
                 anchors.verticalCenter: parent.verticalCenter
-            }
-            DmeSpinBox {
-                id: newItemId
-                width: 120
-                from: 100
-                to: 65535
-            }
-            Text {
-                width: 190
-                text: Backend.otbReader.nameForServerId(newItemId.value)
-                color: "#7f9f7f"
-                font.pixelSize: 10
-                anchors.verticalCenter: parent.verticalCenter
-                elide: Text.ElideRight
+                wrapMode: Text.WordWrap
             }
             DmeButton {
+                objectName: "containerAddItemButton"
                 text: "Add Item"
                 width: 90
                 onClicked: {
-                    if (dialog.mapCtrl.addContextContainerItem(
-                                dialog.currentPath, newItemId.value))
-                        dialog.refresh();
+                    dialog.addError = "";
+                    itemPicker.openFor(0);
                 }
             }
         }
@@ -240,6 +246,7 @@ DmeDialog {
             anchors.horizontalCenter: parent.horizontalCenter
 
             DmeButton {
+                objectName: "containerOpenButton"
                 text: "Open"
                 width: 80
                 enabled: dialog.selectedItem !== null

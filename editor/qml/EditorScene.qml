@@ -442,6 +442,7 @@ DmeWindow {
         waypointsDialog: waypointsDialog
         creatureManagerDialog: creatureManagerDialog
         weatherDialog: weatherDialog
+        animationPreviewDialog: animationPreviewDialog
         numberedZonesDialog: numberedZonesDialog
         mapPropertiesDialog: mapPropsDialog
         statsDialog: statsDialog
@@ -1167,6 +1168,18 @@ DmeWindow {
         id: selectionItemLoader
         toolSource: Qt.resolvedUrl("tools/SelectionItemDialogTool.qml")
         initialProperties: ({environment: toolEnvironment()})
+        onLoadFailed: message => app.showToast(message)
+    }
+
+    QtObject {
+        id: animationPreviewDialog
+        function open() {
+            if (animationPreviewLoader.ensureLoaded()) animationPreviewLoader.item["open"]();
+        }
+    }
+    LazyToolHost {
+        id: animationPreviewLoader
+        toolSource: Qt.resolvedUrl("dialogs/AnimationPreviewDialog.qml")
         onLoadFailed: message => app.showToast(message)
     }
 

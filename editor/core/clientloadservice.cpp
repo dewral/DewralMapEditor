@@ -26,6 +26,7 @@ struct ClientPreparedState {
     struct DatReaderState {
         decltype(std::declval<DatReader>().m_items) m_items;
         decltype(std::declval<DatReader>().m_effects) m_effects;
+        decltype(std::declval<DatReader>().m_missiles) m_missiles;
         decltype(std::declval<DatReader>().m_outfits) m_outfits;
         decltype(std::declval<DatReader>().m_clientVersion) m_clientVersion;
         decltype(std::declval<DatReader>().m_otfiActive) m_otfiActive;
@@ -349,7 +350,7 @@ std::shared_ptr<ClientPreparedState> ClientLoadService::prepare(const QString &k
                 if(sprite>static_cast<uint32_t>(spr.spriteCount()))throw std::runtime_error("DAT references sprites outside this SPR. Choose matching DAT and SPR files.");
         };
         checkSprites(dat.items());
-        checkSprites(dat.m_effects); checkSprites(dat.m_outfits);
+        checkSprites(dat.m_effects); checkSprites(dat.m_missiles); checkSprites(dat.m_outfits);
         if(!paths.value("xml").toString().isEmpty() && !xml.loadFile(paths.value("xml").toString()))
             throw std::runtime_error("Cannot parse items.xml");
         if(profile.value("validateOnly").toBool()) {
@@ -374,6 +375,7 @@ std::shared_ptr<ClientPreparedState> ClientLoadService::prepare(const QString &k
             throw std::runtime_error("Client files changed while loading. Retry the operation.");
         state->dat.m_items = std::move(dat.m_items);
         state->dat.m_effects = std::move(dat.m_effects);
+        state->dat.m_missiles = std::move(dat.m_missiles);
         state->dat.m_outfits = std::move(dat.m_outfits);
         state->dat.m_clientVersion = std::move(dat.m_clientVersion);
         state->dat.m_otfiActive = std::move(dat.m_otfiActive);
@@ -496,6 +498,7 @@ void ClientLoadService::publish(quint64 id, const std::shared_ptr<ClientPrepared
     spr.m_dataUrlCache.clear(); spr.m_dataUrlCacheLru.clear(); spr.m_dataUrlCacheBytes = 0;
     dat.m_items = std::move(state->dat.m_items);
     dat.m_effects = std::move(state->dat.m_effects);
+    dat.m_missiles = std::move(state->dat.m_missiles);
     dat.m_outfits = std::move(state->dat.m_outfits);
     dat.m_clientVersion = std::move(state->dat.m_clientVersion);
     dat.m_otfiActive = std::move(state->dat.m_otfiActive);

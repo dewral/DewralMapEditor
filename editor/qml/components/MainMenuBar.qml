@@ -27,6 +27,7 @@ DmeMenuBar {
     required property var waypointsDialog
     required property var creatureManagerDialog
     property var weatherDialog
+    property var animationPreviewDialog
     property var numberedZonesDialog
     required property var mapPropertiesDialog
     required property var statsDialog
@@ -528,6 +529,11 @@ DmeMenuBar {
 
     DmeMenu {
         title: "Tools"
+        Action {
+            text: "Effects & Missiles..."
+            enabled: Backend.datReader.loaded && Backend.sprReader.loaded && !!menuBar.animationPreviewDialog
+            onTriggered: menuBar.animationPreviewDialog.open()
+        }
         Action {
             text: "Numbered zones..."
             enabled: Backend.otbmReader.loaded && !!menuBar.numberedZonesDialog

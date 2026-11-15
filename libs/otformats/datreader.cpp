@@ -80,6 +80,7 @@ void DatReader::reset()
     beginResetModel();
     m_items.clear();
     m_effects.clear();
+    m_missiles.clear();
     m_outfits.clear();
     m_sourceFilePath.clear();
     m_signature = 0;
@@ -129,6 +130,7 @@ bool DatReader::loadFile(const QString &path, quint32 expectedSignature)
 
     std::vector<ClientItem> items;
     std::vector<ClientItem> effects;
+    std::vector<ClientItem> missiles;
     std::vector<ClientItem> outfits;
 
     readCategory(reader, &items, 100, m_maxItemId);
@@ -140,7 +142,7 @@ bool DatReader::loadFile(const QString &path, quint32 expectedSignature)
 
     readCategory(reader, &outfits, 1, maxOutfitId, true);
     readCategory(reader, &effects, 1, maxEffectId);
-    readCategory(reader, nullptr, 1, maxMissileId);
+    readCategory(reader, &missiles, 1, maxMissileId);
     if (!reader.good()) {
         setError(QStringLiteral("Failed to parse DAT categories: %1").arg(reader.getError()));
         return false;
@@ -149,6 +151,7 @@ bool DatReader::loadFile(const QString &path, quint32 expectedSignature)
     beginResetModel();
     m_items = std::move(items);
     m_effects = std::move(effects);
+    m_missiles = std::move(missiles);
     m_outfits = std::move(outfits);
     m_loaded = true;
     endResetModel();
@@ -173,6 +176,7 @@ bool DatReader::loadAppearances(AppearancesReader &appearances, const QString &f
     m_items = appearances.takeItems();
     m_outfits = appearances.takeOutfits();
     m_effects = appearances.takeEffects();
+    m_missiles = appearances.takeMissiles();
     m_appearanceClient = true;
     m_loaded = true;
     endResetModel();
@@ -457,6 +461,106 @@ const ClientItem *DatReader::effectById(int id) const
 {
     if (id < 1 || static_cast<size_t>(id) > m_effects.size()) return nullptr;
     return &m_effects[static_cast<size_t>(id - 1)];
+}
+
+const ClientItem *DatReader::missileById(int id) const
+{
+    if (id < 1 || static_cast<size_t>(id) > m_missiles.size()) return nullptr;
+    return &m_missiles[static_cast<size_t>(id - 1)];
+}
+
+namespace {
+QVariantMap previewPattern(const ClientItem &item, int frame, int px, int py)
+{
+    const int w = std::max(1, int(item.width)), h = std::max(1, int(item.height));
+    const int layers = std::max(1, int(item.layers));
+    const int nx = std::max(1, int(item.pattern_x)), ny = std::max(1, int(item.pattern_y));
+    const int nz = std::max(1, int(item.pattern_z));
+    const size_t stride = size_t(w) * h * layers;
+    const size_t start = ((size_t(frame) * nz * ny + py % ny) * nx + px % nx) * stride;
+    if (start + stride > item.sprite_ids.size()) return {};
+    QVariantList ids;
+    ids.reserve(int(stride));
+    for (size_t i = start; i < start + stride; ++i) ids.append(item.sprite_ids[i]);
+    return {{QStringLiteral("ids"), ids}, {QStringLiteral("width"), w},
+            {QStringLiteral("height"), h}, {QStringLiteral("layers"), layers},
+            {QStringLiteral("offsetX"), item.offset_x}, {QStringLiteral("offsetY"), item.offset_y}};
+}
+}
+
+QVariantList DatReader::animationIds(bool missile) const
+{
+    QVariantList ids;
+    if (!m_loaded) return ids;
+    for (const auto &item : missile ? m_missiles : m_effects)
+        if (std::any_of(item.sprite_ids.begin(), item.sprite_ids.end(), [](uint32_t id) { return id != 0; }))
+            ids.append(item.id);
+    return ids;
+}
+
+QVariantMap DatReader::animationPreview(bool missile, int id, qint64 elapsedMs,
+                                       int direction, int frame) const
+{
+    const auto *item = missile ? missileById(id) : effectById(id);
+    if (!m_loaded || !item || item->sprite_ids.empty()) return {};
+    const int frames = std::max(1, int(item->frames));
+    std::vector<quint64> durations;
+    quint64 cycle = 0;
+    for (int f = 0; f < frames; ++f) {
+        // Stable, repeatable inspection timing: midpoint of a DAT duration range.
+        // Legacy effects have no timing metadata; use the editor's 100 ms default.
+        quint64 duration = 100;
+        if (item->animation.durations.size() == size_t(frames)) {
+            const auto &d = item->animation.durations[size_t(f)];
+            duration = (quint64(d.minimum) + d.maximum) / 2;
+        } else if (item->frame_durations.size() == size_t(frames)) {
+            duration = item->frame_durations[size_t(f)];
+        }
+        durations.push_back(std::max<quint64>(1, duration));
+        cycle += durations.back();
+    }
+    if (frame < 0) {
+        quint64 time = quint64(std::max<qint64>(0, elapsedMs)) % cycle;
+        frame = 0;
+        while (frame + 1 < frames && time >= durations[size_t(frame)])
+            time -= durations[size_t(frame++)];
+    } else {
+        frame = std::clamp(frame, 0, frames - 1);
+    }
+    // Clockwise from north. DAT missiles use the 3x3 compass pattern.
+    static constexpr int dx[] = {0, 1, 1, 1, 0, -1, -1, -1};
+    static constexpr int dy[] = {-1, -1, 0, 1, 1, 1, 0, -1};
+    direction = std::clamp(direction, 0, 7);
+    auto result = previewPattern(*item, frame, missile ? dx[direction] + 1 : 0,
+                                missile ? dy[direction] + 1 : 0);
+    if (result.isEmpty()) return result;
+    result.insert(QStringLiteral("frame"), frame);
+    result.insert(QStringLiteral("frames"), frames);
+    result.insert(QStringLiteral("cycleMs"), QVariant::fromValue(cycle));
+    quint64 frameStart = 0;
+    for (int f = 0; f < frame; ++f) frameStart += durations[size_t(f)];
+    result.insert(QStringLiteral("frameStartMs"), QVariant::fromValue(frameStart));
+    result.insert(QStringLiteral("hasTiming"), !item->animation.durations.empty() || !item->frame_durations.empty());
+    return result;
+}
+
+QVariantList DatReader::previewGroundIds() const
+{
+    QVariantList ids;
+    if (!m_loaded) return ids;
+    for (const auto &item : m_items)
+        if (item.has(ClientProperty::Ground) && item.width == 1 && item.height == 1
+            && std::any_of(item.sprite_ids.begin(), item.sprite_ids.end(), [](uint32_t id) { return id != 0; }))
+            ids.append(item.id);
+    return ids;
+}
+
+QVariantMap DatReader::groundTilePreview(int clientId, int x, int y) const
+{
+    if (!m_loaded || clientId < 100 || clientId > 65535) return {};
+    const auto *item = itemByClientId(uint16_t(clientId));
+    if (!item || !item->has(ClientProperty::Ground)) return {};
+    return previewPattern(*item, 0, std::max(0, x), std::max(0, y));
 }
 
 quint32 DatReader::previewSpriteIdAt(int row) const

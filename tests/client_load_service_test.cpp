@@ -20,6 +20,8 @@ QByteArray matchingDatFile(int extra=0) {
     auto bytes=datFile(extra);
     QByteArray invalid;appendU16(invalid,999);QByteArray valid;appendU16(valid,5);
     const int at=bytes.indexOf(invalid,12);if(at>=0)bytes.replace(at,2,valid);
+    bytes[10] = char(1); // One missile, retained through asynchronous publication.
+    bytes.append(char(0xff)); bytes.append(QByteArray(7, char(1))); appendU16(bytes, 5);
     return bytes;
 }
 int main(int argc, char **argv)
@@ -84,6 +86,8 @@ int main(int argc, char **argv)
             && backend.otbReader() == originalOtb, "Client publication replaced QML model objects")) return 1;
         if (!require(originalDat->itemCount() == 20009 && originalOtb->rowCount() == 9
             && !originalSpr->preloadedItemImage(105).isNull(), "Prepared state lost definitions or palette images")) return 1;
+        if (!require(originalDat->missileById(1) && originalDat->missileById(1)->previewSpriteId() == 5,
+                     "Prepared state lost missile definitions")) return 1;
         const auto revision = originalSpr->itemImagesRevision();
         const auto cached = service->request("860", 860, fixture.path(), false);
         if (!require(wait(cached) && results.value(cached) && originalSpr->itemImagesRevision() == revision,

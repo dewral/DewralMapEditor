@@ -6,10 +6,12 @@
 #include <QNetworkAccessManager>
 #include <QObject>
 #include <QPointer>
+#include <QTemporaryDir>
 #include <QUrl>
 #include <QtQml/qqmlregistration.h>
 
 #include <functional>
+#include <memory>
 
 class DocumentManager;
 class QNetworkReply;
@@ -42,7 +44,7 @@ public:
     QString errorString() const { return m_errorString; }
 
     Q_INVOKABLE void checkForUpdates();
-    Q_INVOKABLE void downloadAndInstall();
+    Q_INVOKABLE void downloadAndInstall(const QString &theme, int centerX, int centerY);
     Q_INVOKABLE void cancel();
 
 signals:
@@ -63,11 +65,12 @@ private:
     void startRequest(const QUrl &url, const std::function<void(QByteArray)> &handler);
     void setState(const QString &state, const QString &error = {});
     void fail(const QString &message);
-    bool launchUpdater(const QString &archivePath);
+    bool launchUpdater(const QString &archivePath, const QString &theme, int centerX, int centerY);
 
     DocumentManager *m_documents = nullptr;
     QNetworkAccessManager m_network;
     QPointer<QNetworkReply> m_reply;
+    std::unique_ptr<QTemporaryDir> m_runtime;
     QFile m_downloadFile;
     QCryptographicHash m_downloadHash{QCryptographicHash::Sha256};
     QString m_state = QStringLiteral("idle");

@@ -6,6 +6,8 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QElapsedTimer>
+#include <QTimer>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -240,7 +242,7 @@ void UpdateService::finishRelease(bool updateAvailable)
                                : QStringLiteral("upToDate"));
 }
 
-void UpdateService::downloadAndInstall()
+void UpdateService::downloadAndInstall(const QString &theme, int centerX, int centerY)
 {
     if (!m_updateAvailable || busy())
         return;
@@ -256,7 +258,12 @@ void UpdateService::downloadAndInstall()
         return;
     }
 
-    const QString archivePath = updateDir + QStringLiteral("/DME-update.zip");
+    m_runtime = std::make_unique<QTemporaryDir>(updateDir + QStringLiteral("/runtime-XXXXXX"));
+    if (!m_runtime->isValid()) {
+        fail(QStringLiteral("The temporary updater runtime could not be created."));
+        return;
+    }
+    const QString archivePath = m_runtime->filePath(QStringLiteral("DME-update.zip"));
     m_downloadFile.setFileName(archivePath + QStringLiteral(".part"));
     if (!m_downloadFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         fail(QStringLiteral("The update package could not be written."));
@@ -287,7 +294,7 @@ void UpdateService::downloadAndInstall()
             emit downloadProgressChanged();
         }
     });
-    connect(m_reply, &QNetworkReply::finished, this, [this, archivePath]() {
+    connect(m_reply, &QNetworkReply::finished, this, [this, archivePath, theme, centerX, centerY]() {
         QNetworkReply *reply = m_reply;
         if (!reply)
             return;
@@ -297,8 +304,8 @@ void UpdateService::downloadAndInstall()
         reply->deleteLater();
         m_downloadFile.close();
         if (m_cancelled) {
-            QFile::remove(m_downloadFile.fileName());
-            setState(QStringLiteral("idle"));
+            m_runtime.reset();
+            setState(QStringLiteral("available"));
             return;
         }
         if (error != QNetworkReply::NoError) {
@@ -326,12 +333,13 @@ void UpdateService::downloadAndInstall()
             return;
         }
         setState(QStringLiteral("installing"));
-        if (!launchUpdater(archivePath))
+        if (!launchUpdater(archivePath, theme, centerX, centerY))
             return;
     });
 }
 
-bool UpdateService::launchUpdater(const QString &archivePath)
+bool UpdateService::launchUpdater(const QString &archivePath, const QString &theme,
+                                  int centerX, int centerY)
 {
 #ifdef Q_OS_WIN
     const QString applicationDir = QCoreApplication::applicationDirPath();
@@ -341,34 +349,27 @@ bool UpdateService::launchUpdater(const QString &archivePath)
         return false;
     }
 
-    const QString runtimePath = QFileInfo(archivePath).absolutePath()
-        + QStringLiteral("/runtime-%1").arg(QCoreApplication::applicationPid());
-    QDir runtime(runtimePath);
-    if (runtime.exists() && !runtime.removeRecursively()) {
-        fail(QStringLiteral("The previous temporary updater runtime could not be removed."));
-        return false;
-    }
-    if (!QDir().mkpath(runtimePath + QStringLiteral("/platforms"))) {
-        fail(QStringLiteral("The temporary updater runtime could not be created."));
-        return false;
-    }
-
+    const QString runtimePath = m_runtime->path();
     QString runtimeError;
     if (!UpdaterRuntime::prepare(applicationDir, runtimePath, runtimeError)) {
-        runtime.removeRecursively();
         fail(runtimeError);
         return false;
     }
     const QString tempUpdater = runtimePath + QStringLiteral("/DMEUpdater.exe");
+    const QString readyPath = m_runtime->filePath(QStringLiteral("ready"));
     const QStringList arguments{
         QStringLiteral("--pid"), QString::number(QCoreApplication::applicationPid()),
         QStringLiteral("--archive"), QDir::toNativeSeparators(archivePath),
         QStringLiteral("--target"), QDir::toNativeSeparators(applicationDir),
         QStringLiteral("--exe"), QStringLiteral("DME.exe"),
-        QStringLiteral("--sha256"), m_expectedSha256
+        QStringLiteral("--sha256"), m_expectedSha256,
+        QStringLiteral("--theme"), theme,
+        QStringLiteral("--center-x"), QString::number(centerX),
+        QStringLiteral("--center-y"), QString::number(centerY),
+        QStringLiteral("--ready-file"), readyPath
     };
     UpdaterRuntime::probe(runtimePath, this,
-        [this, tempUpdater, arguments, runtimePath](bool ok, const QString &error) {
+        [this, tempUpdater, arguments, runtimePath, readyPath](bool ok, const QString &error) {
             if (m_state != QStringLiteral("installing"))
                 return;
             if (!ok) {
@@ -379,15 +380,49 @@ bool UpdateService::launchUpdater(const QString &archivePath)
                 fail(QStringLiteral("Save all modified maps before installing the update."));
                 return;
             }
-            if (!QProcess::startDetached(tempUpdater, arguments, runtimePath)) {
+            QProcess updater;
+            updater.setProgram(tempUpdater);
+            updater.setArguments(arguments);
+            updater.setWorkingDirectory(runtimePath);
+            updater.setProcessEnvironment(UpdaterRuntime::environment(runtimePath));
+            if (!updater.startDetached()) {
                 fail(QStringLiteral("The updater process could not be started."));
                 return;
             }
-            QCoreApplication::quit();
+
+            auto *readyCheck = new QTimer(this);
+            auto elapsed = QElapsedTimer();
+            elapsed.start();
+            connect(readyCheck, &QTimer::timeout, this, [this, readyCheck, elapsed, readyPath]() {
+                if (elapsed.hasExpired(10000)) {
+                    readyCheck->stop();
+                    readyCheck->deleteLater();
+                    // The running helper cleans itself after its handoff timeout.
+                    m_runtime->setAutoRemove(false);
+                    fail(QStringLiteral("The updater did not confirm startup. The editor is still open."));
+                } else if (QFileInfo::exists(readyPath)) {
+                    readyCheck->stop();
+                    readyCheck->deleteLater();
+                    QFile commit(readyPath + QStringLiteral(".commit"));
+                    if ((m_documents && m_documents->hasDirtyDocuments())
+                        || !commit.open(QIODevice::WriteOnly)) {
+                        m_runtime->setAutoRemove(false);
+                        fail(QStringLiteral("The update could not be handed off. The editor is still open."));
+                        return;
+                    }
+                    commit.close();
+                    m_runtime->setAutoRemove(false);
+                    QCoreApplication::exit(0);
+                }
+            });
+            readyCheck->start(50);
         });
     return true;
 #else
     Q_UNUSED(archivePath)
+    Q_UNUSED(theme)
+    Q_UNUSED(centerX)
+    Q_UNUSED(centerY)
     fail(QStringLiteral("Automatic installation is currently available only on Windows."));
     return false;
 #endif
@@ -395,15 +430,10 @@ bool UpdateService::launchUpdater(const QString &archivePath)
 
 void UpdateService::cancel()
 {
+    if (m_state != QStringLiteral("downloading") || !m_reply)
+        return;
     m_cancelled = true;
-    if (m_reply)
-        m_reply->abort();
-    if (m_downloadFile.isOpen())
-        m_downloadFile.close();
-    if (!m_downloadFile.fileName().isEmpty())
-        QFile::remove(m_downloadFile.fileName());
-    setState(m_updateAvailable ? QStringLiteral("available")
-                               : QStringLiteral("idle"));
+    m_reply->abort();
 }
 
 void UpdateService::setState(const QString &state, const QString &error)
@@ -415,5 +445,7 @@ void UpdateService::setState(const QString &state, const QString &error)
 
 void UpdateService::fail(const QString &message)
 {
+    m_downloadFile.close();
+    m_runtime.reset();
     setState(QStringLiteral("error"), message);
 }

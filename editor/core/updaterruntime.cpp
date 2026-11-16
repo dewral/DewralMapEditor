@@ -32,31 +32,36 @@ bool UpdaterRuntime::prepare(const QString &source, const QString &destination, 
     return true;
 }
 
-void UpdaterRuntime::probe(const QString &directory, QObject *owner,
-                          const std::function<void(bool, const QString &)> &finished)
+QProcessEnvironment UpdaterRuntime::environment(const QString &directory)
 {
-    auto *process = new QProcess(owner);
     auto environment = QProcessEnvironment::systemEnvironment();
     environment.remove(QStringLiteral("QT_QPA_PLATFORM_PLUGIN_PATH"));
     environment.insert(QStringLiteral("QT_PLUGIN_PATH"), directory);
     environment.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("windows"));
-    process->setProcessEnvironment(environment);
+    return environment;
+}
+
+void UpdaterRuntime::probe(const QString &directory, QObject *owner,
+                          const std::function<void(bool, const QString &)> &finished)
+{
+    auto *process = new QProcess(owner);
+    process->setProcessEnvironment(environment(directory));
     process->setWorkingDirectory(directory);
     process->setProgram(QDir(directory).filePath(QStringLiteral("DMEUpdater.exe")));
-    process->setArguments({QStringLiteral("--smoke-test")});
+    process->setArguments({QStringLiteral("--smoke-test"), QStringLiteral("--require-handoff")});
     auto complete = [process, finished](bool ok) {
         if (process->property("reported").toBool())
             return;
         process->setProperty("reported", true);
         finished(ok, ok ? QString() : QStringLiteral(
-            "The updater could not load its bundled runtime. The EXE and Qt DLLs may come "
+            "The updater could not confirm support for this update. The EXE and Qt DLLs may come "
             "from different builds (MSVC/MinGW). Extract the complete release ZIP into "
             "a new folder and run DME from there. The editor has not been closed."));
         process->deleteLater();
     };
     QObject::connect(process, &QProcess::finished, owner,
         [complete](int code, QProcess::ExitStatus status) {
-            complete(status == QProcess::NormalExit && code == 0);
+            complete(status == QProcess::NormalExit && code == handoffProbeExitCode);
         });
     QObject::connect(process, &QProcess::errorOccurred, owner,
         [complete](QProcess::ProcessError) { complete(false); });

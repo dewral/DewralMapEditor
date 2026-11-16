@@ -116,7 +116,7 @@ Item {
             Label {text:"v"+Backend.updateService.currentVersion;Layout.leftMargin:6}
             Item {Layout.fillWidth:true}
             Label {Layout.maximumWidth:300;text:Backend.updateService.errorString || (Backend.updateService.updateAvailable ? "Version "+Backend.updateService.latestVersion+" available" : Backend.updateService.state==="checking" ? "Checking updates…" : "No newer stable release");color:Backend.updateService.updateAvailable ? "#83b77c" : "#aaa99f"}
-            DmeButton {text:Backend.updateService.state==="available" ? "Download & install" : Backend.updateService.state==="downloading" ? "Cancel" : "Check updates";Layout.preferredHeight:26;enabled:Backend.updateService.state!=="installing";onClicked:{if(Backend.updateService.state==="available")Backend.updateService.downloadAndInstall();else if(Backend.updateService.state==="downloading")Backend.updateService.cancel();else Backend.updateService.checkForUpdates();}}
+            DmeButton {text:Backend.updateService.state==="available" ? "Download & install" : Backend.updateService.state==="downloading" ? "Cancel" : "Check updates";Layout.preferredHeight:26;enabled:Backend.updateService.state!=="installing";onClicked:{if(Backend.updateService.state==="available")startup.installUpdate();else if(Backend.updateService.state==="downloading")Backend.updateService.cancel();else Backend.updateService.checkForUpdates();}}
         }
     }
     Repeater {model:[Qt.LeftEdge,Qt.RightEdge,Qt.TopEdge,Qt.BottomEdge];MouseArea {

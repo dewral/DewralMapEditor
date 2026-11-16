@@ -57,6 +57,28 @@ Item {
             verify(manager.validation.success);verify(manager.save());compare(profiles.profileLabel("772"),"Renamed client");
             grabImage(manager.contentItem).save("build/DME-client-profiles-verify/profiles.png");manager.hide();
         }
+        function test_updateProgressFollowsDownloadAndHandoff() {
+            welcome.show();
+            const dialog = findChild(welcome, "startupUpdateDialog");
+            verify(dialog);
+            Backend.updateService.downloadProgress = 0.5;
+            Backend.updateService.state = "downloading";
+            tryCompare(dialog, "opened", true);
+            compare(dialog.percent, 20);
+            Backend.updateService.cancel();
+            tryCompare(dialog, "visible", false);
+
+            Backend.updateService.state = "installing";
+            tryCompare(dialog, "opened", true);
+            compare(dialog.percent, 40);
+            keyClick(Qt.Key_Escape);
+            verify(dialog.visible);
+            verify(!welcome.close());
+            Backend.updateService.state = "error";
+            tryCompare(dialog, "visible", false);
+            Backend.updateService.state = "upToDate";
+            welcome.hide();
+        }
         function test_cancelDraftDoesNotPersist(){manager.loadProfile("772");manager.editFile("dat","C:/other.dat");compare(profiles.profile("772").files.dat,undefined);manager.dirty=false;manager.loadProfile("772");compare(manager.draft.files.dat,undefined);}
     }
 }

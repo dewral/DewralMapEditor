@@ -1,11 +1,21 @@
+#include "../core/updaterruntime.h"
+
 #include <QApplication>
 #include <QCloseEvent>
 #include <QCoreApplication>
 #include <QDialog>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
+#include <QGuiApplication>
+#include <QScreen>
+#include <QSettings>
 #include <QLabel>
+#include <QLockFile>
 #include <QMetaObject>
+#include <QPainter>
+#include <QPixmap>
+#include <QtWidgets/qdrawutil.h>
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QProgressBar>
@@ -68,17 +78,18 @@ bool runPowerShell(const QString &script)
     return process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0;
 }
 
-bool waitForApplication(quint32 pid)
+bool waitForApplication(quint32 pid, int timeoutMs)
 {
 #ifdef Q_OS_WIN
     HANDLE process = OpenProcess(SYNCHRONIZE, FALSE, static_cast<DWORD>(pid));
     if (!process)
         return true;
-    const DWORD result = WaitForSingleObject(process, 5 * 60 * 1000);
+    const DWORD result = WaitForSingleObject(process, static_cast<DWORD>(timeoutMs));
     CloseHandle(process);
     return result == WAIT_OBJECT_0;
 #else
     Q_UNUSED(pid)
+    Q_UNUSED(timeoutMs)
     return true;
 #endif
 }
@@ -229,6 +240,21 @@ QString argumentValue(const QStringList &arguments, const QString &name)
     return index >= 0 && index + 1 < arguments.size() ? arguments[index + 1] : QString();
 }
 
+QString updaterTheme(const QString &requested, const QString &overrideStyle,
+                     const QString &saved)
+{
+    const auto supported = [](const QString &theme) {
+        return theme == QStringLiteral("tibia-ui") || theme == QStringLiteral("fluent-dark");
+    };
+    if (supported(requested))
+        return requested;
+    if (supported(overrideStyle))
+        return overrideStyle;
+    if (saved == QStringLiteral("fluent-dark") || saved == QStringLiteral("rme-fluent"))
+        return QStringLiteral("fluent-dark");
+    return QStringLiteral("tibia-ui");
+}
+
 void scheduleTemporaryRuntimeCleanup()
 {
     QDir runtime(QCoreApplication::applicationDirPath());
@@ -254,11 +280,12 @@ void scheduleTemporaryRuntimeCleanup()
 class UpdaterWindow final : public QDialog
 {
 public:
-    explicit UpdaterWindow(QWidget *parent = nullptr)
-        : QDialog(parent)
+    explicit UpdaterWindow(bool classic)
+        : QDialog(nullptr, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint),
+          m_frame(classic ? QPixmap(QStringLiteral(":/update/menubox.png")) : QPixmap())
     {
         setWindowTitle(QStringLiteral("Dewral Map Editor Update"));
-        setFixedSize(460, 205);
+        setFixedWidth(420);
 
         auto *layout = new QVBoxLayout(this);
         layout->setContentsMargins(24, 22, 24, 20);
@@ -278,12 +305,26 @@ public:
         m_progress->setTextVisible(true);
         layout->addWidget(m_progress);
 
-        layout->addStretch();
         m_closeButton = new QPushButton(QStringLiteral("Close"), this);
         m_closeButton->setFixedWidth(100);
         m_closeButton->setVisible(false);
         connect(m_closeButton, &QPushButton::clicked, this, &QDialog::accept);
         layout->addWidget(m_closeButton, 0, Qt::AlignRight);
+
+        if (classic) {
+            setStyleSheet(QStringLiteral(R"(
+                QLabel { color: #d5d1c7; font-family: Verdana; font-size: 12px; }
+                QLabel#heading { color: #f0eee6; font-size: 15px; font-weight: 600; }
+                QProgressBar { background: #222720; border: 1px solid #181b17;
+                               color: #f0eee6; text-align: center; border-radius: 7px; height: 14px; }
+                QProgressBar::chunk { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+                                       stop:0 #72ad5b, stop:1 #487a38); border-radius: 6px; }
+                QPushButton { background: #383832; color: #f0eee6;
+                              border: 1px solid #68665c; padding: 6px 16px; }
+                QPushButton:hover { background: #45453e; }
+            )"));
+            return;
+        }
 
         setStyleSheet(QStringLiteral(R"(
             QDialog { background: #0d1117; color: #e6edf3; }
@@ -298,6 +339,7 @@ public:
                           padding: 6px 16px; }
             QPushButton:hover { background: #30363d; }
         )"));
+
     }
 
     void showStandaloneMessage()
@@ -317,26 +359,51 @@ public:
         const QString target = argumentValue(arguments, QStringLiteral("--target"));
         const QString executable = argumentValue(arguments, QStringLiteral("--exe"));
         const QString expectedHash = argumentValue(arguments, QStringLiteral("--sha256"));
+        const QString readyPath = argumentValue(arguments, QStringLiteral("--ready-file"));
 
         bool pidOk = false;
         const quint32 pid = pidText.toUInt(&pidOk);
         if (!pidOk || archive.isEmpty() || target.isEmpty() || executable.isEmpty()
             || expectedHash.size() != 64 || !QFileInfo::exists(archive)
-            || !QFileInfo(target).isDir()) {
+            || !QFileInfo(target).isDir()
+            || (!readyPath.isEmpty() && QFileInfo(readyPath).absolutePath() != QCoreApplication::applicationDirPath())) {
             fail(QStringLiteral("The updater received invalid arguments."));
             return;
         }
 
         m_busy = true;
         QThread *worker = QThread::create([this, pid, archive, target,
-                                            executable, expectedHash]() {
-            runUpdate(pid, archive, target, executable, expectedHash);
+                                            executable, expectedHash, readyPath]() {
+            try {
+                runUpdate(pid, archive, target, executable, expectedHash, readyPath);
+            } catch (const std::exception &exception) {
+                log(QString::fromLocal8Bit(exception.what()).toStdWString());
+                fail(QStringLiteral("The update failed. See DMEUpdater.log for details."));
+            }
         });
         connect(worker, &QThread::finished, worker, &QObject::deleteLater);
         worker->start();
     }
 
 protected:
+    void paintEvent(QPaintEvent *event) override
+    {
+        if (m_frame.isNull()) {
+            QDialog::paintEvent(event);
+            return;
+        }
+        QPainter painter(this);
+        const QMargins border(3, 3, 3, 3);
+        qDrawBorderPixmap(&painter, rect(), border, m_frame, m_frame.rect(), border,
+                          QTileRules(Qt::RepeatTile));
+    }
+
+    void reject() override
+    {
+        if (!m_busy)
+            QDialog::reject();
+    }
+
     void closeEvent(QCloseEvent *event) override
     {
         if (m_busy)
@@ -367,17 +434,37 @@ private:
 
     void runUpdate(quint32 pid, const QString &archivePath,
                    const QString &targetPath, const QString &executable,
-                   QString expectedHash)
+                   QString expectedHash, const QString &readyPath)
     {
         logFile.open((fs::temp_directory_path() / L"DMEUpdater.log"), std::ios::trunc);
         log(L"DME updater started.");
 
+        QLockFile installLock(QDir(targetPath).filePath(QStringLiteral(".dme-update.lock")));
+        installLock.setStaleLockTime(0);
+        if (!installLock.tryLock(0)) {
+            fail(QStringLiteral("Could not lock the installation folder. Another update may be running."));
+            return;
+        }
+        if (!readyPath.isEmpty()) {
+            QFile ready(readyPath);
+            if (!ready.open(QIODevice::WriteOnly | QIODevice::NewOnly)) {
+                fail(QStringLiteral("Could not confirm updater startup."));
+                return;
+            }
+        }
+
         const fs::path target = targetPath.toStdWString();
         const fs::path targetExecutable = target / executable.toStdWString();
-        postStatus(QStringLiteral("Waiting for all DME windows to close..."), 5);
-        if (!waitForApplication(pid) || !waitForApplicationInstances(targetExecutable)) {
+        postStatus(QStringLiteral("Waiting for all DME windows to close..."), 42);
+        if (!waitForApplication(pid, readyPath.isEmpty() ? 300000 : 30000)
+            || !waitForApplicationInstances(targetExecutable)) {
             fail(QStringLiteral(
                 "Close every DME window before installing the update, then try again."));
+            return;
+        }
+
+        if (!readyPath.isEmpty() && !QFileInfo::exists(readyPath + QStringLiteral(".commit"))) {
+            fail(QStringLiteral("The editor did not authorize installation."));
             return;
         }
 
@@ -394,7 +481,7 @@ private:
             return;
         }
 
-        postStatus(QStringLiteral("Verifying the downloaded package..."), 15);
+        postStatus(QStringLiteral("Verifying the downloaded package..."), 45);
         expectedHash = expectedHash.toUpper();
         const QString script =
             QStringLiteral("$actual=(Get-FileHash -Algorithm SHA256 -LiteralPath %1).Hash; "
@@ -402,7 +489,7 @@ private:
                            "Expand-Archive -LiteralPath %1 -DestinationPath %3 -Force")
                 .arg(powershellQuote(archivePath), powershellQuote(expectedHash),
                      powershellQuote(QString::fromStdWString(staging.wstring())));
-        postStatus(QStringLiteral("Extracting the update..."), 30);
+        postStatus(QStringLiteral("Extracting the update..."), 50);
         if (!runPowerShell(script)) {
             fs::remove_all(work, error);
             fail(QStringLiteral("The update could not be verified or extracted."));
@@ -420,15 +507,24 @@ private:
         if (!installFiles(source, target, backup, [this](int value) {
                 postStatus(QStringLiteral("Installing application files..."), value);
             })) {
-            fs::remove_all(work, error);
-            fail(QStringLiteral("Installation failed. Existing files were restored."));
+            fail(QStringLiteral("Installation failed. Recovery files are in %1.")
+                     .arg(QString::fromStdWString(work.wstring())));
             return;
         }
 
         postStatus(QStringLiteral("Update installed. Restarting DME..."), 96);
         fs::remove_all(work, error);
         fs::remove(archive, error);
-        if (!QProcess::startDetached(QDir(targetPath).filePath(executable), {}, targetPath)) {
+        QProcess editor;
+        editor.setProgram(QDir(targetPath).filePath(executable));
+        editor.setWorkingDirectory(targetPath);
+        auto environment = QProcessEnvironment::systemEnvironment();
+        if (!readyPath.isEmpty()) {
+            environment.remove(QStringLiteral("QT_PLUGIN_PATH"));
+            environment.remove(QStringLiteral("QT_QPA_PLATFORM"));
+        }
+        editor.setProcessEnvironment(environment);
+        if (!editor.startDetached()) {
             fail(QStringLiteral("The update was installed, but DME could not be restarted."));
             return;
         }
@@ -440,6 +536,7 @@ private:
         }, Qt::QueuedConnection);
     }
 
+    const QPixmap m_frame;
     QLabel *m_status = nullptr;
     QProgressBar *m_progress = nullptr;
     QPushButton *m_closeButton = nullptr;
@@ -452,13 +549,33 @@ int main(int argc, char *argv[])
     application.setApplicationName(QStringLiteral("DMEUpdater"));
     // Exercise the Windows loader and Qt platform plugin without installing anything.
     if (application.arguments().contains(QStringLiteral("--smoke-test")))
-        return 0;
+        return application.arguments().contains(QStringLiteral("--require-handoff"))
+            ? UpdaterRuntime::handoffProbeExitCode : 0;
     QObject::connect(&application, &QCoreApplication::aboutToQuit,
                      &application, &scheduleTemporaryRuntimeCleanup);
 
-    UpdaterWindow window;
-    window.show();
     const QStringList arguments = application.arguments().mid(1);
+    const QSettings settings(QSettings::NativeFormat, QSettings::UserScope,
+                             QStringLiteral("Dewral"), QStringLiteral("DewralMapEditor"));
+    const QString theme = updaterTheme(
+        argumentValue(arguments, QStringLiteral("--theme")),
+        qEnvironmentVariable("DME_UI_STYLE_OVERRIDE"),
+        settings.value(QStringLiteral("ui/style")).toString());
+    UpdaterWindow window(theme == QStringLiteral("tibia-ui"));
+    window.adjustSize();
+    bool hasX = false, hasY = false;
+    const int x = argumentValue(arguments, QStringLiteral("--center-x")).toInt(&hasX);
+    const int y = argumentValue(arguments, QStringLiteral("--center-y")).toInt(&hasY);
+    const QPoint center(x, y);
+    const QScreen *screen = hasX && hasY ? QGuiApplication::screenAt(center) : nullptr;
+    const QRect area = (screen ? screen : QGuiApplication::primaryScreen())->availableGeometry();
+    const QPoint anchor = screen ? center : area.center();
+    window.move(qBound(area.left(), anchor.x() - window.width() / 2,
+                       qMax(area.left(), area.right() - window.width() + 1)),
+                qBound(area.top(), anchor.y() - window.height() / 2,
+                       qMax(area.top(), area.bottom() - window.height() + 1)));
+    QObject::connect(&window, &QDialog::finished, &application, &QCoreApplication::quit);
+    window.show();
     if (arguments.isEmpty())
         window.showStandaloneMessage();
     else

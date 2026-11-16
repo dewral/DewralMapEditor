@@ -19,6 +19,14 @@ Window {
     property string loadingMapPath: ""
     property string loadingProfileKey: ""
 
+    readonly property bool installingUpdate: Backend.updateService.state === "installing"
+    readonly property bool downloadingUpdate: Backend.updateService.state === "downloading"
+
+    function installUpdate() {
+        Backend.updateService.downloadAndInstall(Backend.uiTheme.style,
+            Math.round(x + width / 2), Math.round(y + height / 2));
+    }
+
     Component.onCompleted: Backend.updateService.checkForUpdates()
 
     function showError(message) {
@@ -108,7 +116,12 @@ Window {
     }
 
     transientParent: null
-    onClosing: Qt.exit(0)
+    onClosing: function(close) {
+        if (installingUpdate)
+            close.accepted = false;
+        else
+            Qt.exit(0);
+    }
     visible: !editorReady
     width: loadingMap ? 460 : nativeDashboard ? 1000 : 800
     height: loadingMap ? 190 : nativeDashboard ? 660 : 600
@@ -430,7 +443,7 @@ Window {
                                     : Backend.updateService.state === "downloading" ? "Cancel" : "Retry"
                                 onClicked: {
                                     if (Backend.updateService.state === "available")
-                                        Backend.updateService.downloadAndInstall();
+                                        startupScreen.installUpdate();
                                     else if (Backend.updateService.state === "downloading")
                                         Backend.updateService.cancel();
                                     else
@@ -604,6 +617,82 @@ Window {
         }
     }
 
+    component StartupProgressBar: Rectangle {
+        id: progressTrack
+        required property real percent
+        objectName: "startupProgressTrack"
+        readonly property bool classicBar: Backend.uiTheme.style === "tibia-ui"
+        width: parent.width
+        height: classicBar ? 14 : 7
+        radius: classicBar ? height / 2 : 4
+        color: classicBar ? "#202020" : (Colors.c("scrollTrack"))
+        border.width: classicBar ? 1 : 0
+        border.color: "#181b17"
+        gradient: classicBar ? emptyBarGradient : null
+        Gradient {
+            id: emptyBarGradient
+            GradientStop { position: 0; color: "#1a1c18" }
+            GradientStop { position: 0.5; color: "#292d26" }
+            GradientStop { position: 1; color: "#1d211b" }
+        }
+
+        Rectangle {
+            id: progressChunk
+            objectName: "startupProgressFill"
+            width: Math.round(progressTrack.width * Math.max(0, Math.min(100, progressTrack.percent)) / 100)
+            visible: width > 0
+            height: parent.height
+            radius: progressTrack.classicBar ? Math.min(height / 2, width / 2) : 4
+            border.width: progressTrack.classicBar ? 1 : 0
+            border.color: "#35572a"
+            gradient: progressTrack.classicBar ? filledBarGradient : null
+            Gradient {
+                id: filledBarGradient
+                // OTCv8 darkens the fill towards the bottom; avoid a central gloss band.
+                GradientStop { position: 0; color: "#72ad5b" }
+                GradientStop { position: 1; color: "#487a38" }
+            }
+            color: progressTrack.classicBar ? "#5d9449" : (Colors.c("loading"))
+
+            Behavior on width {
+                NumberAnimation { duration: 25; easing.type: Easing.OutCubic }
+            }
+        }
+
+    }
+
+    DmeDialog {
+        id: updateDialog
+        objectName: "startupUpdateDialog"
+        title: "Updating Dewral Map Editor"
+        width: 420
+        movable: false
+        closePolicy: Popup.NoAutoClose
+        visible: startupScreen.downloadingUpdate || startupScreen.installingUpdate
+        readonly property int percent: startupScreen.installingUpdate ? 40
+            : Math.round(Backend.updateService.downloadProgress * 40)
+
+        contentItem: Column {
+            spacing: 10
+
+            Text {
+                width: parent.width
+                text: (startupScreen.installingUpdate ? "Preparing installation..." : "Downloading update...")
+                      + "  " + updateDialog.percent + "%"
+                color: Colors.c("text")
+                font.family: Colors.family()
+                font.pixelSize: 13
+            }
+            StartupProgressBar { percent: updateDialog.percent }
+            DmeButton {
+                anchors.right: parent.right
+                text: "Cancel"
+                visible: startupScreen.downloadingUpdate
+                onClicked: Backend.updateService.cancel()
+            }
+        }
+    }
+
     Loader {
         objectName: "startupLoadingHost"
         anchors.centerIn: parent
@@ -661,48 +750,7 @@ Window {
                     }
                 }
 
-                Rectangle {
-                    id: progressTrack
-                    objectName: "startupProgressTrack"
-                    readonly property bool classicBar: Backend.uiTheme.style === "tibia-ui"
-                    width: parent.width
-                    height: classicBar ? 14 : 7
-                    radius: classicBar ? height / 2 : 4
-                    color: classicBar ? "#202020" : (Colors.c("scrollTrack"))
-                    border.width: classicBar ? 1 : 0
-                    border.color: "#181b17"
-                    gradient: classicBar ? emptyBarGradient : null
-                    Gradient {
-                        id: emptyBarGradient
-                        GradientStop { position: 0; color: "#1a1c18" }
-                        GradientStop { position: 0.5; color: "#292d26" }
-                        GradientStop { position: 1; color: "#1d211b" }
-                    }
-
-                    Rectangle {
-                        id: progressChunk
-                        objectName: "startupProgressFill"
-                        width: Math.round(progressTrack.width * Math.max(0, Math.min(100, Backend.otbmReader.loadingProgress)) / 100)
-                        visible: width > 0
-                        height: parent.height
-                        radius: progressTrack.classicBar ? Math.min(height / 2, width / 2) : 4
-                        border.width: progressTrack.classicBar ? 1 : 0
-                        border.color: "#35572a"
-                        gradient: progressTrack.classicBar ? filledBarGradient : null
-                        Gradient {
-                            id: filledBarGradient
-                            // OTCv8 darkens the fill towards the bottom; avoid a central gloss band.
-                            GradientStop { position: 0; color: "#72ad5b" }
-                            GradientStop { position: 1; color: "#487a38" }
-                        }
-                        color: progressTrack.classicBar ? "#5d9449" : (Colors.c("loading"))
-
-                        Behavior on width {
-                            NumberAnimation { duration: 25; easing.type: Easing.OutCubic }
-                        }
-                    }
-
-                }
+                StartupProgressBar { percent: Backend.otbmReader.loadingProgress }
 
                 Text {
                     text: Backend.otbmReader.loadingStage.length > 0

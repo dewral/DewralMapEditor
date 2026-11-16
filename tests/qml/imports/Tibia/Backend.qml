@@ -172,6 +172,8 @@ QtObject {
         function indexOfPath(path) { return -1; }
     }
     property QtObject updateService: QtObject {
+        property real downloadProgress: 0
+        function cancel() { state = "available"; }
         property string currentVersion: "test"
         property string state: "upToDate"
         property string errorString:""

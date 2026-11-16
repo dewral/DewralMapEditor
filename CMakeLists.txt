@@ -865,6 +865,7 @@ add_custom_command(TARGET DewralMapEditor POST_BUILD
 if(WIN32)
     add_executable(DMEUpdater WIN32
         editor/updater/main.cpp
+        editor/updater/resources.qrc
         editor/windows/DME.rc)
     target_compile_features(DMEUpdater PRIVATE cxx_std_17)
     target_link_libraries(DMEUpdater PRIVATE Qt6::Widgets)

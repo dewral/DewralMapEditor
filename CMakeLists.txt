@@ -352,6 +352,11 @@ if(BUILD_TESTING)
     target_include_directories(hotkey_settings_test PRIVATE editor/core)
     target_link_libraries(hotkey_settings_test PRIVATE Qt6::Gui Qt6::Qml)
     add_test(NAME hotkey_settings COMMAND hotkey_settings_test)
+    add_executable(animation_preview_test EXCLUDE_FROM_ALL tests/animation_preview_test.cpp)
+    target_link_libraries(animation_preview_test PRIVATE OTFormats)
+    add_test(NAME animation_preview COMMAND animation_preview_test)
+    set_tests_properties(animation_preview PROPERTIES
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
     find_package(Qt6 QUIET COMPONENTS QuickTest)
     if(TARGET Qt6::QuickTest)
         add_executable(tibia_ui_qml_test EXCLUDE_FROM_ALL tests/tibia_ui_qml.cpp
@@ -389,7 +394,11 @@ if(BUILD_TESTING)
             -platform "${_dme_theme_test_platform}"
             -input "${CMAKE_SOURCE_DIR}/tests/qml/tst_container_dialog.qml"
             -import "${CMAKE_SOURCE_DIR}/tests/qml/imports")
-        set_tests_properties(tibia_ui_qml classic_panels_qml search_results_qml save_feedback_qml item_properties_teleport_qml container_dialog_qml PROPERTIES
+        add_test(NAME animation_preview_qml COMMAND tibia_ui_qml_test
+            -platform "${_dme_theme_test_platform}"
+            -input "${CMAKE_SOURCE_DIR}/tests/qml/tst_animation_preview.qml"
+            -import "${CMAKE_SOURCE_DIR}/tests/qml/imports")
+        set_tests_properties(tibia_ui_qml classic_panels_qml search_results_qml save_feedback_qml item_properties_teleport_qml container_dialog_qml animation_preview_qml PROPERTIES
             WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
             ENVIRONMENT "QT_QUICK_CONTROLS_STYLE=Basic;QT_QUICK_BACKEND=software"
             ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"

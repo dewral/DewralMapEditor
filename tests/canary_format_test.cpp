@@ -73,9 +73,15 @@ int main(int argc,char **argv) {
  REQUIRE(image.pixelColor(0,0)==QColor(1,2,3,255)); REQUIRE(image.pixelColor(1,0).alpha()==0);
  const auto appearance=QByteArray::fromHex("0864120608021a0228011a040a020864220454696c65");
  QByteArray protobuf(1,char(0x0a)); protobuf.append(char(appearance.size())); protobuf.append(appearance);
+ // Protobuf category 4: a missile with its own ID and sprite group.
+ const auto missile=QByteArray::fromHex("0801120608021a022801");
+ protobuf.append(char(0x22)); protobuf.append(char(missile.size())); protobuf.append(missile);
  REQUIRE(put(dir.filePath("appearances.dat"),protobuf));
  AppearancesReader appearances; DatReader definitions;
  REQUIRE(definitions.loadAppearances(appearances,dir.path())); REQUIRE(definitions.isAppearanceClient());
+ REQUIRE(definitions.animationIds(true)==QVariantList{1});
+ REQUIRE(definitions.missileById(1) && definitions.missileById(1)->previewSpriteId()==1);
+ REQUIRE(definitions.animationPreview(true,1,0,2).value("ids").toList()==QVariantList{1u});
  OtbReader items; items.setDatReader(&definitions); REQUIRE(items.buildFromAppearances(definitions,appearances.takeItemInfo()));
  REQUIRE(items.clientIdForServerId(100)==100); REQUIRE(items.isClientGroundForServerId(100));
  AppearanceSpriteSource::registerSource(appearances.source()); SprReader decoder;

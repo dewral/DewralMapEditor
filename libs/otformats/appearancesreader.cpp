@@ -643,7 +643,7 @@ std::vector<ClientItem> denseCategory(const std::vector<ParsedAppearance> &parse
 bool AppearancesReader::load(const QString &folder)
 {
     m_error.clear();
-    m_items.clear(); m_outfits.clear(); m_effects.clear(); m_info.clear();
+    m_items.clear(); m_outfits.clear(); m_effects.clear(); m_missiles.clear(); m_info.clear();
     auto source = std::make_shared<AppearanceSpriteSource>();
     if (!source->loadCatalog(catalogPathFor(folder), &m_error)) return false;
 
@@ -655,16 +655,16 @@ bool AppearancesReader::load(const QString &folder)
     const QByteArray raw = file.readAll();
     Pb root(reinterpret_cast<const uchar *>(raw.constData()), raw.size());
 
-    std::vector<ParsedAppearance> objects, outfits, effects;
+    std::vector<ParsedAppearance> objects, outfits, effects, missiles;
     uint32_t field = 0, wire = 0;
     while (root.next(field, wire)) {
-        if (wire != 2 || field < 1 || field > 3) { root.skip(wire); continue; }
+        if (wire != 2 || field < 1 || field > 4) { root.skip(wire); continue; }
         ParsedAppearance appearance;
         if (!parseAppearance(root.sub(), appearance)) {
             m_error = QStringLiteral("Corrupt appearance record in %1").arg(source->appearancesPath());
             return false;
         }
-        (field == 1 ? objects : field == 2 ? outfits : effects).push_back(std::move(appearance));
+        (field == 1 ? objects : field == 2 ? outfits : field == 3 ? effects : missiles).push_back(std::move(appearance));
     }
     if (!root.ok()) {
         m_error = QStringLiteral("Corrupt appearances file: %1").arg(source->appearancesPath());
@@ -676,7 +676,7 @@ bool AppearancesReader::load(const QString &folder)
     }
 
     std::vector<uint32_t> realIds;
-    for (const auto *category : {&objects, &outfits, &effects})
+    for (const auto *category : {&objects, &outfits, &effects, &missiles})
         for (const ParsedAppearance &appearance : *category)
             for (const ParsedGroup &group : appearance.groups)
                 realIds.insert(realIds.end(), group.sprites.begin(), group.sprites.end());
@@ -691,11 +691,12 @@ bool AppearancesReader::load(const QString &folder)
     }
     source->buildVirtualTable(std::move(realIds));
 
-    uint32_t maxObject = 0, maxOutfit = 0, maxEffect = 0;
+    uint32_t maxObject = 0, maxOutfit = 0, maxEffect = 0, maxMissile = 0;
     for (const auto &a : objects) maxObject = std::max(maxObject, a.id);
     for (const auto &a : outfits) maxOutfit = std::max(maxOutfit, a.id);
     for (const auto &a : effects) maxEffect = std::max(maxEffect, a.id);
-    if (maxObject > 65535 || maxOutfit > 65535 || maxEffect > 65535) {
+    for (const auto &a : missiles) maxMissile = std::max(maxMissile, a.id);
+    if (maxObject > 65535 || maxOutfit > 65535 || maxEffect > 65535 || maxMissile > 65535) {
         m_error = QStringLiteral("Appearance ids above 65535 are not supported");
         return false;
     }
@@ -708,6 +709,9 @@ bool AppearancesReader::load(const QString &folder)
         convert(a, src, item, true);
     });
     m_effects = denseCategory(effects, 1, maxEffect, [&](const ParsedAppearance &a, ClientItem &item) {
+        convert(a, src, item, false);
+    });
+    m_missiles = denseCategory(missiles, 1, maxMissile, [&](const ParsedAppearance &a, ClientItem &item) {
         convert(a, src, item, false);
     });
     m_maxItemId = uint16_t(maxObject);

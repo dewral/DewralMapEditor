@@ -117,6 +117,7 @@ public:
     std::vector<ClientItem> takeItems() { return std::move(m_items); }
     std::vector<ClientItem> takeOutfits() { return std::move(m_outfits); }
     std::vector<ClientItem> takeEffects() { return std::move(m_effects); }
+    std::vector<ClientItem> takeMissiles() { return std::move(m_missiles); }
     QHash<uint16_t, AppearanceItemInfo> takeItemInfo() { return std::move(m_info); }
     std::shared_ptr<AppearanceSpriteSource> source() const { return m_source; }
     uint16_t maxItemId() const { return m_maxItemId; }
@@ -130,6 +131,7 @@ private:
     std::vector<ClientItem> m_items;
     std::vector<ClientItem> m_outfits;
     std::vector<ClientItem> m_effects;
+    std::vector<ClientItem> m_missiles;
     QHash<uint16_t, AppearanceItemInfo> m_info;
     std::shared_ptr<AppearanceSpriteSource> m_source;
     uint16_t m_maxItemId = 0;

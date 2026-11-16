@@ -183,6 +183,14 @@ public:
     Q_INVOKABLE QVariantMap itemPreview(int clientId) const;
 
     const ClientItem *effectById(int id) const;
+    const ClientItem *missileById(int id) const;
+
+    // Read-only asset browser. Playback intentionally repeats for inspection.
+    Q_INVOKABLE QVariantList animationIds(bool missile) const;
+    Q_INVOKABLE QVariantMap animationPreview(bool missile, int id, qint64 elapsedMs,
+                                             int direction, int frame = -1) const;
+    Q_INVOKABLE QVariantList previewGroundIds() const;
+    Q_INVOKABLE QVariantMap groundTilePreview(int clientId, int x, int y) const;
 
 signals:
     void itemCountChanged();
@@ -209,6 +217,7 @@ private:
 
     std::vector<ClientItem> m_items;
     std::vector<ClientItem> m_effects;
+    std::vector<ClientItem> m_missiles;
     std::vector<ClientItem> m_outfits;
     int m_clientVersion = 772;
     bool m_otfiActive = false;

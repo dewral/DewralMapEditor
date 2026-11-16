@@ -1,6 +1,7 @@
 # Explicit QML/JavaScript manifest. Keep resource URLs under qrc:/qml/.
 set(DME_QML_FILES
     editor/qml/EditorScene.qml
+    editor/qml/dialogs/AnimationPreviewDialog.qml
     editor/qml/Main.qml
     editor/qml/PalettePanel.qml
     editor/qml/StartupWindow.qml

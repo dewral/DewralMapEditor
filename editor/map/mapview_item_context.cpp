@@ -329,6 +329,7 @@ QVariantMap MapView::contextInfo() const
              tile ? tile->creature_name.value() : QString());
     m.insert(QStringLiteral("creatureIsNpc"), tile && tile->creature_is_npc);
     m.insert(QStringLiteral("creatureSpawntime"), tile ? tile->creature_spawntime : 0);
+    m.insert(QStringLiteral("creatureDirection"), tile ? tile->creature_direction : 0);
     m.insert(QStringLiteral("spawnRadius"), tile ? tile->spawn_radius : 0);
     m.insert(QStringLiteral("npcSpawnRadius"), m_otbm ? m_otbm->npcSpawnRadiusAt(m_itemController.contextX(),m_itemController.contextY(),m_navigationController.floor()) : 0);
     int spawnCreatureCount = 0;

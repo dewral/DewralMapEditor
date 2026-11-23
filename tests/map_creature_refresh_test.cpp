@@ -246,6 +246,56 @@ bool atlasBudget(const QTemporaryDir &directory)
 #include "map_item_location_checks.h"
 #include "map_rubber_band_checks.h"
 
+bool testCreatureDirections()
+{
+    QTemporaryDir directory;
+    if (!require(directory.isValid(), "Could not create direction fixtures")) return false;
+    for (bool canary : {false, true}) {
+        for (bool npc : {false, true}) {
+            OtbmReader map;
+            if (!map.newMap(64, 64, canary ? 1511 : 860, 2, 22, canary ? 1 : 0)
+                || !map.addItem(10, 10, 7, 100)
+                || !map.setCreatureAt(10, 10, 7, npc ? "Guide" : "Rat", 60, npc))
+                return false;
+            MapView view;
+            view.setOtbm(&map);
+            view.setFloor(7);
+            if (!view.setContextAt(10, 10, 7, 0)) return false;
+            for (int direction = 0; direction < 4; ++direction) {
+                const int previous = map.tileAt(10, 10, 7)->creature_direction;
+                const int previousTime = map.tileAt(10, 10, 7)->creature_spawntime;
+                if (!require(view.applyContextCreatureProperties(90 + direction, direction),
+                             "Creature properties were not applied")) return false;
+                if (!require(view.contextInfo().value("creatureDirection").toInt() == direction,
+                             "Context direction did not update")) return false;
+                view.undo();
+                if (!require(map.tileAt(10, 10, 7)->creature_direction == previous
+                             && map.tileAt(10, 10, 7)->creature_spawntime == previousTime,
+                             "Undo did not restore direction and time together")) return false;
+                view.redo();
+                if (!require(view.applyContextCreatureProperties(90 + direction, (direction + 1) % 4)
+                             && map.tileAt(10, 10, 7)->creature_direction == (direction + 1) % 4,
+                             "Changing direction alone did not update the creature")) return false;
+                view.undo();
+                const QString path = directory.filePath("direction.otbm");
+                OtbmReader reloaded;
+                if (!require(map.saveFile(path) && reloaded.loadFile(path)
+                             && reloaded.tileAt(10, 10, 7)->creature_direction == direction
+                             && reloaded.tileAt(10, 10, 7)->creature_spawntime == 90 + direction
+                             && reloaded.tileAt(10, 10, 7)->creature_is_npc == npc,
+                             "Direction or spawn time changed after save and reload")) return false;
+            }
+            if (!require(!view.applyContextCreatureProperties(90, 4)
+                         && !view.applyContextCreatureProperties(90, -2)
+                         && view.setContextCreatureSpawntime(120)
+                         && map.tileAt(10, 10, 7)->creature_direction == 3,
+                         "Invalid direction was accepted or legacy time setter changed direction"))
+                return false;
+        }
+    }
+    return true;
+}
+
 int main(int argc, char **argv)
 {
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
@@ -262,6 +312,8 @@ int main(int argc, char **argv)
     QCoreApplication::setApplicationName(QStringLiteral("MapView"));
     QSettings::setDefaultFormat(QSettings::IniFormat);
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDirectory.path());
+    if (application.arguments().contains("--creature-direction-only"))
+        return testCreatureDirections() ? 0 : 1;
     if (application.arguments().contains("--goto-render-only"))
         return testGoToRendering() ? 0 : 1;
     if (application.arguments().contains(QStringLiteral("--rubber-band-only")))
@@ -306,6 +358,7 @@ int main(int argc, char **argv)
         if (!require(pixels[0] == 0xff808080u,
                      "White ambient must preserve the previous grayscale lighting")) return 1;
     }
+
     if (!testMapHotkeys()) return 1;
     if (!testContextBrushes()) return 1;
     if (!testRawSpriteErase()) return 1;

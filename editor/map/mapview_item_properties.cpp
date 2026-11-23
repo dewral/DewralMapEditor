@@ -58,17 +58,23 @@ bool MapView::setContextSpawnRadius(int radius)
 
 bool MapView::setContextCreatureSpawntime(int seconds)
 {
-    if (!m_otbm) return false;
+    return applyContextCreatureProperties(seconds, -1);
+}
+
+bool MapView::applyContextCreatureProperties(int seconds, int direction)
+{
+    if (!m_otbm || direction < -1 || direction > 3) return false;
     seconds = std::clamp(seconds, 1, 86400);
     bool changed = false;
     {
         std::lock_guard<std::recursive_mutex> dlk(m_dataMutex);
         const OtbmTile *t = currentFloorTileAt(m_itemController.contextX(), m_itemController.contextY());
         if (!t || t->creature_name.isEmpty()) return false;
-        if (t->creature_spawntime == seconds) return false;
+        if (direction == -1) direction = t->creature_direction;
+        if (t->creature_spawntime == seconds && t->creature_direction == direction) return false;
 
         changed = m_otbm->setCreatureAt(m_itemController.contextX(), m_itemController.contextY(), m_navigationController.floor(),
-                                        t->creature_name, seconds, t->creature_is_npc);
+                                        t->creature_name, seconds, t->creature_is_npc, direction);
         if (changed) {
             onTileEdited(m_itemController.contextX(),
                          m_itemController.contextY(),

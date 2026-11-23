@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import Tibia 1.0
 import "../../editor/qml/dialogs" as Dialogs
 
 Item {
@@ -9,6 +10,11 @@ Item {
     QtObject {
         id: map
         property var received: ({})
+        property var creatureEdits: []
+        function applyContextCreatureProperties(seconds, direction) {
+            creatureEdits.push({seconds: seconds, direction: direction});
+            return true;
+        }
         function applyContextItemProperties(properties) { received = properties; return true; }
     }
     Component {
@@ -30,6 +36,41 @@ Item {
     TestCase {
         name: "ItemPropertiesAttributes"
         when: windowShown
+        function test_creatureDirection_data() {
+            const cases = [];
+            for (const theme of ["tibia-ui", "fluent-dark"]) {
+                for (let direction = 0; direction < 4; ++direction) {
+                    cases.push({tag: theme + direction, theme: theme, direction: direction});
+                }
+            }
+            return cases;
+        }
+        function test_creatureDirection(data) {
+            Backend.uiTheme.style = data.theme;
+            map.creatureEdits = [];
+            const dialog = createTemporaryObject(dialogComponent, root, {
+                ctx: {hasItem: false, creatureName: "Rat", creatureSpawntime: 75,
+                      creatureDirection: data.direction}
+            });
+            verify(dialog !== null);
+            dialog.open();
+            tryCompare(dialog, "opened", true);
+            const direction = findChild(dialog, "creatureDirectionField");
+            verify(direction !== null && direction.visible);
+            compare(direction.currentIndex, data.direction);
+            compare(direction.currentText, ["North", "East", "South", "West"][data.direction]);
+            direction.currentIndex = (data.direction + 1) % 4;
+            dialog.reject();
+            compare(map.creatureEdits.length, 0);
+            dialog.open();
+            tryCompare(dialog, "opened", true);
+            compare(direction.currentIndex, data.direction);
+            direction.currentIndex = (data.direction + 1) % 4;
+            dialog.applyAndClose();
+            compare(map.creatureEdits.length, 1);
+            compare(map.creatureEdits[0].seconds, 75);
+            compare(map.creatureEdits[0].direction, (data.direction + 1) % 4);
+        }
         function test_fluidNamesKeepStoredSubtypes_data() {
             return [
                 {tag: "water", subtype: 1, label: "Water"},

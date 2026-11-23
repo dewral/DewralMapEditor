@@ -660,6 +660,7 @@ public:
     Q_INVOKABLE bool setContextItemCount(int count);
 
     Q_INVOKABLE bool setContextCreatureSpawntime(int seconds);
+    Q_INVOKABLE bool applyContextCreatureProperties(int seconds, int direction);
 
     Q_INVOKABLE bool setContextSpawnCreatureSpawntime(int seconds);
 

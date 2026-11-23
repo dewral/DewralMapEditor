@@ -71,6 +71,8 @@ DmeDialog {
         teleY.value = ctx.teleportY > 0 ? ctx.teleportY : 0;
         teleZ.value = ctx.teleportZ > 0 ? ctx.teleportZ : 0;
         spawntimeField.value = ctx.creatureSpawntime > 0 ? ctx.creatureSpawntime : 60;
+        directionField.currentIndex = ctx.creatureDirection >= 0 && ctx.creatureDirection <= 3
+                ? ctx.creatureDirection : 0;
         areaSpawntimeField.value = ctx.spawnCreatureSpawntime > 0
                 ? ctx.spawnCreatureSpawntime : 60;
         radiusField.value = ctx.spawnRadius > 0 ? ctx.spawnRadius : 1;
@@ -149,7 +151,7 @@ DmeDialog {
         }
 
         if (mapCtrl && hasCreature)
-            mapCtrl.setContextCreatureSpawntime(spawntimeField.value);
+            mapCtrl.applyContextCreatureProperties(spawntimeField.value, directionField.currentIndex);
         if (mapCtrl && hasSpawn && !hasCreature && spawnCreatureCount > 0)
             mapCtrl.setContextSpawnCreatureSpawntime(areaSpawntimeField.value);
         if (mapCtrl && hasSpawn)
@@ -425,6 +427,19 @@ DmeDialog {
                 spacing: 6
                 Text { text:"NPC spawn radius (0 = remove area)"; color:"#999"; font.pixelSize:11 }
                 DmeSpinBox { id:npcRadiusField; width:100; from:0; to:65535 }
+            }
+            Text {
+                visible: propsDialog.hasCreature
+                text: "Direction"
+                color: "#999"
+                font.pixelSize: 11
+            }
+            DmeComboBox {
+                id: directionField
+                objectName: "creatureDirectionField"
+                visible: propsDialog.hasCreature
+                width: 160
+                model: ["North", "East", "South", "West"]
             }
             Text {
                 visible: propsDialog.hasCreature
